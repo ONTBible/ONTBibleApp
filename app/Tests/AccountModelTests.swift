@@ -1,0 +1,180 @@
+import Foundation
+import ONTData
+import ONTKit
+import Testing
+
+@testable import YouFeature
+
+/// Le compte et la fusion, sur des doublures.
+///
+/// Aucun réseau, aucun trousseau : ce sont les protocoles d'`ONTKit` qui
+/// rendent ces tests possibles.
+@MainActor
+struct AccountModelTests {
+    // MARK: - Doublures
+
+    final class FakeAuth: AuthService, @unchecked Sendable {
+        func signIn(
+            provider: AuthProvider, code: String, redirectURI: String, verifier: String?
+        ) async throws -> Session {
+            .init(accessToken: "a", refreshToken: "r", expiresAt: .distantFuture)
+        }
+        func refresh(_ refreshToken: String) async throws -> Session {
+            .init(accessToken: "a2", refreshToken: "r2", expiresAt: .distantFuture)
+        }
+    }
+
+    final class FakeSync: SyncService, @unchecked Sendable {
+        var remote = SyncPayload()
+        var pushed: SyncPayload?
+        var erased = false
+
+        func pull(since: Date?) async throws -> SyncPayload { remote }
+        func push(_ payload: SyncPayload) async throws { pushed = payload }
+        func erase() async throws { erased = true }
+    }
+
+    final class FakeHighlights: HighlightRepository {
+        var stored: [String: Highlight] = [:]
+        func all() -> [Highlight] { Array(stored.values) }
+        func highlight(chapterId: String, verse: Int) -> Highlight? {
+            stored[Highlight.key(chapterId: chapterId, verse: verse)]
+        }
+        func save(_ highlight: Highlight) { stored[highlight.key] = highlight }
+        func remove(_ highlight: Highlight) { stored[highlight.key] = nil }
+    }
+
+    final class FakePositions: PositionRepository {
+        var position: ReadingPosition?
+        func remember(_ position: ReadingPosition) { self.position = position }
+    }
+
+    private func makeModel(
+        signedIn: Bool = true,
+        consent: Bool = true
+    ) -> (AccountModel, FakeSync, FakeHighlights) {
+        let sync = FakeSync()
+        let highlights = FakeHighlights()
+        let store = InMemorySessionStore(
+            session: signedIn
+                ? Session(accessToken: "a", refreshToken: "r", expiresAt: .distantFuture)
+                : nil,
+            consent: consent ? .grantedNow() : .none
+        )
+        let model = AccountModel(
+            auth: FakeAuth(),
+            sync: sync,
+            store: store,
+            highlights: highlights,
+            positions: FakePositions(),
+            flow: SignInFlow(baseURL: URL(string: "https://exemple.test")!)
+        )
+        return (model, sync, highlights)
+    }
+
+    private func highlight(_ verse: Int, _ color: HighlightColor, at seconds: TimeInterval)
+        -> Highlight {
+        Highlight(
+            bookId: "bereshit", chapterId: "bereshit-18", verse: verse,
+            color: color, updatedAt: Date(timeIntervalSince1970: seconds)
+        )
+    }
+
+    // MARK: - Consentement
+
+    @Test("sans consentement, rien ne part")
+    func requiresConsent() async {
+        let (model, sync, _) = makeModel(consent: false)
+        await model.synchronise()
+
+        #expect(sync.pushed == nil, "aucune donnée ne doit quitter l'appareil")
+    }
+
+    @Test("sans compte, rien ne part non plus")
+    func requiresAccount() async {
+        let (model, sync, _) = makeModel(signedIn: false)
+        await model.synchronise()
+
+        #expect(sync.pushed == nil)
+    }
+
+    @Test("retirer le consentement oublie la dernière synchronisation")
+    func withdrawal() {
+        let (model, _, _) = makeModel()
+        model.consent = false
+
+        #expect(!model.consent)
+        #expect(model.lastSync == nil)
+    }
+
+    // MARK: - Fusion
+
+    @Test("un surlignage distant plus récent gagne")
+    func remoteWins() async {
+        let (model, sync, highlights) = makeModel()
+        highlights.save(highlight(19, .gold, at: 1_000))
+        sync.remote = SyncPayload(highlights: [highlight(19, .sky, at: 2_000)])
+
+        await model.synchronise()
+
+        #expect(highlights.highlight(chapterId: "bereshit-18", verse: 19)?.color == .sky)
+    }
+
+    @Test("un surlignage local plus récent résiste")
+    func localWins() async {
+        let (model, sync, highlights) = makeModel()
+        highlights.save(highlight(19, .sky, at: 2_000))
+        sync.remote = SyncPayload(highlights: [highlight(19, .gold, at: 1_000)])
+
+        await model.synchronise()
+
+        #expect(highlights.highlight(chapterId: "bereshit-18", verse: 19)?.color == .sky)
+    }
+
+    @Test("un surlignage distant inconnu est adopté")
+    func adoptsNew() async {
+        let (model, sync, highlights) = makeModel()
+        sync.remote = SyncPayload(highlights: [highlight(24, .olive, at: 1_000)])
+
+        await model.synchronise()
+
+        #expect(highlights.highlight(chapterId: "bereshit-18", verse: 24)?.color == .olive)
+    }
+
+    @Test("la synchronisation renvoie l'état fusionné")
+    func pushesMerged() async {
+        let (model, sync, highlights) = makeModel()
+        highlights.save(highlight(19, .gold, at: 1_000))
+        sync.remote = SyncPayload(highlights: [highlight(24, .sky, at: 1_000)])
+
+        await model.synchronise()
+
+        #expect(sync.pushed?.highlights.count == 2, "le local et le distant doivent repartir")
+        #expect(model.lastSync != nil)
+    }
+
+    // MARK: - Déconnexion
+
+    @Test("se déconnecter ne touche pas aux annotations locales")
+    func signOutKeepsLocal() {
+        let (model, _, highlights) = makeModel()
+        highlights.save(highlight(19, .gold, at: 1_000))
+
+        model.signOut()
+
+        #expect(model.state == .signedOut)
+        #expect(highlights.stored.count == 1, "les annotations appartiennent au lecteur")
+    }
+
+    @Test("supprimer le compte efface le serveur, pas l'appareil")
+    func erasureKeepsLocal() async {
+        let (model, sync, highlights) = makeModel()
+        highlights.save(highlight(19, .gold, at: 1_000))
+
+        await model.eraseAccount()
+
+        #expect(sync.erased)
+        #expect(model.state == .signedOut)
+        #expect(highlights.stored.count == 1)
+    }
+}

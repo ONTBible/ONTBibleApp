@@ -1,0 +1,221 @@
+name: ONT
+options:
+  bundleIdPrefix: com.labibleont
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  # L'icône est un bundle Icon Composer (`app/ONT.icon`), pas un
+  # `.appiconset`. xcodegen ne sait ni écrire le type `wrapper.icon` ni poser
+  # ASSETCATALOG_COMPILER_APPICON_NAME : ce script le fait après chaque
+  # génération. En `postGenCommand`, on ne peut pas l'oublier.
+  postGenCommand: ../scripts/patch-app-icon.rb
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: "N49VNC2G57"
+    CODE_SIGN_STYLE: Automatic
+    # NON, à contrecœur : le bac à sable interdit à une phase de build de lire
+    # $DWARF_DSYM_FOLDER_PATH, qui est hors du répertoire de la cible. C'est
+    # exactement ce que fait le téléversement des symboles vers Sentry.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+  configs:
+    Release:
+      # Sans dSYM, une pile Release arrive en adresses hexadécimales. C'est
+      # déjà le défaut d'Xcode en Release ; on l'écrit pour que ça reste vrai.
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+
+packages:
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: "9.15.0"
+  ONTKit:
+    path: Packages/ONTKit
+  ONTData:
+    path: Packages/ONTData
+  ONTDesignSystem:
+    path: Packages/ONTDesignSystem
+  ONTFeatures:
+    path: Packages/ONTFeatures
+
+targets:
+  ONT:
+    type: application
+    platform: iOS
+    dependencies:
+      # Un seul produit Sentry par cible — `Sentry` est le framework
+      # statique recommandé, et il inclut les API SwiftUI depuis la 9.4.1.
+      - package: Sentry
+        product: Sentry
+      - package: ONTKit
+      - package: ONTData
+      - package: ONTDesignSystem
+      - package: ONTFeatures
+        product: ReadingFeature
+      - package: ONTFeatures
+        product: LexiconFeature
+      - package: ONTFeatures
+        product: SearchFeature
+      - package: ONTFeatures
+        product: QahalFeature
+      - package: ONTFeatures
+        product: YouFeature
+      - target: ONTWidget
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    postBuildScripts:
+      # Le dSYM est apparié au binaire par UUID : celui d'un autre build ne
+      # symbolise rien. Le téléversement doit donc vivre dans le build qui
+      # produit le binaire — pas dans une étape ultérieure qu'on oublierait.
+      - name: Symboles de débogage → Sentry
+        script: ../scripts/televerser-symboles.sh
+        # Sans ça, Xcode saute la phase quand le fichier d'entrée n'a pas
+        # bougé — et le premier build après un `sentry-cli login` ne
+        # téléverserait rien.
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - ${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${EXECUTABLE_NAME}
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: La Bible ONT
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
+        # Le dictionnaire vide suffit : il déclare une scène de lancement
+        # moderne, pleine dalle.
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Ezra SIL (OFL) porte le niqqud et les te'amim, et les positionne —
+        # c'est la fonte de référence pour l'hébreu biblique. SBL Hebrew et
+        # Taamey Frank CLM restent hors de l'app : licences incompatibles avec
+        # une redistribution binaire. Frank Ruhl Libre tient les titres.
+        #
+        # Puis six familles de corps, toutes OFL, chacune en trois coupes —
+        # romaine, italique, semi-grasse. Le lecteur choisit ; Literata est le
+        # défaut. Georgia n'est pas listée : Apple la livre avec le système.
+        #
+        # Les coupes sont figées à opsz 14 (la taille de lecture visée) et
+        # élaguées aux écritures utiles — latin, grec, diacritiques,
+        # ponctuation. 8,1 Mo de sources deviennent 2,9 Mo embarqués.
+        UIAppFonts:
+          - EzraSIL.ttf
+          - FrankRuhlLibre-Medium.ttf
+          - Literata-Regular.ttf
+          - Literata-Italic.ttf
+          - Literata-SemiBold.ttf
+          - EBGaramond-Regular.ttf
+          - EBGaramond-Italic.ttf
+          - EBGaramond-SemiBold.ttf
+          - Spectral-Regular.ttf
+          - Spectral-Italic.ttf
+          - Spectral-SemiBold.ttf
+          - SourceSerif4-Regular.ttf
+          - SourceSerif4-Italic.ttf
+          - SourceSerif4-SemiBold.ttf
+          - Newsreader-Regular.ttf
+          - Newsreader-Italic.ttf
+          - Newsreader-SemiBold.ttf
+          - Jost-Regular.ttf
+          - Jost-Italic.ttf
+          - Jost-SemiBold.ttf
+        # Schéma interne : toucher un intraduisible ouvre sa fiche de lexique.
+        # L'adresse du backend. Les identifiants clients ci-dessous sont
+        # publics par nature (ils voyagent dans l'URL d'autorisation) ; les
+        # *secrets*, eux, ne quittent jamais la Lambda.
+        ONTAPIBaseURL: https://j451hq8d3k.execute-api.eu-west-3.amazonaws.com
+        # L'adresse publique des liens partagés. Tant qu'elle est absente,
+        # l'app partage sans lien plutôt qu'avec une adresse morte.
+        ONTWebBaseURL: https://ontbible.com
+        ONTSentryDSN: "https://16810c8790d47c067a9df70b99059ebe@o4511490425159680.ingest.de.sentry.io/4511893874278480"
+        ONTGoogleClientID: "154337904456-de9o2u3res51203irei6o0ggk1lvlkq5.apps.googleusercontent.com"
+        ONTGitHubClientID: "Ov23liKe17kibtPWeUE1"
+        CFBundleURLTypes:
+          - CFBundleURLName: com.labibleont.ONT.term
+            CFBundleURLSchemes:
+              - ont
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT
+        GENERATE_INFOPLIST_FILE: NO
+        # Sign in with Apple. Tant que DEVELOPMENT_TEAM est vide, la
+        # compilation passe mais l'autorisation n'est pas signée : la
+        # connexion Apple échouera sur un appareil réel.
+        CODE_SIGN_ENTITLEMENTS: ONT.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  ONTWidget:
+    type: app-extension
+    platform: iOS
+    # Le vivier et deux coupes de Literata sont recopiés ici plutôt que
+    # partagés : une extension ne lit pas le bundle de l'app qui la contient.
+    # 125 Ko + 360 Ko dupliqués, contre un groupe d'app à configurer et une
+    # capacité de plus sur l'App ID.
+    sources:
+      - path: Widget
+      - path: Widget/Resources
+        buildPhase: resources
+    dependencies:
+      - package: ONTKit
+      - package: ONTData
+      - package: ONTDesignSystem
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Verset du jour
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        UIAppFonts:
+          - Literata-Regular.ttf
+          - Literata-SemiBold.ttf
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.widget
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+
+  ONTTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: ONT
+      - package: ONTKit
+      - package: ONTData
+      - package: ONTDesignSystem
+      - package: ONTFeatures
+        product: ReadingFeature
+      - package: ONTFeatures
+        product: YouFeature
+      - package: ONTFeatures
+        product: QahalFeature
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ONT.app/ONT"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        # La cible d'app fournit le sien (`Info.plist`), pas celle-ci : sans
+        # ce drapeau, la signature du bundle de tests échoue faute de plist.
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  ONT:
+    build:
+      targets:
+        ONT: all
+        ONTWidget: all
+        ONTTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ONTTests

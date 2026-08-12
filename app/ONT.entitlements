@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sign in with Apple. Nécessite que l'App ID porte la même capacité sur
+	     le portail développeur, et un DEVELOPMENT_TEAM renseigné. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	<!-- Liens universels. iOS va chercher
+	     https://ontbible.com/.well-known/apple-app-site-association à
+	     l'installation et à chaque mise à jour, et n'ouvre l'app que si ce
+	     fichier nomme cet App ID. Il est servi par la Lambda.
+
+	     Le domaine nomme le projet, le bundle porte le nom français : les
+	     deux ne coïncident pas, et c'est voulu. Un identifiant d'app est gelé
+	     à la première publication. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:ontbible.com</string>
+	</array>
+</dict>
+</plist>

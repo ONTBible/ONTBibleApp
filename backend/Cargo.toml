@@ -1,0 +1,92 @@
+[package]
+name = "ont-backend"
+version = "0.1.0"
+edition = "2021"
+
+# Profil taillé pour le démarrage à froid Lambda : LTO et une seule unité de
+# codegen réduisent nettement le binaire, et `panic = "abort"` retire les
+# tables de déroulement dont on n'a pas l'usage — une panique dans un
+# gestionnaire Lambda est de toute façon fatale. Le prix est une compilation
+# release plus lente en local ; `cargo run` reste en profil dev.
+[profile.release]
+# Mesuré, pas supposé. Avec l'éditeur de liens de cargo-lambda (zig/lld),
+# `"debuginfo"` retire la table des symboles exactement comme `true` :
+#
+#     true         13 157 152 o   stripped
+#     "debuginfo"  13 159 744 o   stripped   (+2,5 Ko, aucun symbole gagné)
+#     "none"       24 321 856 o   .symtab + .debug_info
+#
+# `-Wl,--strip-debug` posé à la main donne le même résultat que `true`. Il n'y
+# a donc pas d'intermédiaire : soit 13 Mo muets, soit 24 Mo bavards à chaque
+# démarrage à froid.
+#
+# D'où `"none"` ici, qui n'est PAS ce qui est déployé : `scripts/deployer-
+# backend.sh` construit complet, téléverse les symboles chez Sentry, puis
+# dépouille une copie et déploie celle-là. On a les 13 Mo *et* les noms de
+# fonctions, parce que l'identifiant de débogage vient du code machine et
+# survit au dépouillement — vérifié à chaque déploiement, qui s'interrompt
+# sinon. C'est le mécanisme des dSYM d'iOS, transposé.
+#
+# Construire à la main (`cargo lambda build`) donne donc un binaire de 24 Mo :
+# c'est voulu, il n'est pas destiné à partir tel quel.
+strip = "none"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+async-trait = "0.1"
+thiserror = "2"
+time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# rustls partout : la compilation croisée depuis macOS vers Linux ARM64 n'a pas
+# d'OpenSSL natif sous la main.
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# JWT — HS256 nous suffit (voir `domain/token.rs` pour le raisonnement).
+jsonwebtoken = "9"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+
+# `rt-tokio` n'est pas facultatif malgré les apparences : sans lui, le SDK
+# n'a pas d'implémentation de temporisation pour ses réessais et panique au
+# démarrage. Le retirer « pour alléger » coûte un binaire qui ne démarre pas.
+aws-config = { version = "1", default-features = false, features = [
+  "behavior-version-latest",
+  "rustls",
+  "rt-tokio",
+] }
+aws-sdk-dynamodb = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
+
+# Sentry. `default-features = false` puis rustls explicitement : la variante
+# par défaut tire native-tls (donc OpenSSL), que la compilation croisée depuis
+# macOS vers Linux ARM64 n'a pas sous la main.
+sentry = { version = "0.48", default-features = false, features = [
+  "backtrace",
+  "contexts",
+  "panic",
+  "reqwest",
+  "rustls",
+  "tracing",
+] }
+sentry-tower = { version = "0.48", features = ["http"] }
+sentry-tracing = "0.48"
+
+# Adaptateur du runtime Lambda : enveloppe le service axum pour que le même
+# binaire tourne sur Lambda quand AWS_LAMBDA_FUNCTION_NAME est présent, et en
+# serveur local sinon.
+lambda_http = "0.13"
+
+[dev-dependencies]
+wiremock = "0.6"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

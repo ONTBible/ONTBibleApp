@@ -1,0 +1,256 @@
+import AuthenticationServices
+import CryptoKit
+import Foundation
+import ONTKit
+
+/// Le résultat d'un flux de connexion : le code, et de quoi le redeemer.
+public struct AuthorizationGrant: Sendable {
+    public let code: String
+    /// Le vérificateur PKCE, quand le fournisseur l'exige.
+    public let verifier: String?
+    /// L'adresse de retour déclarée, à renvoyer telle quelle au fournisseur.
+    public let redirectURI: String
+}
+
+/// Les flux de connexion, côté système.
+///
+/// Les trois fournisseurs ne se ressemblent pas, et la différence n'est pas
+/// cosmétique :
+///
+/// - **Apple** passe par `ASAuthorizationController`, l'interface native
+///   (Face ID, pas de navigateur). Il n'y a **aucune redirection** : le code
+///   revient directement à l'app. C'est aussi ce qu'exige la revue App Store.
+/// - **Google et GitHub** passent par `ASWebAuthenticationSession`, une vue
+///   Safari isolée. Isolée est le mot : les identifiants ne transitent jamais
+///   par notre code, et Apple refuse les `WKWebView` maison pour
+///   l'authentification tierce, précisément pour cette raison.
+///
+/// **Pourquoi le retour passe par le backend.** Google et GitHub n'acceptent
+/// qu'une adresse de retour en HTTPS — un schéma comme `ont://` leur est
+/// refusé. Le backend en expose une, qui rebondit aussitôt vers l'app. Il ne
+/// fait que faire suivre le code, sans l'échanger.
+@MainActor
+public struct SignInFlow {
+    /// La racine du backend.
+    public let baseURL: URL
+
+    public init(baseURL: URL) {
+        self.baseURL = baseURL
+    }
+
+    public func grant(for provider: AuthProvider) async throws -> AuthorizationGrant {
+        switch provider {
+        case .apple: try await apple()
+        case .google, .github: try await web(provider)
+        }
+    }
+
+    /// L'adresse de retour déclarée chez Google et GitHub.
+    public func redirectURI(_ provider: AuthProvider) -> String {
+        baseURL.appending(path: "auth/\(provider.rawValue)/callback").absoluteString
+    }
+
+    // MARK: - Apple
+
+    private func apple() async throws -> AuthorizationGrant {
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        // On ne demande rien de plus que l'identité. Apple ne transmet le nom
+        // et l'adresse qu'à la toute première autorisation — le backend s'en
+        // passe, il ne garde que l'identifiant stable.
+        request.requestedScopes = []
+
+        let delegate = AppleDelegate()
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = delegate
+        controller.presentationContextProvider = delegate
+
+        let code: String = try await withCheckedThrowingContinuation { continuation in
+            delegate.continuation = continuation
+            controller.performRequests()
+        }
+
+        // Ni redirection ni PKCE : l'autorisation a été accordée à l'app
+        // elle-même, et c'est son identifiant que le backend présentera.
+        return AuthorizationGrant(code: code, verifier: nil, redirectURI: "")
+    }
+
+    // MARK: - Google et GitHub
+
+    private func web(_ provider: AuthProvider) async throws -> AuthorizationGrant {
+        let pkce = PKCE()
+        let redirect = redirectURI(provider)
+
+        guard let url = authorizationURL(provider, redirect: redirect, challenge: pkce.challenge)
+        else { throw AccountError.providerRefused }
+
+        let anchor = PresentationAnchor()
+        let code: String = try await withCheckedThrowingContinuation { continuation in
+            let session = ASWebAuthenticationSession(
+                url: url,
+                callbackURLScheme: Router.scheme
+            ) { callback, error in
+                if let error {
+                    let cancelled = (error as? ASWebAuthenticationSessionError)?.code
+                        == .canceledLogin
+                    continuation.resume(throwing: cancelled ? AccountError.cancelled : error)
+                    return
+                }
+
+                let items = callback
+                    .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                    .queryItems
+
+                if let code = items?.first(where: { $0.name == "code" })?.value {
+                    continuation.resume(returning: code)
+                } else {
+                    continuation.resume(throwing: AccountError.providerRefused)
+                }
+            }
+            session.presentationContextProvider = anchor
+            session.prefersEphemeralWebBrowserSession = false
+            session.start()
+        }
+
+        return AuthorizationGrant(code: code, verifier: pkce.verifier, redirectURI: redirect)
+    }
+
+    /// L'URL d'autorisation du fournisseur.
+    ///
+    /// Les identifiants clients publics viennent du `Info.plist` : ce ne sont
+    /// pas des secrets — ils voyagent dans cette URL même. Le *client secret*,
+    /// lui, reste sur la Lambda.
+    private func authorizationURL(
+        _ provider: AuthProvider,
+        redirect: String,
+        challenge: String
+    ) -> URL? {
+        let key = provider == .google ? "ONTGoogleClientID" : "ONTGitHubClientID"
+        guard
+            let clientID = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+            !clientID.isEmpty
+        else { return nil }
+
+        var components = URLComponents(
+            string: provider == .google
+                ? "https://accounts.google.com/o/oauth2/v2/auth"
+                : "https://github.com/login/oauth/authorize"
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "redirect_uri", value: redirect),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(
+                name: "scope",
+                value: provider == .google ? "openid email" : "read:user user:email"
+            ),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+        ]
+        return components?.url
+    }
+}
+
+// MARK: - PKCE
+
+/// Le couple vérificateur / défi de PKCE.
+///
+/// Sans lui, le code d'autorisation transite par un schéma d'URL
+/// personnalisé — et une autre app installée sur l'appareil peut déclarer le
+/// même schéma et l'intercepter. Elle pourrait alors le présenter à *notre*
+/// backend et obtenir une session.
+///
+/// PKCE ferme cette porte : l'app tire un secret au hasard (le vérificateur),
+/// n'en envoie que l'empreinte (le défi) au fournisseur, et ne révèle le
+/// secret qu'au moment de l'échange. Un code volé sans son vérificateur ne
+/// vaut rien.
+struct PKCE {
+    let verifier: String
+    let challenge: String
+
+    init() {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        verifier = Data(bytes).base64URLEncoded
+
+        let digest = SHA256.hash(data: Data(verifier.utf8))
+        challenge = Data(digest).base64URLEncoded
+    }
+}
+
+extension Data {
+    /// Base64 « URL-safe », sans remplissage — ce que la RFC 7636 impose.
+    var base64URLEncoded: String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+// MARK: - Passerelles vers UIKit
+
+private final class AppleDelegate: NSObject, ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding {
+    var continuation: CheckedContinuation<String, Error>?
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        guard
+            let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+            let data = credential.authorizationCode,
+            let code = String(data: data, encoding: .utf8)
+        else {
+            continuation?.resume(throwing: AccountError.providerRefused)
+            return
+        }
+        continuation?.resume(returning: code)
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+        continuation?.resume(throwing: cancelled ? AccountError.cancelled : error)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        PresentationAnchor.keyWindow()
+    }
+}
+
+private final class PresentationAnchor: NSObject, ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        Self.keyWindow()
+    }
+
+    static func keyWindow() -> ASPresentationAnchor {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+
+        if let key = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+            return key
+        }
+        // Le repli. `ASPresentationAnchor()` sans scène est déprécié depuis
+        // iOS 26 et ne saurait de toute façon pas où se présenter : une
+        // fenêtre doit appartenir à une scène. On prend la première scène au
+        // premier plan, et à défaut n'importe laquelle — mieux vaut une
+        // fenêtre rattachée à la mauvaise scène qu'une fenêtre orpheline.
+        // À défaut de fenêtre clé, n'importe quelle fenêtre déjà posée fait
+        // l'affaire : elle appartient forcément à une scène.
+        if let existante = scenes.flatMap(\.windows).first {
+            return existante
+        }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        guard let scene else {
+            // Sans aucune scène, l'app n'a pas d'interface — il n'y a
+            // littéralement rien où présenter la page de connexion. La branche
+            // est inatteignable depuis un bouton, mais la signature du
+            // protocole exige une fenêtre. On rend une fenêtre détachée : la
+            // session échouera proprement au lieu de faire tomber l'app.
+            return ASPresentationAnchor()
+        }
+        return ASPresentationAnchor(windowScene: scene)
+    }
+}

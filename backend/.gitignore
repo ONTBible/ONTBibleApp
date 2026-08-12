@@ -1,0 +1,16 @@
+target/
+# Le fichier d'état Terraform contient la clé de signature JWT en clair.
+# Il ne doit jamais entrer dans un dépôt.
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+terraform/secrets.env
+
+# Identifiants OAuth — jamais dans le dépôt.
+#
+# Le chemin est relatif à CE fichier, qui est déjà dans `backend/`. La règle
+# écrivait `backend/terraform/oauth.env`, donc git cherchait
+# `backend/backend/terraform/oauth.env` : les secrets Google et GitHub
+# n'étaient pas ignorés du tout.
+terraform/oauth.env

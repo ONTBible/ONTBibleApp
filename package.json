@@ -1,0 +1,21 @@
+{
+  "name": "ont-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pipeline de contenu de La Bible ONT — vault Obsidian (.md) → données structurées consommables par iOS, Android et web.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node src/build.ts",
+    "test": "node --test \"test/*.test.ts\"",
+    "check": "tsc --noEmit",
+    "sync": "rm -rf app/Resources/data && mkdir -p app/Resources/data && cp dist/*.json app/Resources/data/ && cp -R dist/books app/Resources/data/",
+    "app": "npm run build && npm run sync && cd app && xcodegen generate"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.3"
+  }
+}

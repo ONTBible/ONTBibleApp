@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>La Bible ONT</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.labibleont.ONT.term</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ont</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>ONTAPIBaseURL</key>
+	<string>https://j451hq8d3k.execute-api.eu-west-3.amazonaws.com</string>
+	<key>ONTGitHubClientID</key>
+	<string>Ov23liKe17kibtPWeUE1</string>
+	<key>ONTGoogleClientID</key>
+	<string>154337904456-de9o2u3res51203irei6o0ggk1lvlkq5.apps.googleusercontent.com</string>
+	<key>ONTSentryDSN</key>
+	<string>https://16810c8790d47c067a9df70b99059ebe@o4511490425159680.ingest.de.sentry.io/4511893874278480</string>
+	<key>ONTWebBaseURL</key>
+	<string>https://ontbible.com</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>EzraSIL.ttf</string>
+		<string>FrankRuhlLibre-Medium.ttf</string>
+		<string>Literata-Regular.ttf</string>
+		<string>Literata-Italic.ttf</string>
+		<string>Literata-SemiBold.ttf</string>
+		<string>EBGaramond-Regular.ttf</string>
+		<string>EBGaramond-Italic.ttf</string>
+		<string>EBGaramond-SemiBold.ttf</string>
+		<string>Spectral-Regular.ttf</string>
+		<string>Spectral-Italic.ttf</string>
+		<string>Spectral-SemiBold.ttf</string>
+		<string>SourceSerif4-Regular.ttf</string>
+		<string>SourceSerif4-Italic.ttf</string>
+		<string>SourceSerif4-SemiBold.ttf</string>
+		<string>Newsreader-Regular.ttf</string>
+		<string>Newsreader-Italic.ttf</string>
+		<string>Newsreader-SemiBold.ttf</string>
+		<string>Jost-Regular.ttf</string>
+		<string>Jost-Italic.ttf</string>
+		<string>Jost-SemiBold.ttf</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# Secrets de build. Le DSN Sentry est public — il ne permet que d'écrire des
+# événements — mais le jeton d'organisation permet d'écrire dans le compte.
+# Il n'a rien à faire ici : `sentry-cli login` le range dans ~/.sentryclirc.
+sentry.properties
+.sentryclirc
+.env
+*.p8
+
+# Xcode
+app/*.xcodeproj/
+app/*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Artefacts de compilation Swift Package Manager — 15 955 fichiers, tous
+# régénérés au premier build. Ils étaient la quasi-totalité de ce que git
+# voyait.
+.build/
+.swiftpm/
+
+# Le projet Xcode est produit par xcodegen à partir de project.yml : c'est
+# ce dernier qui fait foi. Committer les deux, c'est garantir qu'ils
+# divergeront.
+*.xcodeproj/
+DerivedData/

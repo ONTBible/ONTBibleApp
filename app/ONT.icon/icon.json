@@ -1,0 +1,39 @@
+{
+  "fill" : {
+    "solid" : "display-p3:0.23945,0.11440,0.14897,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "mountain.png",
+          "name" : "mountain",
+          "position" : {
+            "scale" : 0.04,
+            "translation-in-points" : [
+              0.07999999999992724,
+              -37.51749999999993
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.6
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.2
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
