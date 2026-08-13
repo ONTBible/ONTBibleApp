@@ -157,8 +157,22 @@ jobs:
           echo "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
           chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
+      - name: sentry-cli
+        # La phase de build « Symboles de débogage → Sentry » échoue si l'outil
+        # manque, et c'est voulu — voir `scripts/televerser-symboles.sh`.
+        #
+        # Par l'installeur officiel plutôt que par brew : sur un runner macOS,
+        # `brew install` met plusieurs minutes là où celui-ci prend quelques
+        # secondes, pour le même binaire.
+        run: curl -sSf https://sentry.io/get-cli/ | sh
+
       - name: L'archive
         working-directory: ONTBibleApp/app
+        env:
+          # Absent tant que le secret n'existe pas : la phase avertit alors et
+          # laisse passer, puisque les dSYM sont conservés en artefact juste
+          # après et qu'Apple les reçoit déjà par `uploadSymbols`.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -171,6 +185,20 @@ jobs:
             -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
             | xcbeautify --renderer github-actions
+
+      # Les dSYM sont gardés quoi qu'il arrive. C'est ce qui permet à la phase
+      # Sentry de n'être qu'un avertissement quand le jeton manque : les
+      # symboles de **ce build précis** restent récupérables, et un
+      # `sentry-cli debug-files upload` les enverra plus tard. Sans cet
+      # artefact, un build livré sans eux serait illisible pour toujours.
+      - name: Garder les symboles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsym-${{ github.sha }}
+          path: ${{ runner.temp }}/ONT.xcarchive/dSYMs
+          if-no-files-found: warn
+          retention-days: 90
 
       # `destination: upload` téléverse depuis `exportArchive`, sans passer par
       # `altool` — qui est déprécié — ni par fastlane, qui ajouterait Ruby et
