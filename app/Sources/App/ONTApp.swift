@@ -82,6 +82,10 @@ final class Composition {
     /// Le vivier du verset du jour, pour la programmation des rappels.
     private let daily: any DailyVerseRepository
 
+    /// Les lecteurs de disque, gardés pour qu'on puisse leur dire d'oublier.
+    private let corpusSurDisque: DiskCorpusRepository
+    private let lexiqueSurDisque: DiskGlossaryRepository
+
     var dailyPool: [DailyVerse] { daily.pool() }
 
     init() {
@@ -102,9 +106,22 @@ final class Composition {
         let source = Foundation.Bundle.main
         #endif
 
-        let corpus = BundleCorpusRepository(bundle: source)
+        // Le corpus est lu du **disque** quand il y est, du bundle sinon.
+        //
+        // Le bundle n'est pas un repli : c'est le socle. Il fait marcher une
+        // installation neuve avant tout réseau, et il ne disparaît jamais. Ce
+        // que `CorpusUpdater` télécharge vient le recouvrir, fichier par
+        // fichier — donc à tout instant chaque livre est lisible dans l'une ou
+        // l'autre version, jamais dans aucune.
+        //
+        // C'est ce qui permet à une correction de verset d'atteindre les
+        // lecteurs en minutes, sans compilation, sans envoi à Apple, sans
+        // revue, et sans qu'ils aient à installer quoi que ce soit.
+        let corpus = DiskCorpusRepository(socle: BundleCorpusRepository(bundle: source))
         daily = BundleDailyVerseRepository()
-        let glossary = BundleGlossaryRepository()
+        let glossary = DiskGlossaryRepository()
+        self.corpusSurDisque = corpus
+        self.lexiqueSurDisque = glossary
         let index = BundleSearchIndex()
         let store = FileReaderStore()
 
@@ -121,6 +138,25 @@ final class Composition {
 
         // Le compte. L'adresse du backend vient du Info.plist : elle change
         // entre développement et production, et n'a rien à faire dans le code.
+        Task { [corpusSurDisque, lexiqueSurDisque] in
+            // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
+            //
+            // Elle ne bloque **rien** : l'app a déjà tout ce qu'il lui faut,
+            // dans son bundle ou sur son disque. Ce qui arrive ici ne fait que
+            // recouvrir, et si le réseau manque, il ne se passe simplement
+            // rien.
+            //
+            // Le cas le plus fréquent est « rien de neuf », et il ne coûte
+            // qu'une requête de huit cents octets.
+            guard let neufs = try? await CorpusUpdater().synchroniser(), neufs > 0 else { return }
+
+            // Sans cet oubli, le corpus fraîchement écrit n'apparaîtrait qu'au
+            // prochain lancement : les caches en mémoire tiennent la version
+            // d'avant, et rien ne leur dit qu'elle a vieilli.
+            corpusSurDisque.oublier()
+            lexiqueSurDisque.oublier()
+        }
+
         let sessions = KeychainSessionStore()
         let base = Bundle.main.object(forInfoDictionaryKey: "ONTAPIBaseURL") as? String ?? ""
         let baseURL = URL(string: base) ?? URL(string: "https://invalide.local")!
