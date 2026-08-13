@@ -92,6 +92,19 @@ targets:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - com.labibleont.ONT.corpus
+        # La catégorie de la fiche App Store. « Reference » et non
+        # « Book » : la seconde désigne les liseuses de livres achetés, pas une
+        # édition consultable.
+        LSApplicationCategoryType: public.app-category.reference
+
+        # La déclaration de chiffrement.
+        #
+        # `false` parce que l'app n'emploie que HTTPS et le trousseau — du
+        # chiffrement fourni par le système, exempté par la réglementation
+        # américaine. Sans cette clé, App Store Connect pose la question à
+        # **chaque** envoi et bloque la distribution tant qu'on n'a pas répondu.
+        ITSAppUsesNonExemptEncryption: false
+
         CFBundleDisplayName: La Bible ONT
         CFBundleShortVersionString: "0.1"
         CFBundleVersion: "1"
