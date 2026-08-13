@@ -78,6 +78,16 @@ enum CorpusRefresh {
         }
     }
 
+    /// La tâche, portée jusqu'à la fermeture d'arrière-plan.
+    ///
+    /// `@unchecked Sendable` n'est pas une échappatoire posée pour faire taire
+    /// le compilateur : c'est la formulation exacte de ce qu'iOS garantit et
+    /// qu'aucun type ne peut exprimer — une seule file, une seule tâche vivante
+    /// par identifiant, plus aucun accès après `setTaskCompleted`.
+    private struct Confiee: @unchecked Sendable {
+        let tache: BGAppRefreshTask
+    }
+
     private static func handle(_ task: BGAppRefreshTask, onUpdate: @escaping @Sendable () -> Void) {
         // **En premier**, avant tout travail. Une tâche ne se répète pas seule ;
         // si l'app est tuée pendant le téléchargement, celle-ci est déjà
@@ -89,9 +99,14 @@ enum CorpusRefresh {
         // La garantie qui rend ce passage sûr n'est pas dans le type, elle est
         // dans le système : iOS livre la tâche sur une seule file, ne la touche
         // plus après `setTaskCompleted`, et n'en donne jamais deux du même
-        // identifiant en même temps. `nonisolated(unsafe)` dit exactement ça —
-        // « je réponds de ce que le compilateur ne peut pas vérifier ».
-        nonisolated(unsafe) let tache = task
+        // identifiant en même temps.
+        //
+        // Un `nonisolated(unsafe)` sur la variable locale ne suffit pas, et le
+        // compilateur publié le refuse : la fermeture de `Task` est un paramètre
+        // `sending`, et ce qui décide de sa sûreté est ce qu'elle **capture**.
+        // L'affirmation doit donc porter sur le type capturé, pas sur la
+        // variable — d'où cette boîte.
+        let boite = Confiee(tache: task)
 
         let travail = Task {
             let neufs = (try? await CorpusUpdater().synchroniser()) ?? 0
@@ -100,13 +115,13 @@ enum CorpusRefresh {
             // `true` même quand rien n'a changé : la tâche a fait ce qu'on lui
             // demandait. Rendre `false` apprendrait à iOS que cette app échoue,
             // et il lui accorderait de moins en moins de fenêtres.
-            tache.setTaskCompleted(success: true)
+            boite.tache.setTaskCompleted(success: true)
         }
 
         // iOS accorde une trentaine de secondes, puis tue le processus sans
         // sommation. Ce gestionnaire est la seule chance de s'arrêter proprement
         // — sans lui, une écriture pourrait être coupée en deux.
-        tache.expirationHandler = {
+        task.expirationHandler = {
             travail.cancel()
             log.debug("fenêtre d'arrière-plan expirée")
         }
