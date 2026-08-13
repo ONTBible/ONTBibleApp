@@ -266,6 +266,14 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
+          # Le contact de revue. En secrets et non en clair : un numéro de
+          # téléphone personnel dans un dépôt public y reste pour toujours,
+          # même retiré au commit suivant.
+          ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
+          ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |
-          python3 -m pip install --quiet pyjwt cryptography requests
-          python3 .github/scripts/soumettre.py
+          # Un venv : le Python des runners macOS est « externally managed »
+          # (PEP 668) et refuse toute installation globale.
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography requests
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/soumettre.py
