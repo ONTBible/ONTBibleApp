@@ -72,13 +72,34 @@
         <!--
           Les rapports de panne, par Sentry. **Non liés** au lecteur : ils
           portent une pile d'appels et un modèle d'appareil, pas une identité.
-          Le filet d'expurgation masque tout texte cité de plus de douze
-          caractères — c'est ainsi qu'une note de lecteur ne peut pas partir
-          dans un rapport.
+          `sendDefaultPii` est à faux, la capture d'écran et la hiérarchie des
+          vues sont désactivées, et le filet d'expurgation masque tout texte
+          cité de plus de douze caractères — c'est ainsi qu'une note de lecteur
+          ne peut pas partir dans un rapport.
         -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeCrashData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+          Les données de performance, par le même Sentry.
+          `enableAutoPerformanceTracing` est à vrai et 20 % des traces partent en
+          production : durée de lancement, gels d'interface, latence des
+          requêtes. Ce n'est pas de la panne, c'est une catégorie distincte, et
+          l'omettre serait une déclaration incomplète.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypePerformanceData</string>
             <key>NSPrivacyCollectedDataTypeLinked</key>
             <false/>
             <key>NSPrivacyCollectedDataTypeTracking</key>
