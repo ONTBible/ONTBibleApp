@@ -112,8 +112,24 @@ targets:
         # Le dictionnaire vide suffit : il déclare une scène de lancement
         # moderne, pleine dalle.
         UILaunchScreen: {}
+        # L'iPhone n'a pas d'upside-down, et c'est l'usage : personne ne tient
+        # un téléphone à l'envers, et le laisser tourner ferait basculer la
+        # page pour rien.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # L'iPad, lui, exige les **quatre**. Ce n'est pas un goût : le
+        # multitâche pose deux apps côte à côte, et le système doit pouvoir
+        # tourner la scène sans demander à chacune si elle veut bien. Une app
+        # qui n'en déclare que trois est refusée à la validation, pas au build —
+        # donc après signature et téléversement, au dernier moment.
+        #
+        # Et sur un iPad, « à l'envers » ne veut rien dire : aucune arête n'est
+        # le bas, on le pose comme on veut.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # Ezra SIL (OFL) porte le niqqud et les te'amim, et les positionne —
