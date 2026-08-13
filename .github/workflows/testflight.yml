@@ -1,0 +1,234 @@
+# L'envoi à TestFlight, et la soumission à l'App Store.
+#
+# ## Deux déclencheurs, deux portées
+#
+# | quand | ce qui se passe |
+# |---|---|
+# | fusion sur `main` | un build monte sur TestFlight. Les testeurs internes l'ont dans l'heure, sans revue |
+# | étiquette `v1.2.0` | même chose, **plus** la soumission à la revue et la publication automatique une fois approuvée |
+#
+# La distinction compte : on veut pouvoir livrer aux testeurs vingt fois par
+# semaine sans déclencher vingt revues. Une étiquette est un geste délibéré ;
+# une fusion ne l'est qu'à moitié.
+#
+# ## Il porte les clés, donc il ne tourne jamais sur du code non relu
+#
+# Ni `pull_request`, ni `pull_request_target` : uniquement `push` sur `main` et
+# sur les étiquettes. Le code qui s'exécute ici a donc déjà été fusionné, donc
+# relu. Les tests, eux, tournent sans aucun secret — voir `tests.yml`.
+#
+# ## Aucun certificat à gérer
+#
+# La signature passe par une **clé d'API App Store Connect** et
+# `-allowProvisioningUpdates` : Xcode demande à Apple le certificat et le profil
+# dont il a besoin, les installe pour la durée du job, et les oublie. Pas de
+# trousseau à déverrouiller, pas de `.p12` en base 64 dans un secret, pas de
+# profil à renouveler tous les ans à la main.
+#
+# ## Les trois secrets à poser
+#
+# Dans *Settings → Secrets and variables → Actions* du dépôt :
+#
+# | secret | où le trouver |
+# |---|---|
+# | `ASC_KEY_ID` | App Store Connect → Intégrations → Clés d'API, colonne « ID de clé » |
+# | `ASC_ISSUER_ID` | même page, en haut — un seul pour tout le compte |
+# | `ASC_PRIVATE_KEY` | le contenu du `.p8`, téléchargeable **une seule fois** |
+#
+# La clé doit avoir le rôle **App Manager** : « Developer » ne suffit pas à
+# envoyer un build.
+
+name: TestFlight
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      soumettre:
+        description: "Soumettre aussi à la revue de l'App Store"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Deux envois simultanés se disputeraient le même numéro de build. Le second
+# attend ; il n'annule pas le premier, qui a peut-être déjà téléversé.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  livrer:
+    runs-on: macos-15
+    timeout-minutes: 60
+    outputs:
+      build: ${{ steps.numeros.outputs.build }}
+      soumettre: ${{ steps.numeros.outputs.soumettre }}
+
+    steps:
+      - name: L'app
+        uses: actions/checkout@v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Les outils
+        run: brew install xcodegen xcbeautify
+
+      # Le numéro de build vient du compteur d'exécutions du workflow.
+      #
+      # Il doit être **strictement croissant** : App Store Connect refuse un
+      # build dont le numéro a déjà servi, et le refus arrive après le
+      # téléversement, quand la compilation est déjà payée. `run_number` ne
+      # redescend jamais, même si l'on force-pousse.
+      #
+      # La version, elle, vient de l'étiquette quand il y en a une — `v1.2.0`
+      # donne `1.2.0`. Sans étiquette, on garde celle du `project.yml` : un
+      # build de TestFlight n'a pas à inventer un numéro de version.
+      - name: Les numéros
+        id: numeros
+        working-directory: ONTBibleApp
+        run: |
+          BUILD="${{ github.run_number }}"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "soumettre=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "soumettre=${{ inputs.soumettre || false }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Le corpus et le projet
+        working-directory: ONTBibleApp
+        env:
+          ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
+        run: |
+          npm ci
+          npm run app
+
+      # Les numéros sont posés **après** `xcodegen`, directement dans les
+      # `Info.plist` produits. Les mettre dans `project.yml` obligerait à
+      # committer un numéro de build à chaque livraison — un commit qui ne dit
+      # rien, et qui redéclencherait le workflow.
+      - name: Poser les numéros
+        working-directory: ONTBibleApp/app
+        run: |
+          for plist in Info.plist Widget/Info.plist; do
+            [ -f "$plist" ] || continue
+            plutil -replace CFBundleVersion -string "${{ steps.numeros.outputs.build }}" "$plist"
+            if [ -n "${{ steps.numeros.outputs.version }}" ]; then
+              plutil -replace CFBundleShortVersionString -string "${{ steps.numeros.outputs.version }}" "$plist"
+            fi
+          done
+          plutil -p Info.plist | grep -E "CFBundleVersion|CFBundleShortVersionString"
+
+      # La clé d'API, écrite là où `xcodebuild` la cherche. Le fichier vit dans
+      # le répertoire de travail du job, effacé avec la machine à la fin.
+      - name: La clé App Store Connect
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: L'archive
+        working-directory: ONTBibleApp/app
+        run: |
+          xcodebuild archive \
+            -project ONT.xcodeproj \
+            -scheme ONT \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/ONT.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
+            | xcbeautify --renderer github-actions
+
+      # `destination: upload` téléverse depuis `exportArchive`, sans passer par
+      # `altool` — qui est déprécié — ni par fastlane, qui ajouterait Ruby et
+      # ses dépendances pour faire la même chose.
+      - name: L'export et l'envoi
+        working-directory: ONTBibleApp/app
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <!-- Les symboles partent avec le build : sans eux, une pile
+                 d'appels de crash reste illisible dans Xcode Organizer. -->
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/ONT.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} \
+            | xcbeautify --renderer github-actions
+
+      # Apple traite le build après réception — vérification, indexation des
+      # symboles. Ça prend de cinq à trente minutes, et il n'est pas
+      # distribuable avant. On n'attend pas ici : le job rendrait la main une
+      # demi-heure plus tard pour rien.
+      - name: Ce qui suit
+        run: |
+          echo "### Build ${{ steps.numeros.outputs.build }} envoyé" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Apple le traite en 5 à 30 minutes. Les testeurs internes l'auront ensuite sans revue." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.numeros.outputs.soumettre }}" = "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Soumission à la revue demandée** — version ${{ steps.numeros.outputs.version }}." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # La soumission à la revue, séparée : elle attend qu'Apple ait fini de traiter
+  # le build, ce qui prend de cinq à trente minutes.
+  soumettre:
+    needs: livrer
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.soumettre
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # `asc` n'existe pas en ligne de commande : la soumission passe par l'API
+      # REST d'App Store Connect, authentifiée par un jeton JWT signé avec la
+      # même clé. Une trentaine de lignes de Python, contre fastlane et tout
+      # Ruby.
+      - name: Soumettre à la revue
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          BUILD: ${{ needs.livrer.outputs.build }}
+        run: |
+          python3 -m pip install --quiet pyjwt cryptography requests
+          python3 .github/scripts/soumettre.py
