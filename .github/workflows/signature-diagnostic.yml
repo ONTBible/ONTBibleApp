@@ -44,11 +44,20 @@ jobs:
               #   403 → la clé n'a pas le rôle ; il faut une clé Admin.
               #   200 avec une liste vide → le rôle suffit, l'objet manque.
 
+          # `/v1/users` exige le rôle **Admin** — c'est la sonde la plus nette,
+          # et elle ne modifie rien. Créer un certificat de distribution demande
+          # le même rôle : si celle-ci passe, la signature en nuage le peut
+          # aussi ; si elle rend 403, aucune autre lecture ne le dira.
+          code, corps = interroger("users?limit=1")
+          print(f"\n═══ rôle de la clé — HTTP {code} ═══")
+          print("   Admin" if code == 200 else
+                "   PAS Admin — la signature en nuage ne peut pas créer de certificat")
+
           for chemin, titre in [
               ("certificates?filter[certificateType]=DISTRIBUTION&limit=200",
                "certificats de distribution"),
               ("profiles?limit=200", "profils"),
-              ("bundleIds?limit=200", "identifiants d'app"),
+              ("bundleIds?limit=200&fields[bundleIds]=identifier,name", "identifiants d'app"),
           ]:
               code, corps = interroger(chemin)
               print(f"\n═══ {titre} — HTTP {code} ═══")
@@ -60,7 +69,7 @@ jobs:
               print(f"   {len(elements)} trouvé(s)")
               for el in elements[:12]:
                   a = el.get("attributes", {})
-                  print("   ·", a.get("name") or a.get("identifier"),
+                  print("   ·", a.get("identifier") or a.get("name"),
                         "│", a.get("certificateType") or a.get("profileType") or "",
                         "│", a.get("profileState") or a.get("expirationDate") or "")
           PY
