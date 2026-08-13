@@ -44,6 +44,26 @@ if ! command -v sentry-cli >/dev/null; then
   exit 1
 fi
 
+# ── L'exception de la CI, et pourquoi elle n'en est pas une ──────────────────
+#
+# Sur un poste, échouer est juste : le build est éphémère, et personne ne
+# saurait plus tard reconstituer les dSYM de cette compilation-là.
+#
+# En CI, ce raisonnement ne tient plus. Le workflow conserve les dSYM en
+# artefact, et l'export les envoie déjà à Apple (`uploadSymbols`). Le danger
+# que cette phase existe pour écarter — livrer un build dont les piles seront
+# illisibles, sans que personne ne s'en aperçoive — est donc déjà fermé par
+# deux autres voies. Bloquer une livraison là-dessus coûterait plus qu'il ne
+# protège.
+#
+# On avertit donc, bruyamment, et on continue. `warning:` est reconnu par
+# Xcode et remonte dans le journal du job : ce n'est pas un saut silencieux.
+if [ -n "${CI:-}" ] && [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+  echo "warning: Sentry — aucun jeton en CI, symboles non téléversés. \
+Créez le secret SENTRY_AUTH_TOKEN (portée project:releases) pour les envoyer."
+  exit 0
+fi
+
 # Le jeton, par ordre de préférence :
 #   1. la variable d'environnement (CI),
 #   2. `app/sentry.properties` (gitignoré, chmod 600),
