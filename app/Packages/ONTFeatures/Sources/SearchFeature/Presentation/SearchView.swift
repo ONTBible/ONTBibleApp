@@ -17,7 +17,7 @@ public struct SearchView: View {
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
 
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     public init() {}
 
@@ -147,7 +147,7 @@ private struct HitRow: View {
 }
 
 private struct Hints: View {
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.l) {

@@ -20,7 +20,7 @@ struct ChapterView: View {
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
 
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     @State private var showingSettings = false
     @State private var showingPicker = false
@@ -259,7 +259,7 @@ struct ChapterView: View {
 private struct VerseRow: View {
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let verse: Verse
     let chapter: Chapter
@@ -343,7 +343,7 @@ private struct VerseRow: View {
 private struct VerseActionBar: View {
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let chapter: Chapter
     @Binding var selection: Set<Int>
@@ -622,7 +622,7 @@ private struct FlowingVerses: View {
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
     @Environment(\.ontTracking) private var tracking
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let verses: [Verse]
     let chapter: Chapter
@@ -670,7 +670,7 @@ private struct FlowingVerses: View {
 
 private struct BlockView: View {
     @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let block: Block
     let chapter: Chapter
@@ -769,7 +769,7 @@ private struct BlockView: View {
 /// Le pied d'unité — version, verrouillage, décisions terminologiques propres.
 private struct FooterView: View {
     @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let footer: Footer
 
@@ -981,7 +981,7 @@ public struct ReadingSettingsSheet: View {
 /// trois niveaux qui décide si un réglage tient.
 private struct SettingsPreview: View {
     @Environment(ReadingModel.self) private var model
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     let chapter: Chapter
 
@@ -1011,7 +1011,7 @@ private struct SettingsPreview: View {
 
     private struct PreviewBody: View {
         @Environment(\.ontTheme) private var theme
-        private var spacing = ONTSpacing()
+        private var spacing: ONTSpacing { ONTSpacing() }
 
         let verses: [Verse]
         let title: String

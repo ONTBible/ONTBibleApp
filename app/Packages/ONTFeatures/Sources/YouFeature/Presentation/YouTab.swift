@@ -98,7 +98,7 @@ public struct YouTab: View {
 /// c'est une règle de la revue App Store.
 private struct AccountSection: View {
     @Environment(AccountModel.self) private var account
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     @State private var confirmingErasure = false
 
