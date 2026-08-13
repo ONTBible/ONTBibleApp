@@ -81,6 +81,17 @@ targets:
     info:
       path: Info.plist
       properties:
+        # Le rafraîchissement du corpus quand l'app est fermée.
+        #
+        # Les deux clés vont ensemble et l'oubli de l'une rend l'autre inerte :
+        # `UIBackgroundModes` autorise le mode, `BGTaskSchedulerPermittedIdentifiers`
+        # dit **quelle** tâche a le droit de s'en servir. Un identifiant absent
+        # de cette liste est refusé en silence, des heures après le lancement,
+        # dans un processus que personne ne regarde.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.labibleont.ONT.corpus
         CFBundleDisplayName: La Bible ONT
         CFBundleShortVersionString: "0.1"
         CFBundleVersion: "1"

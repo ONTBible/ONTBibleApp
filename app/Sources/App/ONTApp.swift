@@ -138,6 +138,16 @@ final class Composition {
 
         // Le compte. L'adresse du backend vient du Info.plist : elle change
         // entre développement et production, et n'a rien à faire dans le code.
+        // La tâche d'arrière-plan doit être **enregistrée au lancement**, avant
+        // que l'app ne finisse de démarrer : iOS lève une exception s'il tente
+        // de lancer une tâche qui ne l'a pas été, et il le fait des heures plus
+        // tard, dans un processus que personne ne regarde.
+        CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque] in
+            corpusSurDisque.oublier()
+            lexiqueSurDisque.oublier()
+        }
+        CorpusRefresh.schedule()
+
         Task { [corpusSurDisque, lexiqueSurDisque] in
             // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
             //
