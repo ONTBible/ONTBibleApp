@@ -52,6 +52,30 @@
         </dict>
 
         <!--
+          L'identifiant de compte.
+
+          Le backend garde un `subject` — l'identifiant que rend le fournisseur
+          d'identité — et un `user` qui lui est propre. C'est un identifiant de
+          niveau compte, transmis hors de l'appareil : Apple l'appelle
+          « User ID », et le taire au motif qu'il est technique serait une
+          déclaration incomplète.
+
+          Il n'existe que si le lecteur crée un compte, ce qui est facultatif.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeUserID</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
           Les surlignages et les notes du lecteur, quand il choisit de
           synchroniser. Ce sont **ses** textes : ils restent liés à lui, et
           `DELETE /me` les efface d'un coup.
