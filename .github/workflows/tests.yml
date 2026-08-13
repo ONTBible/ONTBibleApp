@@ -57,7 +57,14 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: latest
+
+      # Le journal doit dire avec quoi il a construit. Sans cette ligne, un
+      # échec dû à une version d'Xcode se cherche à l'aveugle.
+      - name: La version d'Xcode
+        run: |
+          xcodebuild -version
+          ls /Applications | grep -i '^Xcode' || true
 
       # `xcbeautify` rend la sortie d'`xcodebuild` lisible et pose les
       # annotations d'erreur sur les lignes concernées dans l'interface de
@@ -88,6 +95,7 @@ jobs:
         # disponibles changent d'une version de macOS à l'autre chez GitHub, et
         # un nom en dur casse le jour où ils retirent le modèle.
         run: |
+          set -o pipefail
           xcodebuild test \
             -project ONT.xcodeproj \
             -scheme ONT \

@@ -86,7 +86,14 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: latest
+
+      # Le journal doit dire avec quoi il a construit. Sans cette ligne, un
+      # échec dû à une version d'Xcode se cherche à l'aveugle.
+      - name: La version d'Xcode
+        run: |
+          xcodebuild -version
+          ls /Applications | grep -i '^Xcode' || true
 
       - name: Les outils
         run: brew install xcodegen xcbeautify
@@ -153,6 +160,7 @@ jobs:
       - name: L'archive
         working-directory: ONTBibleApp/app
         run: |
+          set -o pipefail
           xcodebuild archive \
             -project ONT.xcodeproj \
             -scheme ONT \
@@ -170,6 +178,7 @@ jobs:
       - name: L'export et l'envoi
         working-directory: ONTBibleApp/app
         run: |
+          set -o pipefail
           cat > "$RUNNER_TEMP/export.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
