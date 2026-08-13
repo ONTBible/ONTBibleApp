@@ -18,7 +18,7 @@ public struct ReferencePicker: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.ontTheme) private var theme
 
-    private var spacing = ONTSpacing()
+    private var spacing: ONTSpacing { ONTSpacing() }
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
     private let current: Chapter
