@@ -81,6 +81,30 @@ targets:
     info:
       path: Info.plist
       properties:
+        # Le rafraîchissement du corpus quand l'app est fermée.
+        #
+        # Les deux clés vont ensemble et l'oubli de l'une rend l'autre inerte :
+        # `UIBackgroundModes` autorise le mode, `BGTaskSchedulerPermittedIdentifiers`
+        # dit **quelle** tâche a le droit de s'en servir. Un identifiant absent
+        # de cette liste est refusé en silence, des heures après le lancement,
+        # dans un processus que personne ne regarde.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.labibleont.ONT.corpus
+        # La catégorie de la fiche App Store. « Reference » et non
+        # « Book » : la seconde désigne les liseuses de livres achetés, pas une
+        # édition consultable.
+        LSApplicationCategoryType: public.app-category.reference
+
+        # La déclaration de chiffrement.
+        #
+        # `false` parce que l'app n'emploie que HTTPS et le trousseau — du
+        # chiffrement fourni par le système, exempté par la réglementation
+        # américaine. Sans cette clé, App Store Connect pose la question à
+        # **chaque** envoi et bloque la distribution tant qu'on n'a pas répondu.
+        ITSAppUsesNonExemptEncryption: false
+
         CFBundleDisplayName: La Bible ONT
         CFBundleShortVersionString: "0.1"
         CFBundleVersion: "1"

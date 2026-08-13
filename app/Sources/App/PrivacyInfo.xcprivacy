@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Le manifeste de confidentialité.
+
+  Obligatoire depuis mai 2024 : App Store Connect **refuse** un envoi qui n'en
+  porte pas, et le refus arrive à l'envoi, pas à la compilation.
+
+  Il déclare deux choses, et il faut les distinguer :
+
+  * ce que l'app **collecte** sur le lecteur — `NSPrivacyCollectedDataTypes` ;
+  * les interfaces d'Apple qu'elle emploie et qui, employées autrement,
+    serviraient à pister — `NSPrivacyAccessedAPITypes`. Chacune demande un code
+    de motif, tiré d'une liste close.
+
+  Ce fichier doit rester d'accord avec les réponses données dans App Store
+  Connect. Elles sont saisies à part, dans le formulaire « Confidentialité de
+  l'app », et rien ne compare les deux : une divergence se découvre en revue.
+-->
+<plist version="1.0">
+<dict>
+    <!--
+      Aucun pistage. L'app ne porte aucun réseau publicitaire, ne rapproche
+      rien d'une identité tierce, et n'a pas d'identifiant publicitaire.
+    -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!--
+          L'adresse électronique, quand le lecteur crée un compte.
+
+          Elle sert à une seule chose : retrouver ses annotations d'un appareil
+          à l'autre. Elle n'est pas rapprochée d'une publicité, ni vendue, ni
+          employée à autre chose. Le compte est facultatif — l'app se lit
+          entièrement sans.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+          L'identifiant de compte.
+
+          Le backend garde un `subject` — l'identifiant que rend le fournisseur
+          d'identité — et un `user` qui lui est propre. C'est un identifiant de
+          niveau compte, transmis hors de l'appareil : Apple l'appelle
+          « User ID », et le taire au motif qu'il est technique serait une
+          déclaration incomplète.
+
+          Il n'existe que si le lecteur crée un compte, ce qui est facultatif.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeUserID</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+          Les surlignages et les notes du lecteur, quand il choisit de
+          synchroniser. Ce sont **ses** textes : ils restent liés à lui, et
+          `DELETE /me` les efface d'un coup.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+          Les rapports de panne, par Sentry. **Non liés** au lecteur : ils
+          portent une pile d'appels et un modèle d'appareil, pas une identité.
+          `sendDefaultPii` est à faux, la capture d'écran et la hiérarchie des
+          vues sont désactivées, et le filet d'expurgation masque tout texte
+          cité de plus de douze caractères — c'est ainsi qu'une note de lecteur
+          ne peut pas partir dans un rapport.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeCrashData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+          Les données de performance, par le même Sentry.
+          `enableAutoPerformanceTracing` est à vrai et 20 % des traces partent en
+          production : durée de lancement, gels d'interface, latence des
+          requêtes. Ce n'est pas de la panne, c'est une catégorie distincte, et
+          l'omettre serait une déclaration incomplète.
+        -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypePerformanceData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!--
+          `UserDefaults` — l'onglet ouvert, le consentement à la
+          synchronisation, la dernière adresse ouverte. Motif `CA92.1` :
+          des données de l'app, lues et écrites par elle seule.
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+
+        <!--
+          Les dates de fichiers — le corpus téléchargé, les réglages de lecture,
+          les annotations. Motif `C617.1` : des fichiers que l'app a elle-même
+          créés dans son propre conteneur.
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string>
+            </array>
+        </dict>
+
+        <!--
+          L'espace disque disponible, qu'une écriture consulte implicitement.
+          Motif `E174.1` : afficher au lecteur, ou refuser une écriture qui ne
+          tiendrait pas.
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>E174.1</string>
+            </array>
+        </dict>
+
+        <!--
+          L'horloge système — le verset du jour, la programmation des rappels.
+          Motif `35F9.1` : afficher au lecteur une information datée.
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>35F9.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

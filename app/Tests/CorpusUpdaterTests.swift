@@ -1,0 +1,153 @@
+import Foundation
+import Testing
+
+@testable import ONTData
+@testable import ONTKit
+
+/// La mise à jour du corpus par le réseau.
+///
+/// Ces tests interrogent **le vrai serveur**, `ontbible.com/corpus/`. C'est
+/// délibéré : ce qu'on veut éprouver n'est pas la logique — elle tient en
+/// trente lignes — mais l'**accord** entre ce que le site publie et ce que
+/// l'app sait lire. Une doublure de réseau ne dirait rien de cet accord, et
+/// c'est précisément là que ça casse : un champ renommé, un manifeste dont le
+/// schéma monte, un fichier servi en `text/html` par une page d'erreur.
+///
+/// Ils sont donc ignorés quand le réseau manque, plutôt qu'échouer : on ne
+/// bloque pas une compilation parce qu'un train est entré dans un tunnel.
+@Suite("Mise à jour du corpus")
+struct CorpusUpdaterTests {
+    /// Un dossier neuf par test, effacé ensuite. Sans ça, le second test
+    /// trouverait le corpus que le premier a téléchargé et ne prouverait rien.
+    static func dossierTemporaire() -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("corpus-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    static var reseauDisponible: Bool {
+        get async {
+            let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
+            guard let (_, reponse) = try? await URLSession.shared.data(from: url) else {
+                return false
+            }
+            return (reponse as? HTTPURLResponse)?.statusCode == 200
+        }
+    }
+
+    @Test("Le manifeste publié est celui que l'app sait lire")
+    func manifesteLisible() async throws {
+        guard await Self.reseauDisponible else { return }
+
+        let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
+        let (octets, _) = try await URLSession.shared.data(from: url)
+        let manifeste = try JSONDecoder().decode(CorpusUpdater.Manifest.self, from: octets)
+
+        #expect(manifeste.schema == CorpusUpdater.schema)
+        #expect(!manifeste.livres.isEmpty)
+        // Les quatre fichiers que le lecteur de disque sait recouvrir. Un de
+        // moins, et l'app lirait celui-là du bundle sans qu'on le sache.
+        for attendu in ["plan", "quotidien", "glossaire", "occurrences"] {
+            #expect(manifeste.fichiers[attendu] != nil, "\(attendu) absent du manifeste")
+        }
+    }
+
+    @Test("Une première synchronisation télécharge tout, la seconde rien")
+    func synchronisationIdempotente() async throws {
+        guard await Self.reseauDisponible else { return }
+
+        let dossier = Self.dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: dossier) }
+
+        let miseAJour = CorpusUpdater(dossier: dossier)
+        let premiere = try await miseAJour.synchroniser()
+        #expect(premiere > 0, "rien n'a été téléchargé")
+
+        // Le point du registre d'empreintes : ne pas retélécharger ce qu'on a.
+        // Sans lui, chaque lancement d'app reprendrait vingt méga.
+        let seconde = try await miseAJour.synchroniser()
+        #expect(seconde == 0, "\(seconde) fichiers retéléchargés pour rien")
+    }
+
+    @Test("Le corpus téléchargé se lit, et recouvre le bundle")
+    func lectureDepuisLeDisque() async throws {
+        guard await Self.reseauDisponible else { return }
+
+        let dossier = Self.dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: dossier) }
+
+        try await CorpusUpdater(dossier: dossier).synchroniser()
+
+        // Un socle qui **échoue toujours** : si la lecture réussit, c'est
+        // nécessairement le disque qui a répondu. Avec le vrai bundle, on ne
+        // saurait pas lequel des deux a parlé.
+        let lecteur = DiskCorpusRepository(dossier: dossier, socle: SocleMuet())
+        let corpora = try lecteur.corpora()
+        #expect(!corpora.isEmpty)
+
+        let livres = lecteur.writtenBooks()
+        #expect(!livres.isEmpty, "aucun livre écrit dans le plan téléchargé")
+
+        let premier = try #require(livres.first)
+        let livre = try lecteur.book(premier.id)
+        #expect(!livre.chapters.isEmpty, "le livre téléchargé n'a pas de chapitre")
+    }
+
+    @Test("Sans rien sur le disque, c'est le socle qui répond")
+    func repliSurLeSocle() throws {
+        let vide = Self.dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: vide) }
+
+        let lecteur = DiskCorpusRepository(dossier: vide, socle: SocleFictif())
+        #expect(try lecteur.corpora().count == 1)
+        #expect(try lecteur.book("temoin").id == "temoin")
+    }
+
+    @Test("Un manifeste d'un schéma inconnu est refusé, pas deviné")
+    func schemaInconnu() async throws {
+        let dossier = Self.dossierTemporaire()
+        defer { try? FileManager.default.removeItem(at: dossier) }
+
+        // Une origine qui n'existe pas : `synchroniser` rend zéro sans jeter.
+        // Une mise à jour est un agrément, pas une condition — l'app doit
+        // continuer de lire ce qu'elle a.
+        let miseAJour = CorpusUpdater(
+            origine: URL(string: "https://ontbible.com/corpus-qui-n-existe-pas/")!,
+            dossier: dossier
+        )
+        #expect(try await miseAJour.synchroniser() == 0)
+    }
+}
+
+// MARK: - Les doublures
+
+/// Un socle qui échoue toujours, pour prouver que c'est le disque qui répond.
+private struct SocleMuet: CorpusRepository {
+    struct Absent: Error {}
+    func corpora() throws -> [Corpus] { throw Absent() }
+    func book(_ id: String) throws -> Book { throw Absent() }
+}
+
+/// Un socle minimal, pour prouver le repli.
+private struct SocleFictif: CorpusRepository {
+    func corpora() throws -> [Corpus] {
+        [Corpus(id: "temoin", title: "Témoin", order: 1, modes: [])]
+    }
+
+    func book(_ id: String) throws -> Book {
+        Book(
+            id: "temoin",
+            slot: 1,
+            title: "Témoin",
+            french: "Témoin",
+            hebrew: "",
+            corpusId: "temoin",
+            modeId: "temoin",
+            groupId: nil,
+            chapters: [],
+            intro: nil,
+            empty: false
+        )
+    }
+}

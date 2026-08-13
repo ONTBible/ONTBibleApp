@@ -1,0 +1,106 @@
+# Les tests, à chaque poussée et à chaque proposition.
+#
+# ## Il ne porte aucun secret, et c'est le point
+#
+# Ce workflow s'exécute sur du code qui n'est pas encore relu — une proposition
+# venue d'un fork peut contenir n'importe quoi. Il ne reçoit donc **aucune**
+# clé : ni App Store Connect, ni signature, ni jeton. Le pire qu'un code
+# malveillant puisse y faire est de gâcher des minutes de calcul chez GitHub.
+#
+# Tout ce qui touche à Apple vit dans `testflight.yml`, qui ne se déclenche que
+# sur `main` et sur les étiquettes — donc uniquement après fusion, donc après
+# relecture.
+#
+# ## Pourquoi pas de runner sur la machine de l'auteur
+#
+# Un runner auto-hébergé exécuterait le code d'une proposition externe **sur son
+# Mac**, avec ses clés de signature à portée. Le dépôt étant public, GitHub
+# fournit des runners macOS gratuitement et sans limite : il n'y a aucune raison
+# de prendre ce risque.
+
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: macos-15
+
+    steps:
+      - name: L'app
+        uses: actions/checkout@v4
+        with:
+          path: ONTBibleApp
+
+      # Le vault. Le corpus n'est pas dans le dépôt — il est produit par le
+      # pipeline — donc il faut sa source pour compiler quoi que ce soit.
+      - name: Le vault
+        uses: actions/checkout@v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # `xcbeautify` rend la sortie d'`xcodebuild` lisible et pose les
+      # annotations d'erreur sur les lignes concernées dans l'interface de
+      # GitHub. Sans lui, une erreur de compilation se cherche dans dix mille
+      # lignes de journal.
+      - name: Les outils
+        run: brew install xcodegen xcbeautify
+
+      # `npm run app` fait les trois : le pipeline lit le vault et produit
+      # `dist/`, `sync` le recopie dans les ressources de l'app, `xcodegen`
+      # engendre le projet — qui n'est pas committé, parce qu'un `.xcodeproj`
+      # dans un dépôt est une source de conflits sans contrepartie.
+      - name: Le corpus et le projet
+        working-directory: ONTBibleApp
+        env:
+          ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
+        run: |
+          npm ci
+          npm run app
+
+      - name: Les tests du pipeline
+        working-directory: ONTBibleApp
+        run: npm test
+
+      - name: Les tests de l'app
+        working-directory: ONTBibleApp/app
+        # Un simulateur générique plutôt qu'un modèle nommé : les images
+        # disponibles changent d'une version de macOS à l'autre chez GitHub, et
+        # un nom en dur casse le jour où ils retirent le modèle.
+        run: |
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONT \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -resultBundlePath ../resultats.xcresult \
+            | xcbeautify --renderer github-actions
+
+      # Le compte réel, lu du paquet de résultats. La ligne « Executed 0 tests »
+      # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
+      # invisible, et l'on croirait qu'aucun test n'a tourné.
+      - name: Le compte
+        if: always()
+        working-directory: ONTBibleApp
+        run: |
+          xcrun xcresulttool get test-results summary --path resultats.xcresult \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{d['passedTests']} réussis / {d['totalTestCount']}\")"
