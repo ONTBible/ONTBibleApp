@@ -2,7 +2,7 @@ name: ONT
 options:
   bundleIdPrefix: com.labibleont
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "18.0"
   createIntermediateGroups: true
   # L'icône est un bundle Icon Composer (`app/ONT.icon`), pas un
   # `.appiconset`. xcodegen ne sait ni écrire le type `wrapper.icon` ni poser

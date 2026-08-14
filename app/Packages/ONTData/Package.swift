@@ -7,7 +7,7 @@ import PackageDescription
 // de fichiers et du schéma de stockage vit ici, et nulle part ailleurs.
 let package = Package(
     name: "ONTData",
-    platforms: [.iOS("26.0"), .macOS("14.0")],
+    platforms: [.iOS("18.0"), .macOS("14.0")],
     products: [.library(name: "ONTData", targets: ["ONTData"])],
     dependencies: [.package(path: "../ONTKit")],
     targets: [
