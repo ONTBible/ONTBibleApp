@@ -191,4 +191,22 @@ struct ImportantTermTests {
         let composed = ONTTextRenderer.compose(n, theme: ONTTheme(preferences: prefs))
         #expect(String(composed.characters).contains("Terre"))
     }
+
+    @Test("Jost-SemiBold répond, sinon les barres retombent en fonte système")
+    func navigationFaceIsAvailable() {
+        // Le proxy d'apparence n'échoue pas : Jost absente, `UIFont(name:)`
+        // rend `nil`, on ne pose rien, et les barres gardent la fonte système
+        // sans que rien ne le signale. C'est exactement le genre de panne
+        // silencieuse que ce fichier existe pour rendre bruyante.
+        #expect(ONTNavigationChrome.isAvailable, "Jost-SemiBold ne répond pas")
+    }
+
+    @Test("la fonte des titres répond")
+    func displayFaceIsAvailable() {
+        // `ONTFonts.display` est une **coupe** nommée, pas une famille : une
+        // faute de frappe ou un fichier retiré du bundle ne fait rien planter,
+        // iOS retombe sur la fonte système et les titres changent d'allure sans
+        // que rien ne le dise.
+        #expect(UIFont(name: ONTFonts.display, size: 20) != nil, "\(ONTFonts.display) ne répond pas")
+    }
 }
