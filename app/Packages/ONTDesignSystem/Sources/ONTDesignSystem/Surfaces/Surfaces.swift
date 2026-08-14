@@ -7,7 +7,7 @@ import SwiftUI
 /// suivante. La borne vaut surtout sur iPad, où rien ne limiterait sinon.
 public struct ParchmentPage<Content: View>: View {
     @Environment(\.ontTheme) private var theme
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let content: Content
 
@@ -21,13 +21,17 @@ public struct ParchmentPage<Content: View>: View {
             .padding(.vertical, spacing.l)
             .frame(maxWidth: ONTLayout.readingWidth, alignment: .leading)
             .frame(maxWidth: .infinity)
+            // Pas de grain ici : `ParchmentPage` est la **colonne** de lecture,
+            // pas la page. Le grain s'arrêterait au bord du texte, ce qui se
+            // verrait dès qu'un écran est plus large que la mesure. Il vit dans
+            // `ONTScreenModifier`, qui couvre l'écran entier.
             .background(theme.background)
     }
 }
 
 /// La carte bordeaux — le verset du jour, les mises en exergue.
 public struct BurgundyCard<Content: View>: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
     let content: Content
 
     public init(@ViewBuilder content: () -> Content) {
@@ -45,7 +49,7 @@ public struct BurgundyCard<Content: View>: View {
 
 /// Un bloc secondaire, en retrait.
 public struct QuietBlock<Content: View>: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
     let content: Content
 
     public init(@ViewBuilder content: () -> Content) {
