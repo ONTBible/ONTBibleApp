@@ -162,9 +162,19 @@ def main() -> None:
 
     # La version en préparation. Il n'y en a qu'une à la fois dans cet état ;
     # si elle n'existe pas, c'est qu'aucune version n'attend d'être remplie.
+    # Deux états valent « prête à soumettre ».
+    #
+    # `PREPARE_FOR_SUBMISSION` est celui d'une version qu'on remplit.
+    # `DEVELOPER_REJECTED` est celui d'une version dont **on** a annulé la
+    # soumission — pour changer de build, typiquement. C'est exactement la
+    # version qu'on veut resoumettre, et ne pas la reconnaître obligeait à
+    # repasser par l'interface.
     versions = client.get(
         f"apps/{app}/appStoreVersions",
-        **{"filter[appStoreState]": "PREPARE_FOR_SUBMISSION", "limit": 1},
+        **{
+            "filter[appStoreState]": "PREPARE_FOR_SUBMISSION,DEVELOPER_REJECTED",
+            "limit": 1,
+        },
     )["data"]
     if not versions:
         raise SystemExit(
