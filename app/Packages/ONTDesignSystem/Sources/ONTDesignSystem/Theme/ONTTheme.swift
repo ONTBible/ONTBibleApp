@@ -6,7 +6,10 @@ import SwiftUI
 /// Injecté par l'environnement, il évite qu'une vue accumule les lectures
 /// séparées (accent, espacement, couleur d'encre…). On lit le thème, et on
 /// prend ses membres.
-public struct ONTTheme: Sendable {
+/// `Equatable` pour que les vues qui en dépendent puissent être comparées, et
+/// donc **sautées** quand rien de ce qu'elles rendent n'a changé. Voir la prose
+/// continue, où une recomposition inutile coûte une mise en page entière.
+public struct ONTTheme: Sendable, Equatable {
     public var preferences: ReadingPreferences
     /// La taille du corps, déjà mise à l'échelle par Dynamic Type.
     public var scaledTextSize: CGFloat
@@ -40,8 +43,20 @@ public struct ONTTheme: Sendable {
         scaledTextSize * preferences.lineSpacing
     }
 
+    /// Le souffle d'interlettrage des fonds sombres, en points.
+    ///
+    /// La halation : sur une nuit, un texte clair déborde optiquement dans le
+    /// noir qui l'entoure, les lettres paraissent plus grasses et finissent par
+    /// se toucher. Le site corrige par `letter-spacing: 0.006em` et note que ce
+    /// n'est pas un goût.
+    ///
+    /// Proportionnel au corps, donc `0,006 × la taille` : un interlettrage fixe
+    /// serait invisible à 15 pt et béant à 28. Rien sur les fonds clairs, où le
+    /// phénomène joue en sens inverse.
+    public var tracking: CGFloat { mode.isDark ? scaledTextSize * 0.006 : 0 }
+
     /// Le jeu de couleurs système que ce thème implique.
-    public var colorScheme: ColorScheme { mode == .dark ? .dark : .light }
+    public var colorScheme: ColorScheme { mode.isDark ? .dark : .light }
 }
 
 private struct ONTThemeKey: EnvironmentKey {
@@ -59,7 +74,10 @@ extension View {
     /// Pose le thème et ce qui en découle pour tout le sous-arbre.
     public func ontTheme(_ theme: ONTTheme) -> some View {
         environment(\.ontTheme, theme)
-            .tint(ONTColors.burgundy)
+            // La teinte suit le thème. Posée en bordeaux pour tout le monde,
+            // elle rendait l'onglet actif et chaque bouton système illisibles
+            // sur les fonds sombres — 1,2:1, du bordeaux sur du bordeaux.
+            .tint(ONTColors.brandInk(theme.mode))
     }
 }
 
