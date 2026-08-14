@@ -58,7 +58,14 @@ public protocol SearchIndex: Sendable {
 
 /// Les surlignages et les notes.
 public protocol HighlightRepository: AnyObject {
+    /// Ce qui se **montre** — les pierres tombales en sont exclues.
     func all() -> [Highlight]
+    /// Ce qui se **synchronise** — pierres tombales comprises.
+    ///
+    /// Deux méthodes et non une, parce que les deux besoins sont opposés : une
+    /// liste d'annotations ne doit pas afficher ce qui est supprimé, et un
+    /// envoi qui omettrait les suppressions les perdrait.
+    func allForSync() -> [Highlight]
     func highlight(chapterId: String, verse: Int) -> Highlight?
     func save(_ highlight: Highlight)
     func remove(_ highlight: Highlight)

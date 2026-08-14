@@ -8,20 +8,25 @@
 //! ```text
 //! PK                SK                        contenu
 //! ─────────────────────────────────────────────────────────────────
-//! USER#<id>         PROFILE                   le compte
+//! USER#<id>         PROFILE                   le compte, + `idp` → la clé du lien
 //! USER#<id>         HL#<unité>#<verset>       un surlignage
 //! USER#<id>         POS                       la position de lecture
 //! USER#<id>         RT#<empreinte>            un jeton de rafraîchissement
 //! IDP#<fourn>#<sub> LINK                      identité externe → compte
 //! ```
 //!
-//! Les jetons de rafraîchissement portent un TTL DynamoDB : ils disparaissent
-//! d'eux-mêmes à expiration, sans tâche de ménage à écrire ni à surveiller.
+//! Le profil porte `idp`, la clé du lien d'identité. Sans elle, l'effacement
+//! ne peut pas atteindre l'autre partition — voir `erase`.
+//!
+//! Les jetons de rafraîchissement portent un TTL DynamoDB, qui les efface
+//! d'eux-mêmes. **Ce n'est pas une garantie d'expiration** : AWS écrit qu'un
+//! élément expiré peut rester lisible plusieurs jours. `consume_refresh`
+//! vérifie donc l'échéance lui-même.
 
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::AttributeValue;
+use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
 use aws_sdk_dynamodb::Client;
 
 use crate::domain::ports::{SyncRepository, UserRepository};
@@ -54,6 +59,18 @@ impl Dynamo {
 
 fn string(item: &HashMap<String, AttributeValue>, name: &str) -> Option<String> {
     item.get(name)?.as_s().ok().cloned()
+}
+
+/// L'horloge du système, en secondes epoch.
+///
+/// L'infrastructure a le droit de la lire — c'est le domaine qui ne l'a pas,
+/// pour rester éprouvable sans horloge. Ici on compare une échéance écrite par
+/// nous à l'instant présent : il n'y a rien à injecter.
+fn maintenant() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|ecoule| ecoule.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn number(item: &HashMap<String, AttributeValue>, name: &str) -> Option<i64> {
@@ -90,37 +107,73 @@ impl UserRepository for Dynamo {
         let mut link = Self::key(&identity.key(), "LINK");
         link.insert("user".into(), AttributeValue::S(user.0.clone()));
 
-        // `attribute_not_exists(pk)` rend l'écriture idempotente : deux
-        // connexions simultanées depuis deux appareils ne créeront pas deux
-        // comptes pour la même identité.
-        self.client
-            .put_item()
-            .table_name(&self.table)
-            .set_item(Some(link))
-            .condition_expression("attribute_not_exists(pk)")
-            .send()
-            .await
-            .map_err(|error| {
-                tracing::warn!(?error, "création de l'identité");
-                DomainError::Storage
-            })?;
-
         let mut profile = Self::key(&Self::user_key(&user), "PROFILE");
         profile.insert(
             "provider".into(),
             AttributeValue::S(identity.provider.as_str().to_string()),
         );
+        // La clé du lien, recopiée sur le profil.
+        //
+        // C'est ce qui rend l'effacement complet possible : le lien vit dans
+        // **une autre partition** (`IDP#…`), et rien dans `USER#<id>` n'y menait.
+        // `erase` ne pouvait donc pas le trouver, et l'identité externe
+        // survivait au compte — une reconnexion retrouvait un compte censé
+        // effacé.
+        profile.insert("idp".into(), AttributeValue::S(identity.key()));
         if let Some(email) = &identity.email {
             profile.insert("email".into(), AttributeValue::S(email.clone()));
         }
 
-        self.client
-            .put_item()
-            .table_name(&self.table)
-            .set_item(Some(profile))
+        // Les deux écritures dans **une transaction**.
+        //
+        // Elles étaient séparées : une panne entre les deux laissait un lien
+        // sans profil, et l'identité pointait alors un compte qui n'existait
+        // pas. La transaction est tout ou rien.
+        //
+        // `attribute_not_exists(pk)` sur le lien garde l'idempotence : deux
+        // connexions simultanées depuis deux appareils ne créent pas deux
+        // comptes pour la même identité. La seconde échoue, et c'est traité
+        // ci-dessous plutôt que rendu au visiteur.
+        let resultat = self
+            .client
+            .transact_write_items()
+            .transact_items(
+                TransactWriteItem::builder()
+                    .put(
+                        Put::builder()
+                            .table_name(&self.table)
+                            .set_item(Some(link))
+                            .condition_expression("attribute_not_exists(pk)")
+                            .build()
+                            .map_err(|_| DomainError::Storage)?,
+                    )
+                    .build(),
+            )
+            .transact_items(
+                TransactWriteItem::builder()
+                    .put(
+                        Put::builder()
+                            .table_name(&self.table)
+                            .set_item(Some(profile))
+                            .build()
+                            .map_err(|_| DomainError::Storage)?,
+                    )
+                    .build(),
+            )
             .send()
-            .await
-            .map_err(|_| DomainError::Storage)?;
+            .await;
+
+        if let Err(error) = resultat {
+            // La course perdue n'est pas une erreur : l'autre connexion vient
+            // de créer le compte, et c'est celui-là qu'il faut rendre. Renvoyer
+            // un 500 à la seconde ferait échouer une connexion parfaitement
+            // valide, sur un appareil que rien ne distingue du premier.
+            tracing::warn!(?error, "création concurrente, on relit le lien");
+            if let Some(existant) = self.find_by_identity(identity).await? {
+                return Ok(existant);
+            }
+            return Err(DomainError::Storage);
+        }
 
         Ok(user)
     }
@@ -171,39 +224,137 @@ impl UserRepository for Dynamo {
         let user = string(&item, "user").ok_or(DomainError::SessionInvalid)?;
         let sort = string(&item, "sk").ok_or(DomainError::SessionInvalid)?;
 
+        // L'expiration est vérifiée **ici**, et pas seulement par le TTL.
+        //
+        // AWS écrit noir sur blanc qu'un élément expiré peut rester lisible
+        // plusieurs jours avant d'être effacé : le TTL est un ménage, pas une
+        // garantie. Sans ce contrôle, un jeton de soixante jours restait
+        // utilisable au-delà — et c'est précisément la durée qui décide de
+        // combien de temps une session volée survit.
+        if let Some(echeance) = number(&item, "ttl") {
+            if echeance <= maintenant() {
+                // On retire quand même la ligne au passage : elle n'a plus
+                // aucune valeur, et la laisser ferait réessayer indéfiniment.
+                let _ = self
+                    .client
+                    .delete_item()
+                    .table_name(&self.table)
+                    .set_key(Some(Self::key(&format!("USER#{user}"), &sort)))
+                    .send()
+                    .await;
+                return Err(DomainError::SessionInvalid);
+            }
+        }
+
+        // La suppression est **conditionnelle**, et c'est ce qui rend la
+        // consommation atomique.
+        //
+        // Sans condition, deux requêtes concurrentes lisaient la même ligne,
+        // la supprimaient toutes les deux sans erreur, et repartaient chacune
+        // avec une session neuve : un jeton à usage unique en délivrait deux.
+        // Ici, une seule des deux voit la ligne exister au moment d'écrire ;
+        // l'autre reçoit un échec de condition, qui vaut « déjà consommé ».
         self.client
             .delete_item()
             .table_name(&self.table)
             .set_key(Some(Self::key(&format!("USER#{user}"), &sort)))
+            .condition_expression("attribute_exists(pk)")
             .send()
             .await
-            .map_err(|_| DomainError::Storage)?;
+            .map_err(|error| {
+                tracing::warn!(?error, "jeton déjà consommé, ou stockage indisponible");
+                DomainError::SessionInvalid
+            })?;
 
         Ok(UserId(user))
     }
 
+    /// Efface **tout** ce qui rattache des données à ce lecteur.
+    ///
+    /// ## Deux défauts corrigés, et le second était le grave
+    ///
+    /// La requête ne **paginait pas**. DynamoDB rend au plus un mégaoctet par
+    /// appel et signale la suite par une clé de reprise ; sans la suivre, un
+    /// compte chargé gardait silencieusement tout ce qui dépassait. Un
+    /// effacement partiel qui se déclare réussi est pire qu'un échec.
+    ///
+    /// Et le **lien d'identité** vit dans une autre partition, `IDP#<fourn>#…`.
+    /// Une requête sur `pk = USER#<id>` ne pouvait pas l'atteindre : il
+    /// survivait au compte, et une reconnexion par le même fournisseur
+    /// retrouvait un identifiant censé effacé. Ce n'était donc pas un
+    /// effacement au sens de l'article 17 du RGPD.
+    ///
+    /// ## L'ordre compte
+    ///
+    /// Le lien part **en premier**. Si l'effacement s'interrompt ensuite, il
+    /// reste des miettes sans identité — désagréable mais anonyme. L'ordre
+    /// inverse laisserait une identité vivante pointant un compte vidé, ce qui
+    /// est exactement ce qu'on veut éviter.
     async fn erase(&self, user: &UserId) -> Result<(), DomainError> {
         let partition = Self::user_key(user);
 
-        let items = self
+        // Le profil porte la clé du lien depuis `create`.
+        let profil = self
             .client
-            .query()
+            .get_item()
             .table_name(&self.table)
-            .key_condition_expression("pk = :pk")
-            .expression_attribute_values(":pk", AttributeValue::S(partition.clone()))
+            .set_key(Some(Self::key(&partition, "PROFILE")))
             .send()
             .await
             .map_err(|_| DomainError::Storage)?;
 
-        for item in items.items() {
-            let Some(sort) = string(item, "sk") else { continue };
+        if let Some(idp) = profil.item().and_then(|item| string(item, "idp")) {
             self.client
                 .delete_item()
                 .table_name(&self.table)
-                .set_key(Some(Self::key(&partition, &sort)))
+                .set_key(Some(Self::key(&idp, "LINK")))
+                .send()
+                .await
+                .map_err(|error| {
+                    tracing::error!(?error, "effacement du lien d'identité");
+                    DomainError::Storage
+                })?;
+        } else {
+            // Un profil sans `idp` vient d'avant ce correctif. On le dit fort :
+            // le compte sera vidé, mais son identité externe restera, et
+            // personne ne le verra autrement que dans ce journal.
+            tracing::error!(
+                user = %user.0,
+                "profil sans clé d'identité — le lien IDP survivra à l'effacement"
+            );
+        }
+
+        // Puis la partition du lecteur, page par page.
+        let mut depuis = None;
+        loop {
+            let page = self
+                .client
+                .query()
+                .table_name(&self.table)
+                .key_condition_expression("pk = :pk")
+                .expression_attribute_values(":pk", AttributeValue::S(partition.clone()))
+                .set_exclusive_start_key(depuis)
                 .send()
                 .await
                 .map_err(|_| DomainError::Storage)?;
+
+            for item in page.items() {
+                let Some(sort) = string(item, "sk") else {
+                    continue;
+                };
+                self.client
+                    .delete_item()
+                    .table_name(&self.table)
+                    .set_key(Some(Self::key(&partition, &sort)))
+                    .send()
+                    .await
+                    .map_err(|_| DomainError::Storage)?;
+            }
+
+            depuis = page.last_evaluated_key().cloned();
+            if depuis.is_none() {
+                break;
+            }
         }
 
         Ok(())
@@ -217,27 +368,45 @@ impl SyncRepository for Dynamo {
         user: &UserId,
         since: Option<i64>,
     ) -> Result<Vec<Highlight>, DomainError> {
-        let response = self
-            .client
-            .query()
-            .table_name(&self.table)
-            .key_condition_expression("pk = :pk AND begins_with(sk, :prefix)")
-            .expression_attribute_values(":pk", AttributeValue::S(Self::user_key(user)))
-            .expression_attribute_values(":prefix", AttributeValue::S("HL#".into()))
-            .send()
-            .await
-            .map_err(|_| DomainError::Storage)?;
-
+        // Paginé, comme l'effacement et pour la même raison : au-delà d'un
+        // mégaoctet, DynamoDB s'arrête et le dit par une clé de reprise. Sans
+        // la suivre, un lecteur assidu cesserait de recevoir ses plus anciens
+        // surlignages sans qu'aucune erreur ne le signale — ses appareils
+        // divergeraient en silence.
         let mut highlights = Vec::new();
-        for item in response.items() {
-            let Some(body) = string(item, "body") else { continue };
-            let Ok(highlight) = serde_json::from_str::<Highlight>(&body) else {
-                continue;
-            };
-            if since.is_none_or(|cutoff| highlight.updated_at > cutoff) {
-                highlights.push(highlight);
+        let mut depuis = None;
+
+        loop {
+            let page = self
+                .client
+                .query()
+                .table_name(&self.table)
+                .key_condition_expression("pk = :pk AND begins_with(sk, :prefix)")
+                .expression_attribute_values(":pk", AttributeValue::S(Self::user_key(user)))
+                .expression_attribute_values(":prefix", AttributeValue::S("HL#".into()))
+                .set_exclusive_start_key(depuis)
+                .send()
+                .await
+                .map_err(|_| DomainError::Storage)?;
+
+            for item in page.items() {
+                let Some(body) = string(item, "body") else {
+                    continue;
+                };
+                let Ok(highlight) = serde_json::from_str::<Highlight>(&body) else {
+                    continue;
+                };
+                if since.is_none_or(|cutoff| highlight.updated_at > cutoff) {
+                    highlights.push(highlight);
+                }
+            }
+
+            depuis = page.last_evaluated_key().cloned();
+            if depuis.is_none() {
+                break;
             }
         }
+
         Ok(highlights)
     }
 

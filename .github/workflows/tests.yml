@@ -39,23 +39,23 @@ jobs:
 
     steps:
       - name: L'app
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: ONTBibleApp
 
       # Le vault. Le corpus n'est pas dans le dépôt — il est produit par le
       # pipeline — donc il faut sa source pour compiler quoi que ce soit.
       - name: Le vault
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
 
@@ -88,6 +88,28 @@ jobs:
       - name: Les tests du pipeline
         working-directory: ONTBibleApp
         run: npm test
+
+      - name: Le typage du pipeline
+        working-directory: ONTBibleApp
+        # `npm test` n'exécute que les cas de test. Un défaut de typage passe
+        # donc au travers, alors que le projet est en TypeScript strict avec
+        # `noUncheckedIndexedAccess` — c'est-à-dire que le typage y est un
+        # filet, pas une décoration.
+        run: npm run check
+
+      - name: Le backend
+        working-directory: ONTBibleApp/backend
+        # Le backend n'était pas éprouvé du tout. Il pouvait casser sans
+        # qu'aucune fusion ne soit bloquée — et c'est lui qui porte
+        # l'effacement des comptes et la consommation des jetons.
+        #
+        # `--all-targets` couvre aussi les tests eux-mêmes : un test qui ne
+        # compile plus est un test qui ne protège plus rien.
+        run: |
+          set -o pipefail
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
 
       - name: Les tests de l'app
         working-directory: ONTBibleApp/app

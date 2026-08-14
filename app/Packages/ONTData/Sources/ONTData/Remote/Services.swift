@@ -35,14 +35,28 @@ private struct HighlightDTO: Codable {
         color = highlight.color.rawValue
         note = highlight.note
         updatedAt = Int64(highlight.updatedAt.timeIntervalSince1970 * 1000)
-        deleted = false
+        // L'état réel, et non `false` en dur — c'est ce qui faisait qu'aucune
+        // suppression ne quittait jamais l'appareil.
+        deleted = highlight.deleted
     }
 
     /// Rend `nil` si l'objet est inutilisable — une couleur inconnue vient
     /// d'une version plus récente de l'app, et on préfère ignorer la ligne
     /// plutôt que de faire échouer toute la synchronisation.
+    ///
+    /// Une pierre tombale est en revanche **rendue**, pas écartée.
+    ///
+    /// Elle l'était : `guard !deleted` renvoyait `nil`, donc une suppression
+    /// faite sur un autre appareil n'arrivait jamais jusqu'à la fusion. Le
+    /// surlignage restait, et le prochain envoi le renvoyait au serveur — qui
+    /// le ressuscitait pour tout le monde.
+    ///
+    /// La couleur d'une pierre tombale n'a plus d'importance ; si elle est
+    /// inconnue, on retombe sur une valeur quelconque plutôt que de perdre la
+    /// suppression.
     var domain: Highlight? {
-        guard !deleted, let color = HighlightColor(rawValue: color) else { return nil }
+        guard let color = HighlightColor(rawValue: color) ?? (deleted ? HighlightColor.allCases.first : nil)
+        else { return nil }
         return Highlight(
             id: UUID(uuidString: id) ?? UUID(),
             bookId: bookId,
@@ -50,7 +64,8 @@ private struct HighlightDTO: Codable {
             verse: verse,
             color: color,
             note: note,
-            updatedAt: Date(timeIntervalSince1970: Double(updatedAt) / 1000)
+            updatedAt: Date(timeIntervalSince1970: Double(updatedAt) / 1000),
+            deleted: deleted
         )
     }
 }

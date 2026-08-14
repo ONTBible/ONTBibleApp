@@ -50,7 +50,12 @@ impl UserRepository for FakeUsers {
         &self,
         identity: &ExternalIdentity,
     ) -> Result<Option<UserId>, DomainError> {
-        Ok(self.identities.lock().unwrap().get(&identity.key()).cloned())
+        Ok(self
+            .identities
+            .lock()
+            .unwrap()
+            .get(&identity.key())
+            .cloned())
     }
 
     async fn create(&self, identity: &ExternalIdentity) -> Result<UserId, DomainError> {
@@ -119,7 +124,10 @@ impl SyncRepository for FakeSync {
         highlight: &Highlight,
     ) -> Result<(), DomainError> {
         let mut all = self.highlights.lock().unwrap();
-        match all.iter_mut().find(|h| h.sort_key() == highlight.sort_key()) {
+        match all
+            .iter_mut()
+            .find(|h| h.sort_key() == highlight.sort_key())
+        {
             Some(existing) => *existing = highlight.clone(),
             None => all.push(highlight.clone()),
         }
@@ -188,7 +196,10 @@ fn highlight(verse: u32, color: &str, updated_at: i64) -> Highlight {
 async fn une_premiere_connexion_cree_le_compte() {
     let (app, _, _) = app(true);
 
-    let session = app.sign_in(Provider::Apple, "code", "uri", None).await.unwrap();
+    let session = app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .unwrap();
 
     assert!(session.created, "le compte doit être signalé comme neuf");
     assert!(app.tokens.verify(&session.access_token).is_ok());
@@ -198,8 +209,14 @@ async fn une_premiere_connexion_cree_le_compte() {
 async fn une_seconde_connexion_retrouve_le_meme_compte() {
     let (app, _, _) = app(true);
 
-    let first = app.sign_in(Provider::Apple, "code", "uri", None).await.unwrap();
-    let second = app.sign_in(Provider::Apple, "code", "uri", None).await.unwrap();
+    let first = app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .unwrap();
+    let second = app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .unwrap();
 
     assert!(!second.created);
     assert_eq!(
@@ -213,7 +230,10 @@ async fn une_seconde_connexion_retrouve_le_meme_compte() {
 async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
     let (app, users, _) = app(false);
 
-    assert!(app.sign_in(Provider::Apple, "code", "uri", None).await.is_err());
+    assert!(app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .is_err());
     assert!(users.identities.lock().unwrap().is_empty());
 }
 
@@ -224,7 +244,10 @@ async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
 #[tokio::test]
 async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
     let (app, _, _) = app(true);
-    let session = app.sign_in(Provider::Apple, "code", "uri", None).await.unwrap();
+    let session = app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .unwrap();
 
     let renewed = app.refresh(&session.refresh_token).await.unwrap();
 
@@ -235,7 +258,10 @@ async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
 #[tokio::test]
 async fn un_jeton_de_rafraichissement_ne_sert_qu_une_fois() {
     let (app, _, _) = app(true);
-    let session = app.sign_in(Provider::Apple, "code", "uri", None).await.unwrap();
+    let session = app
+        .sign_in(Provider::Apple, "code", "uri", None)
+        .await
+        .unwrap();
 
     app.refresh(&session.refresh_token).await.unwrap();
 

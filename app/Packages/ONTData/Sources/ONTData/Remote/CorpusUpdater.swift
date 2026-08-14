@@ -121,7 +121,7 @@ public actor CorpusUpdater {
         }
 
         try preparerLeDossier()
-        let connus = empreintesConnues()
+        var connus = empreintesConnues()
         var remplaces = 0
 
         for (local, entree) in manifeste.tout where connus[local] != entree.empreinte {
@@ -130,11 +130,20 @@ public actor CorpusUpdater {
             // mieux que rien.
             guard let octets = try? await telecharger(entree) else { continue }
             guard (try? ecrire(octets, vers: local)) != nil else { continue }
+            // L'empreinte n'est notée que pour ce qui vient réellement d'être
+            // écrit. Le registre enregistrait tout le manifeste dès qu'un seul
+            // fichier passait : un téléchargement raté était alors déclaré à
+            // jour, et jamais retenté — la correction qu'il portait n'arrivait
+            // qu'au prochain changement de ce livre-là, c'est-à-dire peut-être
+            // jamais.
+            connus[local] = entree.empreinte
             remplaces += 1
         }
 
         if remplaces > 0 {
-            try? enregistrerLesEmpreintes(depuis: manifeste)
+            // Écrit **après** les fichiers, et c'est tout le sujet — voir
+            // ci-dessous.
+            try? enregistrerLesEmpreintes(connus)
         }
         return remplaces
     }
@@ -198,14 +207,16 @@ public actor CorpusUpdater {
 
     /// Le registre est écrit **après** les fichiers, et c'est tout le sujet.
     ///
-    /// Il dit « voici ce que j'ai ». L'écrire avant reviendrait à le promettre :
-    /// une coupure entre les deux laisserait l'app persuadée de posséder un
-    /// livre qu'elle n'a pas, et elle ne le retéléchargerait jamais.
-    private func enregistrerLesEmpreintes(depuis manifeste: Manifest) throws {
-        let table = Dictionary(
-            manifeste.tout.map { ($0.local, $0.entree.empreinte) },
-            uniquingKeysWith: { premier, _ in premier }
-        )
+    /// Il dit « voici ce que j'ai », pas « voici ce qui existe ». L'écrire
+    /// avant reviendrait à le promettre : une coupure entre les deux laisserait
+    /// l'app persuadée de posséder un livre qu'elle n'a pas, et elle ne le
+    /// retéléchargerait jamais.
+    ///
+    /// C'est pourquoi il reçoit la table **construite au fil des écritures**,
+    /// et non le manifeste. Recopier le manifeste revenait à la même promesse,
+    /// une couche plus haut : un fichier dont le téléchargement avait échoué y
+    /// figurait à jour.
+    private func enregistrerLesEmpreintes(_ table: [String: String]) throws {
         try JSONEncoder().encode(table).write(to: registre, options: .atomic)
     }
 }

@@ -156,7 +156,9 @@ mod tests {
     #[tokio::test]
     async fn l_association_nomme_l_app_et_le_chemin() {
         let reponse = apple_app_site_association().await;
-        let corps = axum::body::to_bytes(reponse.into_body(), 4096).await.unwrap();
+        let corps = axum::body::to_bytes(reponse.into_body(), 4096)
+            .await
+            .unwrap();
         let texte = String::from_utf8(corps.to_vec()).unwrap();
         assert!(texte.contains(APP_ID));
         assert!(texte.contains("/fr/lire/*"));

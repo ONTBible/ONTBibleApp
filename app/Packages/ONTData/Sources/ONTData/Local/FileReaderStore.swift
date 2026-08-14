@@ -32,12 +32,18 @@ public final class FileReaderStore: HighlightRepository, PositionRepository, Pre
 
         state = (try? Data(contentsOf: url))
             .flatMap { try? JSONDecoder().decode(State.self, from: $0) } ?? State()
+        purgerLesPierresTombales()
         reindex()
     }
 
     // MARK: - Surlignages
 
-    public func all() -> [Highlight] { state.highlights }
+    /// Ce qui se montre. Les pierres tombales restent sur le disque et dans
+    /// l'envoi, jamais dans une liste que le lecteur regarde.
+    public func all() -> [Highlight] { state.highlights.filter { !$0.deleted } }
+
+    /// Ce qui part au serveur — suppressions comprises.
+    public func allForSync() -> [Highlight] { state.highlights }
 
     public func highlight(chapterId: String, verse: Int) -> Highlight? {
         byVerse[Highlight.key(chapterId: chapterId, verse: verse)]
@@ -55,8 +61,23 @@ public final class FileReaderStore: HighlightRepository, PositionRepository, Pre
         persist()
     }
 
+    /// Marque, ne détruit pas.
+    ///
+    /// La ligne reste, avec `deleted` et un horodatage frais : c'est ce qui
+    /// permet à la suppression de voyager. Sans elle, l'appareil qui efface
+    /// n'a plus rien à envoyer, et le prochain échange ressuscite le
+    /// surlignage depuis un autre appareil — ou depuis le serveur lui-même.
+    ///
+    /// La note part avec : une pierre tombale ne conserve rien de ce qu'elle
+    /// remplace, elle dit seulement que ça a existé et que c'est fini.
     public func remove(_ highlight: Highlight) {
-        state.highlights.removeAll { $0.id == highlight.id }
+        guard let index = state.highlights.firstIndex(where: { $0.id == highlight.id })
+            ?? state.highlights.firstIndex(where: { $0.key == highlight.key })
+        else { return }
+
+        state.highlights[index].deleted = true
+        state.highlights[index].note = nil
+        state.highlights[index].updatedAt = Date()
         byVerse[highlight.key] = nil
         persist()
     }
@@ -91,9 +112,25 @@ public final class FileReaderStore: HighlightRepository, PositionRepository, Pre
 
     private func reindex() {
         byVerse = Dictionary(
-            state.highlights.map { ($0.key, $0) },
+            state.highlights.filter { !$0.deleted }.map { ($0.key, $0) },
             uniquingKeysWith: { first, _ in first }
         )
+    }
+
+    /// Les pierres tombales ne s'accumulent pas indéfiniment.
+    ///
+    /// Quatre-vingt-dix jours : bien au-delà du temps qu'un appareil peut
+    /// rester hors ligne sans être réinstallé, et assez court pour que le
+    /// fichier ne grossisse pas d'une ligne par suppression pendant des
+    /// années. Passé ce délai, un appareil qui referait surface avec une vieille
+    /// copie pourrait ressusciter un surlignage — c'est le compromis connu de
+    /// toute synchronisation par pierres tombales, et personne n'en a trouvé
+    /// de meilleur.
+    private func purgerLesPierresTombales() {
+        let limite = Date().addingTimeInterval(-90 * 24 * 60 * 60)
+        let avant = state.highlights.count
+        state.highlights.removeAll { $0.deleted && $0.updatedAt < limite }
+        if state.highlights.count != avant { persist() }
     }
 
     private func persist() {

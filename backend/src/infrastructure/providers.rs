@@ -128,7 +128,11 @@ impl HttpIdentityProvider {
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        let credentials = self.config.github.as_ref().ok_or(DomainError::ProviderRejected)?;
+        let credentials = self
+            .config
+            .github
+            .as_ref()
+            .ok_or(DomainError::ProviderRejected)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -170,7 +174,11 @@ impl HttpIdentityProvider {
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        let credentials = self.config.google.as_ref().ok_or(DomainError::ProviderRejected)?;
+        let credentials = self
+            .config
+            .google
+            .as_ref()
+            .ok_or(DomainError::ProviderRejected)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -208,7 +216,11 @@ impl HttpIdentityProvider {
     }
 
     async fn apple(&self, code: &str) -> Result<ExternalIdentity, DomainError> {
-        let credentials = self.config.apple.as_ref().ok_or(DomainError::ProviderRejected)?;
+        let credentials = self
+            .config
+            .apple
+            .as_ref()
+            .ok_or(DomainError::ProviderRejected)?;
         let secret = apple_client_secret(credentials, OffsetDateTime::now_utc())?;
 
         let id_token = self
@@ -289,7 +301,10 @@ fn apple_client_secret(
 fn decode_jwt_claims<T: serde::de::DeserializeOwned>(token: &str) -> Result<T, DomainError> {
     use base64::Engine;
 
-    let payload = token.split('.').nth(1).ok_or(DomainError::ProviderRejected)?;
+    let payload = token
+        .split('.')
+        .nth(1)
+        .ok_or(DomainError::ProviderRejected)?;
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload)
         .map_err(|_| DomainError::ProviderRejected)?;

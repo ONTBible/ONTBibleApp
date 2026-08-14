@@ -21,15 +21,30 @@ struct ReadingModelTests {
         }
     }
 
+    /// Même comportement que le vrai stockage : `remove` marque, il ne détruit
+    /// pas. Les tests existants comptent `stored` — ils comptent donc les
+    /// pierres tombales, et c'est ce qu'on veut vérifier.
     final class FakeHighlights: HighlightRepository {
         var stored: [String: Highlight] = [:]
 
-        func all() -> [Highlight] { Array(stored.values) }
+        /// Ce qui reste vivant — c'est sur ça que portent les assertions de
+        /// comptage des tests de lecture.
+        var vivants: [Highlight] { stored.values.filter { !$0.deleted } }
+
+        func all() -> [Highlight] { vivants }
+        func allForSync() -> [Highlight] { Array(stored.values) }
         func highlight(chapterId: String, verse: Int) -> Highlight? {
             stored[Highlight.key(chapterId: chapterId, verse: verse)]
+                .flatMap { $0.deleted ? nil : $0 }
         }
         func save(_ highlight: Highlight) { stored[highlight.key] = highlight }
-        func remove(_ highlight: Highlight) { stored[highlight.key] = nil }
+        func remove(_ highlight: Highlight) {
+            guard var existant = stored[highlight.key] else { return }
+            existant.deleted = true
+            existant.note = nil
+            existant.updatedAt = Date()
+            stored[highlight.key] = existant
+        }
     }
 
     final class FakePositions: PositionRepository {
@@ -68,7 +83,7 @@ struct ReadingModelTests {
         let (model, highlights, _) = makeModel()
         model.toggleHighlight(19, in: chapter, color: .gold)
 
-        #expect(highlights.stored.count == 1)
+        #expect(highlights.vivants.count == 1)
         #expect(model.highlight(chapterId: "bereshit-18", verse: 19)?.color == .gold)
     }
 
@@ -78,7 +93,7 @@ struct ReadingModelTests {
         model.toggleHighlight(19, in: chapter, color: .gold)
         model.toggleHighlight(19, in: chapter, color: .gold)
 
-        #expect(highlights.stored.isEmpty, "le même geste doit défaire")
+        #expect(highlights.vivants.isEmpty, "le même geste doit défaire")
     }
 
     @Test("poser une autre couleur remplace, sans dédoubler")
@@ -87,7 +102,7 @@ struct ReadingModelTests {
         model.toggleHighlight(19, in: chapter, color: .gold)
         model.toggleHighlight(19, in: chapter, color: .sky)
 
-        #expect(highlights.stored.count == 1)
+        #expect(highlights.vivants.count == 1)
         #expect(model.highlight(chapterId: "bereshit-18", verse: 19)?.color == .sky)
     }
 
@@ -97,7 +112,7 @@ struct ReadingModelTests {
         model.setNote("tsedaqah umishpat", verse: 19, in: chapter)
         model.toggleHighlight(19, in: chapter, color: .gold)
 
-        #expect(highlights.stored.count == 1, "reposer la couleur ne doit pas jeter la note")
+        #expect(highlights.vivants.count == 1, "reposer la couleur ne doit pas jeter la note")
         #expect(model.highlight(chapterId: "bereshit-18", verse: 19)?.note != nil)
     }
 
@@ -117,7 +132,7 @@ struct ReadingModelTests {
         let (model, highlights, _) = makeModel()
         model.apply(.gold, to: [19, 20, 21], in: chapter)
 
-        #expect(highlights.stored.count == 3)
+        #expect(highlights.vivants.count == 3)
         #expect(model.highlight(chapterId: "bereshit-18", verse: 20)?.color == .gold)
     }
 
@@ -127,7 +142,7 @@ struct ReadingModelTests {
         model.apply(.gold, to: [19, 20], in: chapter)
         model.apply(.gold, to: [19, 20], in: chapter)
 
-        #expect(highlights.stored.isEmpty)
+        #expect(highlights.vivants.isEmpty)
     }
 
     @Test("une sélection mêlée est unifiée, pas dépeinte")
@@ -139,7 +154,7 @@ struct ReadingModelTests {
         model.apply(.gold, to: [19], in: chapter)
         model.apply(.gold, to: [19, 20, 21], in: chapter)
 
-        #expect(highlights.stored.count == 3)
+        #expect(highlights.vivants.count == 3)
         #expect([19, 20, 21].allSatisfy {
             model.highlight(chapterId: "bereshit-18", verse: $0)?.color == .gold
         })
@@ -152,7 +167,7 @@ struct ReadingModelTests {
         model.apply(.gold, to: [19, 20], in: chapter)
         model.apply(.gold, to: [19, 20], in: chapter)
 
-        #expect(highlights.stored.count == 1, "le verset noté doit survivre")
+        #expect(highlights.vivants.count == 1, "le verset noté doit survivre")
         #expect(model.highlight(chapterId: "bereshit-18", verse: 19)?.note != nil)
     }
 
@@ -163,7 +178,7 @@ struct ReadingModelTests {
         model.apply(.sky, to: [20], in: chapter)
         model.clearHighlights([19, 20], in: chapter)
 
-        #expect(highlights.stored.isEmpty)
+        #expect(highlights.vivants.isEmpty)
     }
 
     @Test("on sait si une sélection porte déjà quelque chose")
@@ -180,7 +195,7 @@ struct ReadingModelTests {
         let (model, highlights, _) = makeModel()
         model.apply(.gold, to: [], in: chapter)
 
-        #expect(highlights.stored.isEmpty)
+        #expect(highlights.vivants.isEmpty)
     }
 
     // MARK: - Le renvoi d'une sélection
