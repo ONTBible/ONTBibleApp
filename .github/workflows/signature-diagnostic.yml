@@ -53,9 +53,20 @@ jobs:
           print("   Admin" if code == 200 else
                 "   PAS Admin — la signature en nuage ne peut pas créer de certificat")
 
+          # **Tous** les certificats, et non les seuls DISTRIBUTION.
+          #
+          # Le filtre ne montrait que la distribution, et il a caché la vraie
+          # panne : `xcodebuild archive -allowProvisioningUpdates` tourne sur un
+          # runner neuf à chaque fois, sans clé privée dans son trousseau. Il en
+          # crée donc une, enregistre le certificat chez Apple, puis la machine
+          # est détruite — le certificat, lui, reste. Au bout de quelques
+          # livraisons le compte est plein, et l'archive s'arrête sur
+          # « Your account has reached the maximum number of certificates ».
+          #
+          # Ce sont ces orphelins qu'il faut voir pour savoir lesquels révoquer,
+          # et le type de chacun dit lequel est jetable.
           for chemin, titre in [
-              ("certificates?filter[certificateType]=DISTRIBUTION&limit=200",
-               "certificats de distribution"),
+              ("certificates?limit=200", "certificats — TOUS types"),
               ("profiles?limit=200", "profils"),
               ("bundleIds?limit=200&fields[bundleIds]=identifier,name", "identifiants d'app"),
           ]:
@@ -67,9 +78,12 @@ jobs:
                   continue
               elements = corps.get("data", [])
               print(f"   {len(elements)} trouvé(s)")
-              for el in elements[:12]:
+              # L'identifiant est rendu : sans lui, on sait qu'un certificat
+              # encombre le compte, mais pas lequel révoquer.
+              for el in elements[:60]:
                   a = el.get("attributes", {})
-                  print("   ·", a.get("identifier") or a.get("name"),
+                  print("   ·", el.get("id"),
+                        "│", a.get("identifier") or a.get("name") or a.get("displayName"),
                         "│", a.get("certificateType") or a.get("profileType") or "",
                         "│", a.get("profileState") or a.get("expirationDate") or "")
           PY
