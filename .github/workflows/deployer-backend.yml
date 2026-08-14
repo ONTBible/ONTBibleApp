@@ -28,11 +28,25 @@
 #
 # ## Pourquoi ce workflow n'existait pas
 #
-# Le backend était éprouvé par `tests.yml` et déployé **à la main**, par un
-# `cargo lambda build` puis un `terraform apply` depuis un poste. Ça marche tant
-# que la personne qui le fait s'en souvient. Ça veut dire aussi qu'un correctif
-# fusionné pouvait rester des semaines sur `main` sans être en ligne — et que
-# personne ne pouvait le savoir en regardant le dépôt.
+# Le backend était éprouvé par `tests.yml` et déployé **à la main**, par
+# `scripts/deployer-backend.sh` lancé depuis un poste. Ça marche tant que la
+# personne qui le fait s'en souvient. Ça veut dire aussi qu'un correctif fusionné
+# pouvait rester des semaines sur `main` sans être en ligne — et que personne ne
+# pouvait le savoir en regardant le dépôt.
+#
+# ## Il porte les trois étapes du script, pas seulement la construction
+#
+# Une première version de ce fichier faisait un simple
+# `cargo lambda build --output-format zip`. Elle aurait marché, et elle aurait
+# **dégradé la production en silence** : binaire 11 Mo plus lourd sur chaque
+# démarrage à froid, et surtout aucune symbolication — les paniques seraient
+# arrivées dans Sentry en adresses hexadécimales, sans que rien ne le signale
+# jusqu'à la première panne qu'on aurait cherché à lire.
+#
+# Construire complet, envoyer les symboles, déployer une copie dépouillée : les
+# trois vont ensemble. Le script reste la voie du poste — il est le seul à
+# pouvoir appliquer Terraform — mais les deux chemins font désormais la même
+# chose au binaire.
 
 name: Déployer le backend
 
@@ -101,9 +115,93 @@ jobs:
         with:
           tool: cargo-lambda
 
-      - name: Le paquet
+      - name: sentry-cli et llvm-objcopy
+        # `llvm-objcopy` et non `objcopy` : le binaire vise aarch64, et
+        # l'`objcopy` de GNU installé sur un runner x86 ne saurait pas le lire.
+        # Celui de LLVM est indifférent à la cible.
+        run: |
+          set -euo pipefail
+          curl -sL https://sentry.io/get-cli/ | sh
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends llvm
+          command -v llvm-objcopy || ls /usr/lib/llvm-*/bin/llvm-objcopy
+
+      # Construit **complet**, avec sa table des symboles.
+      #
+      # C'est ce que fait `scripts/deployer-backend.sh`, et pour une raison
+      # qu'il faut connaître avant de « simplifier » ces trois étapes en une :
+      # un binaire Rust dépouillé ne dit plus le nom de ses fonctions, donc une
+      # panique arriverait dans Sentry en adresses hexadécimales. Mais garder le
+      # binaire bavard coûte 11 Mo sur chaque démarrage à froid — 24,3 Mo contre
+      # 13,2 — et l'éditeur de liens de cargo-lambda n'offre aucun
+      # intermédiaire : `strip = "debuginfo"` dépouille autant que `strip = true`.
+      #
+      # La sortie est de faire les deux : construire complet, envoyer les
+      # symboles, déployer une copie dépouillée. Sentry symbolise côté serveur.
+      - name: Le binaire, symboles compris
         working-directory: backend
-        run: cargo lambda build --release --arm64 --output-format zip
+        run: cargo lambda build --release --arm64
+
+      - name: Les symboles partent chez Sentry
+        working-directory: backend
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: pinkha-app
+          SENTRY_PROJECT: ont-api
+        run: |
+          sentry-cli debug-files upload --include-sources --force-foreground \
+            target/lambda/ont-backend/bootstrap
+
+      # Le dépouillement, et le contrôle qui le rend sûr.
+      #
+      # L'identifiant de débogage est dérivé du **code machine**, pas de la
+      # table des symboles : il survit donc au dépouillement, et c'est lui qui
+      # apparie le binaire déployé aux symboles qu'on vient d'envoyer. Si les
+      # deux divergeaient un jour, Sentry ne pourrait plus rien symboliser — et
+      # ça ne se verrait qu'à la première panique, c'est-à-dire au pire moment.
+      # On préfère ne pas déployer.
+      - name: La copie dépouillée
+        working-directory: backend
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: pinkha-app
+          SENTRY_PROJECT: ont-api
+        run: |
+          set -euo pipefail
+          cible=target/lambda/ont-backend
+          objcopy=$(command -v llvm-objcopy || ls /usr/lib/llvm-*/bin/llvm-objcopy | head -1)
+
+          # La sortie est capturée entière avant d'être filtrée : un
+          # `awk … exit` ferme le tuyau, et sentry-cli panique sur l'écriture
+          # suivante au lieu de répondre.
+          identifiant() {
+            local sortie
+            sortie="$(sentry-cli debug-files check "$1")"
+            # `$NF` et non `$3` : la ligne est « > Debug ID: <uuid> ».
+            printf '%s\n' "$sortie" | grep -m1 'Debug ID:' | awk '{print $NF}'
+          }
+
+          avant="$(identifiant "$cible/bootstrap")"
+          cp "$cible/bootstrap" "$cible/bootstrap.strip"
+          "$objcopy" --strip-all "$cible/bootstrap.strip"
+          apres="$(identifiant "$cible/bootstrap.strip")"
+
+          if [ "$avant" != "$apres" ]; then
+            echo "::error::L'identifiant de débogage a changé au dépouillement."
+            echo "::error::complet $avant / dépouillé $apres — Sentry ne pourrait rien apparier."
+            exit 1
+          fi
+          echo "identifiant inchangé ($avant), $(du -h "$cible/bootstrap.strip" | cut -f1)"
+
+          # `bootstrap` est le nom attendu par le runtime Lambda, et le bit
+          # exécutable doit survivre à l'archivage : la copie dépouillée entre
+          # sous ce nom-là, depuis un répertoire à part pour ne pas piétiner le
+          # binaire complet.
+          boite=$(mktemp -d)
+          cp "$cible/bootstrap.strip" "$boite/bootstrap"
+          chmod +x "$boite/bootstrap"
+          ( cd "$boite" && zip -q -9 bootstrap.zip bootstrap )
+          mv "$boite/bootstrap.zip" "$cible/bootstrap.zip"
 
       - name: AWS
         uses: aws-actions/configure-aws-credentials@v4
