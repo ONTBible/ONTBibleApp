@@ -10,6 +10,12 @@ dist/
 # place dans un dépôt.
 target/
 
+# Le bytecode Python — deux `.pyc` des scripts de soumission avaient été
+# committés. Ils portent le chemin absolu de la machine qui les a produits, et
+# ils sont reconstruits à chaque exécution.
+__pycache__/
+*.pyc
+
 # Secrets de build. Le DSN Sentry est public — il ne permet que d'écrire des
 # événements — mais le jeton d'organisation permet d'écrire dans le compte.
 # Il n'a rien à faire ici : `sentry-cli login` le range dans ~/.sentryclirc.
