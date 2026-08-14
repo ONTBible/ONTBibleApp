@@ -9,7 +9,7 @@ import PackageDescription
 // dupliquer créerait trois vérités.
 let package = Package(
     name: "ONTFeatures",
-    platforms: [.iOS("26.0")],  // iOS seulement : les vues emploient UIKit
+    platforms: [.iOS("18.0")],  // iOS seulement : les vues emploient UIKit
     products: [
         .library(name: "ReadingFeature", targets: ["ReadingFeature"]),
         .library(name: "LexiconFeature", targets: ["LexiconFeature"]),

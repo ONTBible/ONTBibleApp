@@ -20,7 +20,8 @@ struct ChapterView: View {
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
 
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
+    private var echelle = ONTScaled()
 
     @State private var showingSettings = false
     @State private var showingPicker = false
@@ -32,8 +33,8 @@ struct ChapterView: View {
     /// Posé par la pastille « Partager » du widget : l'ouverture enchaîne sur
     /// la feuille de partage sans un geste de plus.
     @State private var autoShare = false
-    /// Le suivi de position, éteint tant que la restauration n'a pas eu lieu.
-    @State private var tracking = false
+    /// L'ardoise du suivi : où l'on en est, sans passer par l'état de la vue.
+    @State private var suivi = SuiviDeLecture()
 
     let chapter: Chapter
 
@@ -41,23 +42,32 @@ struct ChapterView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 ParchmentPage {
-                    // `VStack` et non `LazyVStack`, à contre-courant de
-                    // l'usage — et vérifié sur appareil, pas supposé.
+                    // `VStack` et non `LazyVStack`, et on y est revenu après
+                    // l'avoir essayé.
                     //
-                    // Une pile paresseuse ne construit pas les lignes hors
-                    // champ, donc leur identité n'existe pas encore et
-                    // `scrollTo` ne trouve rien : viser le verset 28 ne
-                    // déplaçait la page d'aucun pixel. C'est la seconde moitié
-                    // du défaut ; l'autre était la collision d'identités que
-                    // `VerseAnchor` résout plus haut.
+                    // Une pile paresseuse ne construit pas ce qui est hors
+                    // champ. Sur un texte ordinaire ça ne se voit pas ; ici les
+                    // blocs sont des sections entières composées en un seul
+                    // `Text`, et leur hauteur n'est connue qu'une fois posée.
+                    // En défilant, la page laissait des **trous** là où un bloc
+                    // n'avait pas eu le temps d'être mis en page — des versets
+                    // qui ne chargent pas. Et `.scrollPosition` visait des
+                    // rangs de blocs dont la position n'était pas encore
+                    // établie, ce qui a fait échouer la reprise de lecture.
                     //
-                    // Une unité fait quelques dizaines de versets, déjà tous
-                    // décodés en mémoire. Les construire d'un coup coûte un
-                    // cran au premier affichage et rend le défilement exact.
+                    // Ce que ça coûte : l'unité entière est construite à
+                    // l'ouverture, et l'animation de « Reprendre » en pâtit.
+                    // C'est un prix qu'on paie sciemment — une page qui se lit
+                    // sans trous vaut mieux qu'une transition élégante.
+                    //
+                    // La bonne solution n'est pas la paresse seule : ce sont
+                    // des blocs dont la hauteur est connue **avant** d'être
+                    // posés, ce que seule une mesure préalable du texte
+                    // donnerait. C'est un chantier, pas un réglage.
                     VStack(alignment: .leading, spacing: spacing.xl) {
                         header
 
-                        ForEach(Array(chapter.blocks.enumerated()), id: \.offset) { _, block in
+                        ForEach(Array(blocs.enumerated()), id: \.offset) { _, block in
                             BlockView(
                                 block: block,
                                 chapter: chapter,
@@ -70,9 +80,8 @@ struct ChapterView: View {
                             FooterView(footer: footer).opacity(dim)
                         }
                     }
-                    // De la place sous le dernier verset : sinon la barre
-                    // d'actions recouvre ce qu'on vient de sélectionner.
-                    .padding(.bottom, selection.isEmpty ? 0 : 140)
+                    // Ce qui désigne les cibles que `.scrollPosition(id:)` peut
+                    // viser : les enfants directs de cette pile, donc les blocs.
                 }
             }
             // `.task(id:)` et non `.onAppear` : la tâche est **annulée** quand
@@ -86,11 +95,67 @@ struct ChapterView: View {
                 guard vise != nil else { return }
                 Task { await restore(using: proxy) }
             }
+            // Le suivi s'éteint aussi en **partant**, et pas seulement le temps
+            // d'arriver.
+            //
+            // `ONTTracking` documente le piège à l'apparition : les enfants
+            // paraissent avant le parent, et les premières lignes répondent
+            // « verset 1 » avant qu'on ait pu lire la position. La disparition
+            // a le même défaut en miroir — pendant que la vue se retire, la
+            // liste se défait et des lignes du haut se signalent visibles. La
+            // position enregistrée redevenait le début du chapitre, ce qui ne
+            // se voyait qu'à la **fois suivante** : « Reprendre » ramenait en
+            // haut, alors que la première visite avait bien fonctionné.
+            // Le doigt, et lui seul, ouvre le droit d'enregistrer.
+            //
+            // `.animating` en est **exclu**, et c'est tout l'enjeu : c'est la
+            // phase des défilements que l'app se commande à elle-même — ceux de
+            // la restauration. En l'acceptant, la restauration s'ouvrait à
+            // elle-même le droit d'écrire, et notait les positions
+            // intermédiaires de son propre trajet en quatre passes. La position
+            // dérivait donc un peu à chaque aller-retour, jusqu'à ne plus
+            // désigner grand-chose au bout de cinq ou six.
+            .onScrollPhaseChange { _, phase in
+                switch phase {
+                case .tracking, .interacting, .decelerating:
+                    suivi.defile()
+                case .idle:
+                    guard let verset = suivi.aRetenir() else { return }
+                    model.remember(chapter: chapter, verse: verset)
+                case .animating:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+            // Le moteur de texte dit quel verset a été atteint ; c'est ici
+            // qu'on en fait une sélection — **une seule fois pour l'unité**.
+            //
+            // C'était posé dans chaque bloc de prose, ce qui coûtait cher sans
+            // que ça se voie : `Router` est `@Observable`, donc lire
+            // `tappedVerse` dans un `onChange` crée une dépendance. Un appui
+            // invalidait le corps de **tous** les blocs, et deux fois — à la
+            // pose du verset touché, puis à sa remise à `nil`. Le bloc concerné
+            // était le seul à faire quelque chose ; les autres refaisaient leur
+            // travail pour rien.
+            .onChange(of: router.tappedVerse) { _, touche in
+                guard let touche else { return }
+                router.tappedVerse = nil
+                if selection.contains(touche.id) {
+                    selection.remove(touche.id)
+                } else {
+                    selection.insert(touche.id)
+                }
+            }
         }
         // Éteint jusqu'à la restauration : sans ça, les premières lignes
         // écrasent la position avant qu'on ait pu la lire.
-        .environment(\.ontTracking, tracking)
-        .background(theme.background)
+        .environment(\.ontSuivi, suivi)
+        // `.ontScreen()` et non un fond posé à la main. La règle du design
+        // system dit que tout écran de premier niveau l'applique ; la liseuse
+        // ne le faisait pas, ce qui n'avait pas de conséquence tant que le fond
+        // était un aplat — et en aurait eu une dès le grain, qui vit là.
+        .ontScreen()
         .safeAreaInset(edge: .bottom) {
             if !selection.isEmpty {
                 VerseActionBar(
@@ -102,7 +167,11 @@ struct ChapterView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.snappy(duration: 0.22), value: selection.isEmpty)
+        // 0,14 s et non 0,22. Le travail derrière un appui est désormais un
+        // dessin, pas une mise en page — ce qui restait de délai perçu était
+        // en grande partie cette animation elle-même. Assez court pour suivre
+        // le doigt, assez long pour qu'on voie d'où la barre vient.
+        .animation(.snappy(duration: 0.14), value: selection.isEmpty)
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(selection.isEmpty ? "" : reference)
@@ -119,7 +188,7 @@ struct ChapterView: View {
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: echelle(10), weight: .bold))
                     }
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
@@ -138,11 +207,21 @@ struct ChapterView: View {
             ReferencePicker(current: chapter)
         }
         .sheet(isPresented: $showingSettings) {
+            // La pile et le « OK » appartiennent à la **présentation**, pas au
+            // contenu : depuis « Vous », la même vue est poussée dans une pile
+            // qui existe déjà, et n'a ni l'une ni l'autre à fournir.
+            NavigationStack {
+                ReadingSettingsSheet(chapter: chapter)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("OK") { showingSettings = false }
+                        }
+                    }
+            }
             // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
             // grande taille avec les gloses allumées, la mi-hauteur ne laisse
             // plus voir les réglages.
-            ReadingSettingsSheet(chapter: chapter)
-                .presentationDetents([.medium, .large])
+            .presentationDetents([.medium, .large])
         }
         .sheet(item: $noteTarget) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
@@ -169,19 +248,20 @@ struct ChapterView: View {
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         router.pendingVerse = nil
 
-        guard let vise, vise > 1, let ancre = anchor(for: vise) else {
-            // Rien à viser : le suivi peut reprendre tout de suite.
-            tracking = true
+        guard let vise, vise > 1 else {
+            // Rien à viser.
             return
         }
+
+        suivi.recommence()
+
+        guard let ancre = anchor(for: vise) else { return }
 
         // Plusieurs passes, échelonnées au-delà de l'animation de navigation.
         //
         // Une poussée de pile dure environ un demi-seconde, et pendant ce
         // temps la vue de défilement n'a pas sa taille finale : un
         // `scrollTo` y est appliqué puis défait quand la transition se pose.
-        // C'est pourquoi le défilement marchait au lancement à froid — pas
-        // d'animation — et pas depuis la table des matières.
         //
         // Les passes après 0,6 s ne coûtent rien quand la première a visé
         // juste : viser une position déjà atteinte ne déplace rien.
@@ -190,32 +270,33 @@ struct ChapterView: View {
             guard !Task.isCancelled else { return }
             proxy.scrollTo(VerseAnchor(n: ancre), anchor: .top)
         }
-        // Le suivi ne reprend qu'après : il ne doit pas enregistrer les
-        // versets survolés pendant le trajet.
-        tracking = true
+    }
+
+    /// Les blocs tels qu'ils sont rendus.
+    ///
+    /// En lecture suivie, les versets consécutifs n'en font qu'un — sans quoi
+    /// le mode ne changeait rien là où le corpus découpe au verset, c'est-à-dire
+    /// presque partout. En mode d'étude, le découpage du corpus fait foi.
+    private var blocs: [Block] {
+        theme.preferences.continuous
+            ? chapter.blocks.fusingConsecutiveVerses()
+            : chapter.blocks
     }
 
     /// L'identité à viser pour atteindre un verset.
     ///
-    /// En bloc par verset, c'est le verset lui-même. En prose continue il n'y
-    /// a plus de vue par verset : un bloc entier est un seul `Text`, et seule
-    /// son identité — le numéro de son **premier** verset — existe pour le
-    /// défilement. On rabat donc la cible sur le début de son bloc.
-    private func anchor(for verse: Int) -> Int? {
-        guard theme.preferences.continuous else { return verse }
-        for bloc in chapter.blocks {
-            guard case .verses(let group) = bloc else { continue }
-            if group.contains(where: { $0.n == verse }) { return group.first?.n }
-        }
-        return nil
-    }
+    /// Le verset lui-même, dans les deux modes. En prose il n'y a pas de vue
+    /// par verset, mais il y a désormais une **ancre** par verset derrière le
+    /// texte : la cible existe donc, et il n'y a plus lieu de rabattre le
+    /// repère sur le début du bloc comme on le faisait.
+    private func anchor(for verse: Int) -> Int? { verse }
 
     /// L'opacité de ce qui n'est pas sélectionné.
     ///
     /// Le procédé vient de Bible Strong, et il est plus efficace qu'un fond
     /// coloré : au lieu d'ajouter une marque au verset désigné, on retire du
     /// poids à tout le reste. La page entière devient le contraste.
-    private var dim: Double { selection.isEmpty ? 1 : 0.32 }
+    private var dim: Double { selection.isEmpty ? 1 : ONTColors.dimmedOpacity }
 
     private var reference: String {
         VerseRange.reference(selection, chapterTitle: chapter.title)
@@ -244,7 +325,7 @@ struct ChapterView: View {
             if chapter.status == .brouillon {
                 Label("Brouillon — en attente de validation", systemImage: "pencil.line")
                     .font(.caption)
-                    .foregroundStyle(ONTColors.goldDeep)
+                    .foregroundStyle(ONTColors.accent(theme.mode))
                     .padding(.top, spacing.xs)
             }
         }
@@ -257,16 +338,16 @@ struct ChapterView: View {
 
 /// L'unité que le lecteur surligne, note et partage.
 private struct VerseRow: View {
+    @Environment(\.ontSuivi) private var suivi
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let verse: Verse
     let chapter: Chapter
     @Binding var noteTarget: VerseSelection?
     @Binding var selection: Set<Int>
 
-    @Environment(\.ontTracking) private var tracking
 
     private var highlight: Highlight? {
         model.highlight(chapterId: chapter.id, verse: verse.n)
@@ -276,7 +357,7 @@ private struct VerseRow: View {
 
     /// Estompé quand une sélection existe ailleurs. C'est le procédé de Bible
     /// Strong : on ne marque pas le verset désigné, on efface le reste.
-    private var dim: Double { selection.isEmpty || selected ? 1 : 0.32 }
+    private var dim: Double { selection.isEmpty || selected ? 1 : ONTColors.dimmedOpacity }
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.xs) {
@@ -324,8 +405,7 @@ private struct VerseRow: View {
         // position ne bougeait plus jamais pendant la lecture. « Reprendre »
         // ramenait à une position vieille de plusieurs sessions.
         .onScrollVisibilityChange(threshold: 0.6) { visible in
-            guard visible, tracking else { return }
-            model.remember(chapter: chapter, verse: verse.n)
+            if visible { suivi.entre(verse.n) } else { suivi.sort(verse.n) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
@@ -343,7 +423,8 @@ private struct VerseRow: View {
 private struct VerseActionBar: View {
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
+    private var echelle = ONTScaled()
 
     let chapter: Chapter
     @Binding var selection: Set<Int>
@@ -355,6 +436,16 @@ private struct VerseActionBar: View {
     /// rendre une image de 1080 × 1080 à chaque verset touché serait du
     /// gaspillage pur.
     @State private var partage: ONTShareItem?
+
+    /// De combien le doigt a fait descendre la carte.
+    @State private var glissement: CGFloat = 0
+
+    /// Au-delà, on lâche : la carte s'en va.
+    ///
+    /// 60 points, soit un peu plus que la hauteur d'une ligne — assez pour
+    /// qu'un doigt qui ripe en visant une couleur ne referme pas tout, assez
+    /// peu pour que le geste ne se travaille pas.
+    private static let seuil: CGFloat = 60
 
     var body: some View {
         VStack(spacing: 18) {
@@ -373,7 +464,7 @@ private struct VerseActionBar: View {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(theme.surface)
                 .shadow(
-                    color: .black.opacity(theme.mode == .dark ? 0.6 : 0.18),
+                    color: .black.opacity(theme.mode.isDark ? 0.6 : 0.18),
                     radius: 22,
                     y: 4
                 )
@@ -384,6 +475,38 @@ private struct VerseActionBar: View {
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 10)
+        // La poignée promettait un geste que la carte ne tenait pas : elle
+        // dit « objet posé par-dessus, écartable », et il fallait pourtant
+        // viser la croix. On tient la promesse.
+        .offset(y: glissement)
+        .gesture(
+            // 10 points avant de prendre la main, sinon le glissement vole
+            // les appuis destinés aux pastilles de couleur.
+            DragGesture(minimumDistance: 10)
+                .onChanged { geste in
+                    let hauteur = geste.translation.height
+                    // Vers le haut, la carte résiste au lieu de se bloquer net :
+                    // un arrêt sec se lit comme un défaut, une retenue se lit
+                    // comme une limite.
+                    glissement = hauteur > 0 ? hauteur : hauteur / 4
+                }
+                .onEnded { geste in
+                    // La vitesse compte autant que la distance : un geste vif
+                    // et court veut fermer, et attendre 60 points le ferait
+                    // rebondir alors que le doigt est déjà parti.
+                    let lance = geste.predictedEndTranslation.height
+                    if geste.translation.height > Self.seuil || lance > Self.seuil * 2.5 {
+                        // Pas d'animation ici : vider la sélection déclenche
+                        // la transition de sortie déjà posée sur la barre, qui
+                        // reprend la carte là où le doigt l'a laissée.
+                        selection.removeAll()
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            glissement = 0
+                        }
+                    }
+                }
+        )
         .sheet(item: $partage) { item in
             ONTActivityView(items: item.items)
         }
@@ -399,8 +522,10 @@ private struct VerseActionBar: View {
 
     /// La poignée, et la sortie.
     ///
-    /// La poignée ne fait rien — elle dit seulement « ceci est une carte
-    /// posée par-dessus », ce que le lecteur sait lire d'un coup d'œil. Le
+    /// La poignée dit « ceci est une carte posée par-dessus », ce que le
+    /// lecteur sait lire d'un coup d'œil — et depuis qu'un glissement referme
+    /// la carte, elle ne le dit plus en vain. La croix reste : un geste de
+    /// glissement demande de la dextérité, un bouton n'en demande pas. Le
     /// renvoi, lui, est monté dans la barre de navigation : une ligne de moins
     /// ici, et il reste visible quand la carte descend.
     private var poignee: some View {
@@ -414,10 +539,14 @@ private struct VerseActionBar: View {
                     selection.removeAll()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: echelle(12), weight: .bold))
                         .foregroundStyle(theme.ink.opacity(0.5))
-                        .frame(width: 28, height: 28)
+                        .frame(width: echelle(28), height: echelle(28))
                         .background(Circle().fill(theme.ink.opacity(0.07)))
+                        // Le disque fait 28 points, la cible en fait 44 : le
+                        // minimum d'Apple, atteint sans grossir le dessin.
+                        .frame(width: 44, height: 44)
+                        .contentShape(.circle)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Désélectionner")
@@ -444,24 +573,34 @@ private struct VerseActionBar: View {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .strokeBorder(theme.ink.opacity(0.10))
                         }
+                        // La cible s'arrêtait au carré dessiné — 34 points,
+                        // sous le minimum d'Apple. Elle prend maintenant toute
+                        // la colonne, sans que le carré change de taille.
+                        .frame(maxWidth: .infinity)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(color.label)
-                .frame(maxWidth: .infinity)
             }
 
             Button {
                 model.clearHighlights(selection, in: chapter)
             } label: {
                 Image(systemName: "eraser")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: echelle(15), weight: .medium))
                     .foregroundStyle(theme.ink.opacity(0.6))
-                    .frame(width: 34, height: 34)
+                    .frame(width: echelle(34), height: echelle(34))
                     .background(Circle().strokeBorder(theme.ink.opacity(0.18)))
+                    // Le cercle est **tracé** et non rempli : sans forme de
+                    // contact, son centre était un trou et seul le contour
+                    // répondait. La colonne entière devient la cible, ce qui
+                    // vaut mieux qu'un disque de 34 points — Apple en demande
+                    // 44 au minimum.
+                    .frame(maxWidth: .infinity)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Retirer le surlignage")
-            .frame(maxWidth: .infinity)
             .opacity(model.hasHighlight(selection, in: chapter) ? 1 : 0)
             .disabled(!model.hasHighlight(selection, in: chapter))
         }
@@ -590,10 +729,27 @@ private struct ActionTile: View {
 private struct ActionTileLabel: View {
     let title: String
     let icon: String
+    /// Le thème passé en paramètre et non lu dans l'environnement : cette
+    /// étiquette est aussi construite hors d'un contexte de vue.
     let theme: ONTTheme
 
     var body: some View {
         VStack(spacing: 6) {
+            // La pastille est en points **fixes**, et c'est la seule chose de
+            // l'app qui ne suit pas le curseur des réglages. Ce n'est pas un
+            // oubli, c'est le seul arbitrage possible.
+            //
+            // Cinq tuiles se partagent une largeur qui, elle, ne grandit pas :
+            // ce que la pastille prend, elle le prend à l'écart qui la sépare
+            // de sa voisine. Mesuré sur deux captures, en rapport écart/tuile —
+            // le seul chiffre que deux échelles rendent comparable :
+            //
+            //     pastille fixe          0,43   la rangée respire
+            //     pastille à l'échelle   0,22   les tuiles se touchent
+            //
+            // Ce qui porte le sens, ce n'est pas le symbole mais le mot en
+            // dessous — et lui suit le curseur. On perd donc une icône qui
+            // grandit, pas une information qui se lit.
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(theme.accent)
@@ -612,56 +768,176 @@ private struct ActionTileLabel: View {
     }
 }
 
+/// Le texte d'un bloc en prose, et **rien d'autre**.
+///
+/// Séparée de `FlowingVerses` pour une seule raison : être `Equatable`, donc
+/// pouvoir être sautée. Tout ce qui la rend est ici, sous forme de valeurs
+/// comparables — pas d'environnement, pas de fermeture, pas de liaison.
+///
+/// ## Ce que ça corrige
+///
+/// La sélection était lente en prose continue, et la fusion des blocs en est la
+/// cause indirecte : un bloc n'est plus un verset mais une section entière, et
+/// chaque appui faisait recomposer **et remettre en page** tous les blocs de
+/// l'unité, y compris ceux que la sélection ne touche pas. La composition
+/// coûte 0,14 ms par verset — mesuré, linéaire — mais la mise en page d'un
+/// `Text` de trente versets coûte bien plus, et elle avait lieu partout.
+private struct Prose: View, Equatable {
+    let verses: [Verse]
+    let theme: ONTTheme
+    let surlignages: [Int: Color]
+
+    /// Les versets ne sont **pas** comparés en profondeur.
+    ///
+    /// Un `Verse` porte son arbre d'inline ; comparer trente arbres à chaque
+    /// appui coûterait ce que le saut cherche à économiser. Dans une unité
+    /// ouverte, le contenu d'un bloc ne change pas — son premier numéro et sa
+    /// longueur l'identifient donc suffisamment.
+    /// `nonisolated` : la comparaison ne touche que des valeurs, et SwiftUI
+    /// peut l'appeler hors de l'acteur principal. Sans cette annotation, la
+    /// conformité franchit la frontière d'isolation et Swift 6 la refuse.
+    nonisolated static func == (a: Prose, b: Prose) -> Bool {
+        a.verses.first?.n == b.verses.first?.n
+            && a.verses.count == b.verses.count
+            && a.surlignages == b.surlignages
+            && a.theme == b.theme
+    }
+
+    var body: some View {
+        ONTTextRenderer.flowingText(
+            verses: verses,
+            theme: theme,
+            highlight: { surlignages[$0] }
+        )
+        .lineSpacing(theme.lineSpacing)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Les versets à la suite, en prose continue.
 ///
 /// Un seul `Text` pour tout un bloc. La découpe en versets reste lisible —
 /// les numéros sont là, en exposant — mais elle ne coupe plus la phrase.
 /// C'est la lecture suivie ; le bloc par verset reste le mode d'étude.
 private struct FlowingVerses: View {
+    @Environment(\.ontSuivi) private var suivi
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
-    @Environment(\.ontTracking) private var tracking
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let verses: [Verse]
     let chapter: Chapter
     @Binding var selection: Set<Int>
 
+    /// La part de la sélection qui tombe dans ce bloc.
+    private var selectionLocale: Set<Int> {
+        selection.isEmpty ? [] : selection.intersection(verses.map(\.n))
+    }
+
+    /// La part de hauteur que chaque verset occupe dans le bloc.
+    ///
+    /// Au prorata des signes affichés — c'est ce qu'on a de plus proche de la
+    /// hauteur réelle sans demander sa mise en page au moteur de texte. Un
+    /// verset vide de tout signe recevrait une part nulle et deviendrait
+    /// inatteignable : on lui en garantit une minime.
+    private var parts: [(verset: Int, part: CGFloat)] {
+        let signes = verses.map { verse in
+            max(
+                1,
+                verse.nodes.plainText(
+                    gloss: theme.preferences.showGloss,
+                    level3: theme.preferences.showLevel3
+                ).count
+            )
+        }
+        let total = CGFloat(signes.reduce(0, +))
+        return zip(verses, signes).map { verse, compte in
+            (verset: verse.n, part: CGFloat(compte) / total)
+        }
+    }
+
+    /// Les surlignages de ce bloc, relevés une fois.
+    ///
+    /// En table plutôt qu'en fermeture : une fermeture n'est pas comparable,
+    /// donc elle rendrait `Prose` toujours différente d'elle-même et le saut
+    /// ne se produirait jamais.
+    private var surlignages: [Int: Color] {
+        verses.reduce(into: [:]) { table, verse in
+            guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
+            table[verse.n] = ONTColors.highlight(marque.color)
+                .opacity(ONTColors.highlightOpacity)
+        }
+    }
+
     var body: some View {
-        Text(
-            ONTTextRenderer.composeFlowing(
-                verses: verses,
-                theme: theme,
-                selected: selection,
-                highlight: { n in
-                    model.highlight(chapterId: chapter.id, verse: n)
-                        .map { ONTColors.highlight($0.color).opacity(ONTColors.highlightOpacity) }
-                }
+        Prose(
+            verses: verses,
+            theme: theme,
+            surlignages: surlignages
+        )
+        // `.equatable()` protège la **composition**. Le texte ne dépendant plus
+        // de la sélection, ce corps n'est plus réévalué pour un appui — et la
+        // mise en page du bloc a donc lieu une seule fois, à son apparition.
+        .equatable()
+        // La sélection vit ici, dans le moteur de dessin. Il change à chaque
+        // appui, et c'est voulu : SwiftUI **redessine** sans remettre en page.
+        //
+        // C'était la cause de la lenteur. Estompage et soulignement écrits dans
+        // la chaîne composée la faisaient changer, donc SwiftUI refaisait la
+        // mise en page de toute la section — 31,3 ms pour trente versets, quand
+        // le mode blocs n'en refait que 0,9. Aucune des deux ne déplace un
+        // glyphe, mais rien ne permettait de le lui dire.
+        .textRenderer(
+            ONTProseRenderer(
+                selection: selectionLocale,
+                uneSelectionExiste: !selection.isEmpty,
+                estompe: ONTColors.dimmedOpacity,
+                trait: ONTColors.accent(theme.mode).opacity(0.8),
+                corps: theme.scaledTextSize
             )
         )
-        .lineSpacing(theme.lineSpacing)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, spacing.xs)
-        // La seule identité que le défilement puisse viser dans ce mode.
-        .id(VerseAnchor(n: verses.first?.n ?? -1))
-        // La reprise de lecture n'a plus de ligne où s'accrocher : on retient
-        // le premier verset du bloc visible, ce qui suffit à rouvrir au bon
-        // endroit sans prétendre à une précision qu'on n'a pas.
-        .onScrollVisibilityChange(threshold: 0.6) { visible in
-            guard visible, tracking, let premier = verses.first else { return }
-            model.remember(chapter: chapter, verse: premier.n)
-        }
-        // Le moteur de texte nous dit quel verset a été atteint ; c'est ici
-        // qu'on en fait une sélection.
-        .onChange(of: router.tappedVerse) { _, touche in
-            guard let touche, verses.contains(where: { $0.n == touche.id }) else { return }
-            router.tappedVerse = nil
-            if selection.contains(touche.id) {
-                selection.remove(touche.id)
-            } else {
-                selection.insert(touche.id)
+        // Des ancres invisibles, une par verset, **derrière** la prose.
+        //
+        // ## Ce qu'elles réparent
+        //
+        // En prose, un bloc est une section entière dans un seul `Text` : il
+        // n'y a plus de vue par verset. La reprise de lecture retenait donc le
+        // **premier verset du bloc**, et « Reprendre » ramenait au début de la
+        // section au lieu de l'endroit qu'on lisait. Tant que les blocs
+        // valaient un verset, ça ne se voyait pas ; la fusion l'a révélé.
+        //
+        // ## Pourquoi une superposition
+        //
+        // Elle ne participe pas à la mise en page — elle épouse la taille du
+        // texte, sans rien lui imposer. Chaque ancre reçoit la part de hauteur
+        // que son verset occupe dans le bloc, estimée sur le **nombre de
+        // signes réellement affichés** : les gloses et l'hébreu comptent quand
+        // ils sont allumés, et pas quand ils sont éteints.
+        //
+        // C'est une approximation — un verset serré et un verset aéré ne
+        // tiennent pas la même place à nombre de signes égal. Elle vaut à un
+        // verset près, là où l'ancien procédé se trompait d'une section
+        // entière. Et surtout elle rend les deux sens : ces ancres sont à la
+        // fois ce que `proxy.scrollTo` vise et ce qui dit où l'on est.
+        .overlay {
+            GeometryReader { cadre in
+                VStack(spacing: 0) {
+                    ForEach(parts, id: \.verset) { part in
+                        Color.clear
+                            .frame(height: cadre.size.height * part.part)
+                            .id(VerseAnchor(n: part.verset))
+                            .onScrollVisibilityChange(threshold: 0.5) { visible in
+                                if visible { suivi.entre(part.verset) } else { suivi.sort(part.verset) }
+                            }
+                    }
+                }
             }
+            // Une matière de repérage, pas une cible : elle ne doit voler ni un
+            // appui sur un intraduisible, ni le curseur de VoiceOver.
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 }
@@ -670,7 +946,7 @@ private struct FlowingVerses: View {
 
 private struct BlockView: View {
     @Environment(\.ontTheme) private var theme
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let block: Block
     let chapter: Chapter
@@ -680,7 +956,7 @@ private struct BlockView: View {
     /// Titres, paragraphes et listes reculent avec le reste : un intertitre
     /// resté noir au milieu d'une page estompée attirerait l'œil plus que la
     /// sélection elle-même.
-    private var dim: Double { selection.isEmpty ? 1 : 0.32 }
+    private var dim: Double { selection.isEmpty ? 1 : ONTColors.dimmedOpacity }
 
     var body: some View {
         content.opacity(isVerses ? 1 : dim)
@@ -735,7 +1011,7 @@ private struct BlockView: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     HStack(alignment: .firstTextBaseline, spacing: spacing.s) {
                         Text(ordered ? "\(index + 1)." : "—")
-                            .foregroundStyle(ONTColors.goldDeep)
+                            .foregroundStyle(ONTColors.accent(theme.mode))
                         Text(ONTTextRenderer.compose(item, theme: theme))
                     }
                 }
@@ -769,7 +1045,7 @@ private struct BlockView: View {
 /// Le pied d'unité — version, verrouillage, décisions terminologiques propres.
 private struct FooterView: View {
     @Environment(\.ontTheme) private var theme
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let footer: Footer
 
@@ -785,7 +1061,7 @@ private struct FooterView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(ONTColors.goldDeep)
+            .foregroundStyle(ONTColors.accent(theme.mode))
 
             if !footer.notes.isEmpty {
                 SectionCaption("Décisions terminologiques")
@@ -856,7 +1132,6 @@ private struct NoteEditor: View {
 /// Les réglages de lecture — les trois niveaux, la taille, la fonte, le thème.
 public struct ReadingSettingsSheet: View {
     @Environment(ReadingModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
 
     /// Le chapitre ouvert, quand la feuille est appelée depuis la lecture.
     ///
@@ -868,6 +1143,8 @@ public struct ReadingSettingsSheet: View {
         self.chapter = chapter
     }
 
+    @State private var confirmeReset = false
+
     /// Le chapitre à montrer dans l'aperçu.
     private var previewed: Chapter? {
         if let chapter { return chapter }
@@ -875,29 +1152,31 @@ public struct ReadingSettingsSheet: View {
         return model.chapter(book: position.bookId, id: position.chapterId)
     }
 
+    /// Le contenu seul — **sans** pile de navigation.
+    ///
+    /// Elle en créait une, et c'était juste tant qu'un seul appelant existait.
+    /// Depuis « Vous », la feuille est poussée par un `NavigationLink` : elle
+    /// se retrouvait à empiler sa propre pile dans celle de l'onglet, ce qui
+    /// donnait deux barres de navigation, un titre en double et un « OK » qui
+    /// ne dépilait pas ce que le lecteur croyait.
+    ///
+    /// Une vue de destination ne décide pas de sa présentation. C'est
+    /// l'appelant qui sait s'il pousse ou s'il présente, donc c'est à lui de
+    /// fournir la pile et le bouton qui la referme.
     public var body: some View {
-        @Bindable var model = model
-
-        NavigationStack {
-            // L'aperçu est **hors** du formulaire, donc épinglé : dedans, il
-            // défilait avec les réglages et disparaissait au moment précis où
-            // on tournait le bouton qui le fait changer. Un aperçu qu'il faut
-            // remonter voir n'est pas un aperçu.
-            VStack(spacing: 0) {
-                if let previewed {
-                    SettingsPreview(chapter: previewed)
-                    Divider()
-                }
-                controls
+        // L'aperçu est **hors** du formulaire, donc épinglé : dedans, il
+        // défilait avec les réglages et disparaissait au moment précis où
+        // on tournait le bouton qui le fait changer. Un aperçu qu'il faut
+        // remonter voir n'est pas un aperçu.
+        VStack(spacing: 0) {
+            if let previewed {
+                SettingsPreview(chapter: previewed)
+                Divider()
             }
-            .navigationTitle("Lecture")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("OK") { dismiss() }
-                }
-            }
+            controls
         }
+        .navigationTitle("Lecture")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Les réglages, qui défilent sous l'aperçu.
@@ -933,7 +1212,7 @@ public struct ReadingSettingsSheet: View {
 
                 Section {
                     LabeledContent("Taille") {
-                        Slider(value: $model.preferences.textSize, in: 15...28, step: 1)
+                        Slider(value: $model.preferences.textSize, in: 11...28, step: 1)
                     }
                     LabeledContent("Interligne") {
                         Slider(value: $model.preferences.lineSpacing, in: 0.2...1.0, step: 0.1)
@@ -960,14 +1239,52 @@ public struct ReadingSettingsSheet: View {
                     )
                 }
 
-                Section("Thème") {
+                Section {
+                    // En menu et non en segmenté. À trois thèmes, quatre
+                    // segments tenaient ; au quatrième, « Parchemin » et
+                    // « Mystique » se tronquent — et d'autant plus vite que le
+                    // lecteur a monté sa taille de texte, c'est-à-dire
+                    // exactement quand il a besoin de lire les libellés.
                     Picker("Thème", selection: $model.preferences.theme) {
                         ForEach(ReadingTheme.allCases, id: \.self) { theme in
                             Text(theme.label).tag(theme)
                         }
                     }
-                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Thème")
+                } footer: {
+                    Text("Mystique est la peau du site ontbible.com — nuit aubergine et or.")
                 }
+
+                Section {
+                    Button("Réinitialiser les réglages", role: .destructive) {
+                        confirmeReset = true
+                    }
+                    // Éteint quand il n'y a rien à annuler : un bouton actif
+                    // qui ne ferait rien laisse croire qu'on avait changé
+                    // quelque chose.
+                    .disabled(model.preferences.isDisplayDefault)
+                } footer: {
+                    Text(
+                        "Ramène disposition, niveaux, corps, fonte et thème à leur "
+                            + "état de départ. Le rappel du verset du jour n'est pas touché."
+                    )
+                }
+        }
+        // Une confirmation, parce que le geste est court et la perte réelle :
+        // qui a réglé sa taille de texte pour y voir ne veut pas la retrouver
+        // au départ pour avoir effleuré une ligne rouge.
+        .confirmationDialog(
+            "Revenir aux réglages de départ ?",
+            isPresented: $confirmeReset,
+            titleVisibility: .visible
+        ) {
+            Button("Réinitialiser", role: .destructive) {
+                model.preferences = model.preferences.resettingDisplay()
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
         }
     }
 }
@@ -981,7 +1298,7 @@ public struct ReadingSettingsSheet: View {
 /// trois niveaux qui décide si un réglage tient.
 private struct SettingsPreview: View {
     @Environment(ReadingModel.self) private var model
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     let chapter: Chapter
 
@@ -1011,7 +1328,7 @@ private struct SettingsPreview: View {
 
     private struct PreviewBody: View {
         @Environment(\.ontTheme) private var theme
-        private var spacing: ONTSpacing { ONTSpacing() }
+        private var spacing = ONTSpacing()
 
         let verses: [Verse]
         let title: String
@@ -1030,15 +1347,44 @@ private struct SettingsPreview: View {
                 // Sans ça, `.clipped()` coupait la fin du second verset — et
                 // c'est souvent la fin d'une glose qui départage deux fontes.
                 ScrollView {
-                    VStack(alignment: .leading, spacing: spacing.s) {
-                        ForEach(verses, id: \.n) { verse in
-                            Text(ONTTextRenderer.compose(verse: verse, theme: theme))
-                                .lineSpacing(theme.lineSpacing)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                    // L'aperçu emprunte les **deux** chemins de rendu de la
+                    // liseuse, et non le seul mode blocs comme il le faisait :
+                    // « Versets à la suite » est le réglage qui change le plus
+                    // la page, et c'était le seul que l'aperçu taisait. On
+                    // basculait à l'aveugle, on refermait pour voir.
+                    Group {
+                        if theme.preferences.continuous {
+                            // Rien de surligné : un aperçu montre la mise en
+                            // page, pas l'état d'une lecture en cours.
+                            ONTTextRenderer.flowingText(
+                                verses: verses,
+                                theme: theme,
+                                highlight: { _ in nil }
+                            )
+                            .lineSpacing(theme.lineSpacing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            // `theme.verseSpacing` et non un écart fixe : c'est
+                            // ce que la liseuse emploie entre deux versets, et
+                            // il dépend du curseur d'interligne. Avec un écart
+                            // fixe, bouger ce curseur ne changeait ici que
+                            // l'intérieur des versets, jamais ce qui les
+                            // sépare — l'aperçu montrait la moitié du réglage.
+                            VStack(alignment: .leading, spacing: theme.verseSpacing) {
+                                ForEach(verses, id: \.n) { verse in
+                                    Text(ONTTextRenderer.compose(verse: verse, theme: theme))
+                                        .lineSpacing(theme.lineSpacing)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
                         }
                     }
                     .padding(spacing.m)
                 }
+                // La prose continue pose un lien sur chaque verset, pour que la
+                // liseuse sache lequel on touche. Ici il n'y a rien à
+                // désigner : sans cette garde, effleurer l'aperçu naviguerait.
+                .environment(\.openURL, OpenURLAction { _ in .handled })
                 .frame(maxWidth: .infinity, maxHeight: 250, alignment: .leading)
                 .background(theme.background)
                 .clipShape(RoundedRectangle(cornerRadius: ONTRadius.card))

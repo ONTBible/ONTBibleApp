@@ -17,7 +17,7 @@ public struct SearchView: View {
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
 
-    private var spacing: ONTSpacing { ONTSpacing() }
+    private var spacing = ONTSpacing()
 
     public init() {}
 
@@ -93,6 +93,8 @@ public struct SearchView: View {
 }
 
 private struct HitRow: View {
+    @Environment(\.ontTheme) private var theme
+
     let hit: SearchHit
     let title: String
     let query: String
@@ -102,7 +104,7 @@ private struct HitRow: View {
             HStack(spacing: 8) {
                 Text(reference)
                     .font(.caption.monospaced())
-                    .foregroundStyle(ONTColors.goldDeep)
+                    .foregroundStyle(ONTColors.accent(theme.mode))
                 if hit.level == .gloss {
                     StatusPill("glose", tint: .gray)
                 }
@@ -140,14 +142,23 @@ private struct HitRow: View {
             let upper = AttributedString.Index(found.upperBound, within: text)
         else { return text }
 
-        text[lower..<upper].backgroundColor = ONTColors.gold.opacity(0.45)
+        // L'or **voilé** et non plein : à 45 % sur un fond clair il surligne,
+        // mais sur la nuit il devient un aplat lumineux sous une encre claire,
+        // c'est-à-dire un trou blanc. Sur fond sombre on marque par l'encre —
+        // l'accent doré sur le texte lui-même — plutôt que par un fond.
+        if theme.mode.isDark {
+            text[lower..<upper].foregroundColor = ONTColors.accent(theme.mode)
+        } else {
+            text[lower..<upper].backgroundColor = ONTColors.gold.opacity(0.45)
+        }
         text[lower..<upper].font = .callout.bold()
         return text
     }
 }
 
 private struct Hints: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    @Environment(\.ontTheme) private var theme
+    private var spacing = ONTSpacing()
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.l) {
@@ -161,7 +172,7 @@ private struct Hints: View {
 
     private func hint(_ example: String, _ explanation: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(example).font(.body.weight(.medium)).foregroundStyle(ONTColors.burgundy)
+            Text(example).font(.body.weight(.medium)).foregroundStyle(ONTColors.brandInk(theme.mode))
             Text(explanation).font(.caption).foregroundStyle(.secondary)
         }
     }

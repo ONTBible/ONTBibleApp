@@ -74,6 +74,8 @@ public struct LexiconTab: View {
 }
 
 private struct EntryRow: View {
+    @Environment(\.ontTheme) private var theme
+
     let entry: GlossaryEntry
 
     public var body: some View {
@@ -81,7 +83,7 @@ private struct EntryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(entry.tagged ? ONTColors.burgundy : .primary)
+                    .foregroundStyle(entry.tagged ? ONTColors.brandInk(theme.mode) : theme.ink)
 
                 if let rendering = entry.rendering, rendering != entry.title {
                     Text(rendering)
