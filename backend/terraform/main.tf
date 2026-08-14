@@ -209,8 +209,58 @@ resource "aws_lambda_function" "api" {
   handler       = "bootstrap"
   architectures = ["arm64"]
 
+  # Terraform ne possède plus le **code**, seulement la **forme**.
+  #
+  # Depuis que la CI remplace le binaire à chaque poussée sur `main`, garder ces
+  # deux attributs sous la coupe de Terraform poserait un piège silencieux : un
+  # `terraform apply` lancé d'un poste — pour ajouter une variable
+  # d'environnement, pour toucher au domaine — verrait un `source_code_hash`
+  # différent de celui d'AWS, et **remettrait en production le zip qui traîne
+  # dans le dossier local**. Une version d'il y a trois semaines, sans qu'aucune
+  # commande n'ait parlé de code.
+  #
+  # Le partage est donc net, et c'est celui du site : Terraform décrit la forme,
+  # la CI livre le code. `ignore_changes` est ce qui l'écrit noir sur blanc.
+  #
+  # Le `fileexists` va avec : `filebase64sha256` est évalué au `plan`, donc sans
+  # lui il faudrait construire le zip avant chaque `apply`, y compris pour un
+  # changement qui n'a rien à voir avec le code. Rien ne lit le fichier tant
+  # qu'il n'y a pas de différence à appliquer.
   filename         = var.package_path
-  source_code_hash = filebase64sha256(var.package_path)
+  source_code_hash = fileexists(var.package_path) ? filebase64sha256(var.package_path) : null
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+
+    # Le garde-fou qui manquait, et il a failli coûter cher.
+    #
+    # Les huit variables OAuth ont `""` pour défaut. Un `terraform apply` lancé
+    # sans avoir sourcé `oauth.env` — ce que seul `scripts/deployer-backend.sh`
+    # fait — ne s'arrête donc pas : il **vide** `APPLE_CLIENT_ID`,
+    # `GOOGLE_CLIENT_ID`, `GITHUB_CLIENT_ID` et leurs secrets sur la fonction en
+    # ligne. La connexion Apple, Google et GitHub cesse de marcher pour tout le
+    # monde, et rien dans le plan ne s'appelle « connexion » : ça se lit
+    # « 1 to change », au milieu d'un apply qui parlait d'autre chose.
+    #
+    # C'est arrivé en préparant le rôle de CI : le plan, ciblé sur deux
+    # ressources IAM, embarquait la Lambda parce que la politique référence son
+    # ARN — et proposait de tout effacer. Repéré à la lecture, pas par une
+    # alarme. D'où celle-ci.
+    #
+    # Trois identifiants suffisent à décider : ils sont publics, donc jamais
+    # absents pour une raison légitime, là où un secret peut l'être en local.
+    precondition {
+      condition     = var.apple_client_id != "" && var.google_client_id != "" && var.github_client_id != ""
+      error_message = <<-EOT
+        Les identifiants OAuth sont vides. Appliquer maintenant effacerait la
+        configuration de connexion de la Lambda en production.
+
+        Passer par ./scripts/deployer-backend.sh, ou monter le même
+        environnement que lui : source secrets.env, source oauth.env, puis les
+        export TF_VAR_*.
+      EOT
+    }
+  }
 
   memory_size = 256
   timeout     = 15
