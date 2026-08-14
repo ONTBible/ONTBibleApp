@@ -142,7 +142,18 @@ export function parseBlocks(lines: string[]): Block[] {
     }
 
     // Paragraphe — toutes les lignes jusqu'à la prochaine frontière.
-    const paragraph: string[] = [];
+    //
+    // **La première ligne est toujours prise**, et ce n'est pas une commodité :
+    // c'est ce qui empêche la boucle de tourner à vide. Une ligne de tableau
+    // sans ligne de séparation n'est reconnue ni comme tableau ni comme
+    // paragraphe — elle arrive ici, la condition d'arrêt la rejette
+    // immédiatement, `i` n'avance pas, et le build tourne jusqu'à épuiser la
+    // mémoire de Node.
+    //
+    // Le vault ne contient aucun tableau mal formé, donc ça ne s'était jamais
+    // produit. Une coquille de frappe séparait de la panne.
+    const paragraph: string[] = [lines[i]!];
+    i++;
     while (i < lines.length) {
       const candidate = lines[i]!;
       if (!candidate.trim()) break;
