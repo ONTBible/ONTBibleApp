@@ -34,14 +34,25 @@ struct AccountModelTests {
         func erase() async throws { erased = true }
     }
 
+    /// La doublure imite le vrai stockage, pierres tombales comprises : une
+    /// doublure qui supprimerait physiquement rendrait les tests d'accord alors
+    /// que l'app ne l'est pas.
     final class FakeHighlights: HighlightRepository {
         var stored: [String: Highlight] = [:]
-        func all() -> [Highlight] { Array(stored.values) }
+        func all() -> [Highlight] { stored.values.filter { !$0.deleted } }
+        func allForSync() -> [Highlight] { Array(stored.values) }
         func highlight(chapterId: String, verse: Int) -> Highlight? {
             stored[Highlight.key(chapterId: chapterId, verse: verse)]
+                .flatMap { $0.deleted ? nil : $0 }
         }
         func save(_ highlight: Highlight) { stored[highlight.key] = highlight }
-        func remove(_ highlight: Highlight) { stored[highlight.key] = nil }
+        func remove(_ highlight: Highlight) {
+            guard var existant = stored[highlight.key] else { return }
+            existant.deleted = true
+            existant.note = nil
+            existant.updatedAt = Date()
+            stored[highlight.key] = existant
+        }
     }
 
     final class FakePositions: PositionRepository {

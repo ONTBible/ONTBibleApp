@@ -34,6 +34,20 @@ public struct Highlight: Codable, Hashable, Identifiable, Sendable {
     public var color: HighlightColor
     public var note: String?
     public var updatedAt: Date
+    /// Une **pierre tombale**, et non une absence.
+    ///
+    /// Supprimer physiquement un surlignage ne se synchronise pas : l'appareil
+    /// qui efface n'a plus rien à envoyer, et celui qui reçoit ne voit qu'un
+    /// objet manquant — indistinguable d'un objet qu'il n'a pas encore. Il le
+    /// renvoie donc, et le surlignage ressuscite au prochain échange.
+    ///
+    /// On garde donc la ligne, marquée. C'est ce que le serveur attend déjà :
+    /// son `Highlight` porte `deleted` depuis le premier jour, et l'app le
+    /// mettait à `false` en dur.
+    ///
+    /// `@decode` tolérant par défaut : un fichier écrit avant ce champ se relit
+    /// sans erreur, et ses surlignages sont vivants.
+    public var deleted: Bool
 
     public init(
         id: UUID = UUID(),
@@ -42,7 +56,8 @@ public struct Highlight: Codable, Hashable, Identifiable, Sendable {
         verse: Int,
         color: HighlightColor,
         note: String? = nil,
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        deleted: Bool = false
     ) {
         self.id = id
         self.bookId = bookId
@@ -51,6 +66,19 @@ public struct Highlight: Codable, Hashable, Identifiable, Sendable {
         self.color = color
         self.note = note
         self.updatedAt = updatedAt
+        self.deleted = deleted
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        bookId = try c.decode(String.self, forKey: .bookId)
+        chapterId = try c.decode(String.self, forKey: .chapterId)
+        verse = try c.decode(Int.self, forKey: .verse)
+        color = try c.decode(HighlightColor.self, forKey: .color)
+        note = try c.decodeIfPresent(String.self, forKey: .note)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        deleted = try c.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
     }
 
     /// La clé d'un verset — `bereshit-18#19`.

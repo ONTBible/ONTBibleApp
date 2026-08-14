@@ -1,0 +1,8 @@
+# Les dépendances de la soumission App Store, figées.
+#
+# Une version flottante fait dépendre une livraison signée de ce qu'un tiers
+# publie le jour où le workflow tourne. Ces trois paquets manipulent la clé
+# privée Apple : ils sont épinglés, et remontés à la main.
+pyjwt==2.10.1
+cryptography==46.0.4
+requests==2.32.5

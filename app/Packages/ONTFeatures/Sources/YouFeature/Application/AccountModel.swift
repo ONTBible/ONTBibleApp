@@ -133,7 +133,9 @@ public final class AccountModel {
             reporter.breadcrumb("fusion : \(remote.highlights.count) surlignages reçus")
 
             try await sync.push(
-                SyncPayload(highlights: highlights.all(), position: positions.position)
+                // `allForSync` et non `all` : le second masque les pierres
+                // tombales, et un envoi sans elles perdrait les suppressions.
+                SyncPayload(highlights: highlights.allForSync(), position: positions.position)
             )
             lastSync = Date()
         } catch AccountError.unauthorized {
@@ -153,12 +155,27 @@ public final class AccountModel {
     }
 
     private func merge(_ remote: SyncPayload) {
+        // La comparaison se fait sur **toutes** les lignes, pierres tombales
+        // comprises : `highlight(chapterId:verse:)` ne rend que le vivant, donc
+        // une suppression locale y paraîtrait comme une absence, et le serveur
+        // la réécraserait avec sa version d'avant.
+        let locales = Dictionary(
+            highlights.allForSync().map { ($0.key, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
         for incoming in remote.highlights {
-            let local = highlights.highlight(
-                chapterId: incoming.chapterId,
-                verse: incoming.verse
-            )
-            if local == nil || incoming.updatedAt > local!.updatedAt {
+            let local = locales[incoming.key]
+            guard local == nil || incoming.updatedAt > local!.updatedAt else { continue }
+
+            if incoming.deleted {
+                // Une suppression reçue s'applique — et se garde comme pierre
+                // tombale, sans quoi cet appareil renverrait le surlignage au
+                // prochain échange.
+                if let local, !local.deleted {
+                    highlights.remove(local)
+                }
+            } else {
                 highlights.save(incoming)
             }
         }

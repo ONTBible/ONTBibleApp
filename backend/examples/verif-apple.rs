@@ -13,28 +13,49 @@ async fn main() {
     let key = std::fs::read_to_string(&key_path).unwrap();
 
     let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
 
     #[derive(serde::Serialize)]
-    struct Claims<'a> { iss: &'a str, iat: i64, exp: i64, aud: &'a str, sub: &'a str }
+    struct Claims<'a> {
+        iss: &'a str,
+        iat: i64,
+        exp: i64,
+        aud: &'a str,
+        sub: &'a str,
+    }
 
     let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
     header.kid = Some(kid.clone());
     let signing = jsonwebtoken::EncodingKey::from_ec_pem(key.as_bytes()).unwrap();
 
-    let secret = jsonwebtoken::encode(&header, &Claims {
-        iss: &team, iat: now, exp: now + 3600,
-        aud: "https://appleid.apple.com", sub: &client,
-    }, &signing).unwrap();
+    let secret = jsonwebtoken::encode(
+        &header,
+        &Claims {
+            iss: &team,
+            iat: now,
+            exp: now + 3600,
+            aud: "https://appleid.apple.com",
+            sub: &client,
+        },
+        &signing,
+    )
+    .unwrap();
 
     println!("secret client signé ✓  (ES256, kid = {kid})");
 
     let body = reqwest::Client::new()
         .post("https://appleid.apple.com/auth/token")
-        .form(&[("client_id", client.as_str()), ("client_secret", secret.as_str()),
-                ("code", "code-volontairement-invalide"),
-                ("grant_type", "authorization_code")])
-        .send().await.unwrap();
+        .form(&[
+            ("client_id", client.as_str()),
+            ("client_secret", secret.as_str()),
+            ("code", "code-volontairement-invalide"),
+            ("grant_type", "authorization_code"),
+        ])
+        .send()
+        .await
+        .unwrap();
 
     let status = body.status();
     let text = body.text().await.unwrap();

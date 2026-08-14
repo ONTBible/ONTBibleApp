@@ -70,21 +70,21 @@ jobs:
 
     steps:
       - name: L'app
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: ONTBibleApp
 
       - name: Le vault
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
 
@@ -193,7 +193,7 @@ jobs:
       # artefact, un build livré sans eux serait illisible pour toujours.
       - name: Garder les symboles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dsym-${{ github.sha }}
           path: ${{ runner.temp }}/ONT.xcarchive/dSYMs
@@ -254,7 +254,26 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Les dépendances, dans une étape **sans aucun secret**.
+      #
+      # Elles étaient installées dans la même étape que la soumission, dont
+      # l'`env` porte la clé privée Apple : `pip install` s'exécutait donc avec
+      # `ASC_PRIVATE_KEY` dans son environnement. Un paquet compromis — ou une
+      # version publiée entre-temps sous un nom voisin — l'aurait lue sans rien
+      # avoir à contourner.
+      #
+      # Deux étapes, et les versions figées dans `exigences.txt` : ces trois
+      # paquets manipulent la clé, ils ne flottent pas.
+      #
+      # Un venv, parce que le Python des runners macOS est « externally
+      # managed » (PEP 668) et refuse toute installation globale.
+      - name: Les dépendances de soumission
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet -r .github/scripts/exigences.txt
 
       # `asc` n'existe pas en ligne de commande : la soumission passe par l'API
       # REST d'App Store Connect, authentifiée par un jeton JWT signé avec la
@@ -272,8 +291,6 @@ jobs:
           ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
           ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |
-          # Un venv : le Python des runners macOS est « externally managed »
-          # (PEP 668) et refuse toute installation globale.
-          python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography requests
+          # Le venv est monté à l'étape précédente, hors de portée des
+          # secrets — voir « Les dépendances de soumission ».
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/soumettre.py
