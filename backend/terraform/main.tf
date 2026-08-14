@@ -231,6 +231,35 @@ resource "aws_lambda_function" "api" {
 
   lifecycle {
     ignore_changes = [filename, source_code_hash]
+
+    # Le garde-fou qui manquait, et il a failli coûter cher.
+    #
+    # Les huit variables OAuth ont `""` pour défaut. Un `terraform apply` lancé
+    # sans avoir sourcé `oauth.env` — ce que seul `scripts/deployer-backend.sh`
+    # fait — ne s'arrête donc pas : il **vide** `APPLE_CLIENT_ID`,
+    # `GOOGLE_CLIENT_ID`, `GITHUB_CLIENT_ID` et leurs secrets sur la fonction en
+    # ligne. La connexion Apple, Google et GitHub cesse de marcher pour tout le
+    # monde, et rien dans le plan ne s'appelle « connexion » : ça se lit
+    # « 1 to change », au milieu d'un apply qui parlait d'autre chose.
+    #
+    # C'est arrivé en préparant le rôle de CI : le plan, ciblé sur deux
+    # ressources IAM, embarquait la Lambda parce que la politique référence son
+    # ARN — et proposait de tout effacer. Repéré à la lecture, pas par une
+    # alarme. D'où celle-ci.
+    #
+    # Trois identifiants suffisent à décider : ils sont publics, donc jamais
+    # absents pour une raison légitime, là où un secret peut l'être en local.
+    precondition {
+      condition     = var.apple_client_id != "" && var.google_client_id != "" && var.github_client_id != ""
+      error_message = <<-EOT
+        Les identifiants OAuth sont vides. Appliquer maintenant effacerait la
+        configuration de connexion de la Lambda en production.
+
+        Passer par ./scripts/deployer-backend.sh, ou monter le même
+        environnement que lui : source secrets.env, source oauth.env, puis les
+        export TF_VAR_*.
+      EOT
+    }
   }
 
   memory_size = 256
