@@ -122,36 +122,31 @@ pub fn slugify(input: &str) -> String {
     out
 }
 
-/// Décompose les latins accentués en lettre + marque combinante.
+/// Décompose une chaîne en forme canonique NFD.
 ///
-/// `char::to_lowercase` de Rust ne décompose pas, et la bibliothèque standard
-/// n'expose pas la normalisation Unicode. Une table pour le latin suffit : le
-/// vault est en français, et les seuls diacritiques à retirer sont ceux-là.
-/// Ce qui n'est pas latin — l'hébreu — tombe de toute façon dans la branche
-/// « autre » de `slugify`.
+/// C'est ce que fait `normalize('NFD')` en JavaScript : chaque caractère
+/// précomposé devient sa lettre de base suivie de ses marques combinantes, que
+/// l'appelant retire ensuite.
+///
+/// ## Une table écrite à la main ne suffit pas
+///
+/// La première version en était une, justifiée par « le vault est en français,
+/// les seuls diacritiques sont ceux-là ». C'était faux, et le portage l'a
+/// prouvé : sur 2,1 Mo de sortie, deux enregistrements divergeaient — un `š` de
+/// translittération savante, et un `≠` d'un commentaire de traduction. Le
+/// second est le plus instructif : il se décompose en `=` suivi d'une barre
+/// oblique combinante, ce qu'aucune table de lettres accentuées n'aurait prévu.
+///
+/// Une normalisation partielle est une normalisation fausse. Elle ne se
+/// trompe que sur les caractères auxquels on n'a pas pensé — c'est-à-dire
+/// exactement ceux qui posent problème.
+pub(crate) fn decomposer_public(input: &str) -> String {
+    decomposer(input)
+}
+
 fn decomposer(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for c in input.chars() {
-        match c {
-            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' => out.push('a'),
-            'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => out.push('A'),
-            'è' | 'é' | 'ê' | 'ë' => out.push('e'),
-            'È' | 'É' | 'Ê' | 'Ë' => out.push('E'),
-            'ì' | 'í' | 'î' | 'ï' => out.push('i'),
-            'Ì' | 'Í' | 'Î' | 'Ï' => out.push('I'),
-            'ò' | 'ó' | 'ô' | 'õ' | 'ö' => out.push('o'),
-            'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' => out.push('O'),
-            'ù' | 'ú' | 'û' | 'ü' => out.push('u'),
-            'Ù' | 'Ú' | 'Û' | 'Ü' => out.push('U'),
-            'ç' => out.push('c'),
-            'Ç' => out.push('C'),
-            'ÿ' => out.push('y'),
-            'ñ' => out.push('n'),
-            'Ñ' => out.push('N'),
-            autre => out.push(autre),
-        }
-    }
-    out
+    use unicode_normalization::UnicodeNormalization;
+    input.nfd().collect()
 }
 
 /// Vrai si la chaîne porte au moins un caractère d'écriture hébraïque.

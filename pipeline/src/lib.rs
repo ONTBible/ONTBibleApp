@@ -11,8 +11,12 @@
 //! dépôts sont côte à côte, en local comme dans la CI. Il en reste deux
 //! descriptions, et le Swift est le prochain chantier.
 
+pub mod build;
+pub mod config;
 pub mod blocks;
 pub mod chapter;
 pub mod inline;
+pub mod reference;
 pub mod schema;
+pub mod search;
 pub mod vault;

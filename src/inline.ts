@@ -107,8 +107,20 @@ export function hasHebrew(input: string): boolean {
  * donne.
  */
 export function extractHebrew(input: string): string | null {
-  HEBREW_RUN.lastIndex = 0;
-  return HEBREW_RUN.exec(input)?.[0] ?? null;
+  // Une expression **neuve**, et non `HEBREW_RUN`.
+  //
+  // Une expression rationnelle globale porte un état — `lastIndex` — et il est
+  // partagé par tous ses usages. Un `exec` le laissait à la fin de sa
+  // correspondance ; le `matchAll` suivant, dans `splitScripts`, reprenait à
+  // partir de là et ne trouvait plus rien.
+  //
+  // Conséquence : l'hébreu de certaines définitions du lexique n'était pas
+  // isolé en nœud `heb`. Il restait dans un fragment de texte latin, donc rendu
+  // sans fonte hébraïque et sans passage en RTL — et rien ne le signalait.
+  //
+  // Trouvé en portant ce fichier en Rust, dont les expressions rationnelles
+  // sont sans état : les deux sorties divergeaient exactement là.
+  return new RegExp(HEBREW_RUN.source, HEBREW_RUN.flags).exec(input)?.[0] ?? null;
 }
 
 /**
