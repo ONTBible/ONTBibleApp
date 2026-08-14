@@ -36,6 +36,13 @@ DerivedData/
 .build/
 .swiftpm/
 
+# Les DTO Swift, engendrés depuis `pipeline/src/schema.rs` à chaque build.
+#
+# Ignorés pour la même raison que le projet Xcode : un fichier engendré qu'on
+# committe finit par diverger de sa source, parce que quelqu'un le modifiera à
+# la main un jour où il sera pressé. Absent du dépôt, il ne peut qu'être à jour.
+app/Packages/ONTData/Sources/ONTData/Bundle/Schema.swift
+
 # Le projet Xcode est produit par xcodegen à partir de project.yml : c'est
 # ce dernier qui fait foi. Committer les deux, c'est garantir qu'ils
 # divergeront.

@@ -8,8 +8,9 @@
 # désynchroniser :
 #
 #   1. le pipeline lit le vault et écrit `dist/`
-#   2. `dist/` est recopié dans les ressources de l'app
-#   3. `xcodegen` engendre le projet, qui n'est pas committé
+#   2. le schéma engendre les DTO Swift
+#   3. `dist/` est recopié dans les ressources de l'app
+#   4. `xcodegen` engendre le projet, qui n'est pas committé
 #
 # C'était `npm run app`. Le pipeline est en Rust depuis le 14 août 2026 : un
 # binaire, sans runtime à installer — ni sur cette machine, ni dans les deux CI
@@ -29,7 +30,16 @@ vert=$'\033[32m'; fin=$'\033[0m'
 # La compilation du binaire est mise en cache par cargo, donc on ne la paie
 # qu'une fois.
 echo "→ le corpus"
-cargo run --manifest-path pipeline/Cargo.toml --release --quiet
+cargo run --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
+
+# Les DTO Swift, engendrés depuis `schema.rs`.
+#
+# **Inconditionnel, et c'est le point.** Aucun déclencheur à écrire, donc aucun
+# filtre de chemins à oublier de mettre à jour : le fichier est réécrit à chaque
+# fois, il ne peut pas être périmé. C'est la même règle que `ONT.xcodeproj`, et
+# pour la même raison — committer les deux, c'est garantir qu'ils divergeront.
+echo "→ le schéma Swift"
+cargo run --manifest-path pipeline/Cargo.toml --bin engendrer --release --quiet
 
 echo "→ les ressources de l'app"
 # `rm -rf` d'abord : une copie par-dessus laisserait en place un livre retiré

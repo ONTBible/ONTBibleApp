@@ -43,52 +43,17 @@ public enum Inline: Hashable, Sendable {
     case lineBreak
 }
 
-extension Inline: Decodable {
-    private enum CodingKeys: String, CodingKey {
-        case t, v, lemma, translit, hebrew, children, href
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(String.self, forKey: .t)
-
-        switch kind {
-        case "text":
-            self = .text(try container.decode(String.self, forKey: .v))
-        case "term":
-            self = .term(
-                try container.decode(String.self, forKey: .v),
-                lemma: try container.decode(String.self, forKey: .lemma)
-            )
-        case "translit":
-            self = .translit(
-                try container.decode(String.self, forKey: .translit),
-                hebrew: try container.decode(String.self, forKey: .hebrew)
-            )
-        case "heb":
-            self = .hebrew(try container.decode(String.self, forKey: .v))
-        case "gloss":
-            self = .gloss(try container.decode([Inline].self, forKey: .children))
-        case "important":
-            self = .important(try container.decode([Inline].self, forKey: .children))
-        case "em":
-            self = .emphasis(try container.decode([Inline].self, forKey: .children))
-        case "link":
-            self = .link(
-                try container.decode([Inline].self, forKey: .children),
-                href: try container.decode(String.self, forKey: .href)
-            )
-        case "break":
-            self = .lineBreak
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .t,
-                in: container,
-                debugDescription: "Type de nœud inline inconnu : « \(kind) »."
-            )
-        }
-    }
-}
+// Le décodage vivait ici, et il n'y est plus.
+//
+// `Inline` portait son propre `init(from decoder:)` : le domaine savait donc
+// lire le JSON du pipeline, et un champ renommé dans le vault se propageait
+// jusqu'au cœur de l'app. C'est la dépendance à l'envers — le domaine ne doit
+// rien connaître du monde extérieur.
+//
+// Elle vit maintenant dans `ONTData` : `ONTSchema.Inline` est engendré depuis
+// `schema.rs` à chaque build, et `SchemaMapping.swift` le traduit vers ce
+// type-ci. Le `switch` de cette traduction est exhaustif, donc **un type de
+// nœud ajouté au pipeline casse la compilation de l'app**.
 
 public extension [Inline] {
     /// Le texte nu, pour un titre, un résumé ou une recherche.

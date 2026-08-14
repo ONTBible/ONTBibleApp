@@ -5,9 +5,17 @@ import Foundation
 /// `n` est la numérotation **interne** à l'unité (CLAUDE.md §2.2) : elle
 /// repart de 1 à chaque unité fonctionnelle et ne correspond pas au numéro
 /// biblique. Le renvoi biblique vit dans le sous-titre du chapitre.
-public struct Verse: Decodable, Hashable, Sendable, Identifiable {
+public struct Verse: Hashable, Sendable, Identifiable {
     public let n: Int
     public let nodes: [Inline]
+
+    /// L'init mémberwise synthétisé est interne au module. `ONTData` fabrique
+    /// des versets en traduisant le DTO engendré, et les tests en fabriquent
+    /// pour les aperçus.
+    public init(n: Int, nodes: [Inline]) {
+        self.n = n
+        self.nodes = nodes
+    }
 
     public var id: Int { n }
 }
@@ -23,48 +31,8 @@ public enum Block: Hashable, Sendable {
     case rule
 }
 
-extension Block: Decodable {
-    private enum CodingKeys: String, CodingKey {
-        case t, level, nodes, verses, ordered, items, headers, rows
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(String.self, forKey: .t)
-
-        switch kind {
-        case "heading":
-            self = .heading(
-                level: try container.decode(Int.self, forKey: .level),
-                nodes: try container.decode([Inline].self, forKey: .nodes)
-            )
-        case "verses":
-            self = .verses(try container.decode([Verse].self, forKey: .verses))
-        case "para":
-            self = .paragraph(try container.decode([Inline].self, forKey: .nodes))
-        case "list":
-            self = .list(
-                ordered: try container.decode(Bool.self, forKey: .ordered),
-                items: try container.decode([[Inline]].self, forKey: .items)
-            )
-        case "quote":
-            self = .quote(try container.decode([Inline].self, forKey: .nodes))
-        case "table":
-            self = .table(
-                headers: try container.decode([[Inline]].self, forKey: .headers),
-                rows: try container.decode([[[Inline]]].self, forKey: .rows)
-            )
-        case "rule":
-            self = .rule
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .t,
-                in: container,
-                debugDescription: "Type de bloc inconnu : « \(kind) »."
-            )
-        }
-    }
-}
+// Le décodage est parti dans `ONTData` — voir `Inline.swift` pour le pourquoi,
+// et `SchemaMapping.swift` pour la traduction.
 
 extension Block: Identifiable {
     public var id: Int { hashValue }

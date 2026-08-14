@@ -10,7 +10,7 @@ de ce dépôt.**
 
 ```bash
 ./scripts/corpus.sh                       # vault → dist/ → ressources → projet
-cargo run  --manifest-path pipeline/Cargo.toml --release   # le corpus seul
+cargo run  --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release
 cargo test --manifest-path pipeline/Cargo.toml             # 49 tests
 ```
 
@@ -28,9 +28,38 @@ une expression rationnelle globale dont le `lastIndex` persistait — l'hébreu 
 certaines définitions du lexique n'était pas isolé, donc rendu sans fonte
 hébraïque ni passage en RTL, dans l'app comme sur le site.
 
-Et le schéma n'est plus décrit qu'à **deux** endroits : `pipeline/src/schema.rs`,
-dont le site dépend directement comme d'une caisse, et le Swift de l'app — le
-prochain chantier.
+## Le schéma n'est plus décrit qu'à **un** endroit
+
+`pipeline/src/schema.rs`. Tout le reste en découle, et par deux chemins
+différents :
+
+```
+                    pipeline/src/schema.rs
+                              │
+        ┌─────────────────────┴─────────────────────┐
+        │                                           │
+   dépendance de caisse                      engendrement
+        │                                           │
+   le site, en Rust                    ONTData/Bundle/Schema.swift
+   (ne le redécrit pas)                (réécrit à chaque build)
+```
+
+Le site **utilise** les mêmes types : ajouter une variante y casse la
+compilation. Swift ne peut pas compiler de Rust, alors on lui écrit ses DTO —
+et le `switch` de `SchemaMapping.swift` étant exhaustif, la même variante y
+casse la compilation aussi.
+
+`Schema.swift` n'est pas dans le dépôt, comme `dist/` et `ONT.xcodeproj`. Il est
+réécrit **inconditionnellement** à chaque build : pas de déclencheur, donc pas
+de filtre de chemins à oublier de mettre à jour, donc jamais périmé.
+
+Le jour où une app Android existera, `codegen/kotlin.rs` sera un émetteur de
+plus. Le modèle intermédiaire ne connaît ni Swift ni Rust — des types, des
+champs, des clés JSON.
+
+**Ce que ça ne couvre pas** : un *champ* ajouté à une structure ne casse rien,
+seules les variantes d'énumération sont vérifiées. Un champ ignoré ne fait pas
+disparaître de texte ; une variante ignorée, si.
 
 ---
 
@@ -175,6 +204,7 @@ entière — mais la coquille reste à corriger dans le vault.
 | `pipeline/src/reference.rs` | `CLAUDE.md` → glossaire et répertoires de noms |
 | `pipeline/src/search.rs` | l'index de recherche — texte plié, hébreu dénudé |
 | `pipeline/src/build.rs` | assemblage, index des occurrences, rapport |
+| `pipeline/src/codegen/` | `schema.rs` → les liaisons des liseuses |
 
 Quatre dépendances, et le contrat n'en demande qu'une. `serde` suffit à décrire
 `schema` ; `regex`, `once_cell` et `unicode-normalization` sont derrière la

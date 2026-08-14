@@ -7,13 +7,23 @@ import UIKit
 /// L'image de partage.
 @MainActor
 struct ShareImageTests {
-    private func verses(_ json: String) throws -> [Verse] {
-        try JSONDecoder().decode([Verse].self, from: Data(json.utf8))
+    // Construits en Swift, et non décodés d'une chaîne JSON.
+    //
+    // Ce test porte sur le **rendu** d'une carte de partage. Le faire passer
+    // par un décodeur l'attachait au format du pipeline : il cassait quand la
+    // forme du JSON bougeait, en accusant la mise en page. Le décodage a ses
+    // propres tests, dans ONTDataTests.
+    private func verses(_ nodes: [Inline]) -> [Verse] {
+        [Verse(n: 1, nodes: nodes)]
     }
 
     @Test("la carte sort au format carré attendu")
     func rendersSquare() throws {
-        let v = try verses(#"[{"n":1,"nodes":[{"t":"text","v":"Quand "},{"t":"term","v":"Elohim","lemma":"elohim"},{"t":"text","v":" commença à orchestrer les Cieux et la Terre —"}]}]"#)
+        let v = verses([
+            .text("Quand "),
+            .term("Elohim", lemma: "elohim"),
+            .text(" commença à orchestrer les Cieux et la Terre —"),
+        ])
         let image = try #require(
             ONTShareImage.render(verses: v, reference: "Bereshit 1:1", theme: ONTTheme())
         )

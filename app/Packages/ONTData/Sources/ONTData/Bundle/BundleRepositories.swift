@@ -69,8 +69,8 @@ public final class BundleCorpusRepository: CorpusRepository, @unchecked Sendable
         defer { lock.unlock() }
 
         if let cachedCorpora { return cachedCorpora }
-        let file: CorpusFile = try BundleLoader.decode("corpus", bundle: bundle)
-        let sorted = file.corpora.sorted { $0.order < $1.order }
+        let file: ONTSchema.CorpusFile = try BundleLoader.decode("corpus", bundle: bundle)
+        let sorted = file.corpora.map(Corpus.init).sorted { $0.order < $1.order }
         cachedCorpora = sorted
         return sorted
     }
@@ -80,7 +80,8 @@ public final class BundleCorpusRepository: CorpusRepository, @unchecked Sendable
         defer { lock.unlock() }
 
         if let cached = cachedBooks[id] { return cached }
-        let book: Book = try BundleLoader.decode(id, subdirectory: "books", bundle: bundle)
+        let dto: ONTSchema.Book = try BundleLoader.decode(id, subdirectory: "books", bundle: bundle)
+        let book = Book(dto)
         cachedBooks[id] = book
         return book
     }
@@ -103,9 +104,10 @@ public final class BundleGlossaryRepository: GlossaryRepository, @unchecked Send
         defer { lock.unlock() }
 
         if let cachedEntries { return cachedEntries }
-        let file: GlossaryFile = try BundleLoader.decode("glossary", bundle: bundle)
-        cachedEntries = file.entries
-        return file.entries
+        let file: ONTSchema.GlossaryFile = try BundleLoader.decode("glossary", bundle: bundle)
+        let entries = file.entries.map(GlossaryEntry.init)
+        cachedEntries = entries
+        return entries
     }
 
     public func occurrences(of lemma: String) -> [Occurrence] {
@@ -115,9 +117,9 @@ public final class BundleGlossaryRepository: GlossaryRepository, @unchecked Send
         if cachedOccurrences == nil {
             cachedOccurrences = (try? BundleLoader.decode(
                 "occurrences",
-                as: OccurrencesFile.self,
+                as: ONTSchema.OccurrencesFile.self,
                 bundle: bundle
-            ))?.byLemma ?? [:]
+            ))?.byLemma.mapValues { $0.map(Occurrence.init) } ?? [:]
         }
         return cachedOccurrences?[lemma] ?? []
     }
@@ -139,8 +141,11 @@ public final class BundleSearchIndex: SearchIndex, @unchecked Sendable {
         defer { lock.unlock() }
 
         if let cached { return cached }
-        let loaded = (try? BundleLoader.decode("search", as: SearchFile.self, bundle: bundle))?
-            .records ?? []
+        let loaded = (try? BundleLoader.decode(
+            "search",
+            as: ONTSchema.SearchFile.self,
+            bundle: bundle
+        ))?.records.map(SearchRecord.init) ?? []
         cached = loaded
         return loaded
     }
@@ -166,13 +171,15 @@ public final class BundleDailyVerseRepository: DailyVerseRepository, @unchecked 
         defer { lock.unlock() }
 
         if let cached { return cached }
-        let loaded = (try? BundleLoader.decode("daily", as: DailyFile.self, bundle: bundle))?
-            .verses ?? []
+        let loaded = (try? BundleLoader.decode(
+            "daily",
+            as: ONTSchema.DailyFile.self,
+            bundle: bundle
+        ))?.verses.map(DailyVerse.init) ?? []
         cached = loaded
         return loaded
     }
 }
 
-struct DailyFile: Decodable {
-    let verses: [DailyVerse]
-}
+// `DailyFile` était déclarée ici, à la main. Elle est engendrée maintenant —
+// `ONTSchema.DailyFile` — comme les cinq autres enveloppes de fichier.

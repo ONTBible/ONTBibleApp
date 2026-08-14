@@ -1,8 +1,8 @@
 import Foundation
 
 /// Une entrée de l'index de recherche, telle que le pipeline l'émet.
-public struct SearchRecord: Decodable, Sendable, Hashable {
-    public enum Kind: String, Decodable, Sendable {
+public struct SearchRecord: Sendable, Hashable {
+    public enum Kind: String, Sendable {
         case verse, heading, prose
     }
 
@@ -36,10 +36,7 @@ public struct SearchRecord: Decodable, Sendable, Hashable {
     public var verse: Int? { v == 0 ? nil : v }
 }
 
-public struct SearchFile: Decodable, Sendable {
-    public let schema: Int
-    public let records: [SearchRecord]
-}
+// `SearchFile` vivait ici — une enveloppe de fichier, pas un concept de l'ONT.
 
 /// Où chercher — les niveaux du texte, en question de recherche.
 ///

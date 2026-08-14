@@ -3,48 +3,24 @@ import Testing
 
 @testable import ONTKit
 
-/// L'arbre inline — décodage et projections.
+/// L'arbre inline — ses projections.
 ///
-/// Ces tests portent sur le **contrat avec le pipeline** : si la forme du JSON
-/// change sans qu'on s'en aperçoive, c'est ici que ça casse.
+/// Le décodage n'est plus éprouvé ici : il ne se fait plus ici. `ONTKit` est le
+/// domaine, il ne connaît pas le JSON du pipeline, et les tests de contrat
+/// vivent dans `ONTDataTests/SchemaMappingTests`.
+///
+/// Ce qui reste est du domaine pur — et se construit donc en Swift, sans passer
+/// par une chaîne de caractères. Un test qui décodait du JSON pour fabriquer
+/// trois nœuds éprouvait deux choses à la fois, et échouait pour la mauvaise
+/// raison quand le format bougeait.
 struct InlineTests {
-    private func decode(_ json: String) throws -> [Inline] {
-        try JSONDecoder().decode([Inline].self, from: Data(json.utf8))
-    }
-
-    @Test("les trois niveaux se décodent en nœuds distincts")
-    func decodesLevels() throws {
-        let nodes = try decode(
-            """
-            [
-              {"t":"term","v":"YHWH","lemma":"yhwh"},
-              {"t":"text","v":" se laissa voir "},
-              {"t":"translit","translit":"vayera","hebrew":"וַיֵּרָא"},
-              {"t":"gloss","children":[{"t":"text","v":"niphal de ra'ah"}]}
-            ]
-            """
-        )
-
-        #expect(nodes.count == 4)
-        if case .term(let value, let lemma) = nodes[0] {
-            #expect(value == "YHWH")
-            #expect(lemma == "yhwh")
-        } else {
-            Issue.record("le premier nœud devrait être un intraduisible")
-        }
-    }
-
     @Test("le texte nu ne rend que le corps par défaut")
-    func plainTextDefaults() throws {
-        let nodes = try decode(
-            """
-            [
-              {"t":"text","v":"il était assis "},
-              {"t":"translit","translit":"petach","hebrew":"פֶּתַח"},
-              {"t":"gloss","children":[{"t":"text","v":"le seuil"}]}
-            ]
-            """
-        )
+    func plainTextDefaults() {
+        let nodes: [Inline] = [
+            .text("il était assis "),
+            .translit("petach", hebrew: "פֶּתַח"),
+            .gloss([.text("le seuil")]),
+        ]
 
         let body = nodes.plainText()
         #expect(!body.contains("petach"), "le niveau 3 est hors du corps")
@@ -55,23 +31,27 @@ struct InlineTests {
     }
 
     @Test("les lemmes remontent des gloses aussi")
-    func lemmasIncludeGlosses() throws {
-        let nodes = try decode(
-            """
-            [
-              {"t":"term","v":"chesed","lemma":"chesed"},
-              {"t":"gloss","children":[{"t":"term","v":"berith","lemma":"berith"}]}
-            ]
-            """
-        )
+    func lemmasIncludeGlosses() {
+        let nodes: [Inline] = [
+            .term("chesed", lemma: "chesed"),
+            .gloss([.term("berith", lemma: "berith")]),
+        ]
 
         #expect(nodes.lemmas == ["chesed", "berith"])
     }
 
-    @Test("un type de nœud inconnu est signalé, pas ignoré")
-    func rejectsUnknown() {
-        #expect(throws: DecodingError.self) {
-            _ = try decode(#"[{"t":"quelque-chose-de-neuf","v":"x"}]"#)
-        }
+    /// Un lien et un terme important portent des enfants, donc des lemmes.
+    ///
+    /// Ils avaient été oubliés de la première version de `lemmas`, qui ne
+    /// descendait que dans les gloses : un intraduisible cité à l'intérieur
+    /// d'un lien n'apparaissait alors dans aucune fiche.
+    @Test("les lemmes remontent aussi des liens et des termes importants")
+    func lemmasIncludeLinksAndImportant() {
+        let nodes: [Inline] = [
+            .important([.term("Elohim", lemma: "elohim")]),
+            .link([.term("berith", lemma: "berith")], href: "/fr/lexique/berith"),
+        ]
+
+        #expect(nodes.lemmas == ["elohim", "berith"])
     }
 }
