@@ -78,7 +78,13 @@ public struct YouTab: View {
                 #endif
 
                 Section("Crédits") {
-                    LabeledContent("Traduction", value: "Sha'eliel")
+                    // Le nom public, et jamais le nom fonctionnel.
+                    //
+                    // « Sha'eliel » est interne au vault : c'est le nom sous
+                    // lequel l'auteur travaille, pas celui sous lequel il
+                    // signe. Cet écran est la seule page de l'app où le crédit
+                    // paraît, donc le seul endroit où la confusion se voyait.
+                    LabeledContent("Traduction", value: "Gloire Bikouta")
                     LabeledContent("Hébreu", value: "Ezra SIL — SIL Open Font License")
                     LabeledContent("Titres", value: "Frank Ruhl Libre — OFL")
                 }

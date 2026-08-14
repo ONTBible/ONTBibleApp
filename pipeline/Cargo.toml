@@ -16,6 +16,24 @@ path = "src/lib.rs"
 [[bin]]
 name = "ont-pipeline"
 path = "src/main.rs"
+# Le binaire lit le vault : il lui faut les analyseurs. Sans cette ligne, un
+# `cargo build --no-default-features` échouerait sur un `main` qui appelle un
+# module absent, au lieu de simplement ne pas construire le binaire.
+required-features = ["parsers"]
+
+# ## Deux visages de la même caisse
+#
+# **Le contrat seul** — `default-features = false` — n'apporte que `schema` et
+# `serde`. C'est ce que prend le site : il *lit* du JSON déjà produit, il ne
+# parse aucun markdown. Lui livrer le tokeniseur ajouterait `regex` et ses
+# tables Unicode à un binaire Lambda dont le démarrage à froid se compte déjà
+# en centaines de millisecondes.
+#
+# **Les analyseurs** — par défaut — ajoutent tout ce qui transforme le vault.
+# C'est ce dont le binaire a besoin, et personne d'autre.
+[features]
+default = ["parsers"]
+parsers = ["dep:regex", "dep:once_cell", "dep:unicode-normalization"]
 
 [dependencies]
 # `serde` seul suffit à décrire le contrat : les types sont le contrat.
@@ -24,9 +42,9 @@ serde_json = "1"
 # `regex` porte les classes d'écriture Unicode — `\p{Hebrew}`, `\p{M}` — dont
 # le tokeniseur a besoin pour repérer l'hébreu sans qu'aucun caractère hébreu
 # ne figure dans le code.
-regex = "1"
+regex = { version = "1", optional = true }
 # Les expressions rationnelles du tokeniseur sont compilées une fois.
-once_cell = "1"
-unicode-normalization = "0.1.25"
+once_cell = { version = "1", optional = true }
+unicode-normalization = { version = "0.1.25", optional = true }
 
 [dev-dependencies]

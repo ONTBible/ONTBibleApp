@@ -11,12 +11,29 @@
 //! dépôts sont côte à côte, en local comme dans la CI. Il en reste deux
 //! descriptions, et le Swift est le prochain chantier.
 
-pub mod build;
-pub mod config;
-pub mod blocks;
-pub mod chapter;
-pub mod inline;
-pub mod reference;
+//! ## Ce que le site prend, et ce qu'il ne prend pas
+//!
+//! `schema` est toujours là. Le reste — tout ce qui *fabrique* les données —
+//! est derrière la fonctionnalité `parsers`, active par défaut. Le site déclare
+//! `default-features = false` : il lit du JSON déjà produit, et n'a que faire
+//! du tokeniseur ni des tables Unicode de `regex` dans un binaire Lambda dont
+//! le démarrage à froid se compte déjà en centaines de millisecondes.
+
 pub mod schema;
+
+#[cfg(feature = "parsers")]
+pub mod blocks;
+#[cfg(feature = "parsers")]
+pub mod build;
+#[cfg(feature = "parsers")]
+pub mod chapter;
+#[cfg(feature = "parsers")]
+pub mod config;
+#[cfg(feature = "parsers")]
+pub mod inline;
+#[cfg(feature = "parsers")]
+pub mod reference;
+#[cfg(feature = "parsers")]
 pub mod search;
+#[cfg(feature = "parsers")]
 pub mod vault;

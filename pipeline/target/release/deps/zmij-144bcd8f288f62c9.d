@@ -1,8 +1,0 @@
-/Volumes/Workspace/Projectground/Doneground/ONTBible/ONTBibleApp/pipeline/target/release/deps/zmij-144bcd8f288f62c9.d: /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/traits.rs
-
-/Volumes/Workspace/Projectground/Doneground/ONTBible/ONTBibleApp/pipeline/target/release/deps/libzmij-144bcd8f288f62c9.rlib: /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/traits.rs
-
-/Volumes/Workspace/Projectground/Doneground/ONTBible/ONTBibleApp/pipeline/target/release/deps/libzmij-144bcd8f288f62c9.rmeta: /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs /Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/traits.rs
-
-/Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:
-/Users/gloiiire_/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/traits.rs:

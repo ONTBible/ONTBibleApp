@@ -21,7 +21,9 @@ pub fn vault() -> PathBuf {
 pub fn out() -> PathBuf {
     match std::env::var("ONT_OUT") {
         Ok(v) => PathBuf::from(v),
-        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("dist"),
+        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("dist"),
     }
 }
 

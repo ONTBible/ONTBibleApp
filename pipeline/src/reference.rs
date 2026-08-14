@@ -29,8 +29,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::inline::{extract_hebrew, has_hebrew, parse_inline, plain_text, slugify, tidy,
-    PlainOptions};
+use crate::inline::{
+    extract_hebrew, has_hebrew, parse_inline, plain_text, slugify, tidy, PlainOptions,
+};
 use crate::schema::{Block, GlossaryEntry};
 
 /// Une forme balisée citée entre accents graves : `` `**chesed**` ``.
@@ -86,7 +87,12 @@ fn table_rows(lines: &[String]) -> Vec<Vec<String>> {
         .iter()
         .filter(|l| TABLE_ROW.is_match(l) && !TABLE_SEPARATOR.is_match(l))
         .map(|l| {
-            TABLE_ROW.captures(l).unwrap().get(1).unwrap().as_str()
+            TABLE_ROW
+                .captures(l)
+                .unwrap()
+                .get(1)
+                .unwrap()
+                .as_str()
                 .split('|')
                 .map(|c| c.trim().to_string())
                 .collect()
@@ -223,7 +229,10 @@ fn read_fixed_terms(section: &Section) -> Vec<FixedTerm> {
         let translits = split(translit_cell);
         let hebrews = split(hebrew_cell);
         let renderings = cells.get(2).map(|c| split(c)).unwrap_or_default();
-        let definition = cells.get(3).map(|c| c.trim().to_string()).unwrap_or_default();
+        let definition = cells
+            .get(3)
+            .map(|c| c.trim().to_string())
+            .unwrap_or_default();
 
         let pick = |parts: &[String], index: usize| -> Option<String> {
             if parts.len() == translits.len() {
@@ -338,7 +347,10 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
         .collect();
 
     let mut book_names = HashMap::new();
-    for section in sections.iter().filter(|s| s.number.as_deref() == Some("2.6")) {
+    for section in sections
+        .iter()
+        .filter(|s| s.number.as_deref() == Some("2.6"))
+    {
         for (id, name) in read_book_names(section, known_book_ids) {
             book_names.entry(id).or_insert(name);
         }
@@ -465,7 +477,8 @@ mod tests {
     fn du_gras_de_prose_ne_cree_pas_de_lemme() {
         // Le piège : `**…**` sert aussi à insister dans le document de
         // référence. Sans les accents graves, ce ne sont pas des formes.
-        let r = reference("## 2.5 Les intraduisibles\n\n- ceci est **important** mais pas un terme\n");
+        let r =
+            reference("## 2.5 Les intraduisibles\n\n- ceci est **important** mais pas un terme\n");
         assert!(r.glossary.is_empty());
     }
 
@@ -474,12 +487,17 @@ mod tests {
         // La règle de déduction du §2.5 rendue exécutable.
         let r = reference("## 2.5 Les intraduisibles\n\n- `**ish**` / `**anashim**` — l'Être\n");
         assert_eq!(r.form_index.get("anashim"), Some(&"ish".to_string()));
-        assert!(!r.form_index.contains_key("ish"), "un lemme ne pointe pas vers lui-même");
+        assert!(
+            !r.form_index.contains_key("ish"),
+            "un lemme ne pointe pas vers lui-même"
+        );
     }
 
     #[test]
     fn le_premier_emploi_se_lit() {
-        let r = reference("## 2.5 Les intraduisibles\n\n- `**emunah**` — premier emploi en *Bereshit* 15:6\n");
+        let r = reference(
+            "## 2.5 Les intraduisibles\n\n- `**emunah**` — premier emploi en *Bereshit* 15:6\n",
+        );
         assert_eq!(r.glossary[0].first_use.as_deref(), Some("Bereshit 15:6"));
     }
 
@@ -494,7 +512,10 @@ mod tests {
         let e = &r.glossary[0];
         assert_eq!(e.lemma, "bara");
         assert_eq!(e.rendering.as_deref(), Some("orchestrer"));
-        assert!(!e.tagged, "le vocabulaire fixé n'est pas balisé dans le texte");
+        assert!(
+            !e.tagged,
+            "le vocabulaire fixé n'est pas balisé dans le texte"
+        );
         assert!(e.definition.is_some());
     }
 

@@ -5,17 +5,46 @@ liseuse — dans l'esprit de YouVersion pour la lecture, de Bible Strong pour le
 lexique.
 
 Rien ici n'est propre à une plateforme. La sortie est du JSON que Swift, Kotlin
-et TypeScript lisent aussi bien : **le choix du socle de l'app ne change pas une
-ligne de ce dépôt.**
+et Rust lisent aussi bien : **le choix du socle de l'app ne change pas une ligne
+de ce dépôt.**
 
 ```bash
-npm run build     # vault → dist/
-npm test          # le tokeniseur, éprouvé sur du texte réel du vault
-npm run check     # typage
+./scripts/corpus.sh                       # vault → dist/ → ressources → projet
+cargo run  --manifest-path pipeline/Cargo.toml --release   # le corpus seul
+cargo test --manifest-path pipeline/Cargo.toml             # 49 tests
 ```
 
 Le vault est lu à son emplacement iCloud par défaut ; `ONT_VAULT` permet d'en
-viser une copie. `ONT_PRETTY=1` indente le JSON pour l'inspection.
+viser une copie, `ONT_OUT` de changer la destination. `ONT_PRETTY=1` indente le
+JSON pour l'inspection — à ne jamais livrer, l'indentation change les empreintes
+du manifeste et ferait retélécharger tout le corpus.
+
+**Le pipeline est en Rust depuis le 14 août 2026.** C'était neuf fichiers
+TypeScript exécutés par Node ; c'est un binaire, sans runtime à installer — ni
+ici, ni dans les deux CI qui le rejouent. Le portage a été prouvé en faisant
+tourner les deux et en comparant les huit fichiers produits, entrée par entrée :
+identiques. Il a trouvé trois défauts que l'original portait en silence, dont
+une expression rationnelle globale dont le `lastIndex` persistait — l'hébreu de
+certaines définitions du lexique n'était pas isolé, donc rendu sans fonte
+hébraïque ni passage en RTL, dans l'app comme sur le site.
+
+Et le schéma n'est plus décrit qu'à **deux** endroits : `pipeline/src/schema.rs`,
+dont le site dépend directement comme d'une caisse, et le Swift de l'app — le
+prochain chantier.
+
+---
+
+## L'auteur se nomme **Gloire Bikouta** en public
+
+Le vault emploie **Sha'eliel** — son nom fonctionnel, interne au projet. Il ne
+sort pas : ni dans l'app, ni sur le site, ni sur GitHub, ni dans une fiche
+d'App Store.
+
+La règle était écrite dans le CLAUDE.md du site, et ce dépôt ne la connaissait
+pas — l'onglet « Vous » a crédité la traduction à « Sha'eliel » jusqu'au
+14 août 2026. C'est ce que coûte une règle qui ne vit que dans un des trois
+dépôts.
+
 
 ---
 
@@ -138,13 +167,22 @@ entière — mais la coquille reste à corriger dans le vault.
 
 | Fichier | Rôle |
 |---|---|
-| `src/inline.ts` | le tokeniseur — les trois niveaux, et le contrôle des marqueurs |
-| `src/blocks.ts` | titres, paragraphes, listes, citations, tableaux |
-| `src/chapter.ts` | un `.md` → une unité ONT : versets, sous-titre, pied de page |
-| `src/vault.ts` | l'arborescence du vault → corpus / mode / livre |
-| `src/reference.ts` | `CLAUDE.md` → glossaire et répertoires de noms |
-| `src/build.ts` | assemblage, index des occurrences, rapport |
-| `src/types.ts` | le schéma — le contrat avec les liseuses |
+| `pipeline/src/schema.rs` | **le contrat** — le schéma, et les formes des fichiers publiés |
+| `pipeline/src/inline.rs` | le tokeniseur — les trois niveaux, et le contrôle des marqueurs |
+| `pipeline/src/blocks.rs` | titres, paragraphes, listes, citations, tableaux |
+| `pipeline/src/chapter.rs` | un `.md` → une unité ONT : versets, sous-titre, pied de page |
+| `pipeline/src/vault.rs` | l'arborescence du vault → corpus / mode / livre |
+| `pipeline/src/reference.rs` | `CLAUDE.md` → glossaire et répertoires de noms |
+| `pipeline/src/search.rs` | l'index de recherche — texte plié, hébreu dénudé |
+| `pipeline/src/build.rs` | assemblage, index des occurrences, rapport |
 
-Zéro dépendance d'exécution : Node 24+ exécute TypeScript nativement, sans étape
-de build.
+Quatre dépendances, et le contrat n'en demande qu'une. `serde` suffit à décrire
+`schema` ; `regex`, `once_cell` et `unicode-normalization` sont derrière la
+fonctionnalité `parsers`, active par défaut.
+
+C'est ce qui permet au site de prendre la caisse en `default-features = false` :
+il **lit** du JSON déjà produit et ne parse aucun markdown, donc les tables
+Unicode de `regex` n'ont rien à faire dans un binaire Lambda dont le démarrage à
+froid se compte déjà en centaines de millisecondes. Les deux configurations sont
+éprouvées en CI — un `#[cfg]` mal placé ne se verrait sinon qu'au déploiement du
+site.

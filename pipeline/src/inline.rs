@@ -169,7 +169,9 @@ fn split_scripts(text: &str) -> Vec<Inline> {
         return if text.is_empty() {
             Vec::new()
         } else {
-            vec![Inline::Text { v: text.to_string() }]
+            vec![Inline::Text {
+                v: text.to_string(),
+            }]
         };
     }
 
@@ -628,7 +630,10 @@ mod tests {
             "(*Bereshit* 12:6 — de *moreh* / מֹרֶה : celui qui enseigne, l'arbre-oracle)",
         );
         assert!(!types(&nodes).contains(&"translit"), "aucun niveau 3");
-        assert!(types(&nodes).contains(&"em"), "le renvoi reste une italique");
+        assert!(
+            types(&nodes).contains(&"em"),
+            "le renvoi reste une italique"
+        );
         assert!(types(&nodes).contains(&"heb"), "l'hébreu isolé est repéré");
     }
 

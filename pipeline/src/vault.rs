@@ -147,7 +147,13 @@ pub fn read_tree(root: &Path) -> Vec<VaultBook> {
             let Some(mode) = parse_slot_name(&mode_name) else {
                 continue;
             };
-            descend(&corpus_dir.join(&mode_name), &corpus, &mode, &[], &mut books);
+            descend(
+                &corpus_dir.join(&mode_name),
+                &corpus,
+                &mode,
+                &[],
+                &mut books,
+            );
         }
     }
 

@@ -26,10 +26,11 @@ use crate::config::{display_name, out, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_reference, BookName, Reference};
 use crate::schema::{
-    Block, Book, BuildStats, Chapter, ChapterKind, Corpus, DailyVerse, GlossaryEntry, Inline,
-    Manifest, Mode, Occurrence, Status, TermLevel,
+    Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
+    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Inline, Manifest, Mode, ModeOutline,
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
 };
-use crate::search::{index_chapter, SearchRecord};
+use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
 
 #[derive(Debug, Clone)]
@@ -141,11 +142,16 @@ fn make_snippet(plain: &str, form: &str, width: usize, from: usize) -> String {
     let chars: Vec<char> = plain.chars().collect();
     let forme: Vec<char> = form.chars().collect();
 
-    let at = (from..=chars.len().saturating_sub(forme.len()))
-        .find(|&i| chars[i..].starts_with(&forme));
+    let at =
+        (from..=chars.len().saturating_sub(forme.len())).find(|&i| chars[i..].starts_with(&forme));
 
     let Some(at) = at else {
-        return chars.iter().take(width).collect::<String>().trim().to_string();
+        return chars
+            .iter()
+            .take(width)
+            .collect::<String>()
+            .trim()
+            .to_string();
     };
 
     let half = width.saturating_sub(forme.len()) / 2;
@@ -473,17 +479,11 @@ fn index_occurrences(
 // Les formes de sortie
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Une vue allégée d'une unité, pour l'arborescence de navigation.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Stub {
-    id: String,
-    n: u32,
-    title: String,
-    status: Status,
-    verse_count: u32,
-    reference: Option<String>,
-}
+// Les formes de sortie vivent dans `schema` — voir « Les fichiers publiés ».
+// Elles étaient privées ici, ce qui obligeait chaque liseuse à les redeviner à
+// la lecture : c'est précisément la divergence que `schema` existe pour
+// empêcher. Il ne reste ici que les fabriques, qui allègent un `Book` en
+// `BookOutline`.
 
 fn stub(chapter: &Chapter) -> Stub {
     Stub {
@@ -496,22 +496,8 @@ fn stub(chapter: &Chapter) -> Stub {
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Outline {
-    id: String,
-    slot: u32,
-    title: String,
-    french: String,
-    hebrew: Option<String>,
-    group_id: Option<String>,
-    empty: bool,
-    intro: Option<Stub>,
-    chapters: Vec<Stub>,
-}
-
-fn outline(book: &Book) -> Outline {
-    Outline {
+fn outline(book: &Book) -> BookOutline {
+    BookOutline {
         id: book.id.clone(),
         slot: book.slot,
         title: book.title.clone(),
@@ -524,33 +510,20 @@ fn outline(book: &Book) -> Outline {
     }
 }
 
-#[derive(Serialize)]
-struct ModeOutline {
-    id: String,
-    title: String,
-    order: u32,
-    books: Vec<Outline>,
-}
-
-#[derive(Serialize)]
-struct CorpusOutline {
-    id: String,
-    title: String,
-    order: u32,
-    modes: Vec<ModeOutline>,
-}
-
-#[derive(Serialize)]
-struct Enveloppe<T> {
-    schema: u32,
-    #[serde(flatten)]
-    contenu: T,
-}
-
 fn write_json<T: Serialize>(file: &Path, data: &T) -> std::io::Result<usize> {
-    // Compact, comme `JSON.stringify(data, null, 0)` : ces fichiers sont
-    // embarqués dans un binaire d'app, pas lus par un humain.
-    let body = serde_json::to_string(data).expect("sérialisation");
+    // Compact par défaut : ces fichiers sont embarqués dans un binaire d'app,
+    // pas lus par un humain. `search.json` seul gagne 40 % à ne pas être
+    // indenté.
+    //
+    // `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
+    // seule façon de regarder un arbre d'inline sans passer par `jq`. La
+    // sortie indentée ne doit jamais être livrée : elle change les empreintes
+    // du manifeste, donc ferait retélécharger tout le corpus.
+    let body = if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
+        serde_json::to_string_pretty(data).expect("sérialisation")
+    } else {
+        serde_json::to_string(data).expect("sérialisation")
+    };
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -602,41 +575,59 @@ pub fn build() -> Result<BuildResult, String> {
     let _ = fs::remove_dir_all(&sortie);
     let mut bytes = 0usize;
 
+    // Chaque fichier est écrit depuis sa forme de `schema`, et non depuis un
+    // `json!` monté à la main. La différence n'est pas cosmétique : une clé
+    // mal orthographiée dans un `json!` passe la compilation et ne se voit
+    // qu'à la lecture, chez la liseuse, sous la forme d'un champ manquant.
     bytes += write_json(
         &sortie.join("corpus.json"),
-        &Enveloppe {
+        &CorpusFile {
             schema: 1,
-            contenu: serde_json::json!({
-                "corpora": corpora.iter().map(|c| CorpusOutline {
+            corpora: corpora
+                .iter()
+                .map(|c| CorpusOutline {
                     id: c.id.clone(),
                     title: c.title.clone(),
                     order: c.order,
-                    modes: c.modes.iter().map(|m| ModeOutline {
-                        id: m.id.clone(),
-                        title: m.title.clone(),
-                        order: m.order,
-                        books: m.books.iter().map(outline).collect(),
-                    }).collect(),
-                }).collect::<Vec<_>>()
-            }),
+                    modes: c
+                        .modes
+                        .iter()
+                        .map(|m| ModeOutline {
+                            id: m.id.clone(),
+                            title: m.title.clone(),
+                            order: m.order,
+                            books: m.books.iter().map(outline).collect(),
+                        })
+                        .collect(),
+                })
+                .collect(),
         },
     )
     .map_err(|e| e.to_string())?;
 
     for book in &written {
-        bytes += write_json(&sortie.join("books").join(format!("{}.json", book.id)), *book)
-            .map_err(|e| e.to_string())?;
+        bytes += write_json(
+            &sortie.join("books").join(format!("{}.json", book.id)),
+            *book,
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     bytes += write_json(
         &sortie.join("glossary.json"),
-        &serde_json::json!({ "schema": 1, "entries": glossary }),
+        &GlossaryFile {
+            schema: 1,
+            entries: glossary.clone(),
+        },
     )
     .map_err(|e| e.to_string())?;
 
     bytes += write_json(
         &sortie.join("occurrences.json"),
-        &serde_json::json!({ "schema": 1, "byLemma": indexed.occurrences }),
+        &OccurrencesFile {
+            schema: 1,
+            by_lemma: indexed.occurrences.clone(),
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -649,7 +640,10 @@ pub fn build() -> Result<BuildResult, String> {
     }
     bytes += write_json(
         &sortie.join("search.json"),
-        &serde_json::json!({ "schema": 1, "records": search_records }),
+        &SearchFile {
+            schema: 1,
+            records: search_records.clone(),
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -706,7 +700,10 @@ pub fn build() -> Result<BuildResult, String> {
     }
     bytes += write_json(
         &sortie.join("daily.json"),
-        &serde_json::json!({ "schema": 1, "verses": daily }),
+        &DailyFile {
+            schema: 1,
+            verses: daily,
+        },
     )
     .map_err(|e| e.to_string())?;
 
@@ -743,7 +740,14 @@ pub fn build() -> Result<BuildResult, String> {
     )
     .map_err(|e| e.to_string())?;
 
-    let rapport = format_report(&corpora, &glossary, &lu.issues, &indexed.unknown, &lu.superseded, &racine);
+    let rapport = format_report(
+        &corpora,
+        &glossary,
+        &lu.issues,
+        &indexed.unknown,
+        &lu.superseded,
+        &racine,
+    );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
 
     Ok(BuildResult {
@@ -795,7 +799,11 @@ fn format_report(
     ];
 
     for book in &written {
-        let locked = book.chapters.iter().filter(|c| c.status == Status::Locked).count();
+        let locked = book
+            .chapters
+            .iter()
+            .filter(|c| c.status == Status::Locked)
+            .count();
         let drafts = book.chapters.len() - locked;
         let verses: u32 = book.chapters.iter().map(|c| c.verse_count).sum();
         l.push(format!(
@@ -819,7 +827,10 @@ fn format_report(
             glossary.len(),
             glossary.iter().filter(|e| e.tagged).count()
         ),
-        format!("- Entrées attestées dans le corpus rédigé : **{}**", used.len()),
+        format!(
+            "- Entrées attestées dans le corpus rédigé : **{}**",
+            used.len()
+        ),
         String::new(),
         "### Les vingt intraduisibles les plus présents".into(),
         String::new(),
@@ -828,7 +839,7 @@ fn format_report(
     ]);
 
     let mut tries = used.clone();
-    tries.sort_by(|a, b| b.count.cmp(&a.count));
+    tries.sort_by_key(|t| std::cmp::Reverse(t.count));
     for e in tries.iter().take(20) {
         l.push(format!(
             "| **{}** | {} | {} | {} | {} | {} |",
@@ -855,7 +866,7 @@ fn format_report(
         ]);
 
         let mut rows: Vec<(&String, &Unknown)> = unknown.iter().collect();
-        rows.sort_by(|a, b| b.1.count.cmp(&a.1.count));
+        rows.sort_by_key(|r| std::cmp::Reverse(r.1.count));
         for (slug, info) in rows {
             let piste = guess_lemma(slug, lemmes.iter().copied())
                 .map(|g| format!("dérivé de **{g}** ?"))
@@ -875,7 +886,11 @@ fn format_report(
         // `BTreeSet` sur les fichiers : l'ordre du rapport ne doit pas dépendre
         // de l'ordre de parcours.
         let fichiers: BTreeSet<&str> = issues.iter().map(|i| i.file.as_str()).collect();
-        l.extend([String::new(), "## Marqueurs déséquilibrés".into(), String::new()]);
+        l.extend([
+            String::new(),
+            "## Marqueurs déséquilibrés".into(),
+            String::new(),
+        ]);
         for fichier in fichiers {
             l.push(format!("- `{fichier}`"));
             for issue in issues.iter().filter(|i| i.file == fichier) {

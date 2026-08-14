@@ -276,7 +276,11 @@ fn read_file_name(path: &str) -> (String, u32, ChapterKind) {
 
 /// Parse un fichier du vault en unité ONT.
 pub fn parse_chapter(source: &ChapterSource) -> ParsedChapter {
-    let lines: Vec<String> = source.text.split('\n').map(|l| l.trim_end_matches('\r').to_string()).collect();
+    let lines: Vec<String> = source
+        .text
+        .split('\n')
+        .map(|l| l.trim_end_matches('\r').to_string())
+        .collect();
     let (id, n, kind) = read_file_name(&source.path);
 
     let issues: Vec<Issue> = lines
@@ -414,7 +418,10 @@ mod tests {
         let Inline::Text { v } = &versets[0].nodes[0] else {
             panic!("du texte")
         };
-        assert!(!v.starts_with(' '), "« {v} » ne doit pas commencer par une espace");
+        assert!(
+            !v.starts_with(' '),
+            "« {v} » ne doit pas commencer par une espace"
+        );
     }
 
     #[test]

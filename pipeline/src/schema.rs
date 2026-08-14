@@ -112,13 +112,25 @@ pub struct Verse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Block {
-    Heading { level: u8, nodes: Vec<Inline> },
+    Heading {
+        level: u8,
+        nodes: Vec<Inline>,
+    },
     /// Un paragraphe de versets — un paragraphe peut en porter plusieurs.
-    Verses { verses: Vec<Verse> },
+    Verses {
+        verses: Vec<Verse>,
+    },
     /// De la prose sans numérotation — introductions, notes de pied.
-    Para { nodes: Vec<Inline> },
-    List { ordered: bool, items: Vec<Vec<Inline>> },
-    Quote { nodes: Vec<Inline> },
+    Para {
+        nodes: Vec<Inline>,
+    },
+    List {
+        ordered: bool,
+        items: Vec<Vec<Inline>>,
+    },
+    Quote {
+        nodes: Vec<Inline>,
+    },
     Table {
         headers: Vec<Vec<Inline>>,
         rows: Vec<Vec<Vec<Inline>>>,
@@ -329,6 +341,42 @@ pub struct Manifest {
     pub stats: BuildStats,
 }
 
+/// Le genre d'un enregistrement d'index — pour classer les résultats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RecordKind {
+    Verse,
+    Heading,
+    Prose,
+}
+
+/// Une entrée indexable — un verset, un titre de section, un paragraphe.
+///
+/// Les noms de champs font une lettre : l'index est embarqué dans le binaire de
+/// l'app, et soixante-dix livres en feront un fichier qu'on ne veut pas voir
+/// grossir pour des noms lisibles que personne ne lit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SearchRecord {
+    /// Livre.
+    pub b: String,
+    /// Unité ONT.
+    pub c: String,
+    /// Numéro de verset ONT, ou `0` hors d'un verset.
+    pub v: u32,
+    /// Pour classer les résultats.
+    pub k: RecordKind,
+    /// Le corps de la traduction, plié — minuscules, sans diacritiques.
+    pub t: String,
+    /// Les gloses, pliées.
+    pub g: String,
+    /// L'hébreu dénudé de ses voyelles et de sa cantillation.
+    pub h: String,
+    /// Les lemmes présents, pour la recherche par terme.
+    pub l: Vec<String>,
+    /// Le texte du corps tel qu'il s'affiche — pour l'extrait de résultat.
+    pub x: String,
+}
+
 /// Un verset candidat au verset du jour.
 ///
 /// Volontairement plat et sans arbre d'inline : ce vivier est lu par un widget
@@ -347,4 +395,109 @@ pub struct DailyVerse {
     pub r: String,
     /// Le corps de la traduction, seul.
     pub t: String,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Les fichiers publiés
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Ce que `dist/` contient réellement, fichier par fichier. Ces formes étaient
+// privées dans `build.rs` — le pipeline les écrivait, et chaque liseuse les
+// redevinait de son côté à la lecture. C'est exactement la divergence que ce
+// module existe pour empêcher : elles montent donc ici, et portent
+// `Deserialize` autant que `Serialize`.
+//
+// **Chaque enveloppe porte `schema` en premier champ**, et l'ordre compte : le
+// JSON produit reprend l'ordre de déclaration, et `corpus-publie.py` empreinte
+// ces fichiers pour le téléchargement incrémental de l'app. Réordonner un champ
+// change l'empreinte, donc fait retélécharger tout le corpus à tout le monde.
+// Ce n'est pas grave, mais ce n'est pas gratuit.
+
+/// Une vue allégée d'une unité, pour l'arborescence de navigation.
+///
+/// Le sommaire porte les soixante-dix slots. Y mettre le texte complet ferait
+/// une vingtaine de mégaoctets pour une page qui n'affiche que des titres :
+/// `corpus.json` ne garde donc de chaque unité que de quoi la nommer et y
+/// mener.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stub {
+    pub id: String,
+    pub n: u32,
+    pub title: String,
+    pub status: Status,
+    pub verse_count: u32,
+    pub reference: Option<String>,
+}
+
+/// Un livre dans l'arborescence — sans son texte.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookOutline {
+    pub id: String,
+    pub slot: u32,
+    pub title: String,
+    pub french: String,
+    pub hebrew: Option<String>,
+    pub group_id: Option<String>,
+    pub empty: bool,
+    pub intro: Option<Stub>,
+    pub chapters: Vec<Stub>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModeOutline {
+    pub id: String,
+    pub title: String,
+    pub order: u32,
+    pub books: Vec<BookOutline>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CorpusOutline {
+    pub id: String,
+    pub title: String,
+    pub order: u32,
+    pub modes: Vec<ModeOutline>,
+}
+
+/// `dist/corpus.json` — l'arborescence de navigation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CorpusFile {
+    pub schema: u32,
+    pub corpora: Vec<CorpusOutline>,
+}
+
+/// `dist/glossary.json` — le lexique des intraduisibles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GlossaryFile {
+    pub schema: u32,
+    pub entries: Vec<GlossaryEntry>,
+}
+
+/// `dist/occurrences.json` — lemme → toutes ses occurrences.
+///
+/// `BTreeMap` et non `HashMap` : la sortie doit être **déterministe**. Deux
+/// exécutions sur le même vault produisent le même octet, donc la même
+/// empreinte, donc aucun retéléchargement inutile — et un `diff` entre deux
+/// versions ne montre que ce qui a réellement changé.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OccurrencesFile {
+    pub schema: u32,
+    pub by_lemma: std::collections::BTreeMap<String, Vec<Occurrence>>,
+}
+
+/// `dist/search.json` — l'index de recherche.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SearchFile {
+    pub schema: u32,
+    pub records: Vec<SearchRecord>,
+}
+
+/// `dist/daily.json` — le vivier du verset du jour.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DailyFile {
+    pub schema: u32,
+    pub verses: Vec<DailyVerse>,
 }

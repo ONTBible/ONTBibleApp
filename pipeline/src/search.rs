@@ -21,7 +21,6 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::schema::{Block, Chapter, Inline, TermLevel};
@@ -33,40 +32,9 @@ static ESPACES: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
 static PONCTUATION_HEBRAIQUE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"[\u{05BE}\u{05C0}\u{05C3}\u{05C6}\u{05F3}\u{05F4}]").unwrap());
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RecordKind {
-    Verse,
-    Heading,
-    Prose,
-}
-
-/// Une entrée indexable — un verset, un titre de section, un paragraphe.
-///
-/// Les noms de champs font une lettre : l'index est embarqué dans le binaire de
-/// l'app, et soixante-dix livres en feront un fichier qu'on ne veut pas voir
-/// grossir pour des noms lisibles que personne ne lit.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SearchRecord {
-    /// Livre.
-    pub b: String,
-    /// Unité ONT.
-    pub c: String,
-    /// Numéro de verset ONT, ou `0` hors d'un verset.
-    pub v: u32,
-    /// Pour classer les résultats.
-    pub k: RecordKind,
-    /// Le corps de la traduction, plié — minuscules, sans diacritiques.
-    pub t: String,
-    /// Les gloses, pliées.
-    pub g: String,
-    /// L'hébreu dénudé de ses voyelles et de sa cantillation.
-    pub h: String,
-    /// Les lemmes présents, pour la recherche par terme.
-    pub l: Vec<String>,
-    /// Le texte du corps tel qu'il s'affiche — pour l'extrait de résultat.
-    pub x: String,
-}
+// `RecordKind` et `SearchRecord` vivent dans `schema` : ils décrivent un
+// fichier publié, donc le contrat, et non la façon de le construire.
+pub use crate::schema::{RecordKind, SearchRecord};
 
 /// Plie une chaîne latine pour la comparaison.
 ///

@@ -51,10 +51,6 @@ jobs:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
@@ -73,29 +69,36 @@ jobs:
       - name: Les outils
         run: brew install xcodegen xcbeautify
 
-      # `npm run app` fait les trois : le pipeline lit le vault et produit
-      # `dist/`, `sync` le recopie dans les ressources de l'app, `xcodegen`
-      # engendre le projet — qui n'est pas committé, parce qu'un `.xcodeproj`
-      # dans un dépôt est une source de conflits sans contrepartie.
+      # Le script fait les trois : le pipeline lit le vault et produit `dist/`,
+      # le recopie dans les ressources de l'app, et `xcodegen` engendre le
+      # projet — qui n'est pas committé, parce qu'un `.xcodeproj` dans un dépôt
+      # est une source de conflits sans contrepartie.
+      #
+      # Plus aucune étape Node : le pipeline est un binaire depuis le portage
+      # en Rust. Ce qui demandait `setup-node` puis `npm ci` — donc un runtime
+      # et un arbre de dépendances — demande maintenant la chaîne Rust, déjà
+      # présente sur le runner pour le backend.
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
         env:
           ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
+        run: ./scripts/corpus.sh
+
+      - name: Le pipeline
+        working-directory: ONTBibleApp/pipeline
+        # Mêmes exigences que le backend, et pour la même raison : c'est lui
+        # qui décide de ce que le lecteur voit. `--all-targets` couvre les
+        # tests eux-mêmes — un test qui ne compile plus ne protège plus rien.
+        #
+        # Et les deux jeux de fonctionnalités sont éprouvés : le site prend la
+        # caisse en `--no-default-features`, et un `#[cfg]` mal placé ne se
+        # verrait que chez lui, à la compilation du déploiement.
         run: |
-          npm ci
-          npm run app
-
-      - name: Les tests du pipeline
-        working-directory: ONTBibleApp
-        run: npm test
-
-      - name: Le typage du pipeline
-        working-directory: ONTBibleApp
-        # `npm test` n'exécute que les cas de test. Un défaut de typage passe
-        # donc au travers, alors que le projet est en TypeScript strict avec
-        # `noUncheckedIndexedAccess` — c'est-à-dire que le typage y est un
-        # filet, pas une décoration.
-        run: npm run check
+          set -o pipefail
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo check --no-default-features
+          cargo test
 
       - name: Le backend
         working-directory: ONTBibleApp/backend
