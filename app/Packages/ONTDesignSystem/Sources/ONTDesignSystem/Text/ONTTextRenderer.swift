@@ -34,6 +34,10 @@ public enum ONTTextRenderer {
             showLevel3: theme.preferences.showLevel3
         )
         append(prepared, to: &output, type: theme.type, inGloss: false)
+        // Posé ici plutôt que par un `.kerning()` sur la vue : la prose
+        // continue et le mode blocs passent tous deux par cette fonction, et
+        // un modificateur de vue aurait demandé de ne pas l'oublier deux fois.
+        if theme.tracking != 0 { output.kern = theme.tracking }
         return output
     }
 
@@ -69,52 +73,54 @@ public enum ONTTextRenderer {
 
     /// Compose un bloc de versets **à la suite**, en prose continue.
     ///
-    /// ## Pourquoi ce n'est pas seulement une mise en page
+    /// ## Pourquoi un `Text` et non une `AttributedString`
     ///
-    /// En bloc par verset, chaque verset est une vue : on la touche, on lui
-    /// pose un fond de surlignage, on l'anime. En prose continue il n'y a plus
-    /// qu'un seul `Text` — tout ce qui reposait sur « une vue par verset »
-    /// disparaît d'un coup.
+    /// Chaque verset devient un `Text` marqué de son numéro
+    /// (`ONTVerseAttribute`), et les marques ne survivent qu'à cette forme —
+    /// une `AttributedString` ne sait pas les porter jusqu'au moteur de dessin.
     ///
-    /// D'où deux reports dans le texte lui-même :
+    /// ## Ce qui n'est plus ici
     ///
-    /// * **le surlignage** devient un `backgroundColor` sur la plage du verset,
-    ///   au lieu d'un rectangle dessiné derrière une ligne ;
-    /// * **la désignation** devient un lien `ont://verse/<n>` sur cette même
-    ///   plage. Les intraduisibles gardent le leur : le lien le plus intérieur
+    /// Ni estompage, ni soulignement. Le résultat ne dépend **pas** de la
+    /// sélection, et c'est tout l'intérêt : il reste identique d'un appui à
+    /// l'autre, donc la mise en page a lieu une fois pour le bloc.
+    /// `ONTProseRenderer` fait le reste au dessin, où changer d'avis ne coûte
+    /// qu'un repeint.
+    ///
+    /// Ce qui reste, en revanche, dépend du texte lui-même et n'a aucune raison
+    /// de bouger quand un doigt se pose :
+    ///
+    /// * **le surlignage**, un fond posé sur la plage du verset ;
+    /// * **la désignation**, un lien `ont://verse/<n>` sur cette même plage.
+    ///   Les intraduisibles gardent le leur : le lien le plus intérieur
     ///   l'emporte, donc toucher un terme ouvre sa fiche et toucher ailleurs
     ///   désigne le verset.
-    ///
-    /// C'est aussi pour ça que le pointillé de sélection reste juste : un
-    /// soulignement suit les retours à la ligne, un cadre non.
-    public static func composeFlowing(
+    public static func flowingText(
         verses: [Verse],
         theme: ONTTheme,
-        selected: Set<Int>,
         highlight: (Int) -> Color?
-    ) -> AttributedString {
+    ) -> Text {
         let type = theme.type
-        var output = AttributedString()
+        var sortie = Text("")
 
         for verse in verses {
-            var morceau = compose(verse: verse, theme: theme, underlined: selected.contains(verse.n))
+            var morceau = compose(verse: verse, theme: theme)
 
             if let fond = highlight(verse.n) {
                 morceau.backgroundColor = fond
             }
-            // Le lien de désignation ne se pose que là où il n'y en a pas déjà :
-            // un intraduisible garde le sien.
             if let cible = verseURL(verse.n) {
                 for piece in morceau.runs where piece.attributes.link == nil {
                     morceau[piece.range].link = cible
                 }
             }
-            output += morceau
             // Une espace pleine entre deux versets, jamais un retour à la
             // ligne : c'est toute la différence entre les deux modes.
-            output += run(" ", type.corpus)
+            morceau += run(" ", type.corpus)
+
+            sortie = sortie + Text(morceau).customAttribute(ONTVerseAttribute(n: verse.n))
         }
-        return output
+        return sortie
     }
 
     /// Compose le corps seul — ce qu'on partage ou ce qu'on met en exergue.
