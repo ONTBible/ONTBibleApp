@@ -31,9 +31,18 @@ required-features = ["parsers"]
 #
 # **Les analyseurs** — par défaut — ajoutent tout ce qui transforme le vault.
 # C'est ce dont le binaire a besoin, et personne d'autre.
+[[bin]]
+name = "engendrer"
+path = "src/bin/engendrer.rs"
+required-features = ["codegen"]
+
 [features]
-default = ["parsers"]
+default = ["parsers", "codegen"]
 parsers = ["dep:regex", "dep:once_cell", "dep:unicode-normalization"]
+# L'engendrement des liaisons — Swift aujourd'hui, Kotlin le jour où une app
+# Android existera. Il lit `schema.rs` comme du texte et le réécrit ; il n'a
+# donc rien à faire dans une compilation ordinaire, et surtout pas chez le site.
+codegen = ["dep:syn"]
 
 [dependencies]
 # `serde` seul suffit à décrire le contrat : les types sont le contrat.
@@ -46,5 +55,12 @@ regex = { version = "1", optional = true }
 # Les expressions rationnelles du tokeniseur sont compilées une fois.
 once_cell = { version = "1", optional = true }
 unicode-normalization = { version = "0.1.25", optional = true }
+# `syn` lit `schema.rs` comme du Rust plutôt que comme du texte.
+#
+# Une expression rationnelle sur des `struct` marcherait le temps que le schéma
+# reste simple, puis échouerait en silence sur un générique imbriqué ou un
+# attribut sur plusieurs lignes — et un générateur qui se trompe **sans le
+# dire** est pire que pas de générateur.
+syn = { version = "2", features = ["full", "extra-traits"], optional = true }
 
 [dev-dependencies]

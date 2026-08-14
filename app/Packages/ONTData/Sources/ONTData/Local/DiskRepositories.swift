@@ -45,8 +45,8 @@ public final class DiskCorpusRepository: CorpusRepository, @unchecked Sendable {
 
         if let cachedCorpora { return cachedCorpora }
         let corpora: [Corpus]
-        if let file: CorpusFile = lire("corpus.json") {
-            corpora = file.corpora.sorted { $0.order < $1.order }
+        if let file: ONTSchema.CorpusFile = lire("corpus.json") {
+            corpora = file.corpora.map(Corpus.init).sorted { $0.order < $1.order }
         } else {
             corpora = try socle.corpora()
         }
@@ -59,7 +59,12 @@ public final class DiskCorpusRepository: CorpusRepository, @unchecked Sendable {
         defer { lock.unlock() }
 
         if let cached = cachedBooks[id] { return cached }
-        let book: Book = try lire("books/\(id).json") ?? socle.book(id)
+        let book: Book
+        if let dto: ONTSchema.Book = lire("books/\(id).json") {
+            book = Book(dto)
+        } else {
+            book = try socle.book(id)
+        }
         cachedBooks[id] = book
         return book
     }
@@ -112,8 +117,8 @@ public final class DiskGlossaryRepository: GlossaryRepository, @unchecked Sendab
 
         if let cachedEntries { return cachedEntries }
         let entries: [GlossaryEntry]
-        if let file: GlossaryFile = lire("glossary.json") {
-            entries = file.entries
+        if let file: ONTSchema.GlossaryFile = lire("glossary.json") {
+            entries = file.entries.map(GlossaryEntry.init)
         } else {
             entries = try socle.entries()
         }
@@ -124,8 +129,8 @@ public final class DiskGlossaryRepository: GlossaryRepository, @unchecked Sendab
     public func occurrences(of lemma: String) -> [Occurrence] {
         lock.lock()
 
-        if cachedOccurrences == nil, let file: OccurrencesFile = lire("occurrences.json") {
-            cachedOccurrences = file.byLemma
+        if cachedOccurrences == nil, let file: ONTSchema.OccurrencesFile = lire("occurrences.json") {
+            cachedOccurrences = file.byLemma.mapValues { $0.map(Occurrence.init) }
         }
         if let table = cachedOccurrences {
             defer { lock.unlock() }

@@ -9,7 +9,7 @@ import Foundation
 ///
 /// Il ne porte que le **corps** de la traduction. Un verset du jour se lit
 /// d'une traite : les gloses de l'ONT font parfois quarante mots.
-public struct DailyVerse: Decodable, Hashable, Sendable, Identifiable {
+public struct DailyVerse: Hashable, Sendable, Identifiable {
     /// Le livre.
     public let b: String
     /// L'unité.

@@ -114,6 +114,25 @@ jobs:
           cargo clippy --all-targets -- -D warnings
           cargo test
 
+      # Les tests des paquets — ils ne tournaient **pas**.
+      #
+      # Le schéma Xcode ne teste que `ONTTests`, la cible de l'app. Les cibles
+      # de test des paquets locaux n'y sont pas, donc `xcodebuild test` les
+      # ignorait : les 15 tests d'`ONTKit` — routeur, recherche, arbre inline —
+      # n'ont jamais été exécutés, ni ici ni sur une machine de développement.
+      # Ils passaient pour une protection, sans en être une.
+      #
+      # `swift test` les lance là où ils vivent. Sur macOS et non en simulateur,
+      # ce qui est légitime : ces deux paquets ne touchent ni UIKit ni SwiftUI.
+      - name: Les tests des paquets
+        working-directory: ONTBibleApp/app/Packages
+        run: |
+          set -o pipefail
+          for paquet in ONTKit ONTData; do
+            echo "── $paquet ──"
+            (cd "$paquet" && swift test)
+          done
+
       - name: Les tests de l'app
         working-directory: ONTBibleApp/app
         # Un simulateur générique plutôt qu'un modèle nommé : les images

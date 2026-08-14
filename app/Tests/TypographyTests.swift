@@ -70,18 +70,13 @@ struct TypographyTests {
 
     // MARK: - La sélection
 
-    private func makeVerse() throws -> Verse {
-        // `Verse` n'expose pas d'initialiseur : on passe par le décodage, ce
-        // qui a l'avantage d'éprouver aussi le format que produit le pipeline.
-        try JSONDecoder().decode(
-            Verse.self,
-            from: Data(#"{"n":1,"nodes":[{"t":"text","v":"Quand Elohim commença"}]}"#.utf8)
-        )
+    private func makeVerse() -> Verse {
+        Verse(n: 1, nodes: [.text("Quand Elohim commença")])
     }
 
     @Test("un verset sélectionné porte le pointillé")
     func selectionUnderlines() throws {
-        let verse = try makeVerse()
+        let verse = makeVerse()
         let theme = ONTTheme()
         let composed = ONTTextRenderer.compose(verse: verse, theme: theme, underlined: true)
 
@@ -94,7 +89,7 @@ struct TypographyTests {
 
     @Test("un verset non sélectionné n'a rien sous le texte")
     func noUnderlineByDefault() throws {
-        let verse = try makeVerse()
+        let verse = makeVerse()
         let composed = ONTTextRenderer.compose(verse: verse, theme: ONTTheme())
 
         #expect(composed.runs.allSatisfy { $0.underlineStyle == nil })
@@ -104,7 +99,7 @@ struct TypographyTests {
     func numberIsNotUnderlined() throws {
         // Il est en exposant : souligné, son trait flotterait au-dessus de
         // celui de la ligne.
-        let verse = try makeVerse()
+        let verse = makeVerse()
         let composed = ONTTextRenderer.compose(verse: verse, theme: ONTTheme(), underlined: true)
 
         let premier = try #require(composed.runs.first)
@@ -154,23 +149,12 @@ struct AssetTests {
 
 /// Le troisième niveau de marquage — le terme important.
 struct ImportantTermTests {
-    private func nodes(_ json: String) throws -> [Inline] {
-        try JSONDecoder().decode([Inline].self, from: Data(json.utf8))
-    }
-
-    @Test("un terme important se décode")
-    func decodes() throws {
-        let n = try nodes(#"[{"t":"important","children":[{"t":"text","v":"« Jour »"}]}]"#)
-        guard case .important(let enfants) = n.first else {
-            Issue.record("nœud non reconnu : \(String(describing: n.first))")
-            return
-        }
-        #expect(enfants.count == 1)
-    }
+    // Le décodage a ses propres tests, dans ONTDataTests. Ici on éprouve la
+    // **composition typographique**, donc on lui donne des nœuds, pas du JSON.
 
     @Test("il porte le violet, et pas l'or")
     func wearsViolet() throws {
-        let n = try nodes(#"[{"t":"important","children":[{"t":"text","v":"Sarah"}]}]"#)
+        let n: [Inline] = [.important([.text("Sarah")])]
         let theme = ONTTheme()
         let composed = ONTTextRenderer.compose(n, theme: theme)
 
@@ -184,14 +168,14 @@ struct ImportantTermTests {
         // Le cœur de la distinction : un intraduisible ouvre une fiche, un
         // terme important n'en a pas. Un mot qui répond au doigt sans rien
         // avoir à dire est pire qu'un mot qui ne répond pas.
-        let n = try nodes(#"[{"t":"important","children":[{"t":"text","v":"« Nuit »"}]}]"#)
+        let n: [Inline] = [.important([.text("« Nuit »")])]
         let composed = ONTTextRenderer.compose(n, theme: ONTTheme())
         #expect(composed.runs.allSatisfy { $0.link == nil })
     }
 
     @Test("un intraduisible, lui, se touche toujours")
     func termStillLinks() throws {
-        let n = try nodes(#"[{"t":"term","v":"Elohim","lemma":"elohim"}]"#)
+        let n: [Inline] = [.term("Elohim", lemma: "elohim")]
         let composed = ONTTextRenderer.compose(n, theme: ONTTheme())
         #expect(composed.runs.contains { $0.link != nil })
     }
@@ -200,7 +184,7 @@ struct ImportantTermTests {
     func survivesLevelToggles() throws {
         // Il appartient au corps, pas à l'appareil critique : éteindre les
         // gloses ne doit pas l'emporter.
-        let n = try nodes(#"[{"t":"important","children":[{"t":"text","v":"« Terre »"}]}]"#)
+        let n: [Inline] = [.important([.text("« Terre »")])]
         var prefs = ReadingPreferences.default
         prefs.showGloss = false
         prefs.showLevel3 = false

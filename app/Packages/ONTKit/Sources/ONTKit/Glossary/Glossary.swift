@@ -5,7 +5,7 @@ import Foundation
 /// C'est l'équivalent ONT d'un numéro Strong, à ceci près qu'il n'a pas fallu
 /// l'inventer — le glossaire du `CLAUDE.md` §2.5 et §3 *est* le lexique, et le
 /// pipeline le dérive à chaque build.
-public struct GlossaryEntry: Decodable, Hashable, Sendable, Identifiable {
+public struct GlossaryEntry: Hashable, Sendable, Identifiable {
     /// La clé de jointure avec `Inline.term(_:lemma:)`.
     public let lemma: String
     /// La forme d'affichage — `chesed`, `El Elyon`, `She'ol`.
@@ -32,16 +32,37 @@ public struct GlossaryEntry: Decodable, Hashable, Sendable, Identifiable {
     /// Occurrences dans les gloses (niveau 2).
     public let glossCount: Int
 
+    public init(
+        lemma: String, title: String, tagged: Bool, forms: [String],
+        hebrew: String?, rendering: String?, definition: [Block]?,
+        taggingNote: [Block]?, firstUse: String?, sourceSection: String?,
+        count: Int, bodyCount: Int, glossCount: Int
+    ) {
+        self.lemma = lemma
+        self.title = title
+        self.tagged = tagged
+        self.forms = forms
+        self.hebrew = hebrew
+        self.rendering = rendering
+        self.definition = definition
+        self.taggingNote = taggingNote
+        self.firstUse = firstUse
+        self.sourceSection = sourceSection
+        self.count = count
+        self.bodyCount = bodyCount
+        self.glossCount = glossCount
+    }
+
     public var id: String { lemma }
 }
 
 /// Une occurrence d'un intraduisible.
-public struct Occurrence: Decodable, Hashable, Sendable {
+public struct Occurrence: Hashable, Sendable {
     /// Le niveau où la forme paraît (§2.1).
     ///
     /// La distinction n'est pas cosmétique : « où ce mot est dans le texte »
     /// et « où on l'explique » ne se cherchent pas de la même façon.
-    public enum Level: String, Decodable, Sendable {
+    public enum Level: String, Sendable {
         case body
         case gloss
     }
@@ -52,14 +73,19 @@ public struct Occurrence: Decodable, Hashable, Sendable {
     public let form: String
     public let level: Level
     public let snippet: String
+
+    public init(
+        bookId: String, chapterId: String, verse: Int?,
+        form: String, level: Level, snippet: String
+    ) {
+        self.bookId = bookId
+        self.chapterId = chapterId
+        self.verse = verse
+        self.form = form
+        self.level = level
+        self.snippet = snippet
+    }
 }
 
-public struct GlossaryFile: Decodable, Sendable {
-    public let schema: Int
-    public let entries: [GlossaryEntry]
-}
-
-public struct OccurrencesFile: Decodable, Sendable {
-    public let schema: Int
-    public let byLemma: [String: [Occurrence]]
-}
+// `GlossaryFile` et `OccurrencesFile` vivaient ici — des enveloppes de fichier,
+// pas des concepts de l'ONT. `ONTSchema` les porte désormais, engendrées.

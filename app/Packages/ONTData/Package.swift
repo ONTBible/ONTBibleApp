@@ -11,6 +11,10 @@ let package = Package(
     products: [.library(name: "ONTData", targets: ["ONTData"])],
     dependencies: [.package(path: "../ONTKit")],
     targets: [
-        .target(name: "ONTData", dependencies: [.product(name: "ONTKit", package: "ONTKit")])
+        .target(name: "ONTData", dependencies: [.product(name: "ONTKit", package: "ONTKit")]),
+        // Le décodage se prouve ici, parce qu'il se fait ici. Ces tests
+        // vivaient dans ONTKitTests, du temps où le domaine décodait
+        // lui-même — ils y éprouvaient un contrat qui n'était pas le sien.
+        .testTarget(name: "ONTDataTests", dependencies: ["ONTData"]),
     ]
 )

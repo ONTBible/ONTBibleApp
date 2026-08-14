@@ -21,6 +21,9 @@
 
 pub mod schema;
 
+#[cfg(feature = "codegen")]
+pub mod codegen;
+
 #[cfg(feature = "parsers")]
 pub mod blocks;
 #[cfg(feature = "parsers")]
