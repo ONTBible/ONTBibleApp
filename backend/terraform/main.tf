@@ -209,8 +209,29 @@ resource "aws_lambda_function" "api" {
   handler       = "bootstrap"
   architectures = ["arm64"]
 
+  # Terraform ne possède plus le **code**, seulement la **forme**.
+  #
+  # Depuis que la CI remplace le binaire à chaque poussée sur `main`, garder ces
+  # deux attributs sous la coupe de Terraform poserait un piège silencieux : un
+  # `terraform apply` lancé d'un poste — pour ajouter une variable
+  # d'environnement, pour toucher au domaine — verrait un `source_code_hash`
+  # différent de celui d'AWS, et **remettrait en production le zip qui traîne
+  # dans le dossier local**. Une version d'il y a trois semaines, sans qu'aucune
+  # commande n'ait parlé de code.
+  #
+  # Le partage est donc net, et c'est celui du site : Terraform décrit la forme,
+  # la CI livre le code. `ignore_changes` est ce qui l'écrit noir sur blanc.
+  #
+  # Le `fileexists` va avec : `filebase64sha256` est évalué au `plan`, donc sans
+  # lui il faudrait construire le zip avant chaque `apply`, y compris pour un
+  # changement qui n'a rien à voir avec le code. Rien ne lit le fichier tant
+  # qu'il n'y a pas de différence à appliquer.
   filename         = var.package_path
-  source_code_hash = filebase64sha256(var.package_path)
+  source_code_hash = fileexists(var.package_path) ? filebase64sha256(var.package_path) : null
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   memory_size = 256
   timeout     = 15

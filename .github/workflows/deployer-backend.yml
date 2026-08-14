@@ -1,0 +1,134 @@
+# Déploie le backend quand `main` bouge.
+#
+# ## Ce qu'il fait, et ce qu'il ne fait **pas**
+#
+# Il éprouve, construit, remplace le code de la Lambda, et vérifie que l'API
+# répond. Il ne touche **jamais** à Terraform.
+#
+# C'est délibéré, et c'est le même partage que pour le site : l'état de
+# Terraform vit en local, pas dans un dépôt distant. Un job qui l'exécuterait
+# travaillerait sans savoir ce qui existe déjà — il recréerait tout, ou
+# détruirait ce qu'il ne connaît pas. La forme de l'infrastructure reste une
+# décision prise à la main ; la CI ne fait que livrer.
+#
+# `backend/terraform/main.tf` le dit de son côté : `ignore_changes` sur le code
+# de la Lambda. Sans cette ligne, un `apply` lancé d'un poste remettrait en
+# production le zip qui traîne dans le dossier local.
+#
+# ## Aucune clé
+#
+# L'authentification passe par OIDC : GitHub signe un jeton qui dit d'où vient
+# ce job, AWS le vérifie et prête `ont-api-github` pour la durée du job. Rien
+# n'est stocké dans les secrets du dépôt, donc rien ne fuit et rien n'est à
+# révoquer.
+#
+# Ce rôle ne peut que remplacer le code de `ont-api`. Il ne lit pas la table
+# DynamoDB — où vivent les surlignages, donnée de l'article 9 — et ne touche pas
+# aux variables d'environnement, où vit le secret des jetons.
+#
+# ## Pourquoi ce workflow n'existait pas
+#
+# Le backend était éprouvé par `tests.yml` et déployé **à la main**, par un
+# `cargo lambda build` puis un `terraform apply` depuis un poste. Ça marche tant
+# que la personne qui le fait s'en souvient. Ça veut dire aussi qu'un correctif
+# fusionné pouvait rester des semaines sur `main` sans être en ligne — et que
+# personne ne pouvait le savoir en regardant le dépôt.
+
+name: Déployer le backend
+
+on:
+  push:
+    branches: [main]
+    # Le backend seul. L'app iOS, le pipeline et le vault ont leurs propres
+    # chaînes ; les faire tous partir à chaque commit serait du bruit et des
+    # minutes.
+    paths:
+      - "backend/**"
+      - ".github/workflows/deployer-backend.yml"
+  # Pour redéployer sans commit — après un `terraform apply`, par exemple.
+  workflow_dispatch:
+
+# Le jeton OIDC, et rien de plus. `contents: read` suffit à cloner.
+permissions:
+  id-token: write
+  contents: read
+
+# Deux déploiements simultanés remplaceraient le code dans le désordre. Le
+# second attend ; il n'annule pas le premier, qui a peut-être déjà écrit.
+concurrency:
+  group: deployer-backend
+  cancel-in-progress: false
+
+env:
+  REGION: eu-west-3
+  FONCTION: ont-api
+  # L'adresse stable, indépendante de l'identifiant `execute-api` qu'AWS change
+  # si l'API est recréée.
+  API: https://api.ontbible.com
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      # Les tests d'abord, et ils sont la seule chose entre un commit et la
+      # production. Vingt et un tests, sans réseau ni AWS — ils portent
+      # l'effacement des comptes et la consommation des jetons de
+      # rafraîchissement, c'est-à-dire ce qu'on ne veut pas casser en silence.
+      - name: Les tests
+        working-directory: backend
+        run: cargo test --all-targets
+
+      - name: Zig
+        # cargo-lambda ne compile pas lui-même vers Amazon Linux : il délègue
+        # l'édition de liens à zig, qui sait viser une version précise de la
+        # glibc. Un binaire lié à celle d'Ubuntu (2.39) référencerait des
+        # symboles absents d'Amazon Linux 2023 (2.34), et la fonction refuserait
+        # de démarrer — sans autre message qu'un `Runtime.InvalidEntrypoint`.
+        run: pip3 install ziglang
+
+      - name: cargo-lambda
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-lambda
+
+      - name: Le paquet
+        working-directory: backend
+        run: cargo lambda build --release --arm64 --output-format zip
+
+      - name: AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::274399924176:role/ont-api-github
+          aws-region: ${{ env.REGION }}
+
+      - name: Le code
+        working-directory: backend
+        run: |
+          aws lambda update-function-code --function-name "$FONCTION" \
+            --zip-file "fileb://target/lambda/ont-backend/bootstrap.zip" \
+            --query 'LastModified' --output text
+          aws lambda wait function-updated --function-name "$FONCTION"
+
+      # Le déploiement n'est pas fini quand la commande rend la main, il est
+      # fini quand l'API répond. Sans cette vérification, un binaire qui ne
+      # démarre pas passerait pour un succès — et c'est exactement la panne que
+      # zig évite plus haut, celle qui ne dit rien.
+      #
+      # `/health` seulement : les autres routes demandent une session, et un job
+      # de CI n'a pas à en fabriquer une pour se rassurer.
+      - name: Vérifier
+        run: |
+          sleep 5
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "$API/health")
+          printf '%-24s %s\n' "/health" "$code"
+          [ "$code" = "200" ] || exit 1
