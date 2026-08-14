@@ -16,8 +16,27 @@ public enum ONTFonts {
     /// Affinity.
     public static let hebrew = "EzraSIL"
 
-    /// Les titres — Frank Ruhl Libre, OFL.
-    public static let display = "FrankRuhlLibre-Medium"
+    /// Les titres — Jost, OFL. La géométrique du combination mark.
+    ///
+    /// C'est la règle du site, que l'app ne suivait qu'à moitié : Jost pour
+    /// « titres, navigation, capitales », Literata pour le reste. Le corps
+    /// suivait déjà, les titres non — ils étaient en Frank Ruhl Libre, arrivée
+    /// au commit initial sans raison consignée.
+    ///
+    /// ## La taille n'a pas eu à bouger, et ce n'était pas évident
+    ///
+    /// La webapp note que Jost a une « hauteur d'x basse » — vrai **face à
+    /// Literata**, dont l'œil est très ouvert. Face à Frank Ruhl, mesuré dans
+    /// les tables `OS/2` des deux fichiers :
+    ///
+    ///     Frank Ruhl Libre   hauteur d'x 0,470 em   capitale 0,660 em
+    ///     Jost               hauteur d'x 0,460 em   capitale 0,700 em
+    ///
+    /// Deux pour cent d'écart sur l'œil, et une capitale **plus grande** de
+    /// six. Un titre composé au même corps se lit donc aussi gros, un titre en
+    /// capitales un peu plus. Corriger la taille « pour compenser » aurait
+    /// grossi ce qu'il fallait laisser.
+    public static let display = "Jost-SemiBold"
 
     /// Le nom de famille d'une fonte de corps.
     ///
@@ -132,6 +151,9 @@ public struct ONTTypography: Sendable {
 
     private var ink: Color { ONTColors.ink(theme) }
 
+    /// L'encre du niveau 2 — une teinte du thème, plus une opacité au jugé.
+    private var soft: Color { ONTColors.inkSoft(theme) }
+
     /// Les gloses sont plus petites : c'est la voix du projet, elle ne doit
     /// pas concurrencer celle du texte.
     private var glossSize: CGFloat { size * 0.86 }
@@ -140,12 +162,18 @@ public struct ONTTypography: Sendable {
 
     /// Titre d'unité.
     public var display: ONTTextStyle {
-        .init(font: .custom(ONTFonts.display, size: size * 1.7), color: ink)
+        .init(font: .custom(ONTFonts.display, size: size * 1.7), color: ONTColors.inkStrong(theme))
     }
 
     /// Titre de section, à l'intérieur d'une unité.
+    ///
+    /// La couleur passe par le thème depuis qu'on a mesuré : le bordeaux posé
+    /// en dur donnait 1,23:1 sur le fond sombre. Un titre invisible.
     public var heading: ONTTextStyle {
-        .init(font: .custom(ONTFonts.display, size: size * 1.25), color: ONTColors.burgundy)
+        .init(
+            font: .custom(ONTFonts.display, size: size * 1.25),
+            color: ONTColors.brandInk(theme)
+        )
     }
 
     /// Niveau 1 — le corps de la traduction.
@@ -172,14 +200,14 @@ public struct ONTTypography: Sendable {
 
     /// Niveau 2 — une glose.
     public var gloss: ONTTextStyle {
-        .init(font: .custom(body, size: glossSize), color: ink.opacity(0.62))
+        .init(font: .custom(body, size: glossSize), color: soft)
     }
 
     /// Niveau 3 — la translittération, latine italique.
     public var translit: ONTTextStyle {
         .init(
             font: .custom(body, size: glossSize).italic(),
-            color: ink.opacity(0.62)
+            color: soft
         )
     }
 
@@ -213,6 +241,6 @@ public struct ONTTypography: Sendable {
     /// et un « [ » penché se confond avec une barre oblique. L'appareil doit
     /// rester droit même quand ce qu'il encadre ne l'est pas.
     public var apparatus: ONTTextStyle {
-        .init(font: .custom(body, size: glossSize), color: ink.opacity(0.62))
+        .init(font: .custom(body, size: glossSize), color: soft)
     }
 }
