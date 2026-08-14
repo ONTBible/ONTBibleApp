@@ -80,10 +80,6 @@ jobs:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
@@ -127,9 +123,8 @@ jobs:
         working-directory: ONTBibleApp
         env:
           ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
-        run: |
-          npm ci
-          npm run app
+        # Un binaire, plus aucun runtime : voir `scripts/corpus.sh`.
+        run: ./scripts/corpus.sh
 
       # Les numéros sont posés **après** `xcodegen`, directement dans les
       # `Info.plist` produits. Les mettre dans `project.yml` obligerait à

@@ -1,0 +1,50 @@
+[package]
+name = "ont-pipeline"
+version = "0.1.0"
+edition = "2021"
+
+# La bibliothèque **et** le binaire.
+#
+# La bibliothèque porte le schéma et les analyseurs ; c'est elle que le site
+# consomme, par dépendance de chemin, au lieu de redécrire les mêmes types une
+# seconde fois en Rust. Le binaire n'est qu'un `main` qui lit le vault et écrit
+# `dist/`.
+[lib]
+name = "ont"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ont-pipeline"
+path = "src/main.rs"
+# Le binaire lit le vault : il lui faut les analyseurs. Sans cette ligne, un
+# `cargo build --no-default-features` échouerait sur un `main` qui appelle un
+# module absent, au lieu de simplement ne pas construire le binaire.
+required-features = ["parsers"]
+
+# ## Deux visages de la même caisse
+#
+# **Le contrat seul** — `default-features = false` — n'apporte que `schema` et
+# `serde`. C'est ce que prend le site : il *lit* du JSON déjà produit, il ne
+# parse aucun markdown. Lui livrer le tokeniseur ajouterait `regex` et ses
+# tables Unicode à un binaire Lambda dont le démarrage à froid se compte déjà
+# en centaines de millisecondes.
+#
+# **Les analyseurs** — par défaut — ajoutent tout ce qui transforme le vault.
+# C'est ce dont le binaire a besoin, et personne d'autre.
+[features]
+default = ["parsers"]
+parsers = ["dep:regex", "dep:once_cell", "dep:unicode-normalization"]
+
+[dependencies]
+# `serde` seul suffit à décrire le contrat : les types sont le contrat.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# `regex` porte les classes d'écriture Unicode — `\p{Hebrew}`, `\p{M}` — dont
+# le tokeniseur a besoin pour repérer l'hébreu sans qu'aucun caractère hébreu
+# ne figure dans le code.
+regex = { version = "1", optional = true }
+# Les expressions rationnelles du tokeniseur sont compilées une fois.
+once_cell = { version = "1", optional = true }
+unicode-normalization = { version = "0.1.25", optional = true }
+
+[dev-dependencies]

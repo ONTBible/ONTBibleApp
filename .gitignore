@@ -1,7 +1,14 @@
-node_modules/
 dist/
 .DS_Store
 *.log
+
+# Les artefacts de compilation Rust — pipeline et backend.
+#
+# 2 820 fichiers de `pipeline/target/` ont été committés au portage, faute de
+# cette ligne : le dossier naît au premier `cargo build`, donc avant que
+# quiconque pense à l'ignorer. Ils sont tous reconstructibles, et aucun n'a sa
+# place dans un dépôt.
+target/
 
 # Secrets de build. Le DSN Sentry est public — il ne permet que d'écrire des
 # événements — mais le jeton d'organisation permet d'écrire dans le compte.
