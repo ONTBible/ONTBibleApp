@@ -161,6 +161,102 @@ jobs:
         # secondes, pour le même binaire.
         run: curl -sSf https://sentry.io/get-cli/ | sh
 
+      # Les certificats que la livraison précédente a laissés derrière elle.
+      #
+      # ## Pourquoi il en naît un à chaque fois
+      #
+      # `xcodebuild archive -allowProvisioningUpdates` a besoin d'une identité
+      # de signature. Le runner est neuf : son trousseau est vide. Xcode crée
+      # donc une clé privée **sur la machine**, enregistre le certificat
+      # correspondant chez Apple par l'API — d'où son nom, « Created via
+      # API » — puis le runner est détruit à la fin du job.
+      #
+      # La clé privée meurt avec lui. Le certificat, lui, reste enregistré, et
+      # personne ne pourra plus jamais s'en servir : il n'existe aucune copie
+      # de sa clé. C'est un déchet, par construction.
+      #
+      # Apple plafonne le nombre de certificats d'un compte. Au vingtième, la
+      # création échoue et l'archive s'arrête sur « Your account has reached
+      # the maximum number of certificates » — un message qui ne dit ni d'où
+      # ils viennent, ni qu'ils sont tous inutiles. C'est arrivé au build 19,
+      # après dix-huit livraisons.
+      #
+      # ## Pourquoi c'est sans danger
+      #
+      # Le filtre est double, et volontairement étroit : type `DEVELOPMENT`
+      # **et** nom exactement « Apple Development: Created via API ». Les
+      # certificats d'une personne portent son nom — `Apple Development: Yannis
+      # Bikouta`, `Apple Distribution: Yannis Bikouta` — et ne sont donc jamais
+      # touchés. Ceux de distribution non plus : ils servent à un autre projet,
+      # et les révoquer casserait ses livraisons.
+      #
+      # La concurrence de ce workflow est sérialisée (`group: testflight`), donc
+      # aucune autre livraison ne peut être en train d'utiliser celui qu'on
+      # révoque.
+      #
+      # ## Pourquoi avant et non après
+      #
+      # Après, un job interrompu — annulation, panne du runner, dépassement de
+      # temps — laisserait son déchet sans jamais le ramasser, et le plafond
+      # reviendrait. Avant, le ménage est fait même si la fois d'avant s'est
+      # mal terminée : l'état stable est **un** certificat, celui de la
+      # livraison en cours.
+      - name: Ramasser les certificats orphelins
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # PEP 668 : le Python du runner refuse une installation globale.
+          python3 -m venv "$RUNNER_TEMP/venv-certs"
+          "$RUNNER_TEMP/venv-certs/bin/pip" install --quiet pyjwt cryptography
+          "$RUNNER_TEMP/venv-certs/bin/python" - <<'PY'
+          import json, os, sys, time, urllib.error, urllib.request
+
+          import jwt
+
+          JETABLE = "Apple Development: Created via API"
+
+          jeton = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"],
+               "exp": int(time.time()) + 600,
+               "aud": "appstoreconnect-v1"},
+              os.environ["ASC_PRIVATE_KEY"],
+              algorithm="ES256",
+              headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"},
+          )
+          entetes = {"Authorization": f"Bearer {jeton}"}
+          racine = "https://api.appstoreconnect.apple.com/v1"
+
+          requete = urllib.request.Request(
+              f"{racine}/certificates?filter[certificateType]=DEVELOPMENT&limit=200",
+              headers=entetes)
+          try:
+              with urllib.request.urlopen(requete) as r:
+                  corps = json.load(r)
+          except urllib.error.HTTPError as e:
+              # On n'arrête pas la livraison pour un ménage : le plafond n'est
+              # peut-être pas atteint, et l'archive dira elle-même s'il l'est.
+              print(f"::warning::lecture des certificats impossible (HTTP {e.code}) — on continue")
+              sys.exit(0)
+
+          orphelins = [c for c in corps.get("data", [])
+                       if c.get("attributes", {}).get("name") == JETABLE]
+          gardes = len(corps.get("data", [])) - len(orphelins)
+          print(f"{len(orphelins)} orphelin(s) à révoquer, {gardes} certificat(s) nominatif(s) gardé(s)")
+
+          for certificat in orphelins:
+              identifiant = certificat["id"]
+              suppression = urllib.request.Request(
+                  f"{racine}/certificates/{identifiant}", headers=entetes, method="DELETE")
+              try:
+                  urllib.request.urlopen(suppression)
+                  print(f"  révoqué {identifiant}")
+              except urllib.error.HTTPError as e:
+                  print(f"::warning::  {identifiant} non révoqué (HTTP {e.code})")
+          PY
+
       - name: L'archive
         working-directory: ONTBibleApp/app
         env:
