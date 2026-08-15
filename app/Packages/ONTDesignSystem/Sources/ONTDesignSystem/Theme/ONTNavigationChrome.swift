@@ -70,11 +70,20 @@ public struct ONTNavigationChrome: ViewModifier {
         let attributs: [NSAttributedString.Key: Any] = [.font: titre]
         let attributsGrands: [NSAttributedString.Key: Any] = [.font: grandTitre]
 
-        // Trois apparences, et elles ne se déduisent pas l'une de l'autre :
-        // celle du bord de défilement est **transparente**, c'est ce qui fait
-        // qu'aucune barre ne se dessine tant qu'on n'a pas fait défiler. La
-        // recopier depuis la standard poserait un bandeau opaque en haut de
-        // chaque écran.
+        // Les fonds restent **ceux du système**, et c'est le point.
+        //
+        // Avant ce fichier, l'app ne touchait pas aux barres — vérifié dans le
+        // dépôt. Le système en donne deux : opaque et floutée quand le contenu
+        // passe dessous, transparente tant qu'on n'a pas défilé. C'est ce flou
+        // qui **camoufle** le texte derrière les boutons, et c'est lui qui
+        // donne à la lecture son bord haut ouvert.
+        //
+        // Rendre les trois transparentes supprime le flou : le texte vient
+        // alors percuter les boutons au lieu de se fondre. Essayé, et c'était
+        // une fausse piste — le contenu qui refusait de monter jusqu'en haut
+        // venait d'un `GeometryReader` posé ailleurs, pas d'ici.
+        //
+        // On ne pose donc que la **fonte**, sur les fonds du système.
         let posee = UINavigationBarAppearance()
         posee.configureWithDefaultBackground()
         posee.titleTextAttributes = attributs

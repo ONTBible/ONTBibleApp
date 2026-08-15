@@ -282,7 +282,9 @@ struct ChapterLoader: View {
             // bloc qui n'existe pas ici, le défilement partait au-delà du
             // contenu, et la page s'affichait vide. C'est ce qu'on voyait en
             // arrivant depuis un résultat de recherche.
-            ChapterView(chapter: chapter)
+            // `ChapterSwipe` et non `ChapterView` : c'est lui qui porte le
+            // geste horizontal, et qui décide quelle unité est affichée.
+            ChapterSwipe(depart: chapter)
                 .id(chapter.id)
         } else {
             ContentUnavailableView(

@@ -19,6 +19,7 @@ struct ChapterView: View {
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
+    @Environment(\.ontLectureFigee) private var lectureFigee
 
     private var spacing = ONTSpacing()
     private var echelle = ONTScaled()
@@ -37,6 +38,24 @@ struct ChapterView: View {
     @State private var suivi = SuiviDeLecture()
 
     let chapter: Chapter
+
+    /// Vraie pour l'unité **du dessus**, fausse pour celle qui entre ou sort
+    /// pendant un glissement.
+    ///
+    /// Deux unités cohabitent le temps d'une transition, et une barre de
+    /// navigation n'appartient qu'à une vue : sans ce drapeau, celle qui arrive
+    /// poserait son titre et sa barre d'outils par-dessus celle qu'on regarde
+    /// encore, et le résultat dépendrait de l'ordre de composition.
+    var actif = true
+
+    /// De combien le **texte** est translaté, sans que la vue bouge.
+    ///
+    /// Posé sur le contenu défilant seulement, jamais sur le fond. Déplacer la
+    /// vue entière ferait voyager son fond avec elle, et l'on verrait le
+    /// rectangle de la page — un bord droit à droite, une arête en haut. Or il
+    /// n'y a pas de page à voir : le texte court jusqu'aux bords de l'écran, et
+    /// c'est ce qui doit rester vrai pendant le geste.
+    var decalage: CGFloat = 0
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -150,7 +169,14 @@ struct ChapterView: View {
         }
         // Éteint jusqu'à la restauration : sans ça, les premières lignes
         // écrasent la position avant qu'on ait pu la lire.
+        // Le texte glisse ; le fond, posé plus bas par `.ontScreen()`, ne
+        // bouge pas d'un pixel.
+        .offset(x: decalage)
         .environment(\.ontSuivi, suivi)
+        // Figé pendant qu'on soulève la page : sans ça, les deux gestes
+        // s'exercent ensemble et on tourne la page en ayant descendu d'un
+        // demi-écran sans l'avoir voulu.
+        .scrollDisabled(lectureFigee)
         // `.ontScreen()` et non un fond posé à la main. La règle du design
         // system dit que tout écran de premier niveau l'applique ; la liseuse
         // ne le faisait pas, ce qui n'avait pas de conséquence tant que le fond
@@ -174,9 +200,10 @@ struct ChapterView: View {
         .animation(.snappy(duration: 0.14), value: selection.isEmpty)
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
-        .navigationTitle(selection.isEmpty ? "" : reference)
+        .navigationTitle(actif && !selection.isEmpty ? reference : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if actif {
             // La pastille de renvoi, en haut à gauche — le geste de YouVersion
             // et de Bible Strong. Elle dit où l'on est **et** sert de porte :
             // sans elle, aller de Bereshit 1 à Bereshit 18 demande de remonter
@@ -201,6 +228,7 @@ struct ChapterView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
+            }
             }
         }
         .sheet(isPresented: $showingPicker) {
@@ -248,12 +276,25 @@ struct ChapterView: View {
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         router.pendingVerse = nil
 
+        suivi.recommence()
+
+        // **Arriver sur une unité, c'est déjà y être.**
+        //
+        // La position ne s'écrivait qu'après un défilement — la règle qui a
+        // corrigé la corruption d'hier, où apparition et disparition
+        // enregistraient à tort. Mais elle laissait un trou : ouvrir une unité
+        // et la lire sans bouger d'un pouce n'y déplaçait pas la position.
+        // « Reprendre » ramenait alors à la précédente.
+        //
+        // L'ordre est ce qui rend l'écriture sûre : la position d'avant vient
+        // d'être **lue** juste au-dessus. On peut donc écrire sans risquer
+        // d'effacer ce qu'on allait viser.
+        model.remember(chapter: chapter, verse: vise ?? chapter.verses.first?.n ?? 1)
+
         guard let vise, vise > 1 else {
             // Rien à viser.
             return
         }
-
-        suivi.recommence()
 
         guard let ancre = anchor(for: vise) else { return }
 
