@@ -123,6 +123,32 @@ public enum ONTTextRenderer {
         return sortie
     }
 
+    /// Ce qu'un lecteur d'écran doit prononcer pour une suite de versets.
+    ///
+    /// ## Pourquoi ça ne va pas de soi
+    ///
+    /// En lecture suivie, une section entière est un seul `Text` dont chaque
+    /// fragment porte un lien — le renvoi qui rend le verset touchable. SwiftUI
+    /// expose donc un **élément par fragment** : quatre-vingt-quinze pour un
+    /// chapitre, relevés sur Bereshit 11, annoncés « lien » et coupés au milieu
+    /// des phrases. « unifiés (devarim ahadim / … ) [ » est un énoncé complet
+    /// pour VoiceOver, et ne veut rien dire pour personne.
+    ///
+    /// Le texte n'était donc pas muet, il était haché. On rend ici une phrase
+    /// continue, où les numéros de verset sont **dits** plutôt que laissés en
+    /// exposant que rien ne prononce.
+    ///
+    /// On compose avec le thème du lecteur, gloses et hébreu compris s'ils sont
+    /// allumés : ce qui se lit à l'oreille doit être ce qui s'affiche à l'œil,
+    /// sinon éteindre une glose ne l'éteindrait que pour les voyants.
+    public static func aLireAVoixHaute(verses: [Verse], theme: ONTTheme) -> String {
+        verses
+            // Les **nœuds**, et non `compose(verse:)` : celui-là préfixe déjà
+            // le numéro en exposant, et on l'entendrait deux fois.
+            .map { "Verset \($0.n). " + String(compose($0.nodes, theme: theme).characters) }
+            .joined(separator: " ")
+    }
+
     /// Compose le corps seul — ce qu'on partage ou ce qu'on met en exergue.
     public static func composeBare(
         _ nodes: [Inline],

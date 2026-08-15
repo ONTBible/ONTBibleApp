@@ -1093,6 +1093,51 @@ private struct FlowingVerses: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
+        // Une seule voix pour la section, au lieu de quatre-vingt-quinze.
+        //
+        // ## Ce qu'on a mesuré
+        //
+        // Chaque fragment de la prose porte un lien — le renvoi qui rend le
+        // verset touchable — et SwiftUI en fait autant d'éléments
+        // d'accessibilité. Relevé sur Bereshit 11 : sept textes, et
+        // **quatre-vingt-quinze liens**. VoiceOver les annonce un à un, chacun
+        // précédé de « lien », coupés là où le balisage change et non là où la
+        // phrase finit :
+        //
+        //     lien »  unifiés (devarim ahadim / …) [
+        //     lien » devarim
+        //     lien »  — intraduisible, pluriel de
+        //
+        // Le texte n'était donc pas muet — il était haché, et illisible à
+        // l'oreille pour cette raison.
+        //
+        // ## Ce qu'on perd, et pourquoi c'est le bon échange
+        //
+        // En ignorant les enfants, on prive VoiceOver du moyen de désigner un
+        // verset par un appui. L'appui visuel, lui, ne bouge pas : la
+        // détection tactile ne passe pas par l'arbre d'accessibilité.
+        //
+        // Pouvoir lire un chapitre d'une traite vaut mieux que pouvoir en
+        // surligner un verset sans pouvoir le lire. Rendre les deux demande de
+        // sortir la sélection des liens — un chantier, pas un réglage.
+        // ## Pourquoi une **représentation** et non une étiquette
+        //
+        // `accessibilityElement(children: .ignore)` ne change rien ici, et on
+        // s'en est assuré avant d'écrire ceci : quatre-vingt-quinze liens
+        // avant, quatre-vingt-quinze après. Ce modificateur écarte les vues
+        // **enfants** ; or ces liens ne sont pas des vues, ils naissent dans
+        // l'`AttributedString` d'un seul `Text` et SwiftUI les expose depuis
+        // l'intérieur.
+        //
+        // `accessibilityRepresentation` remplace l'arbre entier par celui d'une
+        // autre vue. On lui donne un texte nu — même contenu, aucun lien — et
+        // c'est lui que VoiceOver rencontre.
+        .accessibilityRepresentation {
+            Text(ONTTextRenderer.aLireAVoixHaute(verses: verses, theme: theme))
+                // Du texte suivi : VoiceOver en change l'intonation et permet
+                // d'y naviguer par phrase plutôt que d'un bloc à l'autre.
+                .accessibilityTextContentType(.narrative)
+        }
     }
 }
 
