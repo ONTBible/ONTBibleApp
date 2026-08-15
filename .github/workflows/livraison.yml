@@ -24,8 +24,15 @@
 #
 # ## Le numéro de version ne vient pas d'ici
 #
-# `CFBundleVersion` — le numéro de build — est celui de l'exécution : monotone,
-# et jamais deux fois le même. `CFBundleShortVersionString` — la version
+# `CFBundleVersion` — le numéro de build — est **daté** : `AAMMJJ.hhmm` en temps
+# universel. Il croît donc tout seul, se lit d'un coup d'œil, et ne dépend
+# d'aucun compteur.
+#
+# Il l'a d'abord été de `github.run_number`, ce qui semblait plus simple. Ce
+# compteur appartient au **fichier** de workflow : renommer celui-ci l'a remis à
+# un, alors que les builds en ligne allaient jusqu'à vingt et un. Apple exige un
+# numéro qui monte ; un compteur qu'un renommage réinitialise ne peut pas le
+# garantir. `CFBundleShortVersionString` — la version
 # publique — reste celui de l'`Info.plist`, parce que c'est lui qui doit
 # correspondre à la version préparée dans App Store Connect. Le monter est donc
 # un geste de dépôt, visible dans la revue de code qui mène à `main`.
@@ -129,7 +136,9 @@ jobs:
       - name: Le numéro, le canal et le groupe
         id: numeros
         run: |
-          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # Daté plutôt que compté : rien à conserver d'une exécution à
+          # l'autre, et l'ordre est garanti par le temps lui-même.
+          echo "build=$(date -u +%y%m%d).$(date -u +%H%M)" >> "$GITHUB_OUTPUT"
           # Le nom du groupe est celui d'App Store Connect. Le script le
           # cherche par ce nom plutôt que par un identifiant : un identifiant
           # dans un fichier de CI ne se relit pas, et devient faux le jour où
@@ -149,7 +158,7 @@ jobs:
           esac
           echo "canal=$CANAL" >> "$GITHUB_OUTPUT"
           echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
-          echo "Canal : $CANAL${GROUPE:+ — groupe « $GROUPE »} — build ${{ github.run_number }}"
+          echo "Canal : $CANAL${GROUPE:+ — groupe « $GROUPE »}"
 
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
@@ -393,9 +402,10 @@ jobs:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
           GROUPE_BETA: ${{ needs.livrer.outputs.groupe }}
-          # Ce que les testeurs lisent avant d'installer. Le sujet du commit
-          # fusionné le dit déjà — les messages de ce dépôt disent ce qui change
-          # et pourquoi.
+          # Ce que les testeurs lisent avant d'installer. Le message entier
+          # dépasse ce qu'Apple accepte, et dirait de toute façon à un testeur
+          # des choses qui ne s'adressent qu'aux relecteurs du code — le script
+          # n'en garde que le sujet.
           NOTES_BETA: ${{ github.event.head_commit.message }}
         run: |
           cd .github/scripts

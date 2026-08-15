@@ -25,17 +25,37 @@ import sys
 
 from asc import Client, application, attendre_le_build
 
-# Ce que les testeurs lisent dans TestFlight avant d'installer. Le sujet du
-# dernier commit y suffit : les messages de ce dépôt disent ce qui change et
-# pourquoi.
+# Ce que les testeurs lisent dans TestFlight avant d'installer.
 NOTES_PAR_DEFAUT = "Nouvelle version de développement."
+
+# Apple refuse au-delà. La limite est ferme et l'erreur, un 409, arrive après
+# que le build est monté — donc au pire moment.
+LIMITE_WHATS_NEW = 4000
+
+
+def resumer(message: str) -> str:
+    """Le sujet du message, et lui seul.
+
+    Un message de ce dépôt s'adresse à qui relit le code : il dit ce qui a été
+    mesuré, ce qui a échoué avant, pourquoi telle valeur. Un testeur n'a que
+    faire de tout cela — il veut savoir ce qu'il va installer.
+
+    Le sujet le lui dit, et tient dans la limite. Ce n'est pas une troncature
+    par dépit : c'est le bon niveau de détail pour ce lecteur-là.
+    """
+    sujet = message.strip().split("\n\n", 1)[0].strip()
+    if not sujet:
+        return NOTES_PAR_DEFAUT
+    if len(sujet) > LIMITE_WHATS_NEW:
+        sujet = sujet[: LIMITE_WHATS_NEW - 1].rstrip() + "…"
+    return sujet
 
 
 def main() -> None:
     client = Client()
     numero = os.environ["BUILD"]
     nom_du_groupe = os.environ.get("GROUPE_BETA", "Beta")
-    notes = (os.environ.get("NOTES_BETA") or "").strip() or NOTES_PAR_DEFAUT
+    notes = resumer(os.environ.get("NOTES_BETA") or "")
 
     app = application(client)
     build = attendre_le_build(client, app, numero)
