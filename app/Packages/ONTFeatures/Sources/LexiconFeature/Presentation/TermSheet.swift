@@ -61,7 +61,7 @@ public struct TermSheet: View {
                     }
                     Text(entry.title)
                         .font(.custom(ONTFonts.display, size: 26))
-                        .foregroundStyle(ONTColors.burgundy)
+                        .foregroundStyle(ONTColors.brandInk(theme.mode))
 
                     if let rendering = entry.rendering, rendering != entry.title {
                         Text(rendering)
@@ -135,7 +135,7 @@ public struct TermSheet: View {
                         HStack {
                             Text(reference(occurrence))
                                 .font(.caption.monospaced())
-                                .foregroundStyle(ONTColors.goldDeep)
+                                .foregroundStyle(ONTColors.accent(theme.mode))
                             if occurrence.level == .gloss {
                                 Text("glose")
                                     .font(.caption2)

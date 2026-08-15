@@ -8,10 +8,11 @@ import SwiftUI
 /// l'alphabétique. Les slots encore vides restent visibles : le corpus est un
 /// projet en cours, et les masquer donnerait une fausse idée de sa forme.
 public struct BibleTab: View {
+    @Environment(\.ontTheme) private var theme
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
 
-    private var spacing: ONTSpacing { ONTSpacing() }
+    var spacing = ONTSpacing()
 
     /// Ce que la barre d'outils propose d'ouvrir — injecté par l'app pour que
     /// la lecture n'ait pas à connaître la feature de recherche.
@@ -62,7 +63,7 @@ public struct BibleTab: View {
                         Text(corpus.title)
                             .font(.custom(ONTFonts.display, size: 15))
                             .textCase(nil)
-                            .foregroundStyle(ONTColors.burgundy)
+                            .foregroundStyle(ONTColors.brandInk(theme.mode))
                     }
                 }
             }
@@ -88,6 +89,7 @@ public struct BibleTab: View {
 }
 
 private struct ResumeRow: View {
+    @Environment(\.ontTheme) private var theme
     let position: ReadingPosition
     let open: () -> Void
 
@@ -95,7 +97,7 @@ private struct ResumeRow: View {
         Button(action: open) {
             LabeledContent {
                 Image(systemName: "arrow.turn.down.right")
-                    .foregroundStyle(ONTColors.goldDeep)
+                    .foregroundStyle(ONTColors.accent(theme.mode))
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Reprendre").font(.subheadline.weight(.medium))
@@ -104,6 +106,11 @@ private struct ResumeRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            // Sans forme de contact, `.buttonStyle(.plain)` ne rend touchable
+            // que ce qui est **dessiné**. Le blanc entre le libellé et l'icône
+            // n'était donc pas une cible : le doigt tombait à côté neuf fois
+            // sur dix, et seule l'icône répondait du premier coup.
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
     }
@@ -212,7 +219,26 @@ struct BookView: View {
         }
         .ontScreen()
         .navigationTitle(outline.title)
-        .navigationSubtitle(outline.french)
+        // Le sous-titre de barre est arrivé avec iOS 26. En dessous, on n'a
+        // rien à mettre à la place : le nom français figure déjà dans la ligne
+        // du livre qu'on vient de toucher, et l'inventer ailleurs — un
+        // deuxième titre sous le premier — ferait une barre plus haute pour
+        // redire ce qu'on sait déjà. Le lecteur d'iOS 18 perd une redite,
+        // pas un renseignement.
+        .modifier(SousTitreDeBarre(texte: outline.french))
+    }
+}
+
+/// `navigationSubtitle` quand le système sait le poser, rien sinon.
+private struct SousTitreDeBarre: ViewModifier {
+    let texte: String
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.navigationSubtitle(texte)
+        } else {
+            content
+        }
     }
 }
 
@@ -248,7 +274,18 @@ struct ChapterLoader: View {
 
     var body: some View {
         if let chapter = model.chapter(book: bookId, id: chapterId) {
-            ChapterView(chapter: chapter)
+            // `.id(chapter.id)` : une unité n'est pas l'autre.
+            //
+            // Sans ça, SwiftUI réutilise la même `ChapterView` d'un chapitre au
+            // suivant et lui **conserve son état**. Le rang du bloc visé était
+            // donc celui de l'unité précédente : `.scrollPosition` cherchait un
+            // bloc qui n'existe pas ici, le défilement partait au-delà du
+            // contenu, et la page s'affichait vide. C'est ce qu'on voyait en
+            // arrivant depuis un résultat de recherche.
+            // `ChapterSwipe` et non `ChapterView` : c'est lui qui porte le
+            // geste horizontal, et qui décide quelle unité est affichée.
+            ChapterSwipe(depart: chapter)
+                .id(chapter.id)
         } else {
             ContentUnavailableView(
                 "Unité introuvable",
