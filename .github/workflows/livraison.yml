@@ -4,7 +4,7 @@
 #
 # | branche | ce qui se passe | qui le voit |
 # |---|---|---|
-# | `dev` | le build monte et rejoint le groupe **interne** | soi, et les siens |
+# | `dev` | le build monte ; le groupe **interne** le reçoit de lui-même | soi, et les siens |
 # | `staging` | le build monte, rejoint le groupe **externe**, passe sa revue de bêta | les testeurs invités |
 # | `main` | le build monte et part à la **revue de l'App Store** | le public |
 #

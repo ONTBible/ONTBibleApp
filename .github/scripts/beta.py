@@ -102,8 +102,21 @@ def main() -> None:
             "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
         print("  notes de test créées (fr-FR)")
 
-    # ── Le rattachement ──────────────────────────────────────────────────────
+    # ── Le rattachement, pour les groupes externes seulement ─────────────────
     #
+    # Un groupe **interne** n'accepte pas qu'on lui assigne un build : Apple
+    # répond 422, « Cannot add internal group to a build ». Ce n'est pas une
+    # restriction arbitraire — les testeurs internes reçoivent **tout** build
+    # dès qu'il est traité, il n'y a donc rien à leur attribuer.
+    #
+    # C'est aussi ce qui distingue les deux canaux, et pourquoi l'un est
+    # immédiat quand l'autre demande une revue : livrer aux siens ne regarde
+    # qu'Apple techniquement, livrer à des tiers l'engage.
+    if not externe:
+        print(f"  groupe interne : les testeurs reçoivent le build {numero} sans"
+              " qu'on l'attribue, et sans revue")
+        return
+
     # 409 toléré : le build est déjà dans le groupe, ce qui est le but.
     client.post(
         f"betaGroups/{groupe['id']}/relationships/builds",
@@ -111,10 +124,6 @@ def main() -> None:
         tolerer=(409,),
     )
     print(f"  build {numero} rattaché à « {nom_du_groupe} »")
-
-    if not externe:
-        print("  groupe interne : aucune revue de bêta à demander")
-        return
 
     # ── La revue de bêta ─────────────────────────────────────────────────────
     deja = client.get(
