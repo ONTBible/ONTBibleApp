@@ -821,6 +821,24 @@ private struct ActionTileLabel: View {
     }
 }
 
+/// Pose le moteur de dessin, ou ne pose rien.
+///
+/// Un `if` dans un `ViewModifier` plutôt qu'à l'appel : la chaîne autour reste
+/// écrite une seule fois. L'identité de la vue change quand on passe de l'un à
+/// l'autre — c'est-à-dire au premier verset désigné et au dernier relâché,
+/// deux fois par sélection, jamais pendant.
+private struct Estompage: ViewModifier {
+    let moteur: ONTProseRenderer?
+
+    func body(content: Content) -> some View {
+        if let moteur {
+            content.textRenderer(moteur)
+        } else {
+            content
+        }
+    }
+}
+
 /// Le texte d'un bloc en prose, et **rien d'autre**.
 ///
 /// Séparée de `FlowingVerses` pour une seule raison : être `Equatable`, donc
@@ -910,6 +928,32 @@ private struct FlowingVerses: View {
         }
     }
 
+    /// L'échelle de l'écran — deux ou trois pixels par point.
+    ///
+    /// Elle entre dans le plafond parce que le tampon se compte en **pixels**
+    /// quand la vue se mesure en points : le même bloc tient sur un écran à
+    /// deux, et déborde à trois.
+    @Environment(\.displayScale) private var echelleDeLEcran
+
+    /// La hauteur rendue du bloc, relevée à sa pose.
+    ///
+    /// Zéro avant la première mesure — et le moteur ne se pose donc pas au
+    /// premier passage. C'est le bon sens de l'inégalité : on n'estompe qu'une
+    /// fois qu'on sait que c'est sans danger.
+    @State private var hauteur: CGFloat = 0
+
+    /// Le plafond d'un tampon de rendu, en points.
+    ///
+    /// 8192 px est la limite relevée sur le simulateur ; on ne peut pas
+    /// l'interroger, et une machine plus généreuse ne rend pas celle-ci fausse
+    /// — elle la rend seulement prudente. La marge de 5 % couvre l'écart entre
+    /// la hauteur de la vue et celle du tampon qu'elle demande.
+    private var plafondDuTampon: CGFloat { 8192 / echelleDeLEcran * 0.95 }
+
+    private var peutEstomper: Bool {
+        !selection.isEmpty && hauteur > 0 && hauteur <= plafondDuTampon
+    }
+
     /// Les surlignages de ce bloc, relevés une fois.
     ///
     /// En table plutôt qu'en fermeture : une fermeture n'est pas comparable,
@@ -941,15 +985,61 @@ private struct FlowingVerses: View {
         // mise en page de toute la section — 31,3 ms pour trente versets, quand
         // le mode blocs n'en refait que 0,9. Aucune des deux ne déplace un
         // glyphe, mais rien ne permettait de le lui dire.
-        .textRenderer(
-            ONTProseRenderer(
-                selection: selectionLocale,
-                uneSelectionExiste: !selection.isEmpty,
-                estompe: ONTColors.dimmedOpacity,
-                trait: ONTColors.accent(theme.mode).opacity(0.8),
-                corps: theme.scaledTextSize
-            )
-        )
+        //
+        // Et **seulement** quand une sélection existe. Sans elle, le moteur ne
+        // fait rien : il recopie le contexte et redessine chaque fragment tel
+        // quel. Il coûtait pourtant la moitié du livre.
+        //
+        // ## Ce qu'on a mesuré
+        //
+        // Dix chapitres de Bereshit sur dix-neuf ne s'affichaient pas — titre
+        // de section visible, texte absent. Le corpus était sain, les blocs
+        // construits, le texte composé (jusqu'à 1350 caractères par verset),
+        // mis en page (blocs de 2878 à 4042 pt) et `draw` appelé avec ses
+        // 95 lignes. Tout fonctionnait, et rien ne s'affichait.
+        //
+        // La frontière s'est révélée en comparant la hauteur du **premier**
+        // bloc de chaque chapitre — un chapitre paraît vide quand c'est son
+        // premier bloc qui se tait :
+        //
+        //     ch12  7250 px  s'affiche
+        //     ch6   8634 px  muet
+        //     ch14 13067 px  muet
+        //
+        // Soit 8192 px, la taille maximale d'un tampon de rendu. Poser un
+        // `TextRenderer` oblige SwiftUI à rasteriser le `Text` hors écran pour
+        // le donner au moteur ; au-delà de cette hauteur le tampon n'existe
+        // pas, et le dessin est silencieusement perdu. Aucune erreur, aucune
+        // trace — le texte est simplement absent.
+        //
+        // La lecture suivie fabrique exactement ces blocs-là : une section
+        // entière en un seul `Text`. Plus le lecteur grossit le texte, plus il
+        // en perd — l'inverse de ce que le réglage promet.
+        //
+        // Ne poser le moteur qu'avec une sélection rend la lecture — le cas de
+        // très loin le plus fréquent — à un rendu natif, sans tampon et sans
+        // limite. Il reste que sélectionner un verset dans une section très
+        // haute retombe dans le même piège : c'est un chantier à part, qui
+        // demande de renoncer au bloc unique.
+        //
+        // Le bloc est donc **mesuré**, et le moteur ne se pose que s'il tient
+        // dans un tampon. Un bloc trop haut perd l'estompage — le verset
+        // désigné ne se détache plus de ses voisins — mais il reste lisible.
+        // Perdre une nuance vaut mieux que perdre le texte, et la carte
+        // d'actions comme le renvoi du titre disent déjà ce qui est désigné.
+        //
+        // Mesuré plutôt que deviné à partir du nombre de caractères : la
+        // hauteur dépend de la fonte, du corps choisi, du curseur système et de
+        // la largeur de l'écran. Une estimation se tromperait exactement là où
+        // le lecteur a le plus grossi son texte.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { hauteur = $0 }
+        .modifier(Estompage(moteur: peutEstomper ? ONTProseRenderer(
+            selection: selectionLocale,
+            uneSelectionExiste: true,
+            estompe: ONTColors.dimmedOpacity,
+            trait: ONTColors.accent(theme.mode).opacity(0.8),
+            corps: theme.scaledTextSize
+        ) : nil))
         .padding(.horizontal, spacing.xs)
         // Des ancres invisibles, une par verset, **derrière** la prose.
         //
