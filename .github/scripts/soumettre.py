@@ -30,17 +30,10 @@ est `PROCESSING`, toute soumission est refusée. On patiente ici plutôt que
 d'échouer et de demander de relancer.
 """
 
-import json
 import os
 import sys
-import time
-from datetime import datetime, timedelta, timezone
 
-import jwt
-import requests
-
-API = "https://api.appstoreconnect.apple.com/v1"
-BUNDLE = "com.labibleont.ONT"
+from asc import API, Client, application, attendre_le_build, detailler
 
 # Ce que le relecteur doit savoir avant d'ouvrir l'app. Trois livres sur
 # soixante-dix, et des unités marquées « brouillon » : sans cette note, un
@@ -61,104 +54,13 @@ NOTES = (
 )
 
 
-def jeton() -> str:
-    """Le jeton JWT qu'attend App Store Connect.
-
-    Vingt minutes de validité : Apple refuse au-delà, et il n'y a aucune raison
-    d'aller au maximum autorisé.
-    """
-    maintenant = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "iss": os.environ["ASC_ISSUER_ID"],
-            "iat": int(maintenant.timestamp()),
-            "exp": int((maintenant + timedelta(minutes=20)).timestamp()),
-            "aud": "appstoreconnect-v1",
-        },
-        os.environ["ASC_PRIVATE_KEY"],
-        algorithm="ES256",
-        headers={"kid": os.environ["ASC_KEY_ID"]},
-    )
-
-
-class Client:
-    def __init__(self) -> None:
-        self.session = requests.Session()
-        self.session.headers["Authorization"] = f"Bearer {jeton()}"
-
-    def get(self, chemin: str, **params) -> dict:
-        r = self.session.get(f"{API}/{chemin}", params=params, timeout=30)
-        r.raise_for_status()
-        return r.json()
-
-    def post(self, chemin: str, corps: dict) -> dict:
-        r = self.session.post(f"{API}/{chemin}", json=corps, timeout=30)
-        if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
-        return r.json()
-
-    def patch(self, chemin: str, corps: dict) -> dict:
-        r = self.session.patch(f"{API}/{chemin}", json=corps, timeout=30)
-        if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
-        return r.json() if r.content else {}
-
-
-def detailler(reponse) -> str:
-    """Les erreurs d'Apple, lisibles.
-
-    Elles arrivent en JSON et portent le champ fautif dans `source.pointer` —
-    la seule information qui dise quoi corriger. Rendre `r.text` brut oblige à
-    le déchiffrer à l'œil dans un journal de CI.
-    """
-    try:
-        erreurs = reponse.json().get("errors", [])
-    except ValueError:
-        return reponse.text
-    lignes = []
-    for e in erreurs:
-        champ = (e.get("source") or {}).get("pointer", "")
-        lignes.append(f"  · {e.get('title')} — {e.get('detail')}"
-                      + (f"  [{champ}]" if champ else ""))
-    return "\n".join(lignes) or reponse.text
-
-
 def main() -> None:
     client = Client()
     numero = os.environ["BUILD"]
 
-    apps = client.get("apps", **{"filter[bundleId]": BUNDLE})["data"]
-    if not apps:
-        raise SystemExit(
-            f"Aucune app pour {BUNDLE}. La fiche doit exister dans App Store "
-            "Connect — c'est l'étape zéro, et elle se fait à la main."
-        )
-    app = apps[0]["id"]
+    app = application(client)
 
-    # Le build, attendu jusqu'à ce qu'Apple l'ait traité.
-    build = None
-    for essai in range(60):  # trente minutes, à trente secondes près
-        builds = client.get(
-            "builds",
-            **{"filter[app]": app, "filter[version]": numero, "limit": 1},
-        )["data"]
-        if builds:
-            etat = builds[0]["attributes"]["processingState"]
-            print(f"  build {numero} : {etat}")
-            if etat == "VALID":
-                build = builds[0]["id"]
-                break
-            if etat in ("FAILED", "INVALID"):
-                raise SystemExit(f"Apple a rejeté le build {numero} : {etat}")
-        else:
-            print(f"  build {numero} : pas encore reçu")
-        time.sleep(30)
-
-    if not build:
-        raise SystemExit(
-            f"Le build {numero} n'était pas prêt après trente minutes. "
-            "Il n'est pas perdu : relancer ce workflow le reprendra."
-        )
+    build = attendre_le_build(client, app, numero)
 
     # La version en préparation. Il n'y en a qu'une à la fois dans cet état ;
     # si elle n'existe pas, c'est qu'aucune version n'attend d'être remplie.
