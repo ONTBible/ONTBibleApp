@@ -90,7 +90,7 @@ private struct VerseOfTheDayCard: View {
     @Environment(\.ontTheme) private var theme
     /// La jumelle de la pastille du widget, qui suit le curseur des réglages :
     /// figée, celle-ci se serait mise à rétrécir à côté de son propre verset.
-    private var echelle = ONTScaled()
+    var echelle = ONTScaled()
 
     let chapter: Chapter
     let verse: Verse

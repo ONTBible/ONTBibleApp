@@ -105,7 +105,7 @@ public struct YouTab: View {
 private struct AccountSection: View {
     @Environment(AccountModel.self) private var account
     @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
+    var spacing = ONTSpacing()
 
     @State private var confirmingErasure = false
 

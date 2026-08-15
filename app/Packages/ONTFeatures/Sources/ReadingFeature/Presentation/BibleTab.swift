@@ -12,7 +12,7 @@ public struct BibleTab: View {
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
 
-    private var spacing = ONTSpacing()
+    var spacing = ONTSpacing()
 
     /// Ce que la barre d'outils propose d'ouvrir — injecté par l'app pour que
     /// la lecture n'ait pas à connaître la feature de recherche.

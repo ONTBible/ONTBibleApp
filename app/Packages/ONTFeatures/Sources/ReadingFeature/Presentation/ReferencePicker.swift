@@ -18,8 +18,8 @@ public struct ReferencePicker: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.ontTheme) private var theme
 
-    private var spacing = ONTSpacing()
-    private var echelle = ONTScaled()
+    var spacing = ONTSpacing()
+    var echelle = ONTScaled()
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
     private let current: Chapter
@@ -238,7 +238,7 @@ public struct ReferencePicker: View {
 /// téléphone d'une main, qui est la posture de lecture.
 private struct Case: View {
     @Environment(\.ontTheme) private var theme
-    private var echelle = ONTScaled()
+    var echelle = ONTScaled()
 
     let titre: String
     let courant: Bool
