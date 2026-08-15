@@ -2,14 +2,17 @@
 #
 # ## Une branche, une destination
 #
-# | branche | ce qui se passe |
-# |---|---|
-# | `staging` | le build monte, **rejoint le groupe de bêta externe**, et passe sa revue de bêta |
-# | `main` | le build monte, et part à la **revue de l'App Store** |
+# | branche | ce qui se passe | qui le voit |
+# |---|---|---|
+# | `dev` | le build monte et rejoint le groupe **interne** | soi, et les siens |
+# | `staging` | le build monte, rejoint le groupe **externe**, passe sa revue de bêta | les testeurs invités |
+# | `main` | le build monte et part à la **revue de l'App Store** | le public |
 #
-# La distinction est la seule qui compte à l'usage : `staging` s'adresse aux
-# testeurs, `main` au public. Fusionner dans l'une ou dans l'autre est donc un
-# choix de destinataire, pas une manœuvre de publication à retenir.
+# Une branche nomme donc un **destinataire**, pas une manœuvre. Ce qu'on
+# fusionne dans `dev` ne sort pas de chez soi ; ce qu'on promeut dans `staging`
+# s'expose à des tiers ; ce qui atteint `main` s'expose à tous. La chaîne de
+# promotion — `dev` → `staging` → `main` — est tenue par `branch-policy.yml` :
+# on ne saute pas un palier.
 #
 # ## Pourquoi le rattachement au groupe est une étape à part
 #
@@ -29,7 +32,7 @@
 #
 # ## Il porte les clés, donc il ne tourne jamais sur du code non relu
 #
-# Ni `pull_request`, ni `pull_request_target` : uniquement `push` sur les deux
+# Ni `pull_request`, ni `pull_request_target` : uniquement `push` sur les trois
 # branches de livraison. Le code qui s'exécute ici a donc déjà été fusionné,
 # donc relu. Les tests, eux, tournent sans aucun secret — voir `tests.yml`.
 #
@@ -60,14 +63,14 @@ name: Livraison
 
 on:
   push:
-    branches: [staging, main]
+    branches: [dev, staging, main]
   workflow_dispatch:
     inputs:
       canal:
         description: "Où livrer"
         type: choice
-        options: [beta, appstore]
-        default: beta
+        options: [interne, beta, appstore]
+        default: interne
 
 permissions:
   contents: read
@@ -85,6 +88,7 @@ jobs:
     outputs:
       build: ${{ steps.numeros.outputs.build }}
       canal: ${{ steps.numeros.outputs.canal }}
+      groupe: ${{ steps.numeros.outputs.groupe }}
 
     steps:
       - name: L'app
@@ -122,17 +126,30 @@ jobs:
       # La version, elle, vient de l'étiquette quand il y en a une — `v1.2.0`
       # donne `1.2.0`. Sans étiquette, on garde celle du `project.yml` : un
       # build de TestFlight n'a pas à inventer un numéro de version.
-      - name: Le numéro et le canal
+      - name: Le numéro, le canal et le groupe
         id: numeros
         run: |
           echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # Le nom du groupe est celui d'App Store Connect. Le script le
+          # cherche par ce nom plutôt que par un identifiant : un identifiant
+          # dans un fichier de CI ne se relit pas, et devient faux le jour où
+          # le groupe est recréé.
           case "${{ github.ref }}" in
-            refs/heads/main)    CANAL=appstore ;;
-            refs/heads/staging) CANAL=beta ;;
-            *)                  CANAL="${{ inputs.canal || 'beta' }}" ;;
+            refs/heads/main)    CANAL=appstore; GROUPE= ;;
+            refs/heads/staging) CANAL=beta;     GROUPE=Beta ;;
+            refs/heads/dev)     CANAL=interne;  GROUPE=Dev ;;
+            *)
+              CANAL="${{ inputs.canal || 'interne' }}"
+              case "$CANAL" in
+                appstore) GROUPE= ;;
+                beta)     GROUPE=Beta ;;
+                *)        GROUPE=Dev ;;
+              esac
+              ;;
           esac
           echo "canal=$CANAL" >> "$GITHUB_OUTPUT"
-          echo "Canal : $CANAL — build ${{ github.run_number }}"
+          echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
+          echo "Canal : $CANAL${GROUPE:+ — groupe « $GROUPE »} — build ${{ github.run_number }}"
 
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
@@ -341,21 +358,25 @@ jobs:
           echo "### Build ${{ steps.numeros.outputs.build }} envoyé" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Apple le traite en 5 à 30 minutes." >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.numeros.outputs.canal }}" = "beta" ]; then
-            echo "Il rejoindra ensuite le groupe de bêta externe." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Il sera ensuite soumis à la revue de l'App Store." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          case "${{ steps.numeros.outputs.canal }}" in
+            appstore) echo "Il sera ensuite soumis à la revue de l'App Store." >> "$GITHUB_STEP_SUMMARY" ;;
+            *)        echo "Il rejoindra ensuite le groupe « ${{ steps.numeros.outputs.groupe }} »." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
 
-  # ── La bêta externe ───────────────────────────────────────────────────────
+  # ── Les testeurs ──────────────────────────────────────────────────────────
+  #
+  # Un seul job pour les deux groupes, parce que le geste est le même : rattacher
+  # le build, poser les notes. Ce qui diffère, la revue de bêta, ne concerne que
+  # les groupes externes — et le script le déduit du groupe lui-même plutôt que
+  # d'un drapeau qu'on pourrait poser à tort.
   #
   # Séparé de la livraison parce qu'il **attend** : Apple met de cinq à trente
   # minutes à traiter un build, et rien ne peut lui être rattaché avant. Un
   # échec ici ne remet pas en cause le build, qui est bien monté — relancer ce
   # seul job suffit.
-  beta:
+  distribuer:
     needs: livrer
-    if: needs.livrer.outputs.canal == 'beta'
+    if: needs.livrer.outputs.canal != 'appstore'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -365,13 +386,13 @@ jobs:
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet -r .github/scripts/exigences.txt
-      - name: Rattacher au groupe et demander la revue de bêta
+      - name: Rattacher au groupe, et demander la revue s'il est externe
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
-          GROUPE_BETA: Beta
+          GROUPE_BETA: ${{ needs.livrer.outputs.groupe }}
           # Ce que les testeurs lisent avant d'installer. Le sujet du commit
           # fusionné le dit déjà — les messages de ce dépôt disent ce qui change
           # et pourquoi.
