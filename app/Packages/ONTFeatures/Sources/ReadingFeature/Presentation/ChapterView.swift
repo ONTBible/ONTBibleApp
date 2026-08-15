@@ -85,13 +85,22 @@ struct ChapterView: View {
                     // l'unité entière mise en page à l'ouverture.
                     //
                     // Ce prix s'est révélé être un **gel**. Mesuré sur le
-                    // simulateur, en Release, avec une minuterie posée sur le
-                    // fil principal — son retard est la durée du gel, et c'est
-                    // ce que mesure le chien de garde du système :
+                    // simulateur avec une minuterie posée sur le fil principal
+                    // — son retard est la durée du gel, et c'est ce que mesure
+                    // le chien de garde du système. Huit chapitres ouverts à la
+                    // suite, dont les plus lourds :
                     //
-                    //     pile pleine, avec le moteur de dessin   6 gels, 795 ms
-                    //     pile pleine, sans                       3 gels, 540 ms
-                    //     pile paresseuse                         1 gel,  214 ms
+                    //     Release, pile pleine        3 gels, pic 540 ms
+                    //     Release, pile paresseuse    1 gel,  pic 214 ms
+                    //
+                    //     Debug,   pile pleine        6 gels, pic 795 ms
+                    //     Debug,   pile pleine        2 gels, pic 561 ms   (après #23)
+                    //
+                    // Les deux configurations sont séparées à dessein : une
+                    // mesure Debug ne dit rien de ce que reçoit un testeur, et
+                    // les mêler dans un seul tableau — ce que ce commentaire
+                    // faisait — laisse croire à une progression qui n'a pas été
+                    // relevée dans les mêmes conditions.
                     //
                     // Sur un téléphone, plus lent qu'un Mac, les 540 ms sont
                     // devenues les deux secondes qu'Apple sanctionne — Sentry
@@ -1092,6 +1101,51 @@ private struct FlowingVerses: View {
             // appui sur un intraduisible, ni le curseur de VoiceOver.
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+        }
+        // Une seule voix pour la section, au lieu de quatre-vingt-quinze.
+        //
+        // ## Ce qu'on a mesuré
+        //
+        // Chaque fragment de la prose porte un lien — le renvoi qui rend le
+        // verset touchable — et SwiftUI en fait autant d'éléments
+        // d'accessibilité. Relevé sur Bereshit 11 : sept textes, et
+        // **quatre-vingt-quinze liens**. VoiceOver les annonce un à un, chacun
+        // précédé de « lien », coupés là où le balisage change et non là où la
+        // phrase finit :
+        //
+        //     lien »  unifiés (devarim ahadim / …) [
+        //     lien » devarim
+        //     lien »  — intraduisible, pluriel de
+        //
+        // Le texte n'était donc pas muet — il était haché, et illisible à
+        // l'oreille pour cette raison.
+        //
+        // ## Ce qu'on perd, et pourquoi c'est le bon échange
+        //
+        // En ignorant les enfants, on prive VoiceOver du moyen de désigner un
+        // verset par un appui. L'appui visuel, lui, ne bouge pas : la
+        // détection tactile ne passe pas par l'arbre d'accessibilité.
+        //
+        // Pouvoir lire un chapitre d'une traite vaut mieux que pouvoir en
+        // surligner un verset sans pouvoir le lire. Rendre les deux demande de
+        // sortir la sélection des liens — un chantier, pas un réglage.
+        // ## Pourquoi une **représentation** et non une étiquette
+        //
+        // `accessibilityElement(children: .ignore)` ne change rien ici, et on
+        // s'en est assuré avant d'écrire ceci : quatre-vingt-quinze liens
+        // avant, quatre-vingt-quinze après. Ce modificateur écarte les vues
+        // **enfants** ; or ces liens ne sont pas des vues, ils naissent dans
+        // l'`AttributedString` d'un seul `Text` et SwiftUI les expose depuis
+        // l'intérieur.
+        //
+        // `accessibilityRepresentation` remplace l'arbre entier par celui d'une
+        // autre vue. On lui donne un texte nu — même contenu, aucun lien — et
+        // c'est lui que VoiceOver rencontre.
+        .accessibilityRepresentation {
+            Text(ONTTextRenderer.aLireAVoixHaute(verses: verses, theme: theme))
+                // Du texte suivi : VoiceOver en change l'intonation et permet
+                // d'y naviguer par phrase plutôt que d'un bloc à l'autre.
+                .accessibilityTextContentType(.narrative)
         }
     }
 }
