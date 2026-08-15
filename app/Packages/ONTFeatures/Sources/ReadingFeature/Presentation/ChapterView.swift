@@ -85,13 +85,22 @@ struct ChapterView: View {
                     // l'unité entière mise en page à l'ouverture.
                     //
                     // Ce prix s'est révélé être un **gel**. Mesuré sur le
-                    // simulateur, en Release, avec une minuterie posée sur le
-                    // fil principal — son retard est la durée du gel, et c'est
-                    // ce que mesure le chien de garde du système :
+                    // simulateur avec une minuterie posée sur le fil principal
+                    // — son retard est la durée du gel, et c'est ce que mesure
+                    // le chien de garde du système. Huit chapitres ouverts à la
+                    // suite, dont les plus lourds :
                     //
-                    //     pile pleine, avec le moteur de dessin   6 gels, 795 ms
-                    //     pile pleine, sans                       3 gels, 540 ms
-                    //     pile paresseuse                         1 gel,  214 ms
+                    //     Release, pile pleine        3 gels, pic 540 ms
+                    //     Release, pile paresseuse    1 gel,  pic 214 ms
+                    //
+                    //     Debug,   pile pleine        6 gels, pic 795 ms
+                    //     Debug,   pile pleine        2 gels, pic 561 ms   (après #23)
+                    //
+                    // Les deux configurations sont séparées à dessein : une
+                    // mesure Debug ne dit rien de ce que reçoit un testeur, et
+                    // les mêler dans un seul tableau — ce que ce commentaire
+                    // faisait — laisse croire à une progression qui n'a pas été
+                    // relevée dans les mêmes conditions.
                     //
                     // Sur un téléphone, plus lent qu'un Mac, les 540 ms sont
                     // devenues les deux secondes qu'Apple sanctionne — Sentry
