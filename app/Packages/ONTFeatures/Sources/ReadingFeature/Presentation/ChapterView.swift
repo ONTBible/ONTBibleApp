@@ -73,29 +73,40 @@ struct ChapterView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 ParchmentPage {
-                    // `VStack` et non `LazyVStack`, et on y est revenu après
-                    // l'avoir essayé.
+                    // Paresseuse, après l'avoir été, ne plus l'être, et le
+                    // redevenir. Le va-et-vient mérite d'être expliqué.
                     //
-                    // Une pile paresseuse ne construit pas ce qui est hors
-                    // champ. Sur un texte ordinaire ça ne se voit pas ; ici les
-                    // blocs sont des sections entières composées en un seul
-                    // `Text`, et leur hauteur n'est connue qu'une fois posée.
-                    // En défilant, la page laissait des **trous** là où un bloc
-                    // n'avait pas eu le temps d'être mis en page — des versets
-                    // qui ne chargent pas. Et `.scrollPosition` visait des
-                    // rangs de blocs dont la position n'était pas encore
-                    // établie, ce qui a fait échouer la reprise de lecture.
+                    // On y avait renoncé parce que la page laissait des
+                    // **trous** en défilant : un bloc est une section entière
+                    // composée en un seul `Text`, et il n'apparaissait qu'après
+                    // sa mise en page. `.scrollPosition` visait par ailleurs des
+                    // rangs pas encore établis, ce qui cassait la reprise de
+                    // lecture. Une pile pleine réglait les deux, au prix de
+                    // l'unité entière mise en page à l'ouverture.
                     //
-                    // Ce que ça coûte : l'unité entière est construite à
-                    // l'ouverture, et l'animation de « Reprendre » en pâtit.
-                    // C'est un prix qu'on paie sciemment — une page qui se lit
-                    // sans trous vaut mieux qu'une transition élégante.
+                    // Ce prix s'est révélé être un **gel**. Mesuré sur le
+                    // simulateur, en Release, avec une minuterie posée sur le
+                    // fil principal — son retard est la durée du gel, et c'est
+                    // ce que mesure le chien de garde du système :
                     //
-                    // La bonne solution n'est pas la paresse seule : ce sont
-                    // des blocs dont la hauteur est connue **avant** d'être
-                    // posés, ce que seule une mesure préalable du texte
-                    // donnerait. C'est un chantier, pas un réglage.
-                    VStack(alignment: .leading, spacing: spacing.xl) {
+                    //     pile pleine, avec le moteur de dessin   6 gels, 795 ms
+                    //     pile pleine, sans                       3 gels, 540 ms
+                    //     pile paresseuse                         1 gel,  214 ms
+                    //
+                    // Sur un téléphone, plus lent qu'un Mac, les 540 ms sont
+                    // devenues les deux secondes qu'Apple sanctionne — Sentry
+                    // l'a rapporté avant qu'on le cherche.
+                    //
+                    // Ce qui a changé depuis le renoncement : le moteur de
+                    // dessin ne se pose plus pendant la lecture, et un bloc n'a
+                    // donc plus à être rasterisé pour paraître. Il s'établit
+                    // assez vite pour qu'on ne le voie plus arriver — c'est
+                    // exactement la lenteur qui faisait les trous.
+                    //
+                    // Vérifié : un renvoi vers un verset lointain — Bereshit
+                    // 19:30, 10:28, 1:30 — défile et trouve sa cible, sur une
+                    // page pleine. C'est le cas qui avait cassé.
+                    LazyVStack(alignment: .leading, spacing: spacing.xl) {
                         header
 
                         ForEach(Array(blocs.enumerated()), id: \.offset) { _, block in
