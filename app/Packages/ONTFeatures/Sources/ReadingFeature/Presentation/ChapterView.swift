@@ -57,6 +57,28 @@ struct ChapterView: View {
     /// c'est ce qui doit rester vrai pendant le geste.
     var decalage: CGFloat = 0
 
+    /// Écrit à la main, et non laissé au compilateur.
+    ///
+    /// L'initialiseur synthétisé prend la visibilité de la propriété **la moins
+    /// accessible** de la structure. Depuis que `spacing` et `echelle` sont
+    /// stockés — il le fallait, un `DynamicProperty` calculé n'est jamais
+    /// alimenté par SwiftUI —, ils sont à la fois `private` et stockés, et
+    /// l'initialiseur l'était donc aussi. `ChapterSwipe`, qui vit dans un autre
+    /// fichier, ne pouvait plus construire une vue de lecture.
+    ///
+    /// Le compilateur local ne s'en plaignait pas et celui de l'intégration
+    /// continue si : deux versions de Swift, deux sévérités. C'est une raison
+    /// de plus de déclarer ce qu'on veut plutôt que d'hériter d'une règle qui
+    /// peut changer.
+    ///
+    /// L'écrire dit en outre ce que la vue attend vraiment : une unité, et deux
+    /// réglages que seul le feuilletage emploie.
+    init(chapter: Chapter, actif: Bool = true, decalage: CGFloat = 0) {
+        self.chapter = chapter
+        self.actif = actif
+        self.decalage = decalage
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
