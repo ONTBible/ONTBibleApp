@@ -263,15 +263,32 @@ struct ChapterView: View {
             }
             }
         }
+        // ## Chaque feuille repose le thème
+        //
+        // Une feuille hérite de l'environnement de l'endroit où elle est
+        // **déclarée**, et le garde tel qu'il était à sa présentation. Celle
+        // des réglages est justement celle où l'on change de thème : sans
+        // cette pose, elle repeignait ses surfaces mais gardait le schéma de
+        // couleurs du départ, et les commandes d'iOS devenaient illisibles —
+        // « Thème » en noir sur l'aubergine. Il fallait relancer l'app.
         .sheet(isPresented: $showingPicker) {
             ReferencePicker(current: chapter)
+                .ontTheme(from: model.preferences)
         }
         .sheet(isPresented: $showingSettings) {
             // La pile et le « OK » appartiennent à la **présentation**, pas au
             // contenu : depuis « Vous », la même vue est poussée dans une pile
             // qui existe déjà, et n'a ni l'une ni l'autre à fournir.
             NavigationStack {
+                // Le thème est reposé **ici aussi**, au plus près du contenu.
+                //
+                // Posé seulement autour de la pile, il repeignait les surfaces
+                // mais laissait la teinte d'origine : la valeur du sélecteur
+                // restait bordeaux sur l'aubergine, soit 1,2:1. Les deux ne
+                // voyagent pas par le même chemin — l'une par l'environnement,
+                // l'autre par `tint`, que la présentation capture plus haut.
                 ReadingSettingsSheet(chapter: chapter)
+                    .ontTheme(from: model.preferences)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("OK") { showingSettings = false }
@@ -282,9 +299,11 @@ struct ChapterView: View {
             // grande taille avec les gloses allumées, la mi-hauteur ne laisse
             // plus voir les réglages.
             .presentationDetents([.medium, .large])
+            .ontTheme(from: model.preferences)
         }
         .sheet(item: $noteTarget) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
+                .ontTheme(from: model.preferences)
         }
     }
 
@@ -1553,12 +1572,9 @@ private struct SettingsPreview: View {
     }
 
     var body: some View {
-        // Le thème est reconstruit depuis les préférences **vivantes** plutôt
-        // que lu dans l'environnement : celui-ci a été capturé à l'ouverture
-        // de la feuille, et l'aperçu doit suivre le curseur, pas l'état de
-        // départ.
+        // L'aperçu n'a plus à reposer le thème pour lui seul : la feuille
+        // entière le fait désormais, et il en hérite comme le reste.
         PreviewBody(verses: verses, title: chapter.title)
-            .ontTheme(from: model.preferences)
     }
 
     private struct PreviewBody: View {
