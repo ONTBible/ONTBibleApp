@@ -1490,16 +1490,7 @@ public struct ReadingSettingsSheet: View {
                 .ontRow()
 
                 Section {
-                    // En menu et non en segmenté. À trois thèmes, quatre
-                    // segments tenaient ; au quatrième, « Parchemin » et
-                    // « Mystique » se tronquent — et d'autant plus vite que le
-                    // lecteur a monté sa taille de texte, c'est-à-dire
-                    // exactement quand il a besoin de lire les libellés.
-                    Picker("Thème", selection: $model.preferences.theme) {
-                        ForEach(ReadingTheme.allCases, id: \.self) { theme in
-                            Text(theme.label).tag(theme)
-                        }
-                    }
+                    ThemeRow(selection: $model.preferences.theme)
                 } header: {
                     Text("Thème")
                 } footer: {
@@ -1659,6 +1650,53 @@ private struct SettingsPreview: View {
 /// Un `Picker` ordinaire afficherait sept noms dans la fonte du système —
 /// c'est-à-dire sept mots qui ne disent rien de ce qu'ils désignent. Ici le
 /// nom est son propre échantillon.
+/// La rangée du thème, peinte à la main.
+///
+/// ## Pourquoi elle ne se contente pas d'un `Picker`
+///
+/// Un `Picker` en menu tire ses couleurs de la **teinte**, et la teinte d'une
+/// feuille est capturée au moment où on la présente. Or c'est ici qu'on change
+/// de thème : la feuille est déjà ouverte, donc la teinte reste celle d'avant.
+/// La valeur s'écrivait en bordeaux sur l'aubergine — 1,2:1 — et il fallait
+/// refermer la feuille pour qu'elle redevienne or.
+///
+/// Reposer le thème n'y change rien : vérifié, y compris au plus près du
+/// contenu. On ne compte donc plus sur la teinte, on peint. `FontRow` fait
+/// pareil depuis toujours, et c'est pourquoi les fontes, elles, étaient justes.
+///
+/// ## Ce qu'on garde du `Picker`
+///
+/// Le menu, et lui seul. À quatre thèmes, un segmenté tronque « Parchemin » et
+/// « Mystique » — d'autant plus vite que le lecteur a monté sa taille de texte,
+/// c'est-à-dire exactement quand il a besoin de lire les libellés.
+private struct ThemeRow: View {
+    @Environment(\.ontTheme) private var theme
+    @Binding var selection: ReadingTheme
+
+    var body: some View {
+        Menu {
+            Picker("Thème", selection: $selection) {
+                ForEach(ReadingTheme.allCases, id: \.self) { choix in
+                    Text(choix.label).tag(choix)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text("Thème")
+                    .foregroundStyle(theme.ink)
+                Spacer(minLength: 8)
+                Text(selection.label)
+                    .foregroundStyle(ONTColors.brandInk(theme.mode))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ONTColors.brandInk(theme.mode))
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct FontRow: View {
     @Environment(\.ontTheme) private var theme
     let font: ReadingFont
