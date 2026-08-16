@@ -39,6 +39,7 @@ public struct YouTab: View {
                         Label("Verset du jour", systemImage: "sun.horizon")
                     }
                 }
+                .ontRow()
 
                 Section {
                     LabeledContent("Slots rédigés") {
@@ -59,6 +60,7 @@ public struct YouTab: View {
                             + "à mesure que les unités sont verrouillées."
                     )
                 }
+                .ontRow()
 
                 #if DEBUG
                 Section {
@@ -75,6 +77,7 @@ public struct YouTab: View {
                             + "ligne de catalogue est un composant qu'on oubliera."
                     )
                 }
+                .ontRow()
                 #endif
 
                 Section("Crédits") {
@@ -88,7 +91,9 @@ public struct YouTab: View {
                     LabeledContent("Hébreu", value: "Ezra SIL — SIL Open Font License")
                     LabeledContent("Titres", value: "Frank Ruhl Libre — OFL")
                 }
+                .ontRow()
             }
+            .ontRow()
             .ontScreen()
             .navigationTitle("Vous")
         }
@@ -156,6 +161,7 @@ private struct AccountSection: View {
                     )
                 }
             }
+            .ontRow()
 
         case .working:
             Section("Compte") {
@@ -164,6 +170,7 @@ private struct AccountSection: View {
                     Text("Connexion…").foregroundStyle(.secondary)
                 }
             }
+            .ontRow()
 
         case .signedIn:
             Section {
@@ -197,6 +204,7 @@ private struct AccountSection: View {
                         + "cet appareil."
                 )
             }
+            .ontRow()
 
             Section {
                 Button("Se déconnecter") { account.signOut() }
@@ -209,6 +217,7 @@ private struct AccountSection: View {
                         + "sur cet appareil."
                 )
             }
+            .ontRow()
             .confirmDeletion($confirmingErasure) {
                 Task { await account.eraseAccount() }
             }

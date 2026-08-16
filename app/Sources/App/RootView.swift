@@ -60,8 +60,27 @@ struct RootView: View {
             router.open(url) ? .handled : .systemAction
         })
         .onOpenURL { router.open($0) }
+        // ## Le thème est reposé **dans** la feuille, et il le faut
+        //
+        // Une feuille hérite de l'environnement de l'endroit où elle est
+        // déclarée. Déclarée ici, au-dessus de `.ontTheme`, elle partait avec le
+        // thème **par défaut** et le schéma **du système** : fond parchemin sous
+        // des listes gris sombre, encre sombre sur fond sombre. Illisible, et
+        // invisible à la relecture — le code disait bien `.ontTheme`, il le
+        // disait juste à un rang que la feuille ne voyait pas.
+        //
+        // On a essayé de tout envelopper en remontant le thème au-dessus de la
+        // feuille. Ça règle la feuille, et ça casse le reste : mesuré, le
+        // parchemin sortait alors à (78,77,74) au lieu de (250,245,235), soit
+        // trente pour cent de sa clarté. Un `preferredColorScheme` posé au
+        // sommet ne se comporte pas comme un posé sous les onglets.
+        //
+        // On repose donc le thème là où il manque, plutôt que de déplacer celui
+        // qui marche.
         .sheet(item: $router.openedLemma) { selection in
             TermSheet(lemma: selection.id)
+                .ontTheme(from: reading.preferences)
+                .preferredColorScheme(reading.preferences.theme.isDark ? .dark : .light)
         }
     }
 }

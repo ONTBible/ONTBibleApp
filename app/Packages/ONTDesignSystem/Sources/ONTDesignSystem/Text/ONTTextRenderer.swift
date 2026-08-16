@@ -104,23 +104,56 @@ public enum ONTTextRenderer {
         var sortie = Text("")
 
         for verse in verses {
-            var morceau = compose(verse: verse, theme: theme)
+            // Le numéro **à part**, et c'est ce qui permet de l'épargner.
+            //
+            // Il est en exposant ; le pointillé de désignation, tracé sous la
+            // ligne, ne le rejoint donc jamais et fait un décroché à chaque
+            // début de verset. Le mode blocs l'évitait depuis toujours en ne
+            // soulignant que le corps — la prose, elle, soulignait tout.
+            //
+            // Comme une marque ne se pose que sur un `Text` entier, il faut
+            // que le numéro en soit un. `ONTProseRenderer` saute alors les
+            // fragments qui la portent.
+            var numero = AttributedString("\(verse.n)\u{00A0}")
+            numero.font = type.verseNumber.font
+            numero.foregroundColor = type.verseNumber.color
+            numero.baselineOffset = type.verseBaselineOffset
 
-            if let fond = highlight(verse.n) {
-                morceau.backgroundColor = fond
-            }
-            if let cible = verseURL(verse.n) {
-                for piece in morceau.runs where piece.attributes.link == nil {
-                    morceau[piece.range].link = cible
-                }
-            }
             // Une espace pleine entre deux versets, jamais un retour à la
             // ligne : c'est toute la différence entre les deux modes.
-            morceau += run(" ", type.corpus)
+            var corps = compose(verse.nodes, theme: theme)
+            corps += run(" ", type.corpus)
 
-            sortie = sortie + Text(morceau).customAttribute(ONTVerseAttribute(n: verse.n))
+            if let fond = highlight(verse.n) {
+                numero.backgroundColor = fond
+                corps.backgroundColor = fond
+            }
+            if let cible = verseURL(verse.n) {
+                poserLeLien(cible, sur: &numero)
+                poserLeLien(cible, sur: &corps)
+            }
+
+            sortie = sortie
+                + Text(numero)
+                    .customAttribute(ONTVerseAttribute(n: verse.n))
+                    .customAttribute(ONTNumeroDeVerset())
+                + Text(corps).customAttribute(ONTVerseAttribute(n: verse.n))
         }
         return sortie
+    }
+
+    /// Pose un lien partout où il n'y en a pas déjà.
+    ///
+    /// Les plages sont relevées **avant** d'écrire. Poser un lien fusionne des
+    /// runs voisins, donc parcourir `runs` en modifiant la chaîne qu'on
+    /// parcourt travaille sur des plages que l'écriture précédente a déjà
+    /// invalidées — une faute qui ne se voit que sur certains versets, ceux
+    /// dont le balisage produit assez de runs pour que la fusion décale tout.
+    private static func poserLeLien(_ cible: URL, sur chaine: inout AttributedString) {
+        let plages = chaine.runs.filter { $0.attributes.link == nil }.map(\.range)
+        for plage in plages {
+            chaine[plage].link = cible
+        }
     }
 
     /// Ce qu'un lecteur d'écran doit prononcer pour une suite de versets.

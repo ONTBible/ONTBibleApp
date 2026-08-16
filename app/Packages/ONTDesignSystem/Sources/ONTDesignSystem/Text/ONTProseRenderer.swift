@@ -6,6 +6,16 @@ import SwiftUI
 /// C'est la pièce qui permet tout le reste : au moment du dessin, chaque
 /// fragment sait de quel verset il vient, sans qu'on ait eu à réécrire quoi que
 /// ce soit dans la chaîne composée.
+/// La marque du **numéro** de verset.
+///
+/// Elle ne porte aucune valeur : sa seule présence dit « ce fragment est un
+/// numéro, ne le souligne pas ». Le numéro est en exposant, et un pointillé
+/// tracé sous la ligne ne le rejoint pas — il faisait un décroché à chaque
+/// début de verset.
+public struct ONTNumeroDeVerset: TextAttribute {
+    public init() {}
+}
+
 public struct ONTVerseAttribute: TextAttribute {
     public let n: Int
     public init(n: Int) { self.n = n }
@@ -74,8 +84,10 @@ public struct ONTProseRenderer: TextRenderer, Equatable {
                 }
                 couche.draw(piece)
 
-                if designe {
-                    souligner(piece, dans: &context)
+                // Le numéro est désigné comme le reste — il s'affiche donc à
+                // pleine encre — mais il n'est pas souligné.
+                if designe, piece[ONTNumeroDeVerset.self] == nil {
+                    souligner(piece, sous: ligne, dans: &context)
                 }
             }
         }
@@ -92,12 +104,25 @@ public struct ONTProseRenderer: TextRenderer, Equatable {
     /// traçait un trait d'un point avec des tirets d'un demi : invisible, et
     /// d'autant plus que le lecteur monte sa taille de texte — c'est-à-dire
     /// exactement quand il a besoin de voir ce qu'il a désigné.
-    private func souligner(_ piece: Text.Layout.Run, dans context: inout GraphicsContext) {
+    private func souligner(
+        _ piece: Text.Layout.Run,
+        sous ligne: Text.Layout.Line,
+        dans context: inout GraphicsContext
+    ) {
         let bornes = piece.typographicBounds
         let epaisseur = max(2, corps * 0.15)
-        // Sous la ligne, pas dedans : posé plus haut, le pointillé barrait les
-        // jambages des p et des q.
-        let hauteur = bornes.rect.maxY - bornes.descent * 0.1
+        // La hauteur vient de la **ligne**, pas du fragment.
+        //
+        // Chaque fragment porte les métriques de sa fonte, et un verset en
+        // mêle plusieurs : le corps, l'italique de la translittération,
+        // l'hébreu. Pris fragment par fragment, le pointillé montait et
+        // descendait au fil du balisage — il plongeait sous l'hébreu et
+        // remontait après, ce qui se lit comme un défaut et non comme un trait.
+        //
+        // La ligne, elle, n'a qu'une assise. Le pointillé la suit et reste
+        // droit d'un bout à l'autre, quoi que le verset contienne.
+        let assise = ligne.typographicBounds
+        let hauteur = assise.rect.maxY - assise.descent * 0.1
         var chemin = Path()
         chemin.move(to: CGPoint(x: bornes.rect.minX, y: hauteur))
         chemin.addLine(to: CGPoint(x: bornes.rect.maxX, y: hauteur))

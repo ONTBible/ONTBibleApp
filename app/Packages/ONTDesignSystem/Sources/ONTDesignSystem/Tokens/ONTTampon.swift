@@ -1,4 +1,3 @@
-import Metal
 import SwiftUI
 
 /// Jusqu'où un `Text` peut monter avant que son dessin se perde.
@@ -11,40 +10,36 @@ import SwiftUI
 /// sans trace, sans rien. Dix chapitres de Bereshit sur dix-neuf étaient muets
 /// pour cette seule raison.
 ///
-/// ## Pourquoi on le demande au lieu de l'écrire
+/// ## Pourquoi ce n'est pas mesuré
 ///
-/// La première parade inscrivait 8192 px en dur, relevé sur le simulateur.
-/// C'était vrai là, et faux ailleurs : les appareils depuis l'A11 en acceptent
-/// le double. Le plafond prudent coûtait alors l'estompage sur presque toutes
-/// les sections d'un vrai téléphone — une section de Bereshit 19 fait 13 695 px,
-/// bien au-dessous de ce que la machine sait faire, et bien au-dessus de ce
-/// qu'on lui accordait.
+/// On a essayé de le demander au pilote : allouer une texture d'un pixel de
+/// large et de la hauteur voulue, et lire la réponse. Metal n'en donne pas.
+/// `newTextureWithDescriptor:` ne rend pas `nil` sur une dimension hors
+/// limites — il **avorte le processus** :
 ///
-/// On le **probe** donc : allouer une texture d'un pixel de large et de la
-/// hauteur voulue ne coûte presque rien, et la réponse du pilote est la seule
-/// qui ne se démente pas d'un modèle à l'autre.
+///     -[MTLTextureDescriptorInternal validateWithDevice:]
+///     __assert_rtn → abort
+///
+/// La sonde a donc tué l'app à la première section de prose sur simulateur,
+/// où le plafond est 8192, sans rien montrer sur l'appareil, où 16 384 passe.
+/// Une question qu'on ne peut poser qu'en connaissant déjà la réponse n'est pas
+/// une mesure.
+///
+/// ## Ce qu'on retient à la place
+///
+/// Deux valeurs, et la frontière est le simulateur, pas la génération de
+/// matériel : l'app demande iOS 18, donc au moins un A12, et tous les Apple GPU
+/// depuis l'A9 acceptent 16 384. Seul le pilote du simulateur s'arrête à 8192 —
+/// c'est lui, et lui seul, que ce `#if` distingue.
 public enum ONTTampon {
-    /// Les hauteurs qu'on tente, de la plus généreuse à la plus prudente.
-    private static let candidats = [16_384, 8_192, 4_096]
-
-    /// La plus grande hauteur de texture que cette machine accepte, en pixels.
-    ///
-    /// Calculé une fois. Sans Metal — ce qui n'arrive pas sur un appareil réel
-    /// mais peut arriver sous un outil — on retient le plus prudent.
+    /// La plus grande hauteur de texture, en pixels.
     public static let plafondEnPixels: Int = {
-        guard let gpu = MTLCreateSystemDefaultDevice() else { return candidats.last! }
-        for hauteur in candidats where accepte(hauteur, gpu) { return hauteur }
-        return candidats.last!
+        #if targetEnvironment(simulator)
+        8_192
+        #else
+        16_384
+        #endif
     }()
-
-    private static func accepte(_ hauteur: Int, _ gpu: MTLDevice) -> Bool {
-        let plan = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .r8Unorm, width: 1, height: hauteur, mipmapped: false)
-        // `.memoryless` : on ne veut pas la mémoire, seulement savoir si le
-        // pilote consent à la forme.
-        plan.storageMode = .private
-        return gpu.makeTexture(descriptor: plan) != nil
-    }
 
     /// Le même plafond, en points, avec une marge.
     ///

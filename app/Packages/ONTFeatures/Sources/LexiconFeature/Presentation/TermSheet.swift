@@ -80,6 +80,15 @@ public struct TermSheet: View {
                 }
                 .padding(.vertical, 6)
             }
+            // ## Section par section, et pas une fois pour toutes
+            //
+            // `listRowBackground` s'adresse aux **lignes**. Posé sur le `Group`
+            // qui entoure la liste, il ne change rien ; posé sur la `List`
+            // elle-même, rien non plus — vérifié à l'écran deux fois, avec la
+            // couleur mesurée au pixel. Seules les sections et les lignes
+            // l'entendent, et c'est ainsi que `BibleTab` s'y prend depuis
+            // toujours.
+            .ontRow()
 
             if let definition = entry.definition {
                 Section("Ce qu'il signifie") {
@@ -90,6 +99,7 @@ public struct TermSheet: View {
                         }
                     }
                 }
+                .ontRow()
             }
 
             if let note = entry.taggingNote {
@@ -101,6 +111,7 @@ public struct TermSheet: View {
                         }
                     }
                 }
+                .ontRow()
             }
 
             Section("Repères") {
@@ -116,6 +127,8 @@ public struct TermSheet: View {
                     }
                 }
             }
+
+            .ontRow()
 
             occurrences(entry)
         }
@@ -159,13 +172,13 @@ public struct TermSheet: View {
             // « Où ce mot est dans le texte » et « où on l'explique » sont deux
             // questions différentes — la fiche doit pouvoir poser l'une sans
             // l'autre.
-            Picker("Occurrences", selection: $bodyOnly) {
-                Text("Dans le texte").tag(true)
-                Text("Tout").tag(false)
-            }
-            .pickerStyle(.segmented)
+            ONTSegments(
+                selection: $bodyOnly,
+                segments: [(true, "Dans le texte"), (false, "Tout")]
+            )
             .textCase(nil)
         }
+        .ontRow()
     }
 
     private func reference(_ occurrence: Occurrence) -> String {
