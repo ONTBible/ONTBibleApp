@@ -95,12 +95,29 @@ public struct ScaledThemeModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        content.ontTheme(
-            ONTTheme(
-                preferences: preferences,
-                scaledTextSize: preferences.textSize * scale
+        content
+            .ontTheme(
+                ONTTheme(
+                    preferences: preferences,
+                    scaledTextSize: preferences.textSize * scale
+                )
             )
-        )
+            // ## Le schéma de couleurs voyage avec le thème
+            //
+            // Il était posé à part, une seule fois, à la racine. Ça suffisait
+            // tant qu'on regardait un écran ; ça ne suffisait pas dans une
+            // **feuille**, qui hérite de l'environnement au moment où elle est
+            // présentée et non quand il change.
+            //
+            // Le résultat se voyait dans les réglages de lecture : passer au
+            // mystique repeignait bien les surfaces, mais les commandes
+            // fournies par iOS restaient en mode clair. « Thème » s'écrivait
+            // en noir sur l'aubergine, et sa valeur en bordeaux sombre —
+            // illisibles l'un et l'autre, jusqu'à ce qu'on relance l'app.
+            //
+            // En le rattachant au thème, il suffit de reposer le thème pour
+            // que tout suive. Une chose à se rappeler au lieu de deux.
+            .preferredColorScheme(preferences.theme.isDark ? .dark : .light)
     }
 }
 
