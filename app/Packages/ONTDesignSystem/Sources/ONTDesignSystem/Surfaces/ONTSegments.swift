@@ -20,77 +20,11 @@ import SwiftUI
 /// comme il le ferait du contrôle d'Apple.
 public struct ONTSegments<Valeur: Hashable>: View {
     @Environment(\.ontTheme) private var theme
-    @Environment(\.dynamicTypeSize) private var taille
     @Namespace private var glissiere
     private var spacing = ONTSpacing()
 
     private let segments: [(valeur: Valeur, libelle: String)]
     @Binding private var selection: Valeur
-
-    /// La largeur que la mise en page nous offre, relevée à la pose.
-    @State private var offerte: CGFloat = 0
-
-    /// La part de chacun, côte à côte. `nil` tant qu'on n'a pas mesuré, et
-    /// quand on empile — un segment empilé prend toute la largeur.
-    private var part: CGFloat? {
-        guard !empile, offerte > 0, !segments.isEmpty else { return nil }
-        return offerte / CGFloat(segments.count)
-    }
-
-    /// La largeur dont les libellés ont **naturellement** besoin, côte à côte.
-    @State private var naturelle: CGFloat = 0
-
-    /// Empile-t-on ?
-    ///
-    /// Mesuré, et non déduit d'un cran de Dynamic Type. Le premier jet
-    /// n'empilait qu'aux crans d'accessibilité : un lecteur qui monte son texte
-    /// sans les atteindre gardait donc trois libellés qui remplissent leur
-    /// tiers jusqu'au bord et se touchent. Or ce qui décide, ce n'est pas le
-    /// cran — c'est la longueur des mots dans la fonte du moment, sur la
-    /// largeur du moment.
-    private var empile: Bool {
-        guard naturelle > 0, offerte > 0 else { return taille.isAccessibilitySize }
-        return naturelle > offerte
-    }
-
-    @ViewBuilder
-    private var boutons: some View {
-        ForEach(segments, id: \.valeur) { segment in
-            let choisi = segment.valeur == selection
-            Button {
-                withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
-            } label: {
-                Text(segment.libelle)
-                    .font(.subheadline.weight(choisi ? .semibold : .regular))
-                    .foregroundStyle(
-                        choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
-                    )
-                    // Une seule ligne côte à côte, libre une fois empilé : la
-                    // largeur entière suffit presque toujours, et un mot coupé
-                    // vaut mieux qu'un mot rétréci pour qui a monté son texte.
-                    .lineLimit(empile ? nil : 1)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(empile ? 1 : 0.85)
-                    // Une marge de part et d'autre : sans elle, un libellé
-                    // qui remplit sa part touche son voisin, et deux mots
-                    // collés se lisent comme un seul.
-                    .padding(.horizontal, spacing.s)
-                    .frame(maxWidth: empile ? .infinity : nil)
-                    .frame(width: part, alignment: .center)
-                    .padding(.vertical, spacing.s)
-                    .background {
-                        if choisi {
-                            Capsule()
-                                .fill(ONTColors.brandInk(theme.mode))
-                                .matchedGeometryEffect(id: "choisi", in: glissiere)
-                        }
-                    }
-                    .contentShape(.capsule)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
-        }
-    }
 
     public init(selection: Binding<Valeur>, segments: [(Valeur, String)]) {
         self._selection = selection
@@ -98,60 +32,84 @@ public struct ONTSegments<Valeur: Hashable>: View {
     }
 
     public var body: some View {
-        // ## Côte à côte, ou l'un sous l'autre
+        // ## Essayer, puis se rabattre
         //
-        // Un segmenté suppose que les libellés tiennent côte à côte. Aux crans
-        // d'accessibilité, « Intraduisibles » et « Vocabulaire fixé » n'y
-        // tiennent plus : ils se coupent en deux lignes, la pastille devient
-        // ronde et le contrôle illisible. C'est le raisonnement qui a fait
-        // choisir un menu pour le thème — ici on garde l'immédiateté, en
-        // empilant plutôt qu'en repliant. Tout reste visible, à un doigt.
-        Group {
-            if empile {
-                VStack(spacing: 4) { boutons }
-            } else {
-                HStack(spacing: 0) { boutons }
-            }
+        // `ViewThatFits` pose la première disposition qui tient dans la place
+        // offerte, et se rabat sur la suivante sinon. C'est exactement la
+        // question ici, et c'est SwiftUI qui la tranche — pas un seuil de
+        // Dynamic Type, pas une mesure que j'aurais faite à côté.
+        //
+        // Deux tentatives précédentes ont échoué, et il vaut mieux les écrire :
+        // un seuil sur les crans d'accessibilité laissait trois libellés collés
+        // pour qui monte son texte sans les atteindre ; et une copie invisible
+        // posée en arrière-plan mesurait la largeur **offerte**, jamais celle
+        // dont les mots ont besoin — un arrière-plan reçoit la taille de ce
+        // qu'il habille.
+        ViewThatFits(in: .horizontal) {
+            ligne
+            colonne
         }
         .frame(maxWidth: .infinity)
-        // ## Des parts mesurées, et non espérées
-        //
-        // `frame(maxWidth: .infinity)` ne partage pas en parts égales : il
-        // autorise chaque vue à s'étendre, et la mise en page sert d'abord
-        // celles qui **demandent** plus. Le segment au libellé le plus long
-        // prenait donc davantage que son tiers, et sa pastille passait sous le
-        // voisin — « Intraduisibles » recouvrait « Vocabulaire fixé ».
-        //
-        // On relève la largeur offerte et on la divise. Tant qu'elle est
-        // inconnue, on laisse chacun prendre sa taille naturelle : une seule
-        // image mal partagée vaut mieux qu'un contrôle qui n'apparaît pas.
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { offerte = $0 }
-        // Les mêmes libellés, invisibles, à leur taille naturelle. C'est la
-        // seule façon de savoir s'ils tiennent : la fonte du lecteur, sa taille
-        // et la largeur de l'écran ne se devinent pas depuis un seuil.
-        .background(alignment: .topLeading) {
-            HStack(spacing: 0) {
-                ForEach(segments, id: \.valeur) { segment in
-                    Text(segment.libelle)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize()
-                        .padding(.horizontal, spacing.s)
-                }
-            }
-            .hidden()
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { naturelle = $0 }
-        }
         .padding(3)
         .background {
-            // Une capsule côte à côte, un rectangle arrondi une fois empilé :
-            // sur une hauteur de trois rangées, une capsule bombe en ovale et
-            // le contrôle ressemble à un ballon.
-            RoundedRectangle(cornerRadius: empile ? 22 : 999, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(ONTColors.surface(theme.mode))
                 .overlay(
-                    RoundedRectangle(cornerRadius: empile ? 22 : 999, style: .continuous)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .strokeBorder(ONTColors.separator(theme.mode))
                 )
         }
+    }
+
+    /// Côte à côte, chacun à la largeur de son mot.
+    ///
+    /// Des parts égales seraient plus régulières, mais elles obligeraient le
+    /// libellé le plus long à se tronquer ou à rétrécir bien avant que la ligne
+    /// entière soit pleine. Un mot entier vaut mieux qu'une grille.
+    private var ligne: some View {
+        HStack(spacing: 0) {
+            ForEach(segments, id: \.valeur) { segment in
+                bouton(segment, pleineLargeur: false)
+            }
+        }
+    }
+
+    /// L'un sous l'autre, chacun sur toute la largeur.
+    private var colonne: some View {
+        VStack(spacing: 4) {
+            ForEach(segments, id: \.valeur) { segment in
+                bouton(segment, pleineLargeur: true)
+            }
+        }
+    }
+
+    private func bouton(
+        _ segment: (valeur: Valeur, libelle: String),
+        pleineLargeur: Bool
+    ) -> some View {
+        let choisi = segment.valeur == selection
+        return Button {
+            withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
+        } label: {
+            Text(segment.libelle)
+                .font(.subheadline.weight(choisi ? .semibold : .regular))
+                .foregroundStyle(
+                    choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
+                )
+                .lineLimit(1)
+                .padding(.horizontal, spacing.m)
+                .padding(.vertical, spacing.s)
+                .frame(maxWidth: pleineLargeur ? .infinity : nil)
+                .background {
+                    if choisi {
+                        Capsule()
+                            .fill(ONTColors.brandInk(theme.mode))
+                            .matchedGeometryEffect(id: "choisi", in: glissiere)
+                    }
+                }
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
     }
 }
