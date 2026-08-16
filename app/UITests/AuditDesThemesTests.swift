@@ -9,6 +9,20 @@ import XCTest
 /// Le thème n'est pas choisi ici : il est écrit dans les préférences avant le
 /// lancement. C'est ce qui permet de rejouer le même parcours pour les quatre
 /// sans dépendre de la navigation dans les réglages.
+///
+/// ## À rejouer aussi à plusieurs tailles de texte
+///
+/// Un balayage à un seul cran ne voit pas la moitié des défauts de mise en
+/// page : un contrôle qui tient à la taille par défaut peut coller ses
+/// libellés deux crans plus haut, et c'est le lecteur qui l'a signalé, pas ce
+/// parcours. La taille se pose de l'extérieur, avant le lancement :
+///
+///     for t in large extra-extra-extra-large accessibility-extra-large; do
+///       xcrun simctl ui <simulateur> content_size $t
+///       xcodebuild test -scheme ONTUITests -destination 'id=<simulateur>' \
+///         -only-testing:ONTUITests/AuditDesThemesTests \
+///         -resultBundlePath audit-$t.xcresult
+///     done
 @MainActor
 final class AuditDesThemesTests: XCTestCase {
     private var app: XCUIApplication!

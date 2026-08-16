@@ -37,8 +37,21 @@ public struct ONTSegments<Valeur: Hashable>: View {
         return offerte / CGFloat(segments.count)
     }
 
+    /// La largeur dont les libellés ont **naturellement** besoin, côte à côte.
+    @State private var naturelle: CGFloat = 0
+
     /// Empile-t-on ?
-    private var empile: Bool { taille.isAccessibilitySize }
+    ///
+    /// Mesuré, et non déduit d'un cran de Dynamic Type. Le premier jet
+    /// n'empilait qu'aux crans d'accessibilité : un lecteur qui monte son texte
+    /// sans les atteindre gardait donc trois libellés qui remplissent leur
+    /// tiers jusqu'au bord et se touchent. Or ce qui décide, ce n'est pas le
+    /// cran — c'est la longueur des mots dans la fonte du moment, sur la
+    /// largeur du moment.
+    private var empile: Bool {
+        guard naturelle > 0, offerte > 0 else { return taille.isAccessibilitySize }
+        return naturelle > offerte
+    }
 
     @ViewBuilder
     private var boutons: some View {
@@ -58,6 +71,10 @@ public struct ONTSegments<Valeur: Hashable>: View {
                     .lineLimit(empile ? nil : 1)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(empile ? 1 : 0.85)
+                    // Une marge de part et d'autre : sans elle, un libellé
+                    // qui remplit sa part touche son voisin, et deux mots
+                    // collés se lisent comme un seul.
+                    .padding(.horizontal, spacing.s)
                     .frame(maxWidth: empile ? .infinity : nil)
                     .frame(width: part, alignment: .center)
                     .padding(.vertical, spacing.s)
@@ -109,6 +126,21 @@ public struct ONTSegments<Valeur: Hashable>: View {
         // inconnue, on laisse chacun prendre sa taille naturelle : une seule
         // image mal partagée vaut mieux qu'un contrôle qui n'apparaît pas.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { offerte = $0 }
+        // Les mêmes libellés, invisibles, à leur taille naturelle. C'est la
+        // seule façon de savoir s'ils tiennent : la fonte du lecteur, sa taille
+        // et la largeur de l'écran ne se devinent pas depuis un seuil.
+        .background(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                ForEach(segments, id: \.valeur) { segment in
+                    Text(segment.libelle)
+                        .font(.subheadline.weight(.semibold))
+                        .fixedSize()
+                        .padding(.horizontal, spacing.s)
+                }
+            }
+            .hidden()
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { naturelle = $0 }
+        }
         .padding(3)
         .background {
             // Une capsule côte à côte, un rectangle arrondi une fois empilé :
