@@ -32,84 +32,79 @@ public struct ONTSegments<Valeur: Hashable>: View {
     }
 
     public var body: some View {
-        // ## Essayer, puis se rabattre
+        // ## Le choisi entier, les autres tronqués s'il le faut
         //
-        // `ViewThatFits` pose la première disposition qui tient dans la place
-        // offerte, et se rabat sur la suivante sinon. C'est exactement la
-        // question ici, et c'est SwiftUI qui la tranche — pas un seuil de
-        // Dynamic Type, pas une mesure que j'aurais faite à côté.
+        // Une ligne, toujours — on a essayé d'empiler quand ça ne rentrait
+        // plus, et c'était pire : le contrôle changeait de forme sous les
+        // doigts, et prenait trois fois la hauteur pour dire la même chose.
         //
-        // Deux tentatives précédentes ont échoué, et il vaut mieux les écrire :
-        // un seuil sur les crans d'accessibilité laissait trois libellés collés
-        // pour qui monte son texte sans les atteindre ; et une copie invisible
-        // posée en arrière-plan mesurait la largeur **offerte**, jamais celle
-        // dont les mots ont besoin — un arrière-plan reçoit la taille de ce
-        // qu'il habille.
-        ViewThatFits(in: .horizontal) {
-            ligne
-            colonne
+        // Ce qui doit se lire en entier, c'est le segment **retenu** : lui seul
+        // dit où l'on est. Les autres sont des portes qu'on reconnaît à leur
+        // début — « Vocabulai… » suffit à savoir qu'on n'est pas dessus.
+        //
+        // `layoutPriority` le dit à la mise en page : le choisi est servi le
+        // premier, à sa largeur naturelle ; le reste se partage ce qui demeure
+        // et se tronque au besoin. Aucune mesure à faire, aucun seuil à deviner.
+        HStack(spacing: 0) {
+            ForEach(Array(segments.enumerated()), id: \.element.valeur) { rang, segment in
+                let choisi = segment.valeur == selection
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
+                } label: {
+                    Text(segment.libelle)
+                        .font(.subheadline.weight(choisi ? .semibold : .regular))
+                        .foregroundStyle(
+                            choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
+                        )
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        // Une marge de part et d'autre : sans elle, deux
+                        // libellés voisins se touchent et se lisent comme un
+                        // seul mot.
+                        .padding(.horizontal, spacing.m)
+                        .padding(.vertical, spacing.s)
+                        // Le choisi prend la largeur de son mot ; les autres se
+                        // partagent ce qui reste. Lui donner l'infini **et** la
+                        // priorité lui faisait tout prendre, et les deux autres
+                        // disparaissaient — vu à l'écran avant d'être corrigé.
+                        // ## Personne ne réclame l'infini
+                        //
+                        // Donner `maxWidth: .infinity` aux segments les force à
+                        // se partager la place en parts fixes : le libellé le
+                        // plus long se tronque alors même quand la ligne
+                        // entière tiendrait. On laisse donc chacun prendre la
+                        // largeur de son mot, et c'est l'**espace restant** qui
+                        // se répartit entre eux.
+                        //
+                        // Quand la place manque, ces espaces se referment
+                        // d'abord, puis les libellés se tronquent — sauf le
+                        // choisi, que sa priorité sert le premier.
+                        .fixedSize(horizontal: choisi, vertical: false)
+                        .background {
+                            if choisi {
+                                Capsule()
+                                    .fill(ONTColors.brandInk(theme.mode))
+                                    .matchedGeometryEffect(id: "choisi", in: glissiere)
+                            }
+                        }
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                // Le choisi passe devant : il obtient sa largeur naturelle, et
+                // les autres se serrent autour de lui.
+                .layoutPriority(choisi ? 1 : 0)
+                .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
+
+                if rang < segments.count - 1 {
+                    Spacer(minLength: 0)
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
         .padding(3)
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            Capsule()
                 .fill(ONTColors.surface(theme.mode))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(ONTColors.separator(theme.mode))
-                )
+                .overlay(Capsule().strokeBorder(ONTColors.separator(theme.mode)))
         }
-    }
-
-    /// Côte à côte, chacun à la largeur de son mot.
-    ///
-    /// Des parts égales seraient plus régulières, mais elles obligeraient le
-    /// libellé le plus long à se tronquer ou à rétrécir bien avant que la ligne
-    /// entière soit pleine. Un mot entier vaut mieux qu'une grille.
-    private var ligne: some View {
-        HStack(spacing: 0) {
-            ForEach(segments, id: \.valeur) { segment in
-                bouton(segment, pleineLargeur: false)
-            }
-        }
-    }
-
-    /// L'un sous l'autre, chacun sur toute la largeur.
-    private var colonne: some View {
-        VStack(spacing: 4) {
-            ForEach(segments, id: \.valeur) { segment in
-                bouton(segment, pleineLargeur: true)
-            }
-        }
-    }
-
-    private func bouton(
-        _ segment: (valeur: Valeur, libelle: String),
-        pleineLargeur: Bool
-    ) -> some View {
-        let choisi = segment.valeur == selection
-        return Button {
-            withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
-        } label: {
-            Text(segment.libelle)
-                .font(.subheadline.weight(choisi ? .semibold : .regular))
-                .foregroundStyle(
-                    choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
-                )
-                .lineLimit(1)
-                .padding(.horizontal, spacing.m)
-                .padding(.vertical, spacing.s)
-                .frame(maxWidth: pleineLargeur ? .infinity : nil)
-                .background {
-                    if choisi {
-                        Capsule()
-                            .fill(ONTColors.brandInk(theme.mode))
-                            .matchedGeometryEffect(id: "choisi", in: glissiere)
-                    }
-                }
-                .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
     }
 }
