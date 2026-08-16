@@ -89,8 +89,15 @@ final class GesteDePageTests: XCTestCase {
             }
         }
         guard !echantillon.isEmpty else { return -1 }
-        let fond = echantillon.sorted()[echantillon.count / 2]
-        return echantillon.filter { Int($0) < Int(fond) - 40 }.count
+        // L'écart au fond, dans **les deux sens**.
+        //
+        // Le premier jet ne comptait que les pixels plus sombres que le fond.
+        // Il disait donc « page vide » sur les thèmes sombres, où l'encre est
+        // plus claire que la page — et il ne l'a dit qu'une fois le simulateur
+        // laissé en mystique. Une mesure qui ne vaut que pour la moitié des
+        // thèmes ne mesure pas ce qu'elle croit.
+        let fond = Int(echantillon.sorted()[echantillon.count / 2])
+        return echantillon.filter { abs(Int($0) - fond) > 40 }.count
     }
 
     private func exigerDuTexte(_ quand: String) {

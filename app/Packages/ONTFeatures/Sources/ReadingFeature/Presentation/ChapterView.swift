@@ -1303,6 +1303,7 @@ private struct FooterView: View {
 
 private struct NoteEditor: View {
     @Environment(ReadingModel.self) private var model
+    @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
 
     let chapter: Chapter
@@ -1314,7 +1315,15 @@ private struct NoteEditor: View {
         NavigationStack {
             Form {
                 Section("\(chapter.title):\(verse)") {
-                    TextEditor(text: $text).frame(minHeight: 140)
+                    // `TextEditor` porte son propre fond, et il ne vient pas
+                    // de la ligne : il reste gris système au milieu d'une nuit
+                    // aubergine, même quand la section qui l'entoure est
+                    // habillée. On le cache pour laisser voir la surface du
+                    // thème derrière, et l'encre suit le thème comme le reste.
+                    TextEditor(text: $text)
+                        .scrollContentBackground(.hidden)
+                        .foregroundStyle(theme.ink)
+                        .frame(minHeight: 140)
                 }
                 .ontRow()
             }
