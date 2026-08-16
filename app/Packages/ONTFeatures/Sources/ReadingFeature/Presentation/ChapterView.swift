@@ -1316,6 +1316,7 @@ private struct NoteEditor: View {
                 Section("\(chapter.title):\(verse)") {
                     TextEditor(text: $text).frame(minHeight: 140)
                 }
+                .ontRow()
             }
             .navigationTitle("Note")
             .navigationBarTitleDisplayMode(.inline)
@@ -1333,6 +1334,11 @@ private struct NoteEditor: View {
             .onAppear {
                 text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
             }
+            // Une feuille reste un écran, et suit donc le thème comme les
+            // autres. Sans ces deux lignes, écrire une note faisait surgir un
+            // formulaire gris système au milieu de la nuit aubergine.
+            .ontRow()
+            .ontScreen()
         }
         .presentationDetents([.medium])
     }
@@ -1408,6 +1414,7 @@ public struct ReadingSettingsSheet: View {
                             + "chaque verset se tient seul : c'est le mode d'étude."
                     )
                 }
+                .ontRow()
 
                 Section {
                     Toggle("Gloses", isOn: $model.preferences.showGloss)
@@ -1421,6 +1428,7 @@ public struct ReadingSettingsSheet: View {
                             + "le niveau 3 donne le mot original."
                     )
                 }
+                .ontRow()
 
                 Section {
                     LabeledContent("Taille") {
@@ -1437,6 +1445,7 @@ public struct ReadingSettingsSheet: View {
                             + "Réglages › Affichage agrandit aussi celui-ci."
                     )
                 }
+                .ontRow()
 
                 Section {
                     ForEach(ReadingFont.allCases, id: \.self) { font in
@@ -1450,6 +1459,7 @@ public struct ReadingSettingsSheet: View {
                             + "ce que vous voyez est ce que vous lirez."
                     )
                 }
+                .ontRow()
 
                 Section {
                     // En menu et non en segmenté. À trois thèmes, quatre
@@ -1467,6 +1477,7 @@ public struct ReadingSettingsSheet: View {
                 } footer: {
                     Text("Mystique est la peau du site ontbible.com — nuit aubergine et or.")
                 }
+                .ontRow()
 
                 Section {
                     Button("Réinitialiser les réglages", role: .destructive) {
@@ -1482,9 +1493,12 @@ public struct ReadingSettingsSheet: View {
                             + "état de départ. Le rappel du verset du jour n'est pas touché."
                     )
                 }
+                .ontRow()
         }
         // Une confirmation, parce que le geste est court et la perte réelle :
         // qui a réglé sa taille de texte pour y voir ne veut pas la retrouver
+        .ontRow()
+        .ontScreen()
         // au départ pour avoir effleuré une ligne rouge.
         .confirmationDialog(
             "Revenir aux réglages de départ ?",
