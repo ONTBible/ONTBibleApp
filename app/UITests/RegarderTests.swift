@@ -31,6 +31,20 @@ final class RegarderTests: XCTestCase {
                    withVelocity: .default, thenHoldForDuration: 0.05)
     }
 
+    func testRegarderUneSelection() {
+        app.open(URL(string: "ont://read/bereshit/bereshit-19?v=3")!)
+        Thread.sleep(forTimeInterval: 5)
+        retenir("10-selection-19-3")
+        // Descendre un peu : voir les voisins du verset désigné.
+        let page = app.windows.firstMatch
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+            .press(forDuration: 0.05,
+                   thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)),
+                   withVelocity: .default, thenHoldForDuration: 0.02)
+        Thread.sleep(forTimeInterval: 1.5)
+        retenir("11-selection-voisins")
+    }
+
     func testRegarderBereshit11() {
         app.open(URL(string: "ont://read/bereshit/bereshit-11")!)
         Thread.sleep(forTimeInterval: 3)

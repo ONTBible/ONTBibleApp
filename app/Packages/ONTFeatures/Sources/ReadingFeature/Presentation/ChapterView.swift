@@ -964,11 +964,15 @@ private struct FlowingVerses: View {
 
     /// Le plafond d'un tampon de rendu, en points.
     ///
-    /// 8192 px est la limite relevée sur le simulateur ; on ne peut pas
-    /// l'interroger, et une machine plus généreuse ne rend pas celle-ci fausse
-    /// — elle la rend seulement prudente. La marge de 5 % couvre l'écart entre
-    /// la hauteur de la vue et celle du tampon qu'elle demande.
-    private var plafondDuTampon: CGFloat { 8192 / echelleDeLEcran * 0.95 }
+    /// Demandé au GPU plutôt qu'écrit en dur. La première parade inscrivait
+    /// 8192 px, relevé sur le simulateur — vrai là, et faux sur un téléphone,
+    /// qui en accepte le double depuis l'A11. Le plafond prudent coûtait alors
+    /// l'estompage sur presque toutes les sections : une section de Bereshit 19
+    /// fait 13 695 px, sous ce que la machine sait faire et au-dessus de ce
+    /// qu'on lui accordait. Voir `ONTTampon`.
+    private var plafondDuTampon: CGFloat {
+        ONTTampon.plafondEnPoints(echelle: echelleDeLEcran)
+    }
 
     private var peutEstomper: Bool {
         !selection.isEmpty && hauteur > 0 && hauteur <= plafondDuTampon
