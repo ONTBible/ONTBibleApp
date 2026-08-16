@@ -115,27 +115,61 @@ public enum ONTColors {
 
     /// L'encre du **niveau 2** — la glose, la translittération, l'appareil.
     ///
-    /// Toutes les valeurs visent **6,5:1** sur le fond de leur thème, ce qui
-    /// est le niveau que le site tient pour sa glose. Un seul chiffre pour les
-    /// quatre : le niveau 2 doit s'effacer autant partout, sinon il concurrence
-    /// le corps sur un thème et disparaît sur un autre.
+    /// ## Ce qu'on calibre, et ce qu'on ne calibre plus
     ///
-    /// L'encre du corps rabattue à 62 %, qui servait avant, donnait :
+    /// Les quatre valeurs ont longtemps visé **6,5:1**, le niveau que le site
+    /// tient pour sa glose. Un seul chiffre pour les quatre, au motif que le
+    /// niveau 2 doit s'effacer autant partout.
     ///
-    ///     parchemin  4,38:1   sous le seuil AA de 4,5:1
-    ///     clair      4,90:1
-    ///     sombre     5,74:1
-    ///     mystique   4,91:1   sous le seuil
+    /// Le raisonnement était faux, et ça se voyait à l'usage bien avant de se
+    /// calculer : en parchemin, on ne distinguait pas où finissait la
+    /// traduction et où commençait le commentaire ; en mystique, si. Mesuré
+    /// sur la même page, les deux, à l'écran :
     ///
-    /// Deux thèmes sur quatre étaient donc en dessous du minimum, et personne
-    /// ne pouvait le voir : une opacité ne dit pas ce qu'elle produit. C'est le
-    /// test de contrastes qui l'a signalé, pas une relecture.
+    ///     parchemin   corps 15,4:1   glose 6,6:1   écart de clarté ΔL* 23,6
+    ///     mystique    corps 12,0:1   glose 6,9:1   écart de clarté ΔL* 18,2
+    ///
+    /// Le parchemin séparait donc **davantage** sur le papier, et se lisait
+    /// moins bien. La cause est physique, et le site la documente déjà pour
+    /// l'autre bord : la **halation**. Sur fond sombre, un texte clair rayonne
+    /// — le corps éclaire, et la glose recule d'elle-même. Sur fond clair, les
+    /// deux sont de l'encre posée, de même épaisseur apparente ; seule la
+    /// grisaille les distingue, et il en faut beaucoup plus.
+    ///
+    /// Un même rapport ne produit donc pas le même recul selon le fond. On
+    /// calibre désormais sur le **recul perçu**, ce qui donne deux régimes :
+    ///
+    ///     fonds clairs    ≈ 4,6:1   l'écart doit être franc
+    ///     fonds sombres   ≈ 6,5:1   la halation fait le reste
+    ///
+    /// ## Ce qu'on ne fait pas
+    ///
+    /// Descendre sous **4,5:1**. La glose est un niveau de lecture, pas une
+    /// décoration : on lit des pages qui n'en sont faites que d'elle. Le test
+    /// de contrastes tient ce plancher, et la marge est mince à dessein.
+    ///
+    /// Virer au gris. `main.css` du site l'écrit : « Jamais de blanc pur, et
+    /// jamais un gris » — l'encre garde la chaleur du papier. L'encre douce du
+    /// parchemin conserve donc exactement la chaleur de son corps, R−B = +13
+    /// dans les deux. Celle du thème clair est neutre parce que son corps
+    /// l'est déjà.
+    ///
+    /// ## L'état d'avant l'avant
+    ///
+    /// L'encre du corps rabattue à 62 % donnait 4,38:1 en parchemin et 4,91:1
+    /// en mystique — deux thèmes sous le minimum, que personne ne pouvait voir
+    /// parce qu'une opacité ne dit pas ce qu'elle produit. D'où les couleurs
+    /// écrites en clair ici : une valeur qu'on lit vaut mieux qu'un facteur
+    /// qu'il faut appliquer pour savoir où l'on est.
     public static func inkSoft(_ theme: ReadingTheme) -> Color {
         switch theme {
-        // `--color-encre-douce` du site — **#9D948B**.
+        // `--color-encre-douce` du site — **#9D948B**, 6,50:1.
         case .mystique: Color(red: 0.616, green: 0.580, blue: 0.545)
-        case .parchment: ink(theme).opacity(0.75)
-        case .light: ink(theme).opacity(0.71)
+        // **#756E68** — 4,62:1 sur le parchemin, ΔL* 33,4.
+        case .parchment: Color(red: 0.459, green: 0.431, blue: 0.408)
+        // **#757575** — 4,61:1 sur le blanc, ΔL* 40,0.
+        case .light: Color(red: 0.459, green: 0.459, blue: 0.459)
+        // Inchangé : sur fond sombre, la halation sépare déjà. ΔL* 24,1.
         case .dark: ink(theme).opacity(0.67)
         }
     }
