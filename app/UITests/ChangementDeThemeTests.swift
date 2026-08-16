@@ -43,6 +43,15 @@ final class ChangementDeThemeTests: XCTestCase {
         for _ in 0..<6 { app.swipeUp(); Thread.sleep(forTimeInterval: 0.7) }
         retenir("10-feuille-en-parchemin")
 
+        // Le menu ouvert : c'est là que se voyait le liseré collé à la
+        // première ligne, quelle que soit la valeur retenue.
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Thème'"))
+            .firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        retenir("09-menu-ouvert")
+        app.buttons["Parchemin"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+
         basculer(vers: "Mystique")
         retenir("11-feuille-apres-mystique")
         exigerUneEncreClaire("après être passé au mystique, feuille ouverte")
