@@ -46,10 +46,13 @@ final class EstompageTests: XCTestCase {
                 e.append(Int(octets[y * l + x]))
             }
         }
+        // L'écart au fond compte en valeur absolue : sur un thème sombre,
+        // l'encre est plus **claire** que la page, et une mesure signée y
+        // verrait une page blanche.
         let fond = e.sorted()[e.count / 2]
-        let encre = e.filter { $0 < fond - 25 }
+        let encre = e.filter { abs($0 - fond) > 25 }
         guard encre.count > 500 else { return -1 }
-        let franche = encre.filter { $0 < fond - 90 }
+        let franche = encre.filter { abs($0 - fond) > 90 }
         return Double(franche.count) / Double(encre.count)
     }
 

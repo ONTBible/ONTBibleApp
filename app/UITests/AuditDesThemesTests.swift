@@ -33,6 +33,28 @@ final class AuditDesThemesTests: XCTestCase {
         retenir(nom)
     }
 
+    /// Écrit dans le champ de recherche, où qu'il soit.
+    ///
+    /// `typeText` sur l'app entière échoue — « Neither element nor any
+    /// descendant has keyboard focus ». Il faut d'abord poser le doigt dans le
+    /// champ, comme une main le ferait.
+    private func saisir(_ texte: String, _ nom: String) {
+        let champ = app.searchFields.firstMatch
+        guard champ.waitForExistence(timeout: 5) else {
+            retenir("\(nom)-CHAMP-ABSENT")
+            return
+        }
+        champ.tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        // Vider ce qu'une saisie précédente a laissé.
+        if let valeur = champ.value as? String, !valeur.isEmpty {
+            champ.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: valeur.count))
+        }
+        champ.typeText(texte)
+        Thread.sleep(forTimeInterval: 3)
+        retenir(nom)
+    }
+
     private func toucher(_ libelle: String, _ nom: String, attente: TimeInterval = 2) {
         let b = app.buttons[libelle].firstMatch
         guard b.waitForExistence(timeout: 5) else {
@@ -42,6 +64,68 @@ final class AuditDesThemesTests: XCTestCase {
         b.tap()
         Thread.sleep(forTimeInterval: attente)
         retenir(nom)
+    }
+
+    /// Ce que le premier balayage ne voyait pas.
+    ///
+    /// Dix écrans, c'était les plus fréquentés. Les autres — celui qu'on ouvre
+    /// une fois par mois pour changer l'heure du rappel, celui qui s'excuse
+    /// quand un terme n'est pas documenté — sont précisément ceux où une
+    /// couleur oubliée survit le plus longtemps.
+    func testParcourirLesEcransRares() {
+        // Un parcours qui **continue** après une marche ratée.
+        //
+        // Il ne vérifie rien : il montre. S'arrêter au premier bouton
+        // introuvable ne priverait pas d'une assertion, ça priverait des dix
+        // captures suivantes — c'est-à-dire de tout l'intérêt.
+        continueAfterFailure = true
+
+        // La recherche, depuis la table.
+        toucher("Bible", "20-bible")
+        toucher("Rechercher", "21-recherche", attente: 3)
+        saisir("lumiere", "22-recherche-resultats")
+        saisir("zzzzqqqq", "23-recherche-sans-resultat")
+        toucher("Annuler", "24-recherche-fermee")
+
+        // Un livre, et sa liste de chapitres.
+        toucher("Torah", "25-section-torah")
+        let premier = app.buttons.element(boundBy: 3)
+        if premier.exists { premier.tap(); Thread.sleep(forTimeInterval: 2) }
+        retenir("26-livre")
+
+        // Le renvoi, depuis la lecture.
+        ouvrir("ont://read/bereshit/bereshit-3", "27-lecture")
+        let renvoi = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Aller à un autre passage'")
+        ).firstMatch
+        if renvoi.waitForExistence(timeout: 5) {
+            renvoi.tap(); Thread.sleep(forTimeInterval: 2); retenir("28-renvoi")
+            toucher("Fermer", "29-renvoi-ferme", attente: 1)
+        } else {
+            retenir("28-renvoi-ABSENT")
+        }
+
+        // Les réglages de lecture, et leur dialogue de remise à zéro.
+        ouvrir("ont://read/bereshit/bereshit-3", "30-lecture")
+        toucher("Lecture", "31-reglages", attente: 3)
+        app.swipeUp()
+        Thread.sleep(forTimeInterval: 1)
+        retenir("32-reglages-bas")
+        toucher("Réinitialiser les réglages", "33-remise-a-zero", attente: 2)
+        toucher("Annuler", "34-remise-annulee", attente: 1)
+        toucher("OK", "35-reglages-fermes", attente: 2)
+
+        // La note, depuis un verset désigné.
+        ouvrir("ont://read/bereshit/bereshit-3?v=2", "36-selection", attente: 4)
+        toucher("Noter", "37-note", attente: 3)
+        toucher("Annuler", "38-note-fermee", attente: 2)
+
+        // Le rappel quotidien.
+        toucher("Vous", "39-vous")
+        toucher("Verset du jour", "40-rappel", attente: 3)
+
+        // Un terme qui n'a pas d'entrée.
+        ouvrir("ont://term/terme-qui-nexiste-pas", "41-terme-inconnu", attente: 4)
     }
 
     func testParcourirTousLesEcrans() {
