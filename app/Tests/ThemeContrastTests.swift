@@ -71,6 +71,54 @@ struct ThemeContrastTests {
         #expect(mesure >= 4.5, "\(theme.label) : glose à \(arrondi(mesure)):1, seuil AA 4,5:1")
     }
 
+    /// Le niveau 2 doit **reculer** derrière le corps, et pas seulement rester
+    /// lisible.
+    ///
+    /// ## Pourquoi un second test, et pourquoi deux seuils
+    ///
+    /// Le plancher ci-dessus n'empêche rien : on peut le tenir tout en calant
+    /// les quatre thèmes sur un même rapport, ce qui est précisément l'erreur
+    /// qu'on a corrigée. Les quatre visaient 6,5:1, et en parchemin on ne
+    /// distinguait plus la traduction de son commentaire.
+    ///
+    /// Un même rapport ne produit pas le même recul selon le fond. Sur fond
+    /// sombre, un texte clair **rayonne** : le corps éclaire, la glose recule
+    /// d'elle-même. Sur fond clair, les deux sont de l'encre posée, et il faut
+    /// un écart de clarté bien plus grand pour obtenir le même effacement.
+    ///
+    /// D'où deux seuils, sur la clarté perçue (L* de la CIE) plutôt que sur le
+    /// rapport de contraste — c'est L* qui dit ce que l'œil range devant et
+    /// derrière.
+    @Test("le niveau 2 recule derrière le corps", arguments: ReadingTheme.allCases)
+    func softInkRecedesFromInk(_ theme: ReadingTheme) {
+        let fond = ONTColors.background(theme)
+        let ecart = abs(clarte(ONTColors.ink(theme), sur: fond)
+            - clarte(ONTColors.inkSoft(theme), sur: fond))
+        // Les fonds clairs n'ont pas la halation pour les aider.
+        let seuil: Double = theme.isDark ? 18 : 30
+        #expect(
+            ecart >= seuil,
+            "\(theme.label) : la glose ne recule que de ΔL* \(arrondi(ecart)), il en faut \(seuil)"
+        )
+    }
+
+    /// La clarté perçue d'une couleur, une fois posée sur son fond.
+    ///
+    /// L* de la CIE, sur l'échelle 0–100 : c'est la grandeur qui suit l'œil,
+    /// là où la luminance brute suit le photomètre. Deux couleurs de même
+    /// luminance peuvent se ranger l'une devant l'autre ; deux couleurs de L*
+    /// éloignés, non.
+    private func clarte(_ couleur: Color, sur fond: Color) -> Double {
+        let f = composantes(fond)
+        let c = composantes(couleur)
+        let y = luminance((
+            r: c.r * c.alpha + f.r * (1 - c.alpha),
+            g: c.g * c.alpha + f.g * (1 - c.alpha),
+            b: c.b * c.alpha + f.b * (1 - c.alpha)
+        ))
+        return y > 0.008856 ? 116 * pow(y, 1.0 / 3) - 16 : 903.3 * y
+    }
+
     // MARK: - Les couleurs de marque employées comme encre
 
     @Test("la marque employée comme encre se détache du fond", arguments: ReadingTheme.allCases)
