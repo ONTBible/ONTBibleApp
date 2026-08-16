@@ -172,11 +172,10 @@ public struct TermSheet: View {
             // « Où ce mot est dans le texte » et « où on l'explique » sont deux
             // questions différentes — la fiche doit pouvoir poser l'une sans
             // l'autre.
-            Picker("Occurrences", selection: $bodyOnly) {
-                Text("Dans le texte").tag(true)
-                Text("Tout").tag(false)
-            }
-            .pickerStyle(.segmented)
+            ONTSegments(
+                selection: $bodyOnly,
+                segments: [(true, "Dans le texte"), (false, "Tout")]
+            )
             .textCase(nil)
         }
         .ontRow()

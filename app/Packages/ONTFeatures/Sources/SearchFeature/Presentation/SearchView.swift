@@ -31,12 +31,10 @@ public struct SearchView: View {
                 Section {
                     // La portée de recherche est un choix qu'on révise en
                     // lisant les résultats : elle reste à l'écran.
-                    Picker("Portée", selection: $model.scope) {
-                        ForEach(SearchScope.allCases, id: \.self) { scope in
-                            Text(scope.rawValue).tag(scope)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    ONTSegments(
+                        selection: $model.scope,
+                        segments: SearchScope.allCases.map { ($0, $0.rawValue) }
+                    )
                     .listRowInsets(.init(top: 6, leading: 16, bottom: 6, trailing: 16))
                     .ontRow()
                 }

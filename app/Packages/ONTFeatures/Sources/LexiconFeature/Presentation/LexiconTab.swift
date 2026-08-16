@@ -39,12 +39,10 @@ public struct LexiconTab: View {
                     // En-tête de section plutôt que `safeAreaInset` : une
                     // `List` simple épingle ses en-têtes, et le grand titre
                     // de navigation reste visible — ce que l'insert écrasait.
-                    Picker("Portée", selection: $scope) {
-                        ForEach(LexiconModel.Scope.allCases, id: \.self) { scope in
-                            Text(scope.rawValue).tag(scope)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    ONTSegments(
+                        selection: $scope,
+                        segments: LexiconModel.Scope.allCases.map { ($0, $0.rawValue) }
+                    )
                     .padding(.vertical, 6)
                     .textCase(nil)
                     .listRowInsets(.init(top: 0, leading: 16, bottom: 0, trailing: 16))
