@@ -1675,9 +1675,24 @@ private struct ThemeRow: View {
 
     var body: some View {
         Menu {
-            Picker("Thème", selection: $selection) {
-                ForEach(ReadingTheme.allCases, id: \.self) { choix in
-                    Text(choix.label).tag(choix)
+            // Des boutons, et non un `Picker` niché dans le menu.
+            //
+            // Imbriquer les deux fait cohabiter deux mécanismes de choix : le
+            // menu marque alors sa **première** ligne d'un liseré gris, quelle
+            // que soit la valeur retenue. On voyait « Parchemin » surligné
+            // pendant que la coche était sur « Clair » — l'œil lit un choix,
+            // la coche en dit un autre.
+            //
+            // La coche est posée à la main, sur celui qui la mérite.
+            ForEach(ReadingTheme.allCases, id: \.self) { choix in
+                Button {
+                    selection = choix
+                } label: {
+                    if choix == selection {
+                        Label(choix.label, systemImage: "checkmark")
+                    } else {
+                        Text(choix.label)
+                    }
                 }
             }
         } label: {
