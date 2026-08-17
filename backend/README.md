@@ -9,10 +9,22 @@ facture *par personne*, tout le reste facture *par requête*, et à 50 000
 lecteurs ça faisait 600 $ contre 30 $.
 
 ```bash
-cargo test                                        # 21 tests, sans réseau ni AWS
+cargo test                                        # 25 tests, sans réseau ni AWS
 cargo run                                         # http://127.0.0.1:3000
 cargo lambda build --release --arm64 --output-format zip
 ```
+
+**Il est en ligne**, sur `api.ontbible.com` comme sur son adresse
+`execute-api` — un domaine régional d'API Gateway devant la même fonction. Le
+nom stable existe pour ne plus dépendre de l'identifiant `execute-api`, qu'AWS
+change si l'API est recréée ; l'app, elle, appelle encore l'adresse brute
+(`ONTAPIBaseURL` dans `app/project.yml`), et la bascule se fait au rythme des
+publications.
+
+`.github/workflows/deployer-backend.yml` remplace le **code** de la Lambda à
+chaque `main`. Il ne touche jamais à Terraform — `main.tf` porte d'ailleurs
+`ignore_changes` sur le code, sans quoi un `apply` lancé d'un poste remettrait
+en production le zip qui traîne dans le dossier local.
 
 ## Routes
 
@@ -30,43 +42,39 @@ jeton d'accès vit **1 heure** (il est irrévocable, donc court) ; celui de
 rafraîchissement vit **60 jours**, ne sert qu'**une seule fois**, et se
 révoque puisqu'il est en base.
 
-## Ce qu'il vous reste à créer
+## Les trois fournisseurs — **créés**, le 11 août 2026
 
-Je ne peux pas le faire à votre place : ce sont des comptes à votre nom.
+Apple, Google et GitHub sont configurés ; leurs identifiants vivent dans
+`terraform/oauth.env`, gitignoré. La marche à suivre complète, avec les
+adresses de retour exactes et les pièges de chaque portail, est dans
+**`../docs/comptes-oauth.md`**. Deux choses à ne pas réapprendre :
 
-### 1. Apple — le plus long des trois
+**Apple ne demande pas de Services ID.** Ce README a dit le contraire, et
+c'était faux : quand le code d'autorisation vient de l'**interface native**
+(Face ID, pas un navigateur), Apple l'accorde à l'app elle-même. Le `client_id`
+de l'échange doit donc être l'identifiant de l'app — `com.labibleont.ONT` — et
+un Services ID provoquerait un `invalid_grant`. Apple le dit lui-même. Il ne
+redeviendra nécessaire que le jour où une version web signera des comptes.
 
-Sur [developer.apple.com](https://developer.apple.com/account/resources) :
+Apple est en revanche le seul à ne pas donner de secret statique : le secret est
+un JWT ES256 fabriqué à chaque échange depuis le `.p8` — voir
+`providers.rs::apple_client_secret`. La clé `.p8` n'est **téléchargeable qu'une
+fois**, et Apple ne propose aucune API pour la recréer.
 
-1. **Identifiers → Services ID** — en créer un (ex. `com.labibleont.signin`).
-   Ce n'est **pas** l'identifiant de l'app. Activer « Sign in with Apple ».
-2. Dans sa configuration, déclarer l'URL de retour :
-   `https://<api-id>.execute-api.eu-west-3.amazonaws.com/auth/apple/callback`
-   (HTTPS obligatoire, donc à renseigner **après** le premier `terraform apply`).
-3. **Keys** → nouvelle clé, activer « Sign in with Apple », télécharger le
-   `.p8`. **Il n'est téléchargeable qu'une fois.** Noter le *Key ID*.
-4. Noter le *Team ID* (en haut à droite du portail).
-
-Apple est le seul à ne pas donner de secret statique : le secret est un JWT
-ES256 qu'on fabrique à chaque échange à partir du `.p8` — c'est fait dans
-`providers.rs::apple_client_secret`.
-
-### 2. Google
-
-[console.cloud.google.com](https://console.cloud.google.com/apis/credentials) →
-identifiants OAuth 2.0, type « Web application ». Même URL de retour. Récupérer
-`client_id` et `client_secret`.
-
-### 3. GitHub
-
-[github.com/settings/developers](https://github.com/settings/developers) → OAuth
-App. Même URL de retour. Récupérer `client_id` et `client_secret`.
+**Google en client « Application Web », jamais « iOS ».** Un client iOS chez
+Google est un client *public* : il n'a pas de secret, et toute l'architecture
+repose sur un secret gardé côté serveur. L'identifiant client, lui, n'est pas
+un secret — il voyage dans l'URL d'autorisation, et il est posé dans
+`app/project.yml`. Le *secret* ne va que dans la Lambda.
 
 ## Déploiement
 
+L'infrastructure existe. Ce qui suit est la recette complète — pour la relire,
+pour la rejouer ailleurs, ou pour comprendre ce qu'un `apply` va faire.
+
 ```bash
 export TF_VAR_jwt_secret="$(openssl rand -base64 48)"   # à garder — le perdre déconnecte tout le monde
-export TF_VAR_apple_client_id="com.labibleont.signin"
+export TF_VAR_apple_client_id="com.labibleont.ONT"      # l'App ID, pas un Services ID
 export TF_VAR_apple_team_id="XXXXXXXXXX"
 export TF_VAR_apple_key_id="YYYYYYYYYY"
 export TF_VAR_apple_private_key="$(cat AuthKey_YYYYYYYYYY.p8)"
@@ -87,9 +95,14 @@ Un premier `apply` peut se faire **sans aucun identifiant OAuth** : l'API
 répond, `/health` fonctionne, et vous obtenez l'URL nécessaire pour configurer
 les trois fournisseurs. Deuxième `apply` ensuite, avec les secrets.
 
-Le compte IAM utilisé (`pinkha-app`) aura besoin des droits de création sur
-DynamoDB, Lambda, IAM, API Gateway et CloudWatch Logs — à vérifier au premier
-`plan`.
+Le compte IAM utilisé (`ont-app`, profil local `[ont]`) a besoin des droits de
+création sur DynamoDB, Lambda, IAM, API Gateway et CloudWatch Logs — c'est la
+politique `ont-deploy`, la même qui sert au site, **étendue** plutôt que
+doublée.
+
+**L'état Terraform vit en local**, et il n'y a pas de dépôt distant. C'est ce
+qui interdit à la CI d'exécuter Terraform : un job qui le ferait travaillerait
+sans savoir ce qui existe déjà.
 
 ## Décisions à ne pas défaire sans le savoir
 
@@ -116,8 +129,31 @@ JWKS, et un autorisateur Lambda ajouterait une invocation facturée par requête
 une version de l'app transforme une facture de 3 $ en facture à trois chiffres
 pendant la nuit.
 
-## Ce qui reste à faire
+## Le côté app
 
-- Le client Swift (`AuthClient` + `SyncClient`) et l'écran de connexion.
-- La bascule du `Store` local vers la synchronisation, derrière le consentement.
-- Le premier `terraform apply`, quand vous aurez les identifiants.
+Fait, et les trois pièces sont là :
+
+| | |
+|---|---|
+| `ONTData/Remote/Services.swift` | les clients HTTP — auth et synchronisation |
+| `ONTData/Remote/KeychainSessionStore.swift` | la session, dans le trousseau |
+| `YouFeature/…/SignInFlow.swift` + `AccountModel.swift` | la connexion, le consentement, la fusion |
+
+Les DTO du transport sont **distincts** des types du domaine, délibérément : le
+backend compte le temps en millisecondes et porte une pierre tombale `deleted`
+que le stockage local n'a pas. Les mélanger ferait remonter des contraintes de
+transport jusque dans le domaine.
+
+Et le **consentement est distinct du fait d'avoir un compte** : on peut être
+connecté sans que rien ne parte. `AccountModel.sync()` refuse tant que les deux
+ne sont pas vrais.
+
+## Ce qui reste ouvert
+
+- **La bascule de l'app vers `api.ontbible.com`.** `ONTAPIBaseURL` pointe encore
+  l'adresse `execute-api` ; les deux répondent, et le changement se fait avec
+  une publication.
+- **Le `.p8` d'Apple n'existe qu'en un exemplaire.** Le perdre demande d'en
+  créer un autre et de redéployer ; perdre `TF_VAR_jwt_secret` déconnecte tout
+  le monde d'un coup. Les deux méritent leur place dans un gestionnaire de mots
+  de passe, pas seulement sur ce disque.
