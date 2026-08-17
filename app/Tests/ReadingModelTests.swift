@@ -319,16 +319,42 @@ struct ReadingModelTests {
     @Test("le mode continu est un réglage persistant")
     func continuousPersists() {
         let (model, _, preferences) = makeModel()
-        #expect(!model.preferences.continuous, "le mode d'étude reste le défaut")
-        model.preferences.continuous = true
-        #expect(preferences.preferences.continuous)
+        // On ouvre une Bible pour la lire : la prose suivie est le défaut, et
+        // le bloc par verset est le mode qu'on va chercher pour étudier.
+        #expect(model.preferences.continuous, "la lecture suivie est le défaut")
+        model.preferences.continuous = false
+        #expect(!preferences.preferences.continuous)
     }
 
     @Test("un réglage d'avant le mode continu se relit")
     func decodesBeforeContinuous() throws {
         let ancien = Data(#"{"showGloss":true,"showLevel3":true,"textSize":19,"lineSpacing":0.5,"theme":"parchment","bodyFont":"literata"}"#.utf8)
         let lu = try JSONDecoder().decode(ReadingPreferences.self, from: ancien)
-        #expect(lu.continuous == false)
+        // Clé absente : on retombe sur le défaut **du jour**, pas sur celui qui
+        // avait cours quand ce réglage a été écrit. Un lecteur revenu d'une
+        // vieille version reçoit donc la lecture suivie, comme un nouveau.
+        #expect(lu.continuous, "une clé absente prend le défaut courant")
+    }
+
+    @Test("la remise à zéro épargne le rappel quotidien")
+    func resetKeepsDailySchedule() {
+        var reglages = ReadingPreferences.default
+        reglages.daily = DailyVerseSchedule(enabled: true, hour: 6, minute: 30)
+        reglages.textSize = 27
+        reglages.theme = .mystique
+        reglages.continuous = false
+
+        let remis = reglages.resettingDisplay()
+
+        #expect(remis.textSize == ReadingPreferences.default.textSize)
+        #expect(remis.theme == ReadingPreferences.default.theme)
+        #expect(remis.continuous == ReadingPreferences.default.continuous)
+        // Le rappel a demandé une autorisation système et vit sur son propre
+        // écran : le remettre au départ reprogrammerait des notifications que
+        // personne n'a demandé de toucher.
+        #expect(remis.daily == reglages.daily, "le rappel quotidien traverse la remise à zéro")
+        #expect(!reglages.isDisplayDefault)
+        #expect(remis.isDisplayDefault)
     }
 
     // MARK: - Réglages

@@ -9,7 +9,7 @@ import PackageDescription
 // même principe que le domaine du backend Rust.
 let package = Package(
     name: "ONTKit",
-    platforms: [.iOS("26.0"), .macOS("14.0")],
+    platforms: [.iOS("18.0"), .macOS("14.0")],
     products: [.library(name: "ONTKit", targets: ["ONTKit"])],
     targets: [
         .target(name: "ONTKit"),

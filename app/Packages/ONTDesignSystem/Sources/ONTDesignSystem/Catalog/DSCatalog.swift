@@ -59,7 +59,7 @@ struct CatalogScreen: View {
 // MARK: - Couleurs
 
 struct CatalogColors: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    var spacing = ONTSpacing()
 
     var body: some View {
         List {
@@ -132,7 +132,7 @@ struct CatalogTypography: View {
 // MARK: - Métriques
 
 struct CatalogMetrics: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    var spacing = ONTSpacing()
 
     var body: some View {
         List {
@@ -168,7 +168,7 @@ struct CatalogMetrics: View {
 // MARK: - Surfaces
 
 struct CatalogSurfaces: View {
-    private var spacing: ONTSpacing { ONTSpacing() }
+    var spacing = ONTSpacing()
 
     var body: some View {
         ScrollView {

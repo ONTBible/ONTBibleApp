@@ -28,18 +28,32 @@ public struct ONTDailyCard<Footer: View>: View {
         case small, medium, large
 
         var caption: CGFloat { self == .small ? 10 : (self == .medium ? 11 : 13) }
-        var body: CGFloat { self == .small ? 14 : (self == .medium ? 16 : 21) }
+        /// Mesuré au pixel sur deux captures du même appareil, carte contre
+        /// carte, en comparant les hauteurs d'x — la seule mesure que deux
+        /// fontes différentes rendent comparable : celle de YouVersion vaut
+        /// 0,79 fois la nôtre. Le verset était donc un cinquième trop gros.
+        ///
+        /// Attention en retouchant : ces valeurs ne sont pas ce qui s'affiche.
+        /// `Font.custom(_:size:)` suit le Dynamic Type, `.system(size:)` non —
+        /// le verset grossit avec le réglage de l'appareil, l'intitulé et le
+        /// renvoi restent où ils sont. Sur un appareil réglé un cran au-dessus,
+        /// 21 rendait à 23 et écrasait un renvoi resté à 15.
+        var body: CGFloat { self == .small ? 11 : (self == .medium ? 13 : 17) }
         var reference: CGFloat { self == .small ? 11 : (self == .medium ? 13 : 15) }
         /// L'interligne **ajouté** — et c'est là qu'est le piège :
         /// `.lineSpacing` ne fixe pas la hauteur de ligne, il s'ajoute à
-        /// l'interligne naturel de la fonte, qui vaut déjà environ 1,35 fois
-        /// le corps pour Literata.
+        /// l'interligne naturel de la fonte.
         ///
-        /// Une valeur proportionnelle au corps — 30 % — portait le pas à 1,6
-        /// fois le corps : un texte qui flotte. Mesuré sur le widget de
-        /// YouVersion, le pas est à 1,37. On n'ajoute donc que deux points,
-        /// juste de quoi aérer sans délier.
-        var leading: CGFloat { self == .small ? 1 : 2 }
+        /// Cet interligne naturel a longtemps été estimé à 1,35 fois le corps,
+        /// et deux points ajoutés semblaient donc anodins. La table `hhea` de
+        /// Literata dit autre chose : 1177 + 308 sur 1000 unités par cadratin,
+        /// soit **1,485**. Les deux points portaient le pas réel à 1,58 quand
+        /// celui de YouVersion, mesuré, est à 1,29.
+        ///
+        /// On ne peut pas descendre sous 1,485 — `.lineSpacing` ne sait
+        /// qu'ajouter, jamais retrancher. On n'ajoute donc plus rien : c'est
+        /// tout ce que la fonte laisse faire, et le corps réduit fait le reste.
+        var leading: CGFloat { 0 }
         var gap: CGFloat { self == .small ? 8 : (self == .medium ? 12 : 18) }
         var padding: CGFloat { self == .small ? 4 : 6 }
         /// La montagne est plus haute que le texte de l'intitulé, et il le
@@ -48,6 +62,25 @@ public struct ONTDailyCard<Footer: View>: View {
         /// bouillie, 14 pt est limite, 18 pt tient.
         var mark: CGFloat { self == .small ? 16 : (self == .medium ? 18 : 21) }
     }
+
+    /// Le facteur du curseur « Taille du texte » des réglages.
+    ///
+    /// Il existe parce que les deux façons d'écrire une taille dans SwiftUI ne
+    /// se valent pas : `Font.custom(_:size:)` suit ce curseur d'office,
+    /// `.system(size:)` reste figé. Le verset est en `custom`, l'intitulé et le
+    /// renvoi en `system` — donc monter le curseur grossissait le verset seul
+    /// et laissait les deux étiquettes sur place. Mesuré : à un cran au-dessus,
+    /// le verset gagnait 11 % et le renvoi rien du tout.
+    ///
+    /// Ce n'est pas un défaut d'équilibre, c'est un défaut d'accès. Qui monte
+    /// ce curseur le monte pour lire ; lui laisser un renvoi qu'il ne peut pas
+    /// lire vide le réglage de son sens. `relativeTo: .body` donne exactement
+    /// le facteur que `Font.custom` applique déjà au verset, donc les trois
+    /// textes bougent ensemble.
+    ///
+    /// Les écarts, eux, ne suivent pas : les faire grandir aussi pousserait un
+    /// verset long hors du widget, qui ne peut pas défiler.
+    @ScaledMetric(relativeTo: .body) private var echelle: CGFloat = 1
 
     private let text: AttributedString
     private let reference: String
@@ -69,14 +102,16 @@ public struct ONTDailyCard<Footer: View>: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: size.gap) {
             HStack(spacing: 7) {
-                ONTMountain(height: size.mark)
+                // La montagne suit l'intitulé qu'elle accompagne : figée, elle
+                // écraserait des capitales devenues plus hautes qu'elle.
+                ONTMountain(height: size.mark * echelle)
                 // En capitales, avec l'interlettrage qui va avec : sans lui,
                 // des capitales se collent et se lisent moins bien qu'un
                 // bas-de-casse. Essayé sans, puis avec un seul « J » — les
                 // capitales tiennent mieux la ligne à côté de la montagne, qui
                 // est un dessin et non un caractère.
                 Text("Verset du jour")
-                    .font(.system(size: size.caption, weight: .semibold))
+                    .font(.system(size: size.caption * echelle, weight: .semibold))
                     .textCase(.uppercase)
                     .kerning(0.8)
                     .lineLimit(1)
@@ -92,7 +127,7 @@ public struct ONTDailyCard<Footer: View>: View {
             // Le renvoi est **gras**, pas italique : c'est une étiquette qu'on
             // repère, pas une citation dans une citation.
             Text(reference)
-                .font(.system(size: size.reference, weight: .semibold))
+                .font(.system(size: size.reference * echelle, weight: .semibold))
                 .foregroundStyle(ONTColors.gold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -100,7 +135,17 @@ public struct ONTDailyCard<Footer: View>: View {
             footer
         }
         .padding(size.padding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Centré verticalement, et non calé en haut. Un verset court laisse
+        // toujours du vide dans un grand widget — la question est seulement de
+        // savoir où il tombe. Collé en bas, il fait un trou : mesuré sur
+        // l'écran d'accueil, 51 px de marge en haut contre 208 en bas, et la
+        // carte penchait. YouVersion répartit : 177 contre 185.
+        //
+        // Le `.leading` conserve l'alignement à gauche du texte — c'est bien
+        // le seul axe vertical qui change. Dans le Qahal, où la carte se
+        // dimensionne sur son contenu, il n'y a pas de vide à répartir et cette
+        // ligne ne fait rien.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
@@ -123,6 +168,12 @@ public struct ONTDailyCard<Footer: View>: View {
 /// dans les deux rendus, donc toujours lisible — et il n'y a plus qu'une
 /// seule écriture à tenir.
 public struct ONTDailySharePill: View {
+    /// La pastille reçoit sa taille en points depuis la carte, donc elle ne
+    /// verrait pas le curseur des réglages sans le demander elle-même. Elle
+    /// porte le mot que l'on touche : le laisser figé pendant que le reste
+    /// grandit ferait rétrécir la seule chose qui doit rester atteignable.
+    @ScaledMetric(relativeTo: .body) private var echelle: CGFloat = 1
+
     private let destination: URL
     private let size: CGFloat
 
@@ -134,7 +185,7 @@ public struct ONTDailySharePill: View {
     public var body: some View {
         Link(destination: destination) {
             Text("Partager")
-                .font(.system(size: size, weight: .semibold))
+                .font(.system(size: size * echelle, weight: .semibold))
                 .foregroundStyle(ONTColors.gold)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)

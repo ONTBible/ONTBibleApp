@@ -1,8 +1,21 @@
 name: ONT
 options:
   bundleIdPrefix: com.labibleont
+  # ## L'app parle français, iOS aussi
+  #
+  # Sans cette ligne, la région de développement reste l'anglais, et l'app est
+  # « non localisée » aux yeux du système. Tous ses propres textes sont écrits
+  # en français en dur, donc rien ne le révélait — sauf les textes que le
+  # système fournit lui-même. Une recherche sans résultat répondait :
+  #
+  #     No Results for "zzzzqqqq"
+  #     Check the spelling or try a new search.
+  #
+  # au milieu d'une Bible française. On ne l'a vu qu'en balayant les écrans
+  # qu'on n'ouvre presque jamais.
+  developmentLanguage: fr
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "18.0"
   createIntermediateGroups: true
   # L'icône est un bundle Icon Composer (`app/ONT.icon`), pas un
   # `.appiconset`. xcodegen ne sait ni écrire le type `wrapper.icon` ni poser
@@ -246,7 +259,35 @@ targets:
         # ce drapeau, la signature du bundle de tests échoue faute de plist.
         GENERATE_INFOPLIST_FILE: YES
 
+  ONTUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ONT
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
+  # Le schéma des tests d'interface est **séparé**, et volontairement hors CI.
+  #
+  # Ils lancent l'app, font des gestes et attendent : quelques minutes chacun,
+  # et une fragilité qui n'a rien à voir avec le code qu'on relit. Les mêler
+  # aux tests unitaires ferait payer ce prix à chaque relecture de PR.
+  #
+  #   xcodebuild test -scheme ONTUITests -destination 'id=<simulateur>'
+  ONTUITests:
+    build:
+      targets:
+        ONT: all
+        ONTUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ONTUITests
+
   ONT:
     build:
       targets:

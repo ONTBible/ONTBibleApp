@@ -117,12 +117,35 @@ public enum ReadingTheme: String, CaseIterable, Codable, Sendable {
     case parchment
     case light
     case dark
+    /// La nuit aubergine du site — voir `ONTColors` pour la palette.
+    ///
+    /// Le site n'avait pas de nom pour sa peau, il l'avait seulement. Lui en
+    /// donner un la fait passer d'un habillage à un **thème**, c'est-à-dire à
+    /// quelque chose qu'on peut porter ailleurs — ici, dans la liseuse. Le nom
+    /// est repris tel quel dans le dépôt de la webapp, pour qu'il n'y ait pas
+    /// deux mots pour une seule chose.
+    case mystique
 
     public var label: String {
         switch self {
         case .parchment: "Parchemin"
         case .light: "Clair"
         case .dark: "Sombre"
+        case .mystique: "Mystique"
+        }
+    }
+
+    /// Vrai quand la page est sombre et l'encre claire.
+    ///
+    /// Existe pour qu'on cesse d'écrire `theme == .dark`. Cette comparaison
+    /// était juste tant qu'il n'y avait qu'un seul thème sombre ; à l'arrivée
+    /// du deuxième, chaque occurrence devenait un bogue silencieux — l'or
+    /// assombri sur une nuit, un jeu de couleurs système clair sous un fond
+    /// noir. Le compilateur ne dit rien d'une égalité qui reste valide.
+    public var isDark: Bool {
+        switch self {
+        case .parchment, .light: false
+        case .dark, .mystique: true
         }
     }
 }
@@ -214,7 +237,12 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         lineSpacing: Double = 0.5,
         theme: ReadingTheme = .parchment,
         bodyFont: ReadingFont = .literata,
-        continuous: Bool = false,
+        // À la suite par défaut : on ouvre une Bible pour la lire, et la
+        // découpe en versets est un appareil de travail, pas le texte. Qui
+        // vient étudier trouvera le mode blocs dans les réglages ; l'inverse
+        // demandait de savoir qu'un texte haché en trois n'était pas une
+        // fatalité.
+        continuous: Bool = true,
         daily: DailyVerseSchedule = .default
     ) {
         self.showGloss = showGloss
@@ -244,4 +272,26 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     }
 
     public static let `default` = ReadingPreferences()
+
+    /// Les réglages d'affichage remis au départ — le rappel quotidien intact.
+    ///
+    /// `daily` traverse, et c'est tout l'intérêt de ne pas écrire
+    /// `preferences = .default` dans la vue. Le rappel n'est pas un réglage
+    /// d'affichage : il vit sur son propre écran, il a demandé une autorisation
+    /// système, et le remettre au départ reprogrammerait silencieusement des
+    /// notifications que personne n'a demandé de toucher. Il n'est ici que
+    /// parce qu'il n'y a qu'un seul port de préférences.
+    ///
+    /// Reconstruit par l'init mémberwise plutôt que champ par champ : un
+    /// réglage d'affichage ajouté demain revient au départ sans qu'on y pense,
+    /// alors qu'une liste à recopier s'oublie exactement une fois.
+    public func resettingDisplay() -> ReadingPreferences {
+        ReadingPreferences(daily: daily)
+    }
+
+    /// Vrai quand aucun réglage d'affichage ne s'écarte du départ.
+    ///
+    /// Sert à éteindre le bouton de remise à zéro : proposer d'annuler ce qu'on
+    /// n'a pas changé fait douter d'avoir changé quelque chose.
+    public var isDisplayDefault: Bool { self == resettingDisplay() }
 }

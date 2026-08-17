@@ -60,7 +60,7 @@ public struct QahalTab: View {
                     }
                 } icon: {
                     Image(systemName: icon)
-                        .foregroundStyle(ONTColors.goldDeep)
+                        .foregroundStyle(ONTColors.accent(theme.mode))
                 }
             }
             .foregroundStyle(.secondary)
@@ -88,6 +88,9 @@ public struct QahalTab: View {
 /// arbre d'inline, avec les intraduisibles en or.
 private struct VerseOfTheDayCard: View {
     @Environment(\.ontTheme) private var theme
+    /// La jumelle de la pastille du widget, qui suit le curseur des réglages :
+    /// figée, celle-ci se serait mise à rétrécir à côté de son propre verset.
+    var echelle = ONTScaled()
 
     let chapter: Chapter
     let verse: Verse
@@ -106,7 +109,7 @@ private struct VerseOfTheDayCard: View {
                     // les deux cartes restent jumelles : un voile d'or, un
                     // texte d'or plein.
                     Text("Partager")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: echelle(14), weight: .semibold))
                         .foregroundStyle(ONTColors.gold)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)

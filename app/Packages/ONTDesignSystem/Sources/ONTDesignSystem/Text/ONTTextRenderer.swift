@@ -34,6 +34,10 @@ public enum ONTTextRenderer {
             showLevel3: theme.preferences.showLevel3
         )
         append(prepared, to: &output, type: theme.type, inGloss: false)
+        // Posé ici plutôt que par un `.kerning()` sur la vue : la prose
+        // continue et le mode blocs passent tous deux par cette fonction, et
+        // un modificateur de vue aurait demandé de ne pas l'oublier deux fois.
+        if theme.tracking != 0 { output.kern = theme.tracking }
         return output
     }
 
@@ -69,52 +73,113 @@ public enum ONTTextRenderer {
 
     /// Compose un bloc de versets **à la suite**, en prose continue.
     ///
-    /// ## Pourquoi ce n'est pas seulement une mise en page
+    /// ## Pourquoi un `Text` et non une `AttributedString`
     ///
-    /// En bloc par verset, chaque verset est une vue : on la touche, on lui
-    /// pose un fond de surlignage, on l'anime. En prose continue il n'y a plus
-    /// qu'un seul `Text` — tout ce qui reposait sur « une vue par verset »
-    /// disparaît d'un coup.
+    /// Chaque verset devient un `Text` marqué de son numéro
+    /// (`ONTVerseAttribute`), et les marques ne survivent qu'à cette forme —
+    /// une `AttributedString` ne sait pas les porter jusqu'au moteur de dessin.
     ///
-    /// D'où deux reports dans le texte lui-même :
+    /// ## Ce qui n'est plus ici
     ///
-    /// * **le surlignage** devient un `backgroundColor` sur la plage du verset,
-    ///   au lieu d'un rectangle dessiné derrière une ligne ;
-    /// * **la désignation** devient un lien `ont://verse/<n>` sur cette même
-    ///   plage. Les intraduisibles gardent le leur : le lien le plus intérieur
+    /// Ni estompage, ni soulignement. Le résultat ne dépend **pas** de la
+    /// sélection, et c'est tout l'intérêt : il reste identique d'un appui à
+    /// l'autre, donc la mise en page a lieu une fois pour le bloc.
+    /// `ONTProseRenderer` fait le reste au dessin, où changer d'avis ne coûte
+    /// qu'un repeint.
+    ///
+    /// Ce qui reste, en revanche, dépend du texte lui-même et n'a aucune raison
+    /// de bouger quand un doigt se pose :
+    ///
+    /// * **le surlignage**, un fond posé sur la plage du verset ;
+    /// * **la désignation**, un lien `ont://verse/<n>` sur cette même plage.
+    ///   Les intraduisibles gardent le leur : le lien le plus intérieur
     ///   l'emporte, donc toucher un terme ouvre sa fiche et toucher ailleurs
     ///   désigne le verset.
-    ///
-    /// C'est aussi pour ça que le pointillé de sélection reste juste : un
-    /// soulignement suit les retours à la ligne, un cadre non.
-    public static func composeFlowing(
+    public static func flowingText(
         verses: [Verse],
         theme: ONTTheme,
-        selected: Set<Int>,
         highlight: (Int) -> Color?
-    ) -> AttributedString {
+    ) -> Text {
         let type = theme.type
-        var output = AttributedString()
+        var sortie = Text("")
 
         for verse in verses {
-            var morceau = compose(verse: verse, theme: theme, underlined: selected.contains(verse.n))
+            // Le numéro **à part**, et c'est ce qui permet de l'épargner.
+            //
+            // Il est en exposant ; le pointillé de désignation, tracé sous la
+            // ligne, ne le rejoint donc jamais et fait un décroché à chaque
+            // début de verset. Le mode blocs l'évitait depuis toujours en ne
+            // soulignant que le corps — la prose, elle, soulignait tout.
+            //
+            // Comme une marque ne se pose que sur un `Text` entier, il faut
+            // que le numéro en soit un. `ONTProseRenderer` saute alors les
+            // fragments qui la portent.
+            var numero = AttributedString("\(verse.n)\u{00A0}")
+            numero.font = type.verseNumber.font
+            numero.foregroundColor = type.verseNumber.color
+            numero.baselineOffset = type.verseBaselineOffset
 
-            if let fond = highlight(verse.n) {
-                morceau.backgroundColor = fond
-            }
-            // Le lien de désignation ne se pose que là où il n'y en a pas déjà :
-            // un intraduisible garde le sien.
-            if let cible = verseURL(verse.n) {
-                for piece in morceau.runs where piece.attributes.link == nil {
-                    morceau[piece.range].link = cible
-                }
-            }
-            output += morceau
             // Une espace pleine entre deux versets, jamais un retour à la
             // ligne : c'est toute la différence entre les deux modes.
-            output += run(" ", type.corpus)
+            var corps = compose(verse.nodes, theme: theme)
+            corps += run(" ", type.corpus)
+
+            if let fond = highlight(verse.n) {
+                numero.backgroundColor = fond
+                corps.backgroundColor = fond
+            }
+            if let cible = verseURL(verse.n) {
+                poserLeLien(cible, sur: &numero)
+                poserLeLien(cible, sur: &corps)
+            }
+
+            sortie = sortie
+                + Text(numero)
+                    .customAttribute(ONTVerseAttribute(n: verse.n))
+                    .customAttribute(ONTNumeroDeVerset())
+                + Text(corps).customAttribute(ONTVerseAttribute(n: verse.n))
         }
-        return output
+        return sortie
+    }
+
+    /// Pose un lien partout où il n'y en a pas déjà.
+    ///
+    /// Les plages sont relevées **avant** d'écrire. Poser un lien fusionne des
+    /// runs voisins, donc parcourir `runs` en modifiant la chaîne qu'on
+    /// parcourt travaille sur des plages que l'écriture précédente a déjà
+    /// invalidées — une faute qui ne se voit que sur certains versets, ceux
+    /// dont le balisage produit assez de runs pour que la fusion décale tout.
+    private static func poserLeLien(_ cible: URL, sur chaine: inout AttributedString) {
+        let plages = chaine.runs.filter { $0.attributes.link == nil }.map(\.range)
+        for plage in plages {
+            chaine[plage].link = cible
+        }
+    }
+
+    /// Ce qu'un lecteur d'écran doit prononcer pour une suite de versets.
+    ///
+    /// ## Pourquoi ça ne va pas de soi
+    ///
+    /// En lecture suivie, une section entière est un seul `Text` dont chaque
+    /// fragment porte un lien — le renvoi qui rend le verset touchable. SwiftUI
+    /// expose donc un **élément par fragment** : quatre-vingt-quinze pour un
+    /// chapitre, relevés sur Bereshit 11, annoncés « lien » et coupés au milieu
+    /// des phrases. « unifiés (devarim ahadim / … ) [ » est un énoncé complet
+    /// pour VoiceOver, et ne veut rien dire pour personne.
+    ///
+    /// Le texte n'était donc pas muet, il était haché. On rend ici une phrase
+    /// continue, où les numéros de verset sont **dits** plutôt que laissés en
+    /// exposant que rien ne prononce.
+    ///
+    /// On compose avec le thème du lecteur, gloses et hébreu compris s'ils sont
+    /// allumés : ce qui se lit à l'oreille doit être ce qui s'affiche à l'œil,
+    /// sinon éteindre une glose ne l'éteindrait que pour les voyants.
+    public static func aLireAVoixHaute(verses: [Verse], theme: ONTTheme) -> String {
+        verses
+            // Les **nœuds**, et non `compose(verse:)` : celui-là préfixe déjà
+            // le numéro en exposant, et on l'entendrait deux fois.
+            .map { "Verset \($0.n). " + String(compose($0.nodes, theme: theme).characters) }
+            .joined(separator: " ")
     }
 
     /// Compose le corps seul — ce qu'on partage ou ce qu'on met en exergue.

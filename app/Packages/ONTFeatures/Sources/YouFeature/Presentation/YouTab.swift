@@ -39,6 +39,7 @@ public struct YouTab: View {
                         Label("Verset du jour", systemImage: "sun.horizon")
                     }
                 }
+                .ontRow()
 
                 Section {
                     LabeledContent("Slots rédigés") {
@@ -59,6 +60,7 @@ public struct YouTab: View {
                             + "à mesure que les unités sont verrouillées."
                     )
                 }
+                .ontRow()
 
                 #if DEBUG
                 Section {
@@ -75,6 +77,7 @@ public struct YouTab: View {
                             + "ligne de catalogue est un composant qu'on oubliera."
                     )
                 }
+                .ontRow()
                 #endif
 
                 Section("Crédits") {
@@ -88,7 +91,9 @@ public struct YouTab: View {
                     LabeledContent("Hébreu", value: "Ezra SIL — SIL Open Font License")
                     LabeledContent("Titres", value: "Frank Ruhl Libre — OFL")
                 }
+                .ontRow()
             }
+            .ontRow()
             .ontScreen()
             .navigationTitle("Vous")
         }
@@ -104,7 +109,8 @@ public struct YouTab: View {
 /// c'est une règle de la revue App Store.
 private struct AccountSection: View {
     @Environment(AccountModel.self) private var account
-    private var spacing: ONTSpacing { ONTSpacing() }
+    @Environment(\.ontTheme) private var theme
+    var spacing = ONTSpacing()
 
     @State private var confirmingErasure = false
 
@@ -119,12 +125,26 @@ private struct AccountSection: View {
                         Button {
                             Task { await account.signIn(with: provider) }
                         } label: {
+                            // La capsule est dessinée ici plutôt que laissée à
+                            // `.borderedProminent`. Ce style ne colore que le
+                            // **titre** du label ; l'icône, elle, garde la
+                            // teinte d'accent du formulaire — qui était le
+                            // bordeaux de la capsule. L'icône était donc peinte
+                            // de la couleur de son propre fond.
+                            //
+                            // En la posant à la main, le fond et ce qui se pose
+                            // dessus viennent de la même paire de rôles et ne
+                            // peuvent plus se confondre.
                             Label("Continuer avec \(provider.label)", systemImage: icon(provider))
+                                .foregroundStyle(ONTColors.onBrand(theme.mode))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, spacing.s)
+                                .padding(.vertical, spacing.m)
+                                .background(
+                                    Capsule().fill(ONTColors.brandInk(theme.mode))
+                                )
+                                .contentShape(.capsule)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(ONTColors.burgundy)
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, spacing.xs)
@@ -141,6 +161,7 @@ private struct AccountSection: View {
                     )
                 }
             }
+            .ontRow()
 
         case .working:
             Section("Compte") {
@@ -149,6 +170,7 @@ private struct AccountSection: View {
                     Text("Connexion…").foregroundStyle(.secondary)
                 }
             }
+            .ontRow()
 
         case .signedIn:
             Section {
@@ -182,6 +204,7 @@ private struct AccountSection: View {
                         + "cet appareil."
                 )
             }
+            .ontRow()
 
             Section {
                 Button("Se déconnecter") { account.signOut() }
@@ -194,6 +217,7 @@ private struct AccountSection: View {
                         + "sur cet appareil."
                 )
             }
+            .ontRow()
             .confirmDeletion($confirmingErasure) {
                 Task { await account.eraseAccount() }
             }

@@ -115,7 +115,7 @@ niveau du texte (`CLAUDE.md` §2.1) :
 
 | Style | Niveau | Rôle |
 |---|---|---|
-| `.display` | — | titres d'unité (Frank Ruhl Libre) |
+| `.display` | — | titres d'unité (Jost, comme le site) |
 | `.corpus` | 1 | le corps de la traduction |
 | `.term` | 1 | les intraduisibles |
 | `.gloss` | 2 | la voix du projet, en retrait |

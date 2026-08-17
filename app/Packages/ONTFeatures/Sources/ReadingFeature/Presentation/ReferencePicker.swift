@@ -18,7 +18,8 @@ public struct ReferencePicker: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.ontTheme) private var theme
 
-    private var spacing: ONTSpacing { ONTSpacing() }
+    var spacing = ONTSpacing()
+    var echelle = ONTScaled()
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
     private let current: Chapter
@@ -79,6 +80,10 @@ public struct ReferencePicker: View {
                                 chemin = [.unites(book: livre.id)]
                             } label: {
                                 LivreLigne(livre: livre, courant: livre.id == current.bookId)
+                                    // Même défaut que « Reprendre » : le vide à
+                                    // droite du titre ne répondait pas.
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
                             // Un slot vide reste **visible mais éteint** : le
@@ -91,7 +96,7 @@ public struct ReferencePicker: View {
                         Text(corpus.title)
                             .font(.custom(ONTFonts.display, size: 15))
                             .textCase(nil)
-                            .foregroundStyle(ONTColors.burgundy)
+                            .foregroundStyle(ONTColors.brandInk(theme.mode))
                     }
                 }
             }
@@ -216,8 +221,12 @@ public struct ReferencePicker: View {
         dismiss()
     }
 
+    /// Le minimum suit le curseur, comme la case qu'il accueille — sinon des
+    /// chiffres devenus plus larges débordent d'une colonne restée à 54. La
+    /// grille étant `.adaptive`, monter le minimum ne casse rien : elle pose
+    /// simplement moins de colonnes.
     private var grille: [GridItem] {
-        [GridItem(.adaptive(minimum: 54), spacing: spacing.s)]
+        [GridItem(.adaptive(minimum: echelle(54)), spacing: spacing.s)]
     }
 }
 
@@ -229,6 +238,7 @@ public struct ReferencePicker: View {
 /// téléphone d'une main, qui est la posture de lecture.
 private struct Case: View {
     @Environment(\.ontTheme) private var theme
+    var echelle = ONTScaled()
 
     let titre: String
     let courant: Bool
@@ -238,10 +248,10 @@ private struct Case: View {
     var body: some View {
         Button(action: action) {
             Text(titre)
-                .font(.system(size: 17, weight: courant ? .semibold : .regular))
+                .font(.system(size: echelle(17), weight: courant ? .semibold : .regular))
                 .monospacedDigit()
                 .foregroundStyle(courant ? theme.surface : theme.ink)
-                .frame(minWidth: 54, minHeight: 48)
+                .frame(minWidth: echelle(54), minHeight: echelle(48))
                 .background(
                     RoundedRectangle(cornerRadius: ONTRadius.card)
                         .fill(courant ? theme.accent : theme.ink.opacity(0.06))
@@ -251,7 +261,7 @@ private struct Case: View {
                     // ne fait pas référence, pas qu'on ne peut pas le lire.
                     if brouillon {
                         Circle()
-                            .fill(ONTColors.goldDeep)
+                            .fill(ONTColors.accent(theme.mode))
                             .frame(width: 6, height: 6)
                             .padding(6)
                     }

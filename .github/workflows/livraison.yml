@@ -1,21 +1,47 @@
-# L'envoi à TestFlight, et la soumission à l'App Store.
+# La livraison, sur deux canaux.
 #
-# ## Deux déclencheurs, deux portées
+# ## Une branche, une destination
 #
-# | quand | ce qui se passe |
-# |---|---|
-# | fusion sur `main` | un build monte sur TestFlight. Les testeurs internes l'ont dans l'heure, sans revue |
-# | étiquette `v1.2.0` | même chose, **plus** la soumission à la revue et la publication automatique une fois approuvée |
+# | branche | ce qui se passe | qui le voit |
+# |---|---|---|
+# | `dev` | le build monte ; le groupe **interne** le reçoit de lui-même | soi, et les siens |
+# | `staging` | le build monte, rejoint le groupe **externe**, passe sa revue de bêta | les testeurs invités |
+# | `main` | le build monte et part à la **revue de l'App Store** | le public |
 #
-# La distinction compte : on veut pouvoir livrer aux testeurs vingt fois par
-# semaine sans déclencher vingt revues. Une étiquette est un geste délibéré ;
-# une fusion ne l'est qu'à moitié.
+# Une branche nomme donc un **destinataire**, pas une manœuvre. Ce qu'on
+# fusionne dans `dev` ne sort pas de chez soi ; ce qu'on promeut dans `staging`
+# s'expose à des tiers ; ce qui atteint `main` s'expose à tous. La chaîne de
+# promotion — `dev` → `staging` → `main` — est tenue par `branch-policy.yml` :
+# on ne saute pas un palier.
+#
+# ## Pourquoi le rattachement au groupe est une étape à part
+#
+# Téléverser un build le rend disponible aux testeurs **internes**, et à eux
+# seuls. Un groupe externe — celui dont on partage le lien public — ne reçoit
+# rien tant que le build ne lui est pas explicitement rattaché **et** qu'il n'a
+# pas passé la revue de bêta d'Apple. C'est ce qui faisait afficher
+# « No Compatible Build » sur un groupe pourtant nourri de builds.
+#
+# ## Le numéro de version ne vient pas d'ici
+#
+# `CFBundleVersion` — le numéro de build — est **daté** : `AAMMJJ.hhmm` en temps
+# universel. Il croît donc tout seul, se lit d'un coup d'œil, et ne dépend
+# d'aucun compteur.
+#
+# Il l'a d'abord été de `github.run_number`, ce qui semblait plus simple. Ce
+# compteur appartient au **fichier** de workflow : renommer celui-ci l'a remis à
+# un, alors que les builds en ligne allaient jusqu'à vingt et un. Apple exige un
+# numéro qui monte ; un compteur qu'un renommage réinitialise ne peut pas le
+# garantir. `CFBundleShortVersionString` — la version
+# publique — reste celui de l'`Info.plist`, parce que c'est lui qui doit
+# correspondre à la version préparée dans App Store Connect. Le monter est donc
+# un geste de dépôt, visible dans la revue de code qui mène à `main`.
 #
 # ## Il porte les clés, donc il ne tourne jamais sur du code non relu
 #
-# Ni `pull_request`, ni `pull_request_target` : uniquement `push` sur `main` et
-# sur les étiquettes. Le code qui s'exécute ici a donc déjà été fusionné, donc
-# relu. Les tests, eux, tournent sans aucun secret — voir `tests.yml`.
+# Ni `pull_request`, ni `pull_request_target` : uniquement `push` sur les trois
+# branches de livraison. Le code qui s'exécute ici a donc déjà été fusionné,
+# donc relu. Les tests, eux, tournent sans aucun secret — voir `tests.yml`.
 #
 # ## Aucun certificat à gérer
 #
@@ -25,7 +51,7 @@
 # trousseau à déverrouiller, pas de `.p12` en base 64 dans un secret, pas de
 # profil à renouveler tous les ans à la main.
 #
-# ## Les trois secrets à poser
+# ## Les secrets à poser
 #
 # Dans *Settings → Secrets and variables → Actions* du dépôt :
 #
@@ -34,22 +60,24 @@
 # | `ASC_KEY_ID` | App Store Connect → Intégrations → Clés d'API, colonne « ID de clé » |
 # | `ASC_ISSUER_ID` | même page, en haut — un seul pour tout le compte |
 # | `ASC_PRIVATE_KEY` | le contenu du `.p8`, téléchargeable **une seule fois** |
+# | `ASC_CONTACT_EMAIL` | le contact que la revue App Store exige |
+# | `ASC_CONTACT_TELEPHONE` | au format international — Apple refuse le reste |
 #
 # La clé doit avoir le rôle **App Manager** : « Developer » ne suffit pas à
 # envoyer un build.
 
-name: TestFlight
+name: Livraison
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
+    branches: [dev, staging, main]
   workflow_dispatch:
     inputs:
-      soumettre:
-        description: "Soumettre aussi à la revue de l'App Store"
-        type: boolean
-        default: false
+      canal:
+        description: "Où livrer"
+        type: choice
+        options: [interne, beta, appstore]
+        default: interne
 
 permissions:
   contents: read
@@ -66,7 +94,8 @@ jobs:
     timeout-minutes: 60
     outputs:
       build: ${{ steps.numeros.outputs.build }}
-      soumettre: ${{ steps.numeros.outputs.soumettre }}
+      canal: ${{ steps.numeros.outputs.canal }}
+      groupe: ${{ steps.numeros.outputs.groupe }}
 
     steps:
       - name: L'app
@@ -104,20 +133,32 @@ jobs:
       # La version, elle, vient de l'étiquette quand il y en a une — `v1.2.0`
       # donne `1.2.0`. Sans étiquette, on garde celle du `project.yml` : un
       # build de TestFlight n'a pas à inventer un numéro de version.
-      - name: Les numéros
+      - name: Le numéro, le canal et le groupe
         id: numeros
-        working-directory: ONTBibleApp
         run: |
-          BUILD="${{ github.run_number }}"
-          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-            echo "soumettre=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=" >> "$GITHUB_OUTPUT"
-            echo "soumettre=${{ inputs.soumettre || false }}" >> "$GITHUB_OUTPUT"
-          fi
+          # Daté plutôt que compté : rien à conserver d'une exécution à
+          # l'autre, et l'ordre est garanti par le temps lui-même.
+          echo "build=$(date -u +%y%m%d).$(date -u +%H%M)" >> "$GITHUB_OUTPUT"
+          # Le nom du groupe est celui d'App Store Connect. Le script le
+          # cherche par ce nom plutôt que par un identifiant : un identifiant
+          # dans un fichier de CI ne se relit pas, et devient faux le jour où
+          # le groupe est recréé.
+          case "${{ github.ref }}" in
+            refs/heads/main)    CANAL=appstore; GROUPE= ;;
+            refs/heads/staging) CANAL=beta;     GROUPE=Beta ;;
+            refs/heads/dev)     CANAL=interne;  GROUPE=Dev ;;
+            *)
+              CANAL="${{ inputs.canal || 'interne' }}"
+              case "$CANAL" in
+                appstore) GROUPE= ;;
+                beta)     GROUPE=Beta ;;
+                *)        GROUPE=Dev ;;
+              esac
+              ;;
+          esac
+          echo "canal=$CANAL" >> "$GITHUB_OUTPUT"
+          echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
+          echo "Canal : $CANAL${GROUPE:+ — groupe « $GROUPE »}"
 
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
@@ -130,20 +171,15 @@ jobs:
       # `Info.plist` produits. Les mettre dans `project.yml` obligerait à
       # committer un numéro de build à chaque livraison — un commit qui ne dit
       # rien, et qui redéclencherait le workflow.
-      - name: Poser les numéros
+      - name: Poser le numéro de build
         working-directory: ONTBibleApp/app
         run: |
           for plist in Info.plist Widget/Info.plist; do
             [ -f "$plist" ] || continue
             plutil -replace CFBundleVersion -string "${{ steps.numeros.outputs.build }}" "$plist"
-            if [ -n "${{ steps.numeros.outputs.version }}" ]; then
-              plutil -replace CFBundleShortVersionString -string "${{ steps.numeros.outputs.version }}" "$plist"
-            fi
           done
           plutil -p Info.plist | grep -E "CFBundleVersion|CFBundleShortVersionString"
 
-      # La clé d'API, écrite là où `xcodebuild` la cherche. Le fichier vit dans
-      # le répertoire de travail du job, effacé avec la machine à la fin.
       - name: La clé App Store Connect
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
@@ -330,58 +366,72 @@ jobs:
         run: |
           echo "### Build ${{ steps.numeros.outputs.build }} envoyé" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Apple le traite en 5 à 30 minutes. Les testeurs internes l'auront ensuite sans revue." >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.numeros.outputs.soumettre }}" = "true" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Soumission à la revue demandée** — version ${{ steps.numeros.outputs.version }}." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "Apple le traite en 5 à 30 minutes." >> "$GITHUB_STEP_SUMMARY"
+          case "${{ steps.numeros.outputs.canal }}" in
+            appstore) echo "Il sera ensuite soumis à la revue de l'App Store." >> "$GITHUB_STEP_SUMMARY" ;;
+            *)        echo "Il rejoindra ensuite le groupe « ${{ steps.numeros.outputs.groupe }} »." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
 
-  # La soumission à la revue, séparée : elle attend qu'Apple ait fini de traiter
-  # le build, ce qui prend de cinq à trente minutes.
-  soumettre:
+  # ── Les testeurs ──────────────────────────────────────────────────────────
+  #
+  # Un seul job pour les deux groupes, parce que le geste est le même : rattacher
+  # le build, poser les notes. Ce qui diffère, la revue de bêta, ne concerne que
+  # les groupes externes — et le script le déduit du groupe lui-même plutôt que
+  # d'un drapeau qu'on pourrait poser à tort.
+  #
+  # Séparé de la livraison parce qu'il **attend** : Apple met de cinq à trente
+  # minutes à traiter un build, et rien ne peut lui être rattaché avant. Un
+  # échec ici ne remet pas en cause le build, qui est bien monté — relancer ce
+  # seul job suffit.
+  distribuer:
     needs: livrer
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.soumettre
-    runs-on: macos-15
-    timeout-minutes: 60
-
+    if: needs.livrer.outputs.canal != 'appstore'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Les dépendances
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet -r .github/scripts/exigences.txt
+      - name: Rattacher au groupe, et demander la revue s'il est externe
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          BUILD: ${{ needs.livrer.outputs.build }}
+          GROUPE_BETA: ${{ needs.livrer.outputs.groupe }}
+          # Ce que les testeurs lisent avant d'installer. Le message entier
+          # dépasse ce qu'Apple accepte, et dirait de toute façon à un testeur
+          # des choses qui ne s'adressent qu'aux relecteurs du code — le script
+          # n'en garde que le sujet.
+          NOTES_BETA: ${{ github.event.head_commit.message }}
+        run: |
+          cd .github/scripts
+          "$RUNNER_TEMP/venv/bin/python" beta.py
 
-      # Les dépendances, dans une étape **sans aucun secret**.
-      #
-      # Elles étaient installées dans la même étape que la soumission, dont
-      # l'`env` porte la clé privée Apple : `pip install` s'exécutait donc avec
-      # `ASC_PRIVATE_KEY` dans son environnement. Un paquet compromis — ou une
-      # version publiée entre-temps sous un nom voisin — l'aurait lue sans rien
-      # avoir à contourner.
-      #
-      # Deux étapes, et les versions figées dans `exigences.txt` : ces trois
-      # paquets manipulent la clé, ils ne flottent pas.
-      #
-      # Un venv, parce que le Python des runners macOS est « externally
-      # managed » (PEP 668) et refuse toute installation globale.
+  # ── La revue de l'App Store ───────────────────────────────────────────────
+  soumettre:
+    needs: livrer
+    if: needs.livrer.outputs.canal == 'appstore'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Les dépendances de soumission
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet -r .github/scripts/exigences.txt
-
-      # `asc` n'existe pas en ligne de commande : la soumission passe par l'API
-      # REST d'App Store Connect, authentifiée par un jeton JWT signé avec la
-      # même clé. Une trentaine de lignes de Python, contre fastlane et tout
-      # Ruby.
       - name: Soumettre à la revue
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
-          # Le contact de revue. En secrets et non en clair : un numéro de
-          # téléphone personnel dans un dépôt public y reste pour toujours,
-          # même retiré au commit suivant.
           ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
           ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |
-          # Le venv est monté à l'étape précédente, hors de portée des
-          # secrets — voir « Les dépendances de soumission ».
-          "$RUNNER_TEMP/venv/bin/python" .github/scripts/soumettre.py
+          cd .github/scripts
+          "$RUNNER_TEMP/venv/bin/python" soumettre.py

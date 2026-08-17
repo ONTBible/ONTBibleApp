@@ -1,0 +1,59 @@
+# La chaîne de promotion : `dev` → `staging` → `main`.
+#
+# ## Ce qu'elle empêche
+#
+# Chaque branche nomme un public — soi, les testeurs invités, tout le monde.
+# Fusionner une branche de travail directement dans `main` livrerait donc au
+# public quelque chose que personne n'a jamais installé. Ce workflow refuse ce
+# raccourci : on ne saute pas un palier.
+#
+# ## Pourquoi un workflow et non une règle
+#
+# Les rulesets de GitHub savent exiger une revue, une signature, un contrôle
+# vert — ils ne savent pas exiger **d'où** vient une branche. Ce contrôle-là n'a
+# pas d'équivalent déclaratif ; il s'écrit.
+#
+# Il est ensuite posé comme contrôle requis sur `staging` et `main`, ce qui lui
+# donne la même force qu'une règle : la fusion reste grisée tant qu'il n'est pas
+# passé.
+#
+# ## Il ne porte aucun secret
+#
+# Il tourne sur `pull_request`, donc potentiellement sur du code non relu. Il ne
+# lit que deux noms de branches et n'a accès à rien d'autre — c'est pourquoi la
+# livraison, elle, ne tourne jamais sur cet événement.
+
+name: Chaîne de promotion
+
+on:
+  pull_request:
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+jobs:
+  chaine:
+    name: Chaîne de promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vers staging, on vient de dev
+        if: github.base_ref == 'staging' && github.head_ref != 'dev'
+        run: |
+          echo "::error::Une PR vers staging vient de dev, pas de « ${{ github.head_ref }} »."
+          echo "Le travail se fusionne d'abord dans dev, où il s'installe sur votre"
+          echo "propre appareil. Une fois vu en vrai, il se promeut dans staging."
+          exit 1
+
+      - name: Vers main, on vient de staging
+        if: github.base_ref == 'main' && github.head_ref != 'staging'
+        run: |
+          echo "::error::Une PR vers main vient de staging, pas de « ${{ github.head_ref }} »."
+          echo "Ce qui atteint main part à l'App Store. Il faut donc que des testeurs"
+          echo "l'aient eu entre les mains — c'est ce que staging garantit."
+          exit 1
+
+      - name: La chaîne est tenue
+        run: |
+          echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — le palier est respecté."
