@@ -29,6 +29,37 @@ public struct ONTSpacing: DynamicProperty {
     public init() {}
 }
 
+/// Une taille en points, mise à l'échelle du curseur système.
+///
+/// `ONTSpacing` couvre les écarts, dont les valeurs sont peu nombreuses et se
+/// nomment. Restait ce que l'on ne peut pas mettre en jetons : le corps d'un
+/// `.system(size:)`, le côté d'un symbole SF, le minimum d'une case de grille —
+/// des nombres dictés par un dessin précis, différents à chaque endroit.
+///
+/// Écrits en dur, ils ne bougent pas d'un pouce quand le lecteur monte
+/// « Taille du texte » dans les réglages. C'est le piège de SwiftUI :
+/// `Font.custom(_:size:)` suit ce curseur d'office, `.system(size:)` **non**.
+/// Une vue qui mélange les deux voit sa hiérarchie se défaire dès que le
+/// curseur bouge — le texte grandit, les étiquettes et les icônes restent.
+///
+/// ```swift
+/// private var echelle = ONTScaled()
+/// ...
+/// Image(systemName: "xmark")
+///     .font(.system(size: echelle(12), weight: .bold))
+///     .frame(width: echelle(28), height: echelle(28))
+/// ```
+///
+/// Le corps **et** le cadre qui le contient, toujours ensemble : un symbole
+/// qui grandit dans une pastille figée en déborde.
+public struct ONTScaled: DynamicProperty {
+    @ScaledMetric(relativeTo: .body) private var facteur: CGFloat = 1
+
+    public init() {}
+
+    public func callAsFunction(_ points: CGFloat) -> CGFloat { points * facteur }
+}
+
 /// Les rayons de courbure.
 public enum ONTRadius {
     /// Pastilles et étiquettes.

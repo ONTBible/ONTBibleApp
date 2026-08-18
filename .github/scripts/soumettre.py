@@ -2,8 +2,15 @@
 
 """Soumet le build à la revue de l'App Store.
 
-Appelé par `.github/workflows/testflight.yml`, uniquement sur une étiquette
-`v*` ou sur demande explicite.
+Appelé par `.github/workflows/livraison.yml`, sur `main` ou sur demande
+explicite — les deux seules manières d'atteindre le public.
+
+## Il crée la version quand la précédente est en vente
+
+Une version `READY_FOR_SALE` ne se modifie plus. Tant que la suivante n'existe
+pas, il n'y a rien où rattacher un build, et le script s'arrêtait là en
+demandant d'aller la créer dans l'interface. Il la crée désormais lui-même, avec
+le numéro que porte le binaire.
 
 ## Pourquoi ce script et pas fastlane
 
@@ -30,17 +37,10 @@ est `PROCESSING`, toute soumission est refusée. On patiente ici plutôt que
 d'échouer et de demander de relancer.
 """
 
-import json
 import os
 import sys
-import time
-from datetime import datetime, timedelta, timezone
 
-import jwt
-import requests
-
-API = "https://api.appstoreconnect.apple.com/v1"
-BUNDLE = "com.labibleont.ONT"
+from asc import API, Client, application, attendre_le_build, detailler
 
 # Ce que le relecteur doit savoir avant d'ouvrir l'app. Trois livres sur
 # soixante-dix, et des unités marquées « brouillon » : sans cette note, un
@@ -60,129 +60,110 @@ NOTES = (
     "mise à jour. L'app fonctionne hors ligne avec le corpus embarqué."
 )
 
+# « Nouveautés de cette version » — ce que le lecteur lit dans l'App Store avant
+# de mettre à jour. Ici et non dans un formulaire, pour la même raison que la
+# fiche : ça se relit en diff, et ça se corrige en pull request.
+NOUVEAUTES = (
+    "Des correctifs d'affichage et de lecture.\n"
+    "\n"
+    "LA GLOSE\n"
+    "Sur les thèmes clairs, le commentaire entre crochets ne se détachait pas "
+    "assez du texte traduit : on ne voyait plus où finissait la traduction et "
+    "où commençait le commentaire. Les quatre thèmes visaient le même écart, "
+    "alors qu'un même écart ne produit pas le même recul sur un fond clair et "
+    "sur un fond sombre. La glose recule désormais franchement, sur les "
+    "quatre.\n"
+    "\n"
+    "LE THÈME\n"
+    "Changer de thème s'applique maintenant partout et tout de suite, sans "
+    "rouvrir l'app — y compris dans la feuille de réglages, qui est justement "
+    "l'endroit où l'on en change. La rangée « Thème » n'y reste plus écrite "
+    "dans les couleurs de l'ancien, et le menu ne surligne plus une valeur "
+    "pendant que la coche en désigne une autre.\n"
+    "\n"
+    "LES SÉLECTEURS\n"
+    "Le segment retenu débordait de sa case et passait sous son voisin : "
+    "« Intraduisibles » recouvrait « Vocabulaire fixé ». Les parts sont "
+    "désormais mesurées et égales. Quand la place manque — aux grandes tailles "
+    "de texte, surtout — le libellé retenu se lit toujours en entier, puisque "
+    "c'est lui qui dit où l'on est ; seuls les autres se tronquent."
+)
 
-def jeton() -> str:
-    """Le jeton JWT qu'attend App Store Connect.
+# Les états d'une version qu'on peut encore remplir et envoyer.
+#
+# `PREPARE_FOR_SUBMISSION` est celui d'une version qu'on remplit.
+# `DEVELOPER_REJECTED` est celui d'une version dont **on** a annulé la
+# soumission — pour changer de build, typiquement.
+# `REJECTED` est celui d'une version qu'**Apple** a renvoyée. C'est le cas le
+# plus utile, celui où l'on a quelque chose à corriger, et ne pas le reconnaître
+# obligeait à repasser par l'interface.
+MODIFIABLES = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED")
 
-    Vingt minutes de validité : Apple refuse au-delà, et il n'y a aucune raison
-    d'aller au maximum autorisé.
+
+def numero_de_version(client, build: str) -> str:
+    """La version publique que porte le binaire — `CFBundleShortVersionString`.
+
+    Demandée à Apple plutôt que lue dans `project.yml` : c'est celle du build
+    qu'on soumet, et non celle du dépôt au moment où le script tourne. Les deux
+    divergent dès qu'une livraison est rejouée sur un commit plus ancien.
     """
-    maintenant = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "iss": os.environ["ASC_ISSUER_ID"],
-            "iat": int(maintenant.timestamp()),
-            "exp": int((maintenant + timedelta(minutes=20)).timestamp()),
-            "aud": "appstoreconnect-v1",
-        },
-        os.environ["ASC_PRIVATE_KEY"],
-        algorithm="ES256",
-        headers={"kid": os.environ["ASC_KEY_ID"]},
-    )
+    return client.get(f"builds/{build}/preReleaseVersion")["data"]["attributes"]["version"]
 
 
-class Client:
-    def __init__(self) -> None:
-        self.session = requests.Session()
-        self.session.headers["Authorization"] = f"Bearer {jeton()}"
+def creer_la_version(client, app: str, numero: str) -> str:
+    """La version App Store, créée quand la précédente est déjà en vente.
 
-    def get(self, chemin: str, **params) -> dict:
-        r = self.session.get(f"{API}/{chemin}", params=params, timeout=30)
-        r.raise_for_status()
-        return r.json()
+    Une version `READY_FOR_SALE` n'est plus modifiable : tant que la suivante
+    n'existe pas, aucun build ne peut être rattaché ni soumis. C'était jusqu'ici
+    un passage obligé par l'interface web — et donc l'endroit où la chaîne
+    s'arrêtait à chaque mise à jour, avec un message qui parlait d'une version
+    « à créer et à remplir » sans dire que le remplissage, lui, est déjà écrit
+    dans `fiche.py`.
 
-    def post(self, chemin: str, corps: dict) -> dict:
-        r = self.session.post(f"{API}/{chemin}", json=corps, timeout=30)
-        if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
-        return r.json()
-
-    def patch(self, chemin: str, corps: dict) -> dict:
-        r = self.session.patch(f"{API}/{chemin}", json=corps, timeout=30)
-        if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
-        return r.json() if r.content else {}
-
-
-def detailler(reponse) -> str:
-    """Les erreurs d'Apple, lisibles.
-
-    Elles arrivent en JSON et portent le champ fautif dans `source.pointer` —
-    la seule information qui dise quoi corriger. Rendre `r.text` brut oblige à
-    le déchiffrer à l'œil dans un journal de CI.
+    `AFTER_APPROVAL` reconduit ce que faisait la 1.0 : Apple met en vente dès
+    qu'il approuve, sans qu'on ait à revenir cliquer.
     """
-    try:
-        erreurs = reponse.json().get("errors", [])
-    except ValueError:
-        return reponse.text
-    lignes = []
-    for e in erreurs:
-        champ = (e.get("source") or {}).get("pointer", "")
-        lignes.append(f"  · {e.get('title')} — {e.get('detail')}"
-                      + (f"  [{champ}]" if champ else ""))
-    return "\n".join(lignes) or reponse.text
+    cree = client.post("appStoreVersions", {"data": {
+        "type": "appStoreVersions",
+        "attributes": {"platform": "IOS", "versionString": numero,
+                       "releaseType": "AFTER_APPROVAL"},
+        "relationships": {"app": {"data": {"type": "apps", "id": app}}}}})
+    print(f"  version {numero} créée")
+    return cree["data"]["id"]
 
 
 def main() -> None:
     client = Client()
     numero = os.environ["BUILD"]
 
-    apps = client.get("apps", **{"filter[bundleId]": BUNDLE})["data"]
-    if not apps:
-        raise SystemExit(
-            f"Aucune app pour {BUNDLE}. La fiche doit exister dans App Store "
-            "Connect — c'est l'étape zéro, et elle se fait à la main."
-        )
-    app = apps[0]["id"]
+    app = application(client)
 
-    # Le build, attendu jusqu'à ce qu'Apple l'ait traité.
-    build = None
-    for essai in range(60):  # trente minutes, à trente secondes près
-        builds = client.get(
-            "builds",
-            **{"filter[app]": app, "filter[version]": numero, "limit": 1},
-        )["data"]
-        if builds:
-            etat = builds[0]["attributes"]["processingState"]
-            print(f"  build {numero} : {etat}")
-            if etat == "VALID":
-                build = builds[0]["id"]
-                break
-            if etat in ("FAILED", "INVALID"):
-                raise SystemExit(f"Apple a rejeté le build {numero} : {etat}")
-        else:
-            print(f"  build {numero} : pas encore reçu")
-        time.sleep(30)
+    build = attendre_le_build(client, app, numero)
 
-    if not build:
-        raise SystemExit(
-            f"Le build {numero} n'était pas prêt après trente minutes. "
-            "Il n'est pas perdu : relancer ce workflow le reprendra."
-        )
-
-    # La version en préparation. Il n'y en a qu'une à la fois dans cet état ;
-    # si elle n'existe pas, c'est qu'aucune version n'attend d'être remplie.
-    # Deux états valent « prête à soumettre ».
+    # Toutes les versions, et non les seules modifiables : savoir ce qui existe
+    # à côté dit si celle qu'on soumet est la première de l'app, ce dont dépend
+    # le champ « nouveautés » plus bas.
     #
-    # `PREPARE_FOR_SUBMISSION` est celui d'une version qu'on remplit.
-    # `DEVELOPER_REJECTED` est celui d'une version dont **on** a annulé la
-    # soumission — pour changer de build, typiquement. C'est exactement la
-    # version qu'on veut resoumettre, et ne pas la reconnaître obligeait à
-    # repasser par l'interface.
-    versions = client.get(
-        f"apps/{app}/appStoreVersions",
-        **{
-            "filter[appStoreState]": "PREPARE_FOR_SUBMISSION,DEVELOPER_REJECTED",
-            "limit": 1,
-        },
-    )["data"]
-    if not versions:
-        raise SystemExit(
-            "Aucune version en préparation dans App Store Connect. Une version "
-            "doit y être créée et remplie — description, captures, classement "
-            "d'âge — avant qu'une soumission ait un sens."
-        )
-    version = versions[0]["id"]
+    # Par la **relation** de l'app, et non par un filtre sur la collection :
+    # `appStoreVersions?filter[app]=…` rend 403, quelle que soit la clé.
+    toutes = client.get(f"apps/{app}/appStoreVersions", limit=20)["data"]
+    modifiables = [v for v in toutes
+                   if v["attributes"]["appStoreState"] in MODIFIABLES]
+
+    if modifiables:
+        version = modifiables[0]["id"]
+        print(f"  version {modifiables[0]['attributes']['versionString']} reprise "
+              f"({modifiables[0]['attributes']['appStoreState']})")
+    else:
+        # Aucune version n'attend : la précédente est en vente. On crée la
+        # suivante avec le numéro que porte le binaire, plutôt que d'arrêter la
+        # chaîne sur un message qui demande d'aller cliquer.
+        version = creer_la_version(client, app, numero_de_version(client, build))
+
+    # Est-ce la toute première version de l'app ? La question se pose sur les
+    # **autres** versions, et non sur leur nombre : celle qu'on vient de créer
+    # ne figure pas dans la liste lue plus haut.
+    premiere = not [v for v in toutes if v["id"] != version]
 
     # Les informations de revue — le contact qu'Apple appelle si le relecteur
     # bloque. Sans elles, la soumission est refusée par un 409 qui ne nomme pas
@@ -200,8 +181,25 @@ def main() -> None:
         "contactPhone": os.environ["ASC_CONTACT_TELEPHONE"],
         # L'app se lit entièrement sans compte : le relecteur n'a besoin de rien.
         "demoAccountRequired": False,
-        "notes": NOTES,
     }
+
+    # Les notes, elles, ne sont **jamais** remplacées.
+    #
+    # Apple avait renvoyé la 1.0 au titre de la Guideline 2.1 en demandant que
+    # sept points soient répondus dans ce champ. La réponse y est, longue de
+    # trois mille caractères, et c'est elle qui a fait approuver l'app. La
+    # constante ci-dessus en dit dix lignes : l'écrire par-dessus effacerait le
+    # travail d'une main pour y mettre moins.
+    #
+    # On ne la sème donc que dans un champ vide — ce qui reste utile, puisqu'une
+    # version fraîchement créée n'hérite pas toujours de la fiche précédente.
+    ancien = ((detail or {}).get("attributes") or {}).get("notes") or ""
+    if ancien.strip():
+        print(f"  notes de revue conservées ({len(ancien)} caractères)")
+    else:
+        contact["notes"] = NOTES
+        print("  notes de revue semées")
+
     if detail:
         client.patch(f"appStoreReviewDetails/{detail['id']}",
                      {"data": {"type": "appStoreReviewDetails",
@@ -223,6 +221,27 @@ def main() -> None:
     if r.status_code >= 400:
         raise SystemExit(f"rattachement refusé :\n{detailler(r)}")
     print(f"  build {numero} rattaché à la version")
+
+    # « Nouveautés de cette version ».
+    #
+    # Obligatoire dès la deuxième version, et seulement à partir d'elle : Apple
+    # refuse une mise à jour dont le champ est vide, et refuse aussi qu'une
+    # première version en porte un. Le refus arrive à l'envoi, sous la forme
+    # d'une erreur qui ne nomme pas le champ.
+    #
+    # Comme les notes de revue, il n'est jamais remplacé : ce qu'une main a
+    # écrit vaut mieux que ce qu'une constante suppose.
+    if not premiere:
+        for loc in client.get(
+                f"appStoreVersions/{version}/appStoreVersionLocalizations")["data"]:
+            langue = loc["attributes"].get("locale")
+            if (loc["attributes"].get("whatsNew") or "").strip():
+                print(f"  nouveautés conservées en {langue}")
+                continue
+            client.patch(f"appStoreVersionLocalizations/{loc['id']}", {"data": {
+                "type": "appStoreVersionLocalizations", "id": loc["id"],
+                "attributes": {"whatsNew": NOUVEAUTES}}})
+            print(f"  nouveautés posées en {langue}")
 
     # ── La soumission, en trois temps ────────────────────────────────────────
 

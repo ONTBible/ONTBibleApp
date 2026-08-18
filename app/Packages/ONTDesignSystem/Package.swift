@@ -8,7 +8,7 @@ import PackageDescription
 // de domaine.
 let package = Package(
     name: "ONTDesignSystem",
-    platforms: [.iOS("26.0"), .macOS("14.0")],
+    platforms: [.iOS("18.0"), .macOS("14.0")],
     products: [.library(name: "ONTDesignSystem", targets: ["ONTDesignSystem"])],
     dependencies: [.package(path: "../ONTKit")],
     targets: [

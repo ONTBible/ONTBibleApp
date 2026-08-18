@@ -7,6 +7,9 @@ jobs:
   diagnostic:
     runs-on: macos-15
     steps:
+      # Le diagnostic appelle les scripts du dépôt : il lui faut le dépôt.
+      - uses: actions/checkout@v4
+
       - name: Ce que la clé a le droit de voir
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -87,3 +90,16 @@ jobs:
                         "│", a.get("certificateType") or a.get("profileType") or "",
                         "│", a.get("profileState") or a.get("expirationDate") or "")
           PY
+
+      # Où en sont nos soumissions chez Apple — la revue de bêta et celle de
+      # l'App Store, qui se confondent facilement. Rien n'est modifié ici.
+      - name: L'état des revues
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv-asc"
+          "$RUNNER_TEMP/venv-asc/bin/pip" install --quiet -r .github/scripts/exigences.txt
+          cd .github/scripts && "$RUNNER_TEMP/venv-asc/bin/python" revue.py

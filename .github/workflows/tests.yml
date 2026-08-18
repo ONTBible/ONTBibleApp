@@ -22,7 +22,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [dev, staging, main]
   pull_request:
   workflow_dispatch:
 
@@ -133,17 +133,77 @@ jobs:
             (cd "$paquet" && swift test)
           done
 
+      # Un simulateur nommé est un pari sur l'image du runner.
+      #
+      # Le commentaire d'à côté promettait déjà « un simulateur générique
+      # plutôt qu'un modèle nommé », et le code nommait pourtant un modèle. Le
+      # jour où GitHub a livré un Xcode sans aucun appareil préinstallé — que
+      # des emplacements —, la promesse s'est révélée n'être qu'une intention.
+      #
+      # On cherche donc ce qui existe, et on le crée s'il n'existe rien. Le
+      # test ne dépend plus de ce qu'un tiers a bien voulu préinstaller.
+      - name: Un simulateur, trouvé ou créé
+        id: simulateur
+        run: |
+          set -euo pipefail
+          UDID=$(python3 - <<'PY'
+          import json, subprocess
+
+          def simctl(*args):
+              return json.loads(subprocess.run(
+                  ["xcrun", "simctl", *args, "--json"],
+                  capture_output=True, text=True, check=True).stdout)
+
+          def version(nom):
+              # « iOS 26.1 » → (26, 1), pour comparer des versions et non des
+              # chaînes : sans ça, « iOS 9 » passerait après « iOS 26 ».
+              chiffres = [int(n) for n in nom.replace("-", ".").split(".") if n.isdigit()]
+              return tuple(chiffres) or (0,)
+
+          # Ce qui est déjà là.
+          par_execution = simctl("list", "devices", "available")["devices"]
+          candidats = []
+          for execution, appareils in par_execution.items():
+              if "iOS" not in execution:
+                  continue
+              for a in appareils:
+                  if a.get("isAvailable") and "iPhone" in a["name"]:
+                      candidats.append((version(execution), a["udid"]))
+          if candidats:
+              print(max(candidats)[1])
+              raise SystemExit
+
+          # Rien : on en fabrique un. Le modèle le plus récent, sur l'exécution
+          # la plus récente.
+          executions = [r for r in simctl("list", "runtimes")["runtimes"]
+                        if r.get("isAvailable") and "iOS" in r["name"]]
+          if not executions:
+              raise SystemExit("Aucune exécution iOS sur ce runner.")
+          execution = max(executions, key=lambda r: version(r["version"]))
+
+          modeles = [t for t in simctl("list", "devicetypes")["devicetypes"]
+                     if "iPhone" in t["name"]]
+          if not modeles:
+              raise SystemExit("Aucun modèle d'iPhone sur ce runner.")
+          modele = max(modeles, key=lambda t: version(t["name"]))
+
+          print(subprocess.run(
+              ["xcrun", "simctl", "create", "ONT-CI",
+               modele["identifier"], execution["identifier"]],
+              capture_output=True, text=True, check=True).stdout.strip())
+          PY
+          )
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices | grep -F "$UDID" || true
+
       - name: Les tests de l'app
         working-directory: ONTBibleApp/app
-        # Un simulateur générique plutôt qu'un modèle nommé : les images
-        # disponibles changent d'une version de macOS à l'autre chez GitHub, et
-        # un nom en dur casse le jour où ils retirent le modèle.
         run: |
           set -o pipefail
           xcodebuild test \
             -project ONT.xcodeproj \
             -scheme ONT \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -destination "id=${{ steps.simulateur.outputs.udid }}" \
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 

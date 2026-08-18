@@ -20,7 +20,15 @@ public struct ONTScreenModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
-            .background(theme.background.ignoresSafeArea())
+            // Le grain de la nuit se pose ici, et **seulement** ici : c'est le
+            // point unique par lequel passe le fond de tous les écrans, donc le
+            // seul endroit où il ne peut ni manquer quelque part, ni se
+            // superposer à lui-même et doubler son opacité.
+            .background {
+                theme.background
+                    .overlay(ONTGrain(theme: theme.mode))
+                    .ignoresSafeArea()
+            }
     }
 }
 

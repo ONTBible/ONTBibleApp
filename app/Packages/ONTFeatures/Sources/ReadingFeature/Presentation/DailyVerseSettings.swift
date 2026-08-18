@@ -61,6 +61,7 @@ public struct DailyVerseSettings: View {
                         + "et rien de ce que vous lisez n'est envoyé nulle part."
                 )
             }
+            .ontRow()
 
             if refuse {
                 Section {
@@ -75,10 +76,12 @@ public struct DailyVerseSettings: View {
                     .font(.footnote)
                     .foregroundStyle(theme.ink.opacity(0.7))
                 }
+                .ontRow()
             }
         }
         .navigationTitle("Rappel")
         .navigationBarTitleDisplayMode(.inline)
+        .ontRow()
         .ontScreen()
     }
 
