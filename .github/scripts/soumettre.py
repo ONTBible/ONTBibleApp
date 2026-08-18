@@ -64,10 +64,29 @@ NOTES = (
 # de mettre à jour. Ici et non dans un formulaire, pour la même raison que la
 # fiche : ça se relit en diff, et ça se corrige en pull request.
 NOUVEAUTES = (
-    "Le réglage de lecture tient désormais dans un seul menu, et son contrôle "
-    "s'empile au lieu de rogner l'option choisie.\n"
-    "Le thème suit le système sans qu'il faille rouvrir l'app.\n"
-    "La glose se distingue mieux du texte, quelle que soit la lumière."
+    "Des correctifs d'affichage et de lecture.\n"
+    "\n"
+    "LA GLOSE\n"
+    "Sur les thèmes clairs, le commentaire entre crochets ne se détachait pas "
+    "assez du texte traduit : on ne voyait plus où finissait la traduction et "
+    "où commençait le commentaire. Les quatre thèmes visaient le même écart, "
+    "alors qu'un même écart ne produit pas le même recul sur un fond clair et "
+    "sur un fond sombre. La glose recule désormais franchement, sur les "
+    "quatre.\n"
+    "\n"
+    "LE THÈME\n"
+    "Changer de thème s'applique maintenant partout et tout de suite, sans "
+    "rouvrir l'app — y compris dans la feuille de réglages, qui est justement "
+    "l'endroit où l'on en change. La rangée « Thème » n'y reste plus écrite "
+    "dans les couleurs de l'ancien, et le menu ne surligne plus une valeur "
+    "pendant que la coche en désigne une autre.\n"
+    "\n"
+    "LES SÉLECTEURS\n"
+    "Le segment retenu débordait de sa case et passait sous son voisin : "
+    "« Intraduisibles » recouvrait « Vocabulaire fixé ». Les parts sont "
+    "désormais mesurées et égales. Quand la place manque — aux grandes tailles "
+    "de texte, surtout — le libellé retenu se lit toujours en entier, puisque "
+    "c'est lui qui dit où l'on est ; seuls les autres se tronquent."
 )
 
 # Les états d'une version qu'on peut encore remplir et envoyer.
