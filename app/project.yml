@@ -119,7 +119,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
 
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "1.0.1"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -222,7 +222,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "1.0.1"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
