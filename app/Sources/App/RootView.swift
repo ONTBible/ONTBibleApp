@@ -32,53 +32,9 @@ struct RootView: View {
         @Bindable var router = router
 
         TabView(selection: $router.tab) {
-            Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
-                QahalTab()
-            }
-            Tab("Bible", systemImage: "book.closed.fill", value: Router.TabID.bible) {
-                BibleTab { SearchView() }
-            }
-            Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
-                LexiconTab()
-            }
-            Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
-                YouTab { schedule in
-                    // Le seul endroit qui connaît `UserNotifications`. La
-                    // feature ne fait que dire « le lecteur a changé d'avis ».
-                    guard schedule.enabled else {
-                        await DailyVerseNotifications.reschedule(schedule, pool: composition.dailyPool)
-                        return true
-                    }
-                    guard await DailyVerseNotifications.requestAuthorization() else { return false }
-                    await DailyVerseNotifications.reschedule(schedule, pool: composition.dailyPool)
-                    return true
-                }
-            }
-
-            // Les livres, seulement là où il y a une barre latérale pour les
-            // recevoir. En largeur compacte — iPhone, ou iPad en Split View —
-            // une `TabSection` retombe dans la barre du bas, et trois livres
-            // de plus y feraient une barre débordée pour rien.
-            //
-            // Une liste vide, et non un `if` autour de la section : la classe
-            // de largeur n'est pas encore connue au premier passage, donc un
-            // `if` fait *apparaître* des onglets juste après le lancement. La
-            // `TabView` perd alors la sélection qu'on lui avait donnée et
-            // ouvre sur le premier livre — on lançait l'app sur « bible » et
-            // elle s'ouvrait sur Bereshit. Avec un `ForEach` toujours présent,
-            // seules les données changent, et la sélection tient.
+            OngletsFixes(appliquer: appliquer)
             ForEach(corpusEnBarreLatérale) { corpus in
-                TabSection(corpus.title) {
-                    ForEach(livresRédigés(de: corpus)) { livre in
-                        Tab(
-                            livre.title,
-                            systemImage: "book.pages",
-                            value: Router.TabID.book(livre.id)
-                        ) {
-                            BookTab(bookId: livre.id)
-                        }
-                    }
-                }
+                RayonDeLivres(titre: corpus.title, livres: livresRédigés(de: corpus))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -123,6 +79,19 @@ struct RootView: View {
         }
     }
 
+    /// Le seul endroit qui connaît `UserNotifications`.
+    ///
+    /// La feature ne fait que dire « le lecteur a changé d'avis ».
+    private func appliquer(_ schedule: DailyVerseSchedule) async -> Bool {
+        guard schedule.enabled else {
+            await DailyVerseNotifications.reschedule(schedule, pool: composition.dailyPool)
+            return true
+        }
+        guard await DailyVerseNotifications.requestAuthorization() else { return false }
+        await DailyVerseNotifications.reschedule(schedule, pool: composition.dailyPool)
+        return true
+    }
+
     /// Les corpus à poser dans la barre latérale — aucun en largeur compacte.
     ///
     /// Seulement ceux qui ont un livre à proposer : un en-tête « Berit
@@ -162,3 +131,54 @@ struct RootView: View {
     }
 }
 
+
+/// Les quatre onglets de toujours.
+///
+/// Un type nommé, et pas un bloc dans le `body` : écrit d'un seul tenant, le
+/// vérificateur de types renonçait — « unable to type-check this expression in
+/// reasonable time », puis « failed to produce diagnostic ». Ça passait ici
+/// sous Xcode 27 et échouait sous le 26.3 de l'intégration continue : la
+/// limite est un budget de temps, donc elle dépend de la machine, et on ne
+/// l'apprend que sur la plus lente.
+///
+/// Un `TabContent` avec son `body` déclaré ne laisse plus rien à deviner :
+/// chaque morceau est résolu pour lui-même, jamais dans le même souffle que
+/// les autres.
+private struct OngletsFixes: TabContent {
+    let appliquer: (DailyVerseSchedule) async -> Bool
+
+    var body: some TabContent<Router.TabID> {
+        Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
+            QahalTab()
+        }
+        Tab("Bible", systemImage: "book.closed.fill", value: Router.TabID.bible) {
+            BibleTab { SearchView() }
+        }
+        Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
+            LexiconTab()
+        }
+        Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
+            YouTab(onDailyChange: appliquer)
+        }
+    }
+}
+
+/// Un corpus et ses livres, tels qu'ils paraissent dans la barre latérale.
+private struct RayonDeLivres: TabContent {
+    let titre: String
+    let livres: [BookOutline]
+
+    var body: some TabContent<Router.TabID> {
+        TabSection(titre) {
+            ForEach(livres) { livre in
+                Tab(
+                    livre.title,
+                    systemImage: "book.pages",
+                    value: Router.TabID.book(livre.id)
+                ) {
+                    BookTab(bookId: livre.id)
+                }
+            }
+        }
+    }
+}
