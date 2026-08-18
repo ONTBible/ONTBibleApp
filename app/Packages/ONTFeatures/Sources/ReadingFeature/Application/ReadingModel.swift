@@ -29,6 +29,16 @@ public final class ReadingModel {
     /// c'est très bien ainsi : ils appartiennent au domaine.
     public private(set) var revision = 0
 
+    /// Même chose pour le **corpus**, et pour la même raison.
+    ///
+    /// Un livre publié un mardi arrive sur le disque sans que personne ne
+    /// rouvre l'app : `CorpusUpdater` l'écrit, et le dépôt vide son cache. Mais
+    /// vider un cache ne change aucune propriété observée — les vues gardaient
+    /// donc la liste d'avant, et le livre n'apparaissait qu'au lancement
+    /// suivant. Ce compteur est le seul lien entre « le disque a changé » et
+    /// « redessine ».
+    public private(set) var corpusRevision = 0
+
     public init(
         corpus: any CorpusRepository,
         highlights: any HighlightRepository,
@@ -44,20 +54,45 @@ public final class ReadingModel {
 
     // MARK: - Corpus
 
-    public var corpora: [Corpus] { (try? corpus.corpora()) ?? [] }
-    public var allBooks: [BookOutline] { corpus.allBooks() }
-    public var writtenBooks: [BookOutline] { corpus.writtenBooks() }
+    /// Le `_ = corpusRevision` n'est pas décoratif : c'est **lui** qui inscrit
+    /// la vue comme dépendante. Sans cette lecture, `@Observable` n'a rien à
+    /// suivre — l'appel au dépôt lui est invisible.
+    public var corpora: [Corpus] {
+        _ = corpusRevision
+        return (try? corpus.corpora()) ?? []
+    }
+
+    public var allBooks: [BookOutline] {
+        _ = corpusRevision
+        return corpus.allBooks()
+    }
+
+    public var writtenBooks: [BookOutline] {
+        _ = corpusRevision
+        return corpus.writtenBooks()
+    }
+
+    /// À appeler quand le corpus sur disque a changé sous nos pieds.
+    ///
+    /// Le modèle ne télécharge rien et ne connaît pas le disque — c'est la
+    /// composition qui sait quand un fichier neuf est arrivé. Elle le dit ici,
+    /// et les vues suivent.
+    public func corpusChanged() {
+        corpusRevision += 1
+    }
 
     public func outline(_ bookId: String) -> BookOutline? {
         allBooks.first { $0.id == bookId }
     }
 
     public func book(_ bookId: String) -> Book? {
-        try? corpus.book(bookId)
+        _ = corpusRevision
+        return try? corpus.book(bookId)
     }
 
     public func chapter(book bookId: String, id chapterId: String) -> Chapter? {
-        corpus.chapter(book: bookId, id: chapterId)
+        _ = corpusRevision
+        return corpus.chapter(book: bookId, id: chapterId)
     }
 
     // MARK: - Surlignage

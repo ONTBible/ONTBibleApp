@@ -24,6 +24,15 @@ public final class LexiconModel {
         byLemma = Dictionary(entries.map { ($0.lemma, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    /// À appeler quand le lexique sur disque a changé.
+    ///
+    /// `entries` est chargé une fois, à la construction. Une entrée corrigée en
+    /// cours de route restait donc invisible jusqu'au lancement suivant, alors
+    /// même qu'elle était déjà écrite sur le disque.
+    public func glossaryChanged() {
+        load()
+    }
+
     public func entry(_ lemma: String) -> GlossaryEntry? { byLemma[lemma] }
 
     /// Les passages où un intraduisible paraît.
