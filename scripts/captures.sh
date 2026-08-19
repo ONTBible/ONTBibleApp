@@ -35,7 +35,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-SORTIE="app/Captures"
+SORTIE="app/Captures/brut"
 BUNDLE="com.labibleont.ONT"
 
 # L'unité montrée est **verrouillée**. Bereshit 1 porte « Brouillon — en attente
@@ -51,8 +51,13 @@ etape() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
 
 # Le simulateur, créé s'il manque. Les images disponibles changent d'une version
 # de Xcode à l'autre : on ne compte pas sur celles que la machine porte déjà.
+#
+# **Ni sur l'identifiant du type d'appareil.** Il n'est pas stable non plus :
+# `…SimDeviceType.iPad-Pro-13-inch-M5` est devenu `…-M5-12GB` le jour où Apple
+# a décliné l'iPad par quantité de mémoire, et le script est mort dessus. On
+# donne donc un préfixe, et on retient le premier type qui commence par là.
 simulateur() {
-  local nom="$1" type="$2" existant
+  local nom="$1" prefixe="$2" existant
   existant=$(xcrun simctl list devices -j \
     | python3 -c "
 import json,sys
@@ -62,12 +67,20 @@ for liste in json.load(sys.stdin)['devices'].values():
             print(d['udid']); raise SystemExit
 ")
   if [ -z "$existant" ]; then
-    local runtime
+    local runtime type
     runtime=$(xcrun simctl list runtimes -j \
       | python3 -c "
 import json,sys
 ios=[r for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and 'iOS' in r['name']]
 print(sorted(ios, key=lambda r: r['version'])[-1]['identifier'])")
+    type=$(xcrun simctl list devicetypes -j \
+      | python3 -c "
+import json,sys
+noms=[t['identifier'] for t in json.load(sys.stdin)['devicetypes']
+      if t['identifier'].startswith('$prefixe')]
+if not noms:
+    sys.exit('aucun type de simulateur ne commence par $prefixe')
+print(sorted(noms)[0])")
     existant=$(xcrun simctl create "$nom" "$type" "$runtime")
   fi
   echo "$existant"
@@ -78,7 +91,32 @@ serie() {
   mkdir -p "$SORTIE/$dossier"
 
   xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1
+
+  # Le simulateur en français. Il naît en anglais et n'hérite pas de la langue
+  # de l'app : l'iPad affiche la date à côté de l'heure, et la vitrine d'une
+  # app française portait « Wed 19 Aug ». Les préférences ne sont relues qu'au
+  # démarrage, d'où le cycle d'arrêt.
+  xcrun simctl spawn "$sim" defaults write "Apple Global Domain" \
+    AppleLanguages -array fr-FR >/dev/null 2>&1 || true
+  xcrun simctl spawn "$sim" defaults write "Apple Global Domain" \
+    AppleLocale -string fr_FR >/dev/null 2>&1 || true
+  xcrun simctl shutdown "$sim" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1
+
   xcrun simctl install "$sim" "$APP"
+
+  # La barre d'état, figée. Sans ça elle porte l'heure de la machine et une
+  # jauge à moitié vide — deux détails qui datent la capture et trahissent
+  # l'émulateur. 9:41 est l'heure des vitrines d'Apple depuis le premier iPhone.
+  #
+  # `discharging` et non `charged` : `charged` peint une pile **verte avec un
+  # éclair**, la seule tache de couleur vive de l'affiche, et elle tombe dans
+  # le cadre de l'appareil où l'œil va en premier.
+  xcrun simctl status_bar "$sim" override \
+    --time "9:41" \
+    --dataNetwork wifi --wifiMode active --wifiBars 3 \
+    --cellularMode active --cellularBars 4 \
+    --batteryState discharging --batteryLevel 100 >/dev/null 2>&1 || true
 
   local i=1
   for cible in "${ECRANS[@]}"; do
@@ -116,7 +154,7 @@ PY
 }
 
 etape "Le corpus et le projet"
-npm run app >/dev/null
+./scripts/corpus.sh >/dev/null
 
 etape "L'app"
 xcodebuild -project app/ONT.xcodeproj -scheme ONT \
@@ -130,4 +168,11 @@ serie "$(simulateur 'Captures 6.9' com.apple.CoreSimulator.SimDeviceType.iPhone-
 etape "iPad 13″"
 serie "$(simulateur 'Captures 13' com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5)" "ipad-13"
 
-printf '\n\033[1m%s\033[0m\n' "→ $SORTIE"
+# Ce qu'on téléverse n'est pas ce qu'on vient de prendre. Les captures brutes
+# restent dans `brut/` ; `vitrine.py` en fait les affiches. Enchaîné ici, et
+# pas laissé à la main : une capture refaite sans son affiche remet la fiche
+# dans l'état qu'on essaie de quitter.
+etape "Les affiches"
+./scripts/vitrine.py
+
+printf '\n\033[1m%s\033[0m\n' "→ app/Captures"
