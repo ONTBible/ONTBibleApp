@@ -82,8 +82,13 @@ public final class AccountModel {
         } catch {
             // Une connexion qui échoue est un vrai signal : le fournisseur a
             // changé quelque chose, ou nos identifiants ont expiré.
+            //
+            // On remonte l'erreur **d'origine**, puis on affiche la phrase.
+            // L'ordre compte : convertir d'abord perdrait le code exact, seul
+            // renseignement qui dise quoi corriger.
             reporter.report(error, context: "connexion \(provider.rawValue)")
-            state = .failed(error.localizedDescription)
+            let lisible = AccountError.lisible(error, for: provider)
+            state = .failed(lisible.localizedDescription)
         }
     }
 
