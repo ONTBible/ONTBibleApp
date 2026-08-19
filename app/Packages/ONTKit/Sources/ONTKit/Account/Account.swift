@@ -87,9 +87,11 @@ public struct SyncPayload: Sendable {
     }
 }
 
-public enum AccountError: LocalizedError, Sendable {
+public enum AccountError: LocalizedError, Equatable, Sendable {
     case cancelled
     case providerRefused
+    /// Le fournisseur n'a pas pu conclure, et ne dit pas pourquoi.
+    case providerUnavailable(AuthProvider)
     case unauthorized
     case offline
     case server(Int)
@@ -98,11 +100,52 @@ public enum AccountError: LocalizedError, Sendable {
         switch self {
         case .cancelled: "Connexion annulée."
         case .providerRefused: "Le fournisseur a refusé la connexion."
+        case .providerUnavailable(let provider):
+            switch provider {
+            case .apple:
+                "La connexion avec Apple n’a pas abouti. Vérifiez que cet appareil "
+                    + "est bien connecté à un compte Apple, puis réessayez."
+            case .google, .github:
+                "La connexion avec \(provider.label) n’a pas abouti. Réessayez "
+                    + "dans un instant."
+            }
         case .unauthorized: "Session expirée — reconnectez-vous."
         case .offline: "Pas de connexion. Vos annotations restent sur cet appareil."
         case .server(let code): "Le serveur a répondu \(code)."
         }
     }
+}
+
+extension AccountError {
+    /// L’erreur telle qu’on la **montre**, quelle qu’en soit l’origine.
+    ///
+    /// Une erreur qui échappe à ce type est un `NSError` du système, et son
+    /// `localizedDescription` n’est pas une phrase :
+    ///
+    ///     L’opération n’a pas pu s’achever.
+    ///     (com.apple.AuthenticationServices.AuthorizationError erreur 1000.)
+    ///
+    /// Elle a été affichée telle quelle, en rouge, sous l’onglet « Vous » — et
+    /// lue par un examinateur de l’App Store le 19 août 2026, dont l’appareil
+    /// n’avait pas pu conclure sa connexion Apple. Un code d’erreur affiché à
+    /// un lecteur ne lui apprend rien et donne l’app pour cassée.
+    ///
+    /// **Le détail technique n’est pas perdu** : l’erreur d’origine part à
+    /// Sentry *avant* cette conversion. C’est le partage juste — la cause
+    /// exacte pour qui doit corriger, une phrase actionnable pour qui lit.
+    public static func lisible(_ error: Error, for provider: AuthProvider) -> AccountError {
+        if let compte = error as? AccountError { return compte }
+        // Une coupure réseau se dit déjà mieux ailleurs, et elle rassure : ce
+        // qui est sur l’appareil y reste.
+        if let url = error as? URLError, Self.coupures.contains(url.code) { return .offline }
+        return .providerUnavailable(provider)
+    }
+
+    private static let coupures: Set<URLError.Code> = [
+        .notConnectedToInternet, .networkConnectionLost, .timedOut,
+        .cannotFindHost, .cannotConnectToHost, .dataNotAllowed,
+        .internationalRoamingOff, .secureConnectionFailed,
+    ]
 }
 
 // MARK: - Ports

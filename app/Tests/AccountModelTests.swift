@@ -188,4 +188,45 @@ struct AccountModelTests {
         #expect(model.state == .signedOut)
         #expect(highlights.stored.count == 1)
     }
+
+    // MARK: - Ce que le lecteur lit quand la connexion échoue
+
+    /// Le 19 août 2026, un examinateur de l'App Store a vu s'afficher, en
+    /// rouge, sous l'onglet « Vous » :
+    ///
+    ///     L'opération n'a pas pu s'achever.
+    ///     (com.apple.AuthenticationServices.AuthorizationError erreur 1000.)
+    ///
+    /// C'était le `localizedDescription` de l'erreur brute. Ce test tient la
+    /// règle : aucune erreur, quelle qu'en soit l'origine, ne doit ressortir
+    /// avec un domaine ni un numéro.
+    @Test("une erreur système devient une phrase, jamais un code")
+    func systemErrorBecomesASentence() {
+        let brute = NSError(
+            domain: "com.apple.AuthenticationServices.AuthorizationError",
+            code: 1_000
+        )
+
+        let message = AccountError.lisible(brute, for: .apple).localizedDescription
+
+        #expect(!message.contains("1000"))
+        #expect(!message.contains("AuthorizationError"))
+        #expect(!message.contains("com.apple"))
+        #expect(message.contains("compte Apple"), "la phrase doit dire quoi vérifier")
+    }
+
+    @Test("une coupure réseau se dit comme une coupure réseau")
+    func networkErrorStaysNetwork() {
+        let coupure = URLError(.notConnectedToInternet)
+
+        #expect(AccountError.lisible(coupure, for: .google) == .offline)
+    }
+
+    /// Une erreur du domaine porte déjà sa phrase — la convertir en
+    /// « fournisseur indisponible » perdrait ce qu'elle disait de précis.
+    @Test("une erreur du domaine traverse intacte")
+    func domainErrorPassesThrough() {
+        #expect(AccountError.lisible(AccountError.unauthorized, for: .apple) == .unauthorized)
+        #expect(AccountError.lisible(AccountError.server(503), for: .apple) == .server(503))
+    }
 }

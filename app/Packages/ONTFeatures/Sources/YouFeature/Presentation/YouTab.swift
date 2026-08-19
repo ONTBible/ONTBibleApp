@@ -152,9 +152,16 @@ private struct AccountSection: View {
             } header: {
                 Text("Compte")
             } footer: {
-                if case .failed(let message) = account.state {
-                    Text(message).foregroundStyle(.red)
-                } else {
+                // L'échec **s'ajoute** à l'explication, il ne la remplace pas.
+                //
+                // Il la remplaçait : une connexion ratée effaçait donc la seule
+                // phrase qui dit que le compte est facultatif, et laissait
+                // croire l'app cassée. C'est précisément ce qu'a vu un
+                // examinateur de l'App Store le 19 août 2026.
+                VStack(alignment: .leading, spacing: spacing.xs) {
+                    if case .failed(let message) = account.state {
+                        Text(message).foregroundStyle(.red)
+                    }
                     Text(
                         "La lecture, les surlignages et les notes fonctionnent entièrement "
                             + "sans compte. La connexion ne sert qu'à les retrouver sur un "
