@@ -27,9 +27,16 @@ iMessage en teinte la bulle entière. Une première capture sur parchemin donnai
 une carte blafarde ; le fond de nuit assombrit toute la carte.
 
 `scripts/vitrine.py` compose les affiches — marque, accroche, phrase, appareil
-cerclé d'or qui déborde par le bas. Les textes sont ceux de la description de
-la fiche, mot pour mot : les réécrire ici, c'est se garantir deux versions qui
-divergeront.
+qui déborde par le bas. Les textes sont ceux de la description de la fiche, mot
+pour mot : les réécrire ici, c'est se garantir deux versions qui divergeront.
+
+Le châssis est dessiné, pas emprunté : `simctl` ne rend que la dalle. Un simple
+rectangle arrondi a d'abord été essayé, et l'affiche s'est fait prendre pour un
+appareil Android. Ce qui dit « Apple », c'est l'arête de titane, la lunette
+noire, les boutons sur la tranche, la Dynamic Island de l'iPhone — et, sur
+l'iPad, la caméra sur le **bord long**, où elle a déménagé avec le M4 : la
+mettre en haut, c'est dessiner un iPad d'avant 2024. Tout est dans `CADRES`, en
+fractions de la largeur, un dossier par appareil.
 
 ## Les quatre écrans
 

@@ -49,41 +49,75 @@ ECRANS=(
 
 etape() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
 
-# Le simulateur, créé s'il manque. Les images disponibles changent d'une version
-# de Xcode à l'autre : on ne compte pas sur celles que la machine porte déjà.
+# Le simulateur du dernier appareil en date, créé s'il manque.
 #
-# **Ni sur l'identifiant du type d'appareil.** Il n'est pas stable non plus :
+# ## Ce qu'on n'écrit pas en dur
+#
+# **L'identifiant du type.** Il n'est pas stable :
 # `…SimDeviceType.iPad-Pro-13-inch-M5` est devenu `…-M5-12GB` le jour où Apple
 # a décliné l'iPad par quantité de mémoire, et le script est mort dessus. On
-# donne donc un préfixe, et on retient le premier type qui commence par là.
+# donne un préfixe, et on retient le type qui commence par là.
+#
+# **Le runtime.** Les images disponibles changent d'une version de Xcode à
+# l'autre : on prend la plus récente, comparée par nombres et non par chaînes,
+# sinon iOS 9 passera devant iOS 27.
+#
+# ## Pourquoi on vérifie un appareil qui existe déjà
+#
+# Retrouver l'appareil par son seul nom suffisait — tant qu'Apple ne sortait
+# rien. « Captures 6.9 » créé sur un iPhone 16 Pro Max garde son nom quand le
+# 17 arrive, le script le réutilise, et la vitrine reste sur du matériel de
+# l'an dernier sans que rien ne le signale. C'est la panne qui a déjà figé ces
+# captures pendant deux mois, sous une autre forme.
+#
+# On compare donc le type **et** le runtime, et on recrée si l'un des deux a
+# bougé. Un simulateur est jetable ; une capture périmée ne se voit pas.
 simulateur() {
-  local nom="$1" prefixe="$2" existant
-  existant=$(xcrun simctl list devices -j \
-    | python3 -c "
-import json,sys
-for liste in json.load(sys.stdin)['devices'].values():
-    for d in liste:
-        if d['name'] == '$nom':
-            print(d['udid']); raise SystemExit
-")
-  if [ -z "$existant" ]; then
-    local runtime type
-    runtime=$(xcrun simctl list runtimes -j \
-      | python3 -c "
-import json,sys
-ios=[r for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and 'iOS' in r['name']]
-print(sorted(ios, key=lambda r: r['version'])[-1]['identifier'])")
-    type=$(xcrun simctl list devicetypes -j \
-      | python3 -c "
-import json,sys
-noms=[t['identifier'] for t in json.load(sys.stdin)['devicetypes']
-      if t['identifier'].startswith('$prefixe')]
-if not noms:
-    sys.exit('aucun type de simulateur ne commence par $prefixe')
-print(sorted(noms)[0])")
-    existant=$(xcrun simctl create "$nom" "$type" "$runtime")
-  fi
-  echo "$existant"
+  python3 - "$1" "$2" <<'PY'
+import json, subprocess, sys
+
+nom, prefixe = sys.argv[1], sys.argv[2]
+
+
+def liste(quoi):
+    sortie = subprocess.run(
+        ["xcrun", "simctl", "list", quoi, "-j"], capture_output=True, text=True, check=True
+    ).stdout
+    return json.loads(sortie)[quoi]
+
+
+types = [t["identifier"] for t in liste("devicetypes") if t["identifier"].startswith(prefixe)]
+if not types:
+    sys.exit(f"aucun type de simulateur ne commence par {prefixe}")
+type_voulu = sorted(types)[0]
+
+ios = [r for r in liste("runtimes") if r["isAvailable"] and "iOS" in r["name"]]
+if not ios:
+    sys.exit("aucun runtime iOS disponible")
+runtime_voulu = max(ios, key=lambda r: [int(n) for n in r["version"].split(".")])["identifier"]
+
+perimes = []
+for runtime, appareils in liste("devices").items():
+    for a in appareils:
+        if a["name"] != nom:
+            continue
+        if a.get("deviceTypeIdentifier") == type_voulu and runtime == runtime_voulu:
+            print(a["udid"])
+            raise SystemExit
+        perimes.append(a["udid"])
+
+for udid in perimes:
+    subprocess.run(["xcrun", "simctl", "delete", udid], capture_output=True, check=False)
+
+print(
+    subprocess.run(
+        ["xcrun", "simctl", "create", nom, type_voulu, runtime_voulu],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+)
+PY
 }
 
 serie() {

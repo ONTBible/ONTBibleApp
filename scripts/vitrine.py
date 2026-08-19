@@ -138,7 +138,13 @@ def couper(dessin, texte, fonte, largeur_max):
     return lignes + [courante]
 
 
-COQUE = (0x14, 0x09, 0x0C)
+# Le châssis. L'arête est **dorée** et non grise : c'est le titane désert, une
+# finition qui existe, et c'est celle que prend le mockup de YouVersion. Elle
+# tombe juste — l'or est déjà la couleur de la marque, et un rail gris aurait
+# introduit la seule teinte froide de l'affiche.
+CHASSIS = (0x2A, 0x21, 0x24)  # le corps, dans l'ombre
+RAIL = OR                     # l'arête qui prend la lumière
+LUNETTE = (0x07, 0x07, 0x09)  # le noir entre l'arête et la dalle
 
 
 def arrondi(taille, rayon, remplissage):
@@ -159,49 +165,138 @@ def arrondi(taille, rayon, remplissage):
     return plaque, masque
 
 
-def appareil(capture, largeur_cible):
-    """La capture encastrée dans une coque sombre cerclée d'or.
+# La Dynamic Island, en fractions de la largeur de l'écran. Relevées sur
+# l'iPhone 17 Pro Max : 440 × 956 pt d'écran, une pilule de 125 × 37 pt posée à
+# 11 pt du bord haut.
+ILE = (125 / 440, 37 / 440, 11 / 440)
 
-    L'écran n'est pas arrondi directement. Il l'a été, et le coin mangeait la
-    barre d'état : sur une capture, l'heure touche le bord haut, là où un vrai
-    appareil garde une lunette. On redonne cette lunette — c'est aussi ce qui
-    empêche l'écran clair de flotter comme un rectangle découpé sur la nuit.
+
+def appareil(capture, largeur_cible, cadre):
+    """La capture montée dans un châssis d'appareil.
+
+    ## Pourquoi ce n'est pas un rectangle arrondi
+
+    Ça l'a été, et l'affiche s'est fait prendre pour un appareil Android. Un
+    rectangle nu ne dit pas « iPhone » : ce qui le dit, c'est l'arête de titane
+    qui prend la lumière, la lunette noire, les boutons sur la tranche, et la
+    Dynamic Island. Aucun de ces quatre éléments n'est dans la capture —
+    `simctl` ne rend que la dalle — donc tous se dessinent ici.
+
+    L'écran n'est pas non plus arrondi à même le bord. Il l'a été, et le coin
+    mangeait la barre d'état : sur une capture, l'heure touche le bord haut, là
+    où un vrai appareil garde une lunette.
+
+    ## Ce qui change d'un appareil à l'autre
+
+    Tout est dans `CADRES`, en fractions de la largeur : l'iPad a une lunette
+    plus fine, des coins bien moins arrondis, deux boutons au lieu de quatre,
+    et **pas d'île** — la caméra de l'iPad Pro M5 est sur le bord long,
+    invisible en portrait.
     """
-    lunette = max(2, round(largeur_cible * 0.019))
-    largeur_ecran = largeur_cible - lunette * 2
+    bordure = max(3, round(largeur_cible * cadre["bordure"]))
+    rayon = round(largeur_cible * cadre["rayon"])
+    saillie = max(2, round(largeur_cible * 0.007))
+    # L'arête est épaisse à dessein. Un filet d'un pixel disparaît dès que
+    # l'affiche est vue en vignette, et c'est précisément là qu'elle doit dire
+    # « iPhone ».
+    trait = max(2, round(largeur_cible * 0.010))
+
+    largeur_ecran = largeur_cible - bordure * 2
     hauteur_ecran = round(largeur_ecran * capture.height / capture.width)
-    hauteur_cible = hauteur_ecran + lunette * 2
+    hauteur_cible = hauteur_ecran + bordure * 2
 
-    rayon = round(largeur_cible * 0.062)
-    vignette, _ = arrondi((largeur_cible, hauteur_cible), rayon, COQUE)
+    vignette = Image.new(
+        "RGBA", (largeur_cible + saillie * 2, hauteur_cible + saillie), (0, 0, 0, 0)
+    )
+    dessin = ImageDraw.Draw(vignette)
 
-    ecran = capture.convert("RGB").resize((largeur_ecran, hauteur_ecran), Image.LANCZOS)
-    _, masque_ecran = arrondi((largeur_ecran, hauteur_ecran), max(1, rayon - lunette), (0, 0, 0))
-    vignette.paste(ecran, (lunette, lunette), masque_ecran)
+    # Les boutons d'abord : ils sortent de la tranche, et le châssis vient
+    # ensuite recouvrir la part qui rentre dedans. Les départs et longueurs
+    # comptent le long de la tranche — en hauteur sur les côtés, en largeur sur
+    # le dessus, où l'iPad porte sa veille.
+    for cote, depart, longueur in cadre["boutons"]:
+        if cote == "haut":
+            a = saillie + round(largeur_cible * depart)
+            boite = (a, 0, a + round(largeur_cible * longueur), saillie + bordure)
+        else:
+            a = saillie + round(hauteur_cible * depart)
+            b = a + round(hauteur_cible * longueur)
+            if cote == "gauche":
+                boite = (0, a, saillie + bordure, b)
+            else:
+                boite = (saillie + largeur_cible - bordure, a, largeur_cible + saillie * 2 - 1, b)
+        dessin.rounded_rectangle(boite, radius=saillie, fill=RAIL)
 
-    trait = max(1, round(largeur_cible * 0.0035))
-    ImageDraw.Draw(vignette).rounded_rectangle(
+    corps, _ = arrondi((largeur_cible, hauteur_cible), rayon, CHASSIS)
+    ImageDraw.Draw(corps).rounded_rectangle(
         (trait / 2, trait / 2, largeur_cible - trait / 2 - 1, hauteur_cible - trait / 2 - 1),
         radius=rayon,
-        outline=OR + (255,),
+        outline=RAIL + (255,),
         width=trait,
     )
+
+    # La lunette noire, encastrée entre l'arête et la dalle.
+    creux = trait
+    noir, masque_noir = arrondi(
+        (largeur_cible - creux * 2, hauteur_cible - creux * 2), max(1, rayon - creux), LUNETTE
+    )
+    corps.paste(noir, (creux, creux), masque_noir)
+
+    ecran = capture.convert("RGB").resize((largeur_ecran, hauteur_ecran), Image.LANCZOS)
+    if cadre["ile"]:
+        large, haut, marge = (round(largeur_ecran * f) for f in ILE)
+        gauche = (largeur_ecran - large) // 2
+        pilule, masque_pilule = arrondi((large, haut), haut // 2, (0, 0, 0))
+        ecran.paste(pilule.convert("RGB"), (gauche, marge), masque_pilule)
+        # L'objectif, un cran plus clair que la pilule. Invisible en vignette,
+        # mais l'affiche est aussi regardée en grand dans la fiche.
+        oeil = round(haut * 0.42)
+        ImageDraw.Draw(ecran).ellipse(
+            (
+                gauche + large - round(haut * 0.78),
+                marge + (haut - oeil) // 2,
+                gauche + large - round(haut * 0.78) + oeil,
+                marge + (haut + oeil) // 2,
+            ),
+            fill=(0x1C, 0x1C, 0x22),
+        )
+
+    _, masque_ecran = arrondi((largeur_ecran, hauteur_ecran), max(1, rayon - bordure), (0, 0, 0))
+    corps.paste(ecran, (bordure, bordure), masque_ecran)
+
+    # L'objectif de l'iPad, posé sur la lunette et non dans l'écran.
+    #
+    # Sur le bord **long**, donc à droite en portrait : depuis l'iPad Pro M4 la
+    # caméra a déménagé pour qu'on soit cadré droit en visio, l'iPad posé en
+    # paysage. C'est le détail qui date un mockup — le mettre en haut, c'est
+    # dessiner un iPad d'avant 2024.
+    if cadre.get("camera"):
+        cote, hauteur_relative = cadre["camera"]
+        oeil = max(2, round(largeur_cible * 0.005))
+        centre_x = largeur_cible - (bordure + trait) / 2 if cote == "droite" else (bordure + trait) / 2
+        centre_y = hauteur_cible * hauteur_relative
+        ImageDraw.Draw(corps).ellipse(
+            (centre_x - oeil, centre_y - oeil, centre_x + oeil, centre_y + oeil),
+            fill=(0x1C, 0x1C, 0x22),
+        )
+
+    vignette.alpha_composite(corps, (saillie, saillie))
     return vignette
 
 
-def ombre(taille_vignette, flou, decalage):
+def ombre(taille_vignette, rayon, flou, decalage):
     marge = flou * 3
     largeur, hauteur = taille_vignette
     plaque = Image.new("RGBA", (largeur + marge * 2, hauteur + marge * 2), (0, 0, 0, 0))
     ImageDraw.Draw(plaque).rounded_rectangle(
         (marge, marge + decalage, marge + largeur, marge + hauteur + decalage),
-        radius=round(largeur * 0.062),
+        radius=rayon,
         fill=(0, 0, 0, 150),
     )
     return plaque.filter(ImageFilter.GaussianBlur(flou)), marge
 
 
-def affiche(chemin_capture, titre, phrase):
+def affiche(chemin_capture, titre, phrase, cadre):
     capture = Image.open(chemin_capture)
     L, H = capture.size
 
@@ -240,18 +335,58 @@ def affiche(chemin_capture, titre, phrase):
 
     y += round(L * 0.070)
 
-    vignette = appareil(capture, round(L * 0.735))
+    largeur_appareil = round(L * 0.735)
+    vignette = appareil(capture, largeur_appareil, cadre)
     x = (L - vignette.width) // 2
-    plaque, decalage_ombre = ombre(vignette.size, round(L * 0.028), round(L * 0.012))
+    plaque, decalage_ombre = ombre(
+        vignette.size,
+        round(largeur_appareil * cadre["rayon"]),
+        round(L * 0.028),
+        round(L * 0.012),
+    )
     toile.alpha_composite(plaque, (x - decalage_ombre, y - decalage_ombre))
     toile.alpha_composite(vignette, (x, y))
 
     return toile.convert("RGB")
 
 
+# Les châssis, en fractions de la largeur de l'appareil. Les boutons sont
+# donnés en fractions de sa hauteur : (côté, départ, longueur).
+#
+# Un dossier Android s'ajoutera ici le jour venu — sans île, coins moins
+# arrondis, rail neutre — et rien d'autre ne bougera.
+CADRES = {
+    "iphone-6.9": {
+        "ile": True,
+        "bordure": 0.030,
+        "rayon": 0.145,
+        "boutons": [
+            ("gauche", 0.112, 0.028),  # le bouton Action
+            ("gauche", 0.162, 0.056),  # volume +
+            ("gauche", 0.232, 0.056),  # volume −
+            ("droite", 0.176, 0.088),  # veille, et la commande d'appareil photo
+        ],
+    },
+    # L'iPad ne se dessine pas comme un grand iPhone : lunette large et
+    # symétrique — la dalle ne va pas au bord —, coins trois fois moins
+    # arrondis, veille sur la tranche haute, volume sur la tranche droite, et
+    # la caméra sur le bord long.
+    "ipad-13": {
+        "ile": False,
+        "bordure": 0.030,
+        "rayon": 0.046,
+        "boutons": [
+            ("haut", 0.720, 0.075),  # veille
+            ("droite", 0.055, 0.032),  # volume +
+            ("droite", 0.100, 0.032),  # volume −
+        ],
+        "camera": ("droite", 0.5),
+    },
+}
+
+
 def main():
-    dossiers = ["iphone-6.9", "ipad-13"]
-    for dossier in dossiers:
+    for dossier, cadre in CADRES.items():
         source = CAPTURES / "brut" / dossier
         if not source.is_dir():
             sys.exit(f"manque {source} — lancer ./scripts/captures.sh d'abord")
@@ -259,7 +394,7 @@ def main():
         cible.mkdir(parents=True, exist_ok=True)
         for i, (titre, phrase) in enumerate(AFFICHES, start=1):
             nom = f"{i:02d}.png"
-            image = affiche(source / nom, titre, phrase)
+            image = affiche(source / nom, titre, phrase, cadre)
             image.save(cible / nom)
             print(f"  {cible.relative_to(RACINE)}/{nom}  {image.width}×{image.height}")
 
