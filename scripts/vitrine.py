@@ -30,7 +30,9 @@ Les polices du dépôt, `app/Resources/Fonts` — pas celles de la machine. Une
 affiche qui se compose ici et pas dans la CI n'est pas reproductible.
 """
 
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -38,6 +40,10 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 RACINE = Path(__file__).resolve().parent.parent
 POLICES = RACINE / "app/Resources/Fonts"
 CAPTURES = RACINE / "app/Captures"
+# Hors de `app/Resources`, qui part en bloc dans le binaire : l'app ne lit
+# jamais le wordmark, et il n'a rien à faire dans ce que les lecteurs
+# téléchargent.
+WORDMARK = RACINE / "app/Marque/wordmark.svg"
 
 # La palette, relevée sur `ONTColors.swift`. Le bordeaux et l'or viennent du
 # logo ; la nuit est le fond de `ontbible.com`. Aucune teinte inventée ici.
@@ -78,6 +84,51 @@ def police(nom, taille):
     return ImageFont.truetype(str(POLICES / nom), taille)
 
 
+def marque(largeur_cible):
+    """Le wordmark de la marque, rastérisé depuis son SVG.
+
+    ## Pourquoi pas « LA BIBLE ONT » composé en Jost
+
+    Parce que ce n'est pas la marque, c'est une imitation de la marque. Le
+    wordmark porte le titre **et** מקרא הקדם, dans un dessin qui ne se
+    reconstitue pas en interlettrant une police.
+
+    ## Pourquoi on rastérise à chaque composition
+
+    Le SVG est la seule source. Committer aussi le PNG, c'est deux fichiers
+    qui divergeront le jour où le dessin bouge — et personne ne verra la
+    divergence, puisque le PNG est celui qui part à l'App Store.
+
+    ## Ce que fait `qlmanage`, et ce qu'il faut réparer derrière
+
+    C'est le seul rastériseur SVG présent sur un Mac sans rien installer, et
+    le script est déjà lié à macOS par `simctl`. Il rend en carré, sur un
+    **fond blanc opaque** : on reconstruit la transparence depuis la distance
+    au blanc, ce qui est exact ici parce que le dessin est un aplat d'or —
+    `pixel = blanc·(1−α) + or·α` s'inverse sans perte sur le bleu, la voie où
+    l'or s'écarte le plus du blanc.
+    """
+    with tempfile.TemporaryDirectory() as dossier:
+        subprocess.run(
+            ["qlmanage", "-t", "-s", "2400", "-o", dossier, str(WORDMARK)],
+            capture_output=True,
+            check=True,
+        )
+        rendus = list(Path(dossier).glob("*.png"))
+        if not rendus:
+            sys.exit(f"qlmanage n'a rien rendu pour {WORDMARK}")
+        plat = Image.open(rendus[0]).convert("RGB")
+
+    ecart = 255 - OR[2]
+    alpha = plat.split()[2].point(lambda b: min(255, round((255 - b) * 255 / ecart)))
+    dessin = Image.new("RGBA", plat.size, OR + (0,))
+    dessin.putalpha(alpha)
+    dessin = dessin.crop(alpha.getbbox())
+
+    hauteur = round(largeur_cible * dessin.height / dessin.width)
+    return dessin.resize((largeur_cible, hauteur), Image.LANCZOS)
+
+
 def fond(largeur, hauteur):
     """Le dégradé bordeaux → nuit, du haut vers le bas.
 
@@ -94,19 +145,6 @@ def fond(largeur, hauteur):
         t = t * t
         dessin.point((0, y), tuple(round(a + (b - a) * t) for a, b in zip(BORDEAUX, NUIT)))
     return colonne.resize((largeur, hauteur), Image.BICUBIC)
-
-
-def tracer(dessin, xy, texte, fonte, couleur, interlettre):
-    """Un texte à interlettrage — PIL ne sait pas l'espacer tout seul."""
-    x, y = xy
-    for caractere in texte:
-        dessin.text((x, y), caractere, font=fonte, fill=couleur)
-        x += dessin.textlength(caractere, font=fonte) + interlettre
-    return x - interlettre - xy[0]
-
-
-def largeur_suivie(dessin, texte, fonte, interlettre):
-    return sum(dessin.textlength(c, font=fonte) for c in texte) + interlettre * (len(texte) - 1)
 
 
 def ajuster(dessin, lignes, nom_police, corps_max, largeur_max):
@@ -307,19 +345,16 @@ def affiche(chemin_capture, titre, phrase, cadre):
     # l'iPad n'ont pas la même proportion, et un corps de texte réglé sur la
     # hauteur sortirait deux fois plus gros sur l'un que sur l'autre.
     marge = round(L * 0.075)
-    f_marque = police("Jost-Regular.ttf", round(L * 0.038))
     f_titre, corps_titre = ajuster(
         dessin, titre, "Literata-SemiBold.ttf", round(L * 0.103), L * 0.86
     )
     f_phrase = police("Literata-Regular.ttf", round(L * 0.040))
-    interlettre = round(L * 0.038 * 0.18)
 
     y = marge
 
-    marque = "LA BIBLE ONT"
-    largeur_marque = largeur_suivie(dessin, marque, f_marque, interlettre)
-    tracer(dessin, ((L - largeur_marque) / 2, y), marque, f_marque, OR, interlettre)
-    y += round(L * 0.038 * 1.2) + round(L * 0.055)
+    signature = marque(round(L * 0.30))
+    toile.alpha_composite(signature, ((L - signature.width) // 2, y))
+    y += signature.height + round(L * 0.055)
 
     hauteur_ligne = round(corps_titre * 1.16)
     for ligne in titre:
