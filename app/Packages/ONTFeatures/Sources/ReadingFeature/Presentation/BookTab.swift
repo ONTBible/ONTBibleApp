@@ -1,3 +1,4 @@
+import ONTDesignSystem
 import ONTKit
 import SwiftUI
 
@@ -33,5 +34,6 @@ public struct BookTab: View {
                     }
                 }
         }
+        .ontColumn()
     }
 }

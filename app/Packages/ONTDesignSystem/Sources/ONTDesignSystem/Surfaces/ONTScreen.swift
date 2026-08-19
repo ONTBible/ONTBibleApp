@@ -32,6 +32,51 @@ public struct ONTScreenModifier: ViewModifier {
     }
 }
 
+/// La colonne de l'app — bornée en largeur, centrée, sur un fond qui reste plein.
+///
+/// Sur iPhone, elle ne fait rien : l'écran est plus étroit que la borne. Sur
+/// iPad, elle est ce qui empêche l'app de s'étirer d'un bord à l'autre — une
+/// carte de verset large de mille points, une liste dont les valeurs partent si
+/// loin à droite qu'on ne sait plus à quelle ligne elles appartiennent.
+///
+/// ## Posée **autour** de la pile de navigation, et pas dedans
+///
+/// Le grand titre appartient à la barre de navigation. Borner seulement le
+/// contenu laissait « Qahal » collé à la marge pendant que la carte se centrait
+/// deux cents points plus loin : deux alignements pour une même page, ce qui se
+/// lit comme un défaut. En bornant la pile entière, le titre suit sa page.
+///
+/// ## Les marges reçoivent le même fond que la colonne, grain compris
+///
+/// Il faut peindre de part et d'autre, sinon l'iPad montre le gris du système.
+/// Et il faut y mettre le grain : mesuré, des marges plates sortaient à
+/// (24, 9, 13) contre (27, 12, 16) au centre — trois points d'écart, un liseré
+/// visible sur toute la hauteur.
+///
+/// Ça ne double pas le grain de la colonne, contrairement à ce que la mise en
+/// garde d'`ONTScreenModifier` laisse craindre : le fond que l'écran pose
+/// **dedans** est opaque, donc il couvre celui-ci au lieu de s'y ajouter. Ce
+/// qu'on peint ici ne se voit que là où rien d'autre ne passe.
+///
+/// La peinture ne peut d'ailleurs pas venir d'ici : posée au-dehors, elle est
+/// recouverte par le fond que la pile de navigation dessine pour elle-même —
+/// une colonne noire entre deux marges aubergine. Chaque onglet garde donc son
+/// `ontScreen()`.
+public struct ONTColumnModifier: ViewModifier {
+    @Environment(\.ontTheme) private var theme
+
+    public func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: ONTLayout.pageWidth)
+            .frame(maxWidth: .infinity)
+            .background {
+                theme.background
+                    .overlay(ONTGrain(theme: theme.mode))
+                    .ignoresSafeArea()
+            }
+    }
+}
+
 /// La ligne de liste type — surface du thème, séparateur du thème.
 public struct ONTRowModifier: ViewModifier {
     @Environment(\.ontTheme) private var theme
@@ -49,4 +94,7 @@ extension View {
 
     /// La surface d'une ligne de liste.
     public func ontRow() -> some View { modifier(ONTRowModifier()) }
+
+    /// La colonne de l'app — à poser autour de la pile de navigation d'un onglet.
+    public func ontColumn() -> some View { modifier(ONTColumnModifier()) }
 }

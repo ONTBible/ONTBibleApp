@@ -64,6 +64,7 @@ public struct LexiconTab: View {
                 }
             }
         }
+        .ontColumn()
     }
 
     private var filtered: [GlossaryEntry] {
