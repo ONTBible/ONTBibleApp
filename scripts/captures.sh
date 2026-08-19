@@ -13,10 +13,15 @@
 #
 # ## Les deux tailles qu'Apple exige
 #
-# | appareil | taille | pourquoi |
+# | simulateur | taille | pourquoi |
 # |---|---|---|
-# | iPhone 6,9″ | 1320 × 2868 | obligatoire ; Apple redimensionne pour les écrans plus petits |
-# | iPad 13″ | 2064 × 2752 | obligatoire, l'app visant `TARGETED_DEVICE_FAMILY: "1,2"` |
+# | `ONT Pro Max` | 1320 × 2868 | obligatoire ; Apple redimensionne pour les écrans plus petits |
+# | `ONT iPadOS` | 2064 × 2752 | obligatoire, l'app visant `TARGETED_DEVICE_FAMILY: "1,2"` |
+#
+# Ce sont les simulateurs de la machine, réutilisés et démarrés au besoin — pas
+# des jetables créés à côté. `ONT` n'y figure pas : c'est un iPhone 17 Pro, il
+# rend 1206 × 2622, et l'App Store refuse cette taille. `scripts/simulateur.py`
+# le vérifie sur une vraie capture avant que rien ne soit construit.
 #
 # ## Comment l'app est conduite
 #
@@ -49,75 +54,31 @@ ECRANS=(
 
 etape() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
 
-# Le simulateur du dernier appareil en date, créé s'il manque.
+# Le simulateur des captures — **le tien**, pas un jetable.
 #
-# ## Ce qu'on n'écrit pas en dur
+# ## Pourquoi on réutilise les simulateurs nommés
 #
-# **L'identifiant du type.** Il n'est pas stable :
-# `…SimDeviceType.iPad-Pro-13-inch-M5` est devenu `…-M5-12GB` le jour où Apple
-# a décliné l'iPad par quantité de mémoire, et le script est mort dessus. On
-# donne un préfixe, et on retient le type qui commence par là.
+# Le script créait « Captures 6.9 » et « Captures 13 » à côté de `ONT` et
+# `ONT iPadOS`, qui existaient déjà et servaient au développement. Deux
+# appareils de plus par machine, chacun avec son conteneur de plusieurs
+# gigaoctets, pour rendre exactement ce que les tiens rendent.
 #
-# **Le runtime.** Les images disponibles changent d'une version de Xcode à
-# l'autre : on prend la plus récente, comparée par nombres et non par chaînes,
-# sinon iOS 9 passera devant iOS 27.
+# On prend donc les tiens, et on les démarre s'ils sont éteints.
 #
-# ## Pourquoi on vérifie un appareil qui existe déjà
+# ## Pourquoi on vérifie quand même la taille de la dalle
 #
-# Retrouver l'appareil par son seul nom suffisait — tant qu'Apple ne sortait
-# rien. « Captures 6.9 » créé sur un iPhone 16 Pro Max garde son nom quand le
-# 17 arrive, le script le réutilise, et la vitrine reste sur du matériel de
-# l'an dernier sans que rien ne le signale. C'est la panne qui a déjà figé ces
-# captures pendant deux mois, sous une autre forme.
+# Parce qu'un nom ne dit pas une résolution. `ONT` est un iPhone 17 Pro : il
+# rend 1206 × 2622, quand l'emplacement 6,9″ de l'App Store n'accepte que
+# 1320 × 2868. Une capture à la mauvaise taille est refusée au téléversement,
+# à la fin d'une chaîne de plusieurs minutes — ou pire, passe et déforme la
+# vitrine.
 #
-# On compare donc le type **et** le runtime, et on recrée si l'un des deux a
-# bougé. Un simulateur est jetable ; une capture périmée ne se voit pas.
+# La mesure est prise sur une **vraie capture**, la seule qui ne puisse pas
+# mentir là où un nom de type d'appareil peut tromper. Et elle est prise
+# **avant** de rien construire : c'est la leçon des trois pannes précédentes,
+# ce qui n'est pas vérifié tôt se découvre tard et à l'aveugle.
 simulateur() {
-  python3 - "$1" "$2" <<'PY'
-import json, subprocess, sys
-
-nom, prefixe = sys.argv[1], sys.argv[2]
-
-
-def liste(quoi):
-    sortie = subprocess.run(
-        ["xcrun", "simctl", "list", quoi, "-j"], capture_output=True, text=True, check=True
-    ).stdout
-    return json.loads(sortie)[quoi]
-
-
-types = [t["identifier"] for t in liste("devicetypes") if t["identifier"].startswith(prefixe)]
-if not types:
-    sys.exit(f"aucun type de simulateur ne commence par {prefixe}")
-type_voulu = sorted(types)[0]
-
-ios = [r for r in liste("runtimes") if r["isAvailable"] and "iOS" in r["name"]]
-if not ios:
-    sys.exit("aucun runtime iOS disponible")
-runtime_voulu = max(ios, key=lambda r: [int(n) for n in r["version"].split(".")])["identifier"]
-
-perimes = []
-for runtime, appareils in liste("devices").items():
-    for a in appareils:
-        if a["name"] != nom:
-            continue
-        if a.get("deviceTypeIdentifier") == type_voulu and runtime == runtime_voulu:
-            print(a["udid"])
-            raise SystemExit
-        perimes.append(a["udid"])
-
-for udid in perimes:
-    subprocess.run(["xcrun", "simctl", "delete", udid], capture_output=True, check=False)
-
-print(
-    subprocess.run(
-        ["xcrun", "simctl", "create", nom, type_voulu, runtime_voulu],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-)
-PY
+  python3 "$(dirname "$0")/simulateur.py" "$1" "$2" "$3"
 }
 
 serie() {
@@ -138,6 +99,26 @@ serie() {
   xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1
 
   xcrun simctl install "$sim" "$APP"
+
+  # L'onglet, remis sur Bible.
+  #
+  # Le routeur retient le dernier onglet ouvert dans `UserDefaults` — utile
+  # pour un lecteur, ruineux pour une vitrine : `ONT iPadOS` avait servi au
+  # développement avec le Lexique ouvert, et la première affiche montrait donc
+  # le Lexique là où elle doit montrer le corpus.
+  #
+  # Les trois autres écrans ne craignent rien, ils sont ouverts par un lien qui
+  # impose son onglet. Seul le premier dépendait de l'état de la machine, et
+  # c'est exactement le genre de dépendance qu'une capture ne doit pas avoir.
+  #
+  # La clé est **supprimée** plutôt que réécrite : le routeur retombe alors sur
+  # son défaut, et on ne code pas ici une valeur qu'il faudrait suivre s'il
+  # changeait d'avis.
+  conteneur=$(xcrun simctl get_app_container "$sim" "$BUNDLE" data 2>/dev/null || true)
+  if [ -n "$conteneur" ]; then
+    /usr/libexec/PlistBuddy -c "Delete :tab" \
+      "$conteneur/Library/Preferences/$BUNDLE.plist" >/dev/null 2>&1 || true
+  fi
 
   # La barre d'état, figée. Sans ça elle porte l'heure de la machine et une
   # jauge à moitié vide — deux détails qui datent la capture et trahissent
@@ -197,10 +178,10 @@ xcodebuild -project app/ONT.xcodeproj -scheme ONT \
 APP=$(find /tmp/ont-captures-dd/Build/Products -name "ONT.app" -maxdepth 3 | head -1)
 
 etape "iPhone 6,9″"
-serie "$(simulateur 'Captures 6.9' com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max)" "iphone-6.9"
+serie "$(simulateur 'ONT Pro Max' 1320 2868)" "iphone-6.9"
 
 etape "iPad 13″"
-serie "$(simulateur 'Captures 13' com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5)" "ipad-13"
+serie "$(simulateur 'ONT iPadOS' 2064 2752)" "ipad-13"
 
 # Ce qu'on téléverse n'est pas ce qu'on vient de prendre. Les captures brutes
 # restent dans `brut/` ; `vitrine.py` en fait les affiches. Enchaîné ici, et
