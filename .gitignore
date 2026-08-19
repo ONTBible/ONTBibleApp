@@ -24,6 +24,12 @@ sentry.properties
 .env
 *.p8
 
+# Les captures brutes du simulateur. Seules les affiches composées par
+# `vitrine.py` sont téléversées, donc seules elles sont committées : garder les
+# deux, c'est doubler le poids du dépôt pour un intermédiaire que
+# `./scripts/captures.sh` refait en trois minutes.
+app/Captures/brut/
+
 # Xcode
 app/*.xcodeproj/
 app/*.xcworkspace/
