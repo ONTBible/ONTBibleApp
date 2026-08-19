@@ -97,6 +97,7 @@ public struct YouTab: View {
             .ontScreen()
             .navigationTitle("Vous")
         }
+        .ontColumn()
     }
 
     private var totalVerses: Int { model.verses }

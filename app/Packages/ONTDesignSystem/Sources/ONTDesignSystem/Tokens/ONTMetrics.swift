@@ -77,4 +77,24 @@ public enum ONTLayout {
     /// Au-delà, une ligne devient trop longue pour que l'œil retrouve le
     /// début de la suivante. Vaut surtout sur iPad.
     public static let readingWidth: CGFloat = 700
+
+    /// La largeur d'une **page** — listes, cartes, réglages.
+    ///
+    /// Plus large que la mesure du texte suivi, et c'est délibéré : une liste
+    /// ne se lit pas comme une phrase. L'œil n'y court pas d'un bout à l'autre,
+    /// il saute d'un intitulé à sa valeur. La serrer à la mesure de la prose la
+    /// tassait sans rien gagner en lisibilité.
+    public static let pageWidth: CGFloat = 850
+
+    /// La largeur d'une carte — celle qu'elle a sur iPhone.
+    ///
+    /// Un iPhone de 402 points moins ses deux marges de vingt : la carte du
+    /// verset y fait 363 × 232, soit un rapport de 1,56. Étalée sur la colonne
+    /// de l'iPad, elle passait à 803 × 235 — un rapport de 3,4, une bande. Le
+    /// verset n'y tenait plus que sur deux lignes qui traversaient l'écran.
+    ///
+    /// La carte garde donc sa mesure d'un appareil à l'autre. C'est aussi ce
+    /// qui la maintient jumelle de la pastille du widget, qui ne s'étire pas
+    /// non plus.
+    public static let cardWidth: CGFloat = 362
 }

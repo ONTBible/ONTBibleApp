@@ -85,6 +85,7 @@ public struct BibleTab: View {
                 }
             }
         }
+        .ontColumn()
     }
 }
 

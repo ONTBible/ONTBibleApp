@@ -89,6 +89,14 @@ class Client:
             raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
         return r.json() if r.content else {}
 
+    def delete(self, chemin: str) -> None:
+        """404 est toléré : l'objet qu'on voulait absent l'est déjà."""
+        r = self.session.delete(f"{API}/{chemin}", timeout=30)
+        if r.status_code == 404:
+            return
+        if r.status_code >= 400:
+            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
+
 
 def application(client: Client) -> str:
     """L'identifiant de l'app, depuis son bundle."""

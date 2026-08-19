@@ -82,6 +82,24 @@ final class Composition {
     /// Le vivier du verset du jour, pour la programmation des rappels.
     private let daily: any DailyVerseRepository
 
+    /// La mise à jour du corpus, détournable en développement.
+    ///
+    ///     xcrun simctl launch <sim> com.labibleont.ONT -corpus-origine http://localhost:8787/
+    ///
+    /// Sans cette couture, la seule façon d'éprouver l'arrivée d'un livre
+    /// pendant que l'app tourne serait de publier pour de vrai sur
+    /// `ontbible.com`. On vérifierait alors le rafraîchissement le jour où il
+    /// est trop tard pour le corriger.
+    static func miseAJour() -> CorpusUpdater {
+        #if DEBUG
+        if let raw = UserDefaults.standard.string(forKey: "corpus-origine"),
+            let origine = URL(string: raw) {
+            return CorpusUpdater(origine: origine)
+        }
+        #endif
+        return CorpusUpdater()
+    }
+
     /// Les lecteurs de disque, gardés pour qu'on puisse leur dire d'oublier.
     private let corpusSurDisque: DiskCorpusRepository
     private let lexiqueSurDisque: DiskGlossaryRepository
@@ -142,13 +160,19 @@ final class Composition {
         // que l'app ne finisse de démarrer : iOS lève une exception s'il tente
         // de lancer une tâche qui ne l'a pas été, et il le fait des heures plus
         // tard, dans un processus que personne ne regarde.
-        CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque] in
+        CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, reading, lexicon] in
             corpusSurDisque.oublier()
             lexiqueSurDisque.oublier()
+            // Le réveil d'arrière-plan n'est pas sur l'acteur principal, et les
+            // modèles y vivent : on repasse par lui pour le dire aux vues.
+            Task { @MainActor in
+                reading.corpusChanged()
+                lexicon.glossaryChanged()
+            }
         }
         CorpusRefresh.schedule()
 
-        Task { [corpusSurDisque, lexiqueSurDisque] in
+        Task { [corpusSurDisque, lexiqueSurDisque, reading, lexicon] in
             // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
             //
             // Elle ne bloque **rien** : l'app a déjà tout ce qu'il lui faut,
@@ -158,13 +182,24 @@ final class Composition {
             //
             // Le cas le plus fréquent est « rien de neuf », et il ne coûte
             // qu'une requête de huit cents octets.
-            guard let neufs = try? await CorpusUpdater().synchroniser(), neufs > 0 else { return }
+            guard let neufs = try? await Self.miseAJour().synchroniser(), neufs > 0 else { return }
 
             // Sans cet oubli, le corpus fraîchement écrit n'apparaîtrait qu'au
             // prochain lancement : les caches en mémoire tiennent la version
             // d'avant, et rien ne leur dit qu'elle a vieilli.
             corpusSurDisque.oublier()
             lexiqueSurDisque.oublier()
+
+            // Et sans ces deux lignes, l'oubli ne se voit pas non plus.
+            //
+            // Un cache vidé ne change aucune propriété observée : les vues ne
+            // relisent donc rien, et le livre neuf attend le prochain
+            // lancement — sur le disque, mais nulle part à l'écran. C'est
+            // exactement ce que faisait la table des matières avant qu'on
+            // pose des livres dans la barre latérale de l'iPad, où le trou
+            // devient visible.
+            reading.corpusChanged()
+            lexicon.glossaryChanged()
         }
 
         let sessions = KeychainSessionStore()

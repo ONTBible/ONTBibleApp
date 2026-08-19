@@ -2,8 +2,17 @@
 
 """Remplit la fiche App Store, et y téléverse les captures.
 
+Se lance par le workflow **Fiche**, qui porte les clés :
+
+    gh workflow run fiche.yml -f captures=true
+
+ou à la main, si on les a sous le coude :
+
     ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_PRIVATE_KEY="$(cat AuthKey_….p8)" \\
-      ./.github/scripts/fiche.py [--captures] [--sec]
+      ./.github/scripts/fiche.py --captures
+
+Rejouable : il reprend la version en préparation, la crée si aucune n'attend,
+et remplace les jeux de captures au lieu de les empiler.
 
 ## Pourquoi automatiser une fiche qu'on ne remplit qu'une fois
 
@@ -30,18 +39,21 @@ faire à la main, et sans elles la soumission est refusée.
 
 import argparse
 import hashlib
-import json
-import os
 import pathlib
+import re
 import sys
-from datetime import datetime, timedelta, timezone
 
-import jwt
 import requests
 
-API = "https://api.appstoreconnect.apple.com/v1"
-BUNDLE = "com.labibleont.ONT"
-CAPTURES = pathlib.Path(__file__).resolve().parents[2] / "app" / "Captures"
+from asc import API, Client, application
+
+RACINE = pathlib.Path(__file__).resolve().parents[2]
+CAPTURES = RACINE / "app" / "Captures"
+PROJET = RACINE / "app" / "project.yml"
+
+# Les états d'une version qu'on a encore le droit de modifier. Repris de
+# `soumettre.py`, qui les tient pour la même raison.
+MODIFIABLES = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED")
 
 # Les deux tailles qu'Apple exige, et le nom qu'il leur donne. Il redimensionne
 # lui-même pour les écrans plus petits : ces deux-là suffisent.
@@ -81,52 +93,56 @@ FICHE = {
 }
 
 
-def jeton() -> str:
-    maintenant = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "iss": os.environ["ASC_ISSUER_ID"],
-            "iat": int(maintenant.timestamp()),
-            "exp": int((maintenant + timedelta(minutes=20)).timestamp()),
-            "aud": "appstoreconnect-v1",
-        },
-        os.environ["ASC_PRIVATE_KEY"],
-        algorithm="ES256",
-        headers={"kid": os.environ["ASC_KEY_ID"]},
+def numero_du_projet() -> str:
+    """La version publique, lue là où elle fait déjà foi.
+
+    `CFBundleShortVersionString` d'`app/project.yml` est le numéro que porte le
+    binaire ; c'est lui qu'App Store Connect doit trouver en face. L'écrire une
+    seconde fois ici, c'est se garantir qu'un jour la fiche préparera une
+    version que personne ne construit.
+    """
+    trouve = re.search(
+        r'CFBundleShortVersionString:\s*"([^"]+)"', PROJET.read_text(encoding="utf8")
     )
+    if not trouve:
+        raise SystemExit(f"CFBundleShortVersionString introuvable dans {PROJET}")
+    return trouve.group(1)
 
 
-class Client:
-    def __init__(self) -> None:
-        self.s = requests.Session()
-        self.s.headers["Authorization"] = f"Bearer {jeton()}"
+def version_a_remplir(c: Client, app: str) -> str:
+    """La version en préparation — reprise si elle existe, créée sinon.
 
-    def _verifier(self, r, quoi: str):
-        if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {quoi} :\n{r.text}")
-        return r.json() if r.content else {}
+    Une version déjà en vente n'est plus modifiable. Tant que la suivante
+    n'existe pas, la fiche n'a nulle part où se poser, et la chaîne s'arrêtait
+    ici sur un message demandant d'aller cliquer dans l'interface web.
+    `soumettre.py` avait déjà tranché dans l'autre sens pour la même raison.
+    """
+    toutes = c.get(f"apps/{app}/appStoreVersions", limit=20)["data"]
+    for v in toutes:
+        if v["attributes"]["appStoreState"] in MODIFIABLES:
+            print(
+                f"  version {v['attributes']['versionString']} reprise "
+                f"({v['attributes']['appStoreState']})"
+            )
+            return v["id"]
 
-    def get(self, chemin: str, **params) -> dict:
-        return self._verifier(
-            self.s.get(f"{API}/{chemin}", params=params, timeout=30), chemin
-        )
-
-    def patch(self, chemin: str, corps: dict) -> dict:
-        return self._verifier(
-            self.s.patch(f"{API}/{chemin}", json=corps, timeout=30), chemin
-        )
-
-    def post(self, chemin: str, corps: dict) -> dict:
-        return self._verifier(
-            self.s.post(f"{API}/{chemin}", json=corps, timeout=60), chemin
-        )
-
-
-def app_id(c: Client) -> str:
-    apps = c.get("apps", **{"filter[bundleId]": BUNDLE})["data"]
-    if not apps:
-        raise SystemExit(f"Aucune app pour {BUNDLE} dans ce compte.")
-    return apps[0]["id"]
+    numero = numero_du_projet()
+    cree = c.post(
+        "appStoreVersions",
+        {
+            "data": {
+                "type": "appStoreVersions",
+                "attributes": {
+                    "platform": "IOS",
+                    "versionString": numero,
+                    "releaseType": "AFTER_APPROVAL",
+                },
+                "relationships": {"app": {"data": {"type": "apps", "id": app}}},
+            }
+        },
+    )
+    print(f"  version {numero} créée")
+    return cree["data"]["id"]
 
 
 def televerser_captures(c: Client, version: str) -> None:
@@ -137,15 +153,31 @@ def televerser_captures(c: Client, version: str) -> None:
     pousse les octets, puis on **valide** avec l'empreinte MD5. Sans cette
     dernière étape, l'image reste en attente et n'apparaît nulle part — sans
     qu'aucune erreur ne le dise.
+
+    ## Pourquoi on supprime avant d'envoyer
+
+    Une version en préparation **hérite des captures de la précédente**. Créer
+    un jeu pour un format qui en a déjà un ne le remplace pas : selon les cas
+    Apple refuse, ou empile un second jeu et sert l'ancien. Le script partait
+    du cas de la 1.0, où la fiche était vierge, et ne pouvait donc pas
+    fonctionner deux fois — ce qui est précisément ce qu'on lui demande, les
+    captures se refaisant à chaque changement visuel.
     """
     localisations = c.get(f"appStoreVersions/{version}/appStoreVersionLocalizations")
     loc = localisations["data"][0]["id"]
+
+    existants = c.get(f"appStoreVersionLocalizations/{loc}/appScreenshotSets")["data"]
 
     for dossier, format_apple in FORMATS.items():
         images = sorted((CAPTURES / dossier).glob("*.png"))
         if not images:
             print(f"  {dossier} : aucune capture, sauté")
             continue
+
+        for ancien in existants:
+            if ancien["attributes"]["screenshotDisplayType"] == format_apple:
+                c.delete(f"appScreenshotSets/{ancien['id']}")
+                print(f"  {dossier} : ancien jeu supprimé")
 
         jeu = c.post(
             "appScreenshotSets",
@@ -216,19 +248,11 @@ def main() -> None:
     options = arguments.parse_args()
 
     c = Client()
-    app = app_id(c)
+    app = application(c)
     print(f"  app {app}")
 
     # Le texte, sur la localisation française de la version en préparation.
-    versions = c.get(
-        f"apps/{app}/appStoreVersions",
-        **{"filter[appStoreState]": "PREPARE_FOR_SUBMISSION", "limit": 1},
-    )["data"]
-    if not versions:
-        raise SystemExit(
-            "Aucune version en préparation. Elle se crée dans App Store Connect."
-        )
-    version = versions[0]["id"]
+    version = version_a_remplir(c, app)
 
     loc = c.get(f"appStoreVersions/{version}/appStoreVersionLocalizations")["data"][0]
     c.patch(

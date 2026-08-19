@@ -1,0 +1,71 @@
+# La fiche App Store, poussée depuis le dépôt.
+#
+# ## Pourquoi un workflow et pas une commande locale
+#
+# `fiche.py` existait déjà, et n'était branché nulle part : il fallait avoir les
+# trois secrets Apple sous la main pour le lancer. Résultat, la fiche se
+# remplissait quand quelqu'un y pensait, et les captures refaites par
+# `scripts/captures.sh` restaient sur le disque — celles de l'App Store dataient
+# du 13 août alors que l'app avait changé deux fois de mise en page.
+#
+# Les clés sont ici, dans les secrets du dépôt. Personne n'a besoin de les
+# copier sur son poste pour publier une correction de texte ou une capture.
+#
+# ## Pourquoi il ne part pas tout seul
+#
+# `workflow_dispatch` seul, jamais sur `push`. Une fiche qui se pousserait à
+# chaque commit écraserait, sans qu'on l'ait voulu, un texte retouché entre
+# temps dans l'interface web d'Apple. C'est un geste, et il se déclenche.
+#
+# ## Ce qu'il ne fait pas
+#
+# Il ne soumet rien à la revue. Remplir la fiche prépare la version ; la
+# soumettre est le travail de `soumettre.py`, que `livraison.yml` déclenche sur
+# `main`. Les deux restent séparés parce que la première opération se rejoue
+# sans conséquence et la seconde non.
+
+name: Fiche
+
+on:
+  workflow_dispatch:
+    inputs:
+      captures:
+        description: "Téléverser aussi les captures"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# Deux envois simultanés se marcheraient dessus : le second supprimerait les
+# jeux de captures que le premier est en train de remplir.
+concurrency:
+  group: fiche
+  cancel-in-progress: false
+
+jobs:
+  pousser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Les dépendances
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet -r .github/scripts/exigences.txt
+
+      - name: Pousser la fiche
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          cd .github/scripts
+          if [ "${{ inputs.captures }}" = "true" ]; then
+            "$RUNNER_TEMP/venv/bin/python" fiche.py --captures
+          else
+            "$RUNNER_TEMP/venv/bin/python" fiche.py
+          fi
