@@ -14,6 +14,11 @@ public struct QahalTab: View {
     @Environment(QahalModel.self) private var model
     @Environment(\.ontTheme) private var theme
 
+    /// La marge de la page. Nommée parce qu'elle sert deux fois : le rembourrage
+    /// de la colonne, et la largeur qu'il faut lui ajouter pour que la carte
+    /// **dedans** fasse exactement sa mesure.
+    private let marge: CGFloat = 20
+
     public init() {}
 
     public var body: some View {
@@ -29,12 +34,26 @@ public struct QahalTab: View {
 
                     comingSoon
                 }
-                .padding(20)
+                .padding(marge)
+                // Les cartes gardent la mesure qu'elles ont sur iPhone. La
+                // colonne de la page fait 850 ; y étaler la carte du verset la
+                // transformait en bande, et le verset ne tenait plus que sur
+                // deux lignes traversant l'écran.
+                .frame(maxWidth: ONTLayout.cardWidth + 2 * marge)
+                // Centrées dans la colonne. Le grand titre, lui, reste à la
+                // marge — c'est la barre de navigation qui le place, pas nous.
+                // Les deux alignements ne se rejoignent donc pas, et c'est
+                // assumé : une carte étroite posée à gauche d'une page large
+                // pend dans le vide, alors qu'au centre elle tient.
+                .frame(maxWidth: .infinity)
             }
-            .background(theme.background)
+            // La règle du design system : tout écran de premier niveau le
+            // porte. Le Qahal ne l'avait pas — il posait son fond à la main.
+            .ontScreen()
             .navigationTitle("Qahal")
             .task { model.pick() }
         }
+        .ontColumn()
     }
 
     private var comingSoon: some View {
