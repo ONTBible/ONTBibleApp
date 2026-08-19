@@ -13,8 +13,47 @@ import Observation
 @MainActor
 @Observable
 public final class Router {
-    public enum TabID: String, Hashable, Sendable {
+    /// Un emplacement de la barre d'onglets.
+    ///
+    /// Les quatre premiers sont les onglets de toujours. `book` n'existe que
+    /// dans la **barre latérale de l'iPad** : un livre y est une destination à
+    /// part entière, comme une playlist dans Music, et non une ligne dans la
+    /// table des matières. Il garde donc sa propre pile de navigation.
+    ///
+    /// `RawRepresentable` écrit à la main plutôt qu'engendré : un cas à valeur
+    /// associée ne peut pas avoir de brut automatique, et on tient à ce que le
+    /// dernier onglet reste une seule chaîne dans les réglages.
+    public enum TabID: RawRepresentable, Hashable, Sendable {
         case qahal, bible, lexicon, you
+        case book(String)
+
+        public init?(rawValue: String) {
+            switch rawValue {
+            case "qahal": self = .qahal
+            case "bible": self = .bible
+            case "lexicon": self = .lexicon
+            case "you": self = .you
+            default:
+                guard rawValue.hasPrefix("book:") else { return nil }
+                self = .book(String(rawValue.dropFirst(5)))
+            }
+        }
+
+        public var rawValue: String {
+            switch self {
+            case .qahal: "qahal"
+            case .bible: "bible"
+            case .lexicon: "lexicon"
+            case .you: "you"
+            case .book(let id): "book:\(id)"
+            }
+        }
+
+        /// Le livre visé, quand cet onglet en est un.
+        public var bookId: String? {
+            if case .book(let id) = self { return id }
+            return nil
+        }
     }
 
     /// Le chemin de navigation dans l'onglet Bible.
