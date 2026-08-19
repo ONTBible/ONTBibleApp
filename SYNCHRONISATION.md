@@ -1,37 +1,42 @@
-# La synchronisation des trois dépôts
+# La synchronisation des dépôts ONT
 
-**Ce fichier est identique dans les trois dépôts.** Le modifier dans un seul,
-c'est le casser — et personne ne verra la cassure, puisque chaque dépôt aura
-l'air cohérent tout seul.
+**Ce fichier est identique partout où il se trouve** — à la racine
+`~/ONTBible/` et dans chaque dépôt. Le modifier à un seul endroit, c'est le
+casser : chaque dépôt aura l'air cohérent tout seul, et personne ne verra la
+divergence.
 
 ---
 
 ## La règle
 
-Après **chaque** travail dans l'un des trois dépôts, avant de dire que c'est
-fini :
+Après **chaque** travail dans l'un des dépôts, avant de dire que c'est fini :
 
-1. **Demander ce que ce travail change pour les deux autres.** Pas « est-ce que
-   j'y ai touché » — *ce qu'il change pour eux*. Un fichier déplacé, un format
-   de sortie modifié, une couleur, un nom, un numéro de version : rien de tout
+1. **Demander ce que ce travail change pour les autres.** Pas « est-ce que j'y
+   ai touché » — *ce qu'il change pour eux*. Un fichier déplacé, un format de
+   sortie modifié, une couleur, un nom, un numéro de version : rien de tout
    cela ne se voit depuis le dépôt voisin.
-2. **S'il change quelque chose, le porter dans les deux autres** — dans la même
-   session, pas « plus tard ». Plus tard, c'est la personne suivante qui
-   découvre la rupture, sans savoir ce qui l'a causée.
-3. **Inscrire la ligne au journal**, en bas de ce fichier, et pousser ce fichier
-   identique dans les trois.
+2. **S'il change quelque chose, le porter chez eux** — dans la même session,
+   pas « plus tard ». Plus tard, c'est la personne suivante qui découvre la
+   rupture, sans savoir ce qui l'a causée.
+3. **Inscrire la ligne au journal**, en bas de ce fichier, et pousser ce
+   fichier identique partout.
 
 **Sans exception.** N'avoir rien à porter est une conclusion, pas une dispense :
 elle se constate, elle ne se suppose pas.
 
-Les trois dépôts sont côte à côte sur la machine — `~/ONTBible/<dépôt>` — et le
-travail dans l'un se fait donc en voyant les autres.
+## Se lancer depuis la racine
+
+Les dépôts sont côte à côte sous `~/ONTBible/`. **Ouvrir une session depuis la
+racine** plutôt que depuis un dépôt : les autres sont alors visibles, et le
+`CLAUDE.md` de la racine se charge de toute façon pour tout travail mené dans
+un sous-dossier — la règle suit, même quand on descend dans un seul dépôt.
 
 ---
 
-## Les trois dépôts
+## Les dépôts
 
-Un seul projet, découpé en trois par la technique, pas par le sujet.
+Un seul projet, découpé par la technique, pas par le sujet. Org GitHub :
+[`ONTBible`](https://github.com/ONTBible).
 
 | dépôt | ce qu'il porte |
 |---|---|
@@ -39,7 +44,7 @@ Un seul projet, découpé en trois par la technique, pas par le sujet.
 | [`ONTBibleApp`](https://github.com/ONTBible/ONTBibleApp) | le pipeline Rust, la liseuse iOS, le backend AWS |
 | [`ONTBibleWebapp`](https://github.com/ONTBible/ONTBibleWebapp) | `ontbible.com` — Leptos et Axum, et **les originaux de la marque** |
 
-Les trois portent le même ruleset : `main` protégée, passage par pull request,
+Tous portent le même ruleset : `main` protégée, passage par pull request,
 **signatures exigées**, suppression de la branche après fusion.
 
 ---
@@ -74,6 +79,27 @@ Chacune est une divergence en attente. Les toucher d'un côté oblige à l'autre
 | `App/app/Marque/wordmark.svg` | `Webapp/public/images/wordmark.svg` | les affiches de l'App Store portent un dessin que le site n'a plus |
 | `Webapp/public/images/app-lecture.webp` | une capture de l'app | le site montre une interface qui n'existe plus |
 | le numéro de version publique | `App/app/project.yml` | la fiche App Store prépare une version que personne ne construit |
+| **ce fichier** | lui-même | la règle dit une chose ici et une autre là, donc plus rien |
+
+---
+
+## Ajouter un dépôt
+
+Un nouveau dépôt qui n'est pas raccordé n'est pas un quatrième dépôt : c'est un
+dépôt orphelin que personne ne pensera à mettre à jour. Cinq gestes, dans
+l'ordre :
+
+1. **Le cloner sous `~/ONTBible/`**, à côté des autres. Un dépôt rangé ailleurs
+   sort du champ de vision, et la règle avec lui.
+2. **Y copier ce fichier**, à l'octet près.
+3. **Poser le rappel en tête de son `CLAUDE.md`** — le même bloc que dans les
+   autres, avec la phrase qui dit ce que *ce* dépôt donne aux autres et ce
+   qu'il leur prend.
+4. **L'inscrire ici** : dans le tableau des dépôts, dans le schéma des
+   dépendances, et dans les copies à resynchroniser s'il en introduit.
+   Répercuter le fichier partout, racine comprise.
+5. **Lui donner le même ruleset** sur GitHub : `main` protégée, pull request,
+   signatures, suppression de branche après fusion.
 
 ---
 

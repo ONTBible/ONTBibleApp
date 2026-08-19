@@ -2,9 +2,11 @@
 
 > ## À faire à la fin de **chaque** travail, sans exception
 >
-> Ce dépôt est l'un des **trois** d'un même projet — avec `ONTBibleTranslation`
-> (le vault) et `ONTBibleWebapp` (`ontbible.com`). Ils sont côte à côte :
-> `~/ONTBible/<dépôt>`.
+> Ce dépôt est l'un de ceux d'un même projet, rangés côte à côte sous
+> `~/ONTBible/` — avec `ONTBibleTranslation` (le vault) et `ONTBibleWebapp`
+> (`ontbible.com`). La racine porte son propre `CLAUDE.md`, qui se charge
+> aussi ici : **ouvrir les sessions depuis `~/ONTBible/`**, les voisins sont
+> alors visibles.
 >
 > Avant de dire qu'un travail est fini, **lire [`SYNCHRONISATION.md`](SYNCHRONISATION.md)
 > et appliquer sa règle** : demander ce que ce travail change pour les deux
