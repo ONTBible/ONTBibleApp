@@ -271,26 +271,36 @@ def main() -> None:
 
     # Le sous-titre vit sur `appInfoLocalizations`, pas sur la version : il ne
     # change pas d'une version à l'autre.
+    #
+    # **On ne le pose que sur une fiche modifiable.** Le script prenait la
+    # première venue à défaut d'en trouver une en préparation — c'est-à-dire
+    # celle de la version *en vente*, qu'Apple verrouille. Il rendait alors
+    # 409 « The field 'subtitle' can not be modified in the current state », et
+    # mourait là : avant de téléverser les captures, qui sont pourtant la
+    # raison d'être de l'appel. Une étape facultative ne doit pas emporter
+    # celles qui la suivent.
     infos = c.get(f"apps/{app}/appInfos")["data"]
-    prep = next(
-        (i for i in infos if i["attributes"]["appStoreState"] == "PREPARE_FOR_SUBMISSION"),
-        infos[0],
+    modifiable = next(
+        (i for i in infos if i["attributes"]["appStoreState"] in MODIFIABLES), None
     )
-    info_loc = c.get(f"appInfos/{prep['id']}/appInfoLocalizations")["data"][0]
-    c.patch(
-        f"appInfoLocalizations/{info_loc['id']}",
-        {
-            "data": {
-                "type": "appInfoLocalizations",
-                "id": info_loc["id"],
-                "attributes": {
-                    "subtitle": FICHE["subtitle"],
-                    "privacyPolicyUrl": "https://ontbible.com/fr/confidentialite",
-                },
-            }
-        },
-    )
-    print("  sous-titre et politique de confidentialité posés")
+    if modifiable is None:
+        print("  sous-titre : aucune fiche modifiable, sauté")
+    else:
+        info_loc = c.get(f"appInfos/{modifiable['id']}/appInfoLocalizations")["data"][0]
+        c.patch(
+            f"appInfoLocalizations/{info_loc['id']}",
+            {
+                "data": {
+                    "type": "appInfoLocalizations",
+                    "id": info_loc["id"],
+                    "attributes": {
+                        "subtitle": FICHE["subtitle"],
+                        "privacyPolicyUrl": "https://ontbible.com/fr/confidentialite",
+                    },
+                }
+            },
+        )
+        print("  sous-titre et politique de confidentialité posés")
 
     # Les droits sur le contenu. La traduction est celle de l'auteur : l'app ne
     # montre aucun contenu de tiers.

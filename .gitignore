@@ -49,6 +49,18 @@ DerivedData/
 # la main un jour où il sera pressé. Absent du dépôt, il ne peut qu'être à jour.
 app/Packages/ONTData/Sources/ONTData/Bundle/Schema.swift
 
+# Les `Info.plist`, engendrés par xcodegen depuis les blocs `info:` de
+# `project.yml`.
+#
+# Ils étaient committés, et ils ont menti : le 19 août 2026 ils portaient
+# encore 1.0.1 quand `project.yml` disait 1.0.2. Sans conséquence — la CI
+# rejoue `corpus.sh`, donc `xcodegen`, avant de construire — mais c'est
+# exactement la divergence que les deux règles voisines existent pour empêcher.
+# La CI y pose ensuite le numéro de build, ce qui les rend de toute façon
+# différents de ce qu'un poste produit.
+app/Info.plist
+app/Widget/Info.plist
+
 # Le projet Xcode est produit par xcodegen à partir de project.yml : c'est
 # ce dernier qui fait foi. Committer les deux, c'est garantir qu'ils
 # divergeront.
