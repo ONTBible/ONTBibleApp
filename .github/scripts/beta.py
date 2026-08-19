@@ -139,7 +139,19 @@ def main() -> None:
                   "relationships": {"build": {"data": {"type": "builds", "id": build}}}}},
         # 409 : Apple juge la revue inutile — le numéro de version a déjà été
         # revu. Le build partira quand même aux testeurs.
+        #
+        # « Another build in the same train is already in beta review. » Deux
+        # promotions vers `staging` dans la même journée suffisent à le
+        # produire. Ce n'est pas un échec de la livraison : le build **est**
+        # rattaché au groupe, c'est la ligne au-dessus qui compte. Apple revoit
+        # le premier, et le second en hérite.
+        #
+        # Le laisser échouer peignait tout le job en rouge pour une file
+        # d'attente chez Apple, et masquait les vraies pannes de distribution.
+        # On tolère le **motif** et non le code : un 422 dit aussi qu'il manque
+        # une information de test, ce qui ne se résout pas tout seul.
         tolerer=(409,),
+        tolerer_si=("already in beta review",),
     )
     etat = (reponse.get("data", {}).get("attributes") or {}).get("betaReviewState")
     print("  revue de bêta demandée —", etat or "déjà couverte par la version")
