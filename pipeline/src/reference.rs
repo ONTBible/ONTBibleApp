@@ -195,6 +195,8 @@ fn read_tagged_terms(section: &Section) -> Vec<TaggedTerm> {
 struct FixedTerm {
     lemma: String,
     title: String,
+    /// Les autres graphies de la **même** entrée — `vayomer` pour `amar`.
+    variantes: Vec<String>,
     hebrew: Option<String>,
     rendering: Option<String>,
     definition: String,
@@ -223,6 +225,11 @@ fn read_fixed_terms(section: &Section) -> Vec<FixedTerm> {
         let split = |cell: &str| -> Vec<String> {
             cell.split('/')
                 .map(cell_text)
+                // Couper `*amar/vayomer*` sur la barre laisse une astérisque
+                // orpheline de chaque côté : `*amar`, `vayomer*`. Le lemme n'en
+                // souffrait pas — `slugify` les mange — mais le titre et les
+                // formes les portaient jusqu'à l'écran.
+                .map(|s| s.trim_matches(['*', ' ', '\u{a0}']).to_string())
                 .filter(|s| !s.is_empty())
                 .collect()
         };
@@ -243,10 +250,38 @@ fn read_fixed_terms(section: &Section) -> Vec<FixedTerm> {
             }
         };
 
-        for (index, translit) in translits.iter().enumerate() {
+        // **Un hébreu pour plusieurs translittérations = un seul terme.**
+        //
+        // La barre oblique sert à deux choses dans ces tables, et il fallait
+        // les séparer. `אִשָּׁה / אִישׁ | *ishah* / *ish*` porte deux mots
+        // hébreux : ce sont deux entrées, et le dédoublement est juste.
+        // `אָמַר | *amar/vayomer*` n'en porte qu'un : c'est **une** entrée et
+        // sa forme de récit, et le dédoublement fabriquait une entrée fantôme.
+        //
+        // Dix paires étaient dans ce cas — vayomer, vayar, vayavdel, vayiqra,
+        // vayevarekh, vayekhullu, vayishbot, vayeqadesh, vayiten, vayedabber.
+        // Chacune doublait sa racine avec la même définition, et un lecteur
+        // qui touchait `vayomer` ouvrait une fiche jumelle au lieu de celle
+        // d'`amar`.
+        //
+        // Le compte des hébreux tranche, et le code s'en servait déjà pour
+        // apparier les cellules — il suffisait d'en tirer la conséquence.
+        let une_seule_entrée = hebrews.len() != translits.len();
+        let translits_retenus: Vec<&String> = if une_seule_entrée {
+            translits.iter().take(1).collect()
+        } else {
+            translits.iter().collect()
+        };
+
+        for (index, translit) in translits_retenus.iter().enumerate() {
             terms.push(FixedTerm {
                 lemma: slugify(translit),
-                title: translit.clone(),
+                title: (*translit).clone(),
+                variantes: if une_seule_entrée {
+                    translits[1..].to_vec()
+                } else {
+                    Vec::new()
+                },
                 hebrew: pick(&hebrews, index),
                 rendering: pick(&renderings, index),
                 definition: definition.clone(),
@@ -461,6 +496,13 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
             if existante.definition.is_none() {
                 existante.definition = as_blocks(&term.definition);
             }
+            // Les graphies de récit rejoignent les formes de l'entrée, pour
+            // que `vayomer` retombe sur `amar` au lieu de rester orphelin.
+            for v in &term.variantes {
+                if !existante.forms.contains(v) {
+                    existante.forms.push(v.clone());
+                }
+            }
             existante.source_section = Some(format!("2.5 + {}", term.section));
             continue;
         }
@@ -470,7 +512,9 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
                 lemma: term.lemma.clone(),
                 title: term.title.clone(),
                 tagged: false,
-                forms: vec![term.title.clone()],
+                forms: std::iter::once(term.title.clone())
+                    .chain(term.variantes.iter().cloned())
+                    .collect(),
                 hebrew: term.hebrew.clone(),
                 rendering: term.rendering.clone(),
                 definition: as_blocks(&term.definition),
