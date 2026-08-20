@@ -24,7 +24,7 @@ use serde::Serialize;
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, out, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
-use crate::reference::{read_reference, BookName, Reference};
+use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Inline, Manifest, Mode, ModeOutline,
@@ -562,6 +562,23 @@ pub fn build() -> Result<BuildResult, String> {
         book_names,
     } = read_reference(&texte_reference, &ids);
 
+    // Les fiches denses recouvrent la définition tirée de `CLAUDE.md`. Elles ne
+    // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
+    // balisage restent au document de référence, qui en est la source.
+    let fiches = read_fiches(&racine);
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
+    for entry in glossary.iter_mut() {
+        if let Some(blocs) = fiches.get(&entry.lemma) {
+            entry.definition = Some(blocs.clone());
+        }
+    }
+
     let lu = read_chapters(&racine);
     let corpora = assemble(&skeleton, &lu.chapters, &book_names);
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
@@ -746,6 +763,7 @@ pub fn build() -> Result<BuildResult, String> {
         &lu.issues,
         &indexed.unknown,
         &lu.superseded,
+        &fiches_orphelines,
         &racine,
     );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
@@ -764,6 +782,7 @@ fn format_report(
     issues: &[Issue],
     unknown: &BTreeMap<String, Unknown>,
     superseded: &[String],
+    fiches_orphelines: &[String],
     racine: &Path,
 ) -> String {
     let books: Vec<&Book> = corpora
@@ -850,6 +869,23 @@ fn format_report(
             e.count,
             e.first_use.as_deref().unwrap_or("—")
         ));
+    }
+
+    // Une fiche écrite pour un lemme qui n'existe pas est du travail perdu :
+    // elle est committée, publiée, et personne ne la lit jamais. Le nom de
+    // fichier fait la jointure — `lexique/chesed.md` ↔ le lemme `chesed`.
+    if !fiches_orphelines.is_empty() {
+        l.extend([
+            String::new(),
+            "## Fiches sans entrée de glossaire".into(),
+            String::new(),
+            "Ces fiches de `lexique/` ne retombent sur aucun lemme : leur texte".into(),
+            "n'atteint aucun lecteur. Le nom du fichier doit être le lemme.".into(),
+            String::new(),
+        ]);
+        for f in fiches_orphelines {
+            l.push(format!("- `lexique/{f}.md`"));
+        }
     }
 
     if !unknown.is_empty() {

@@ -25,6 +25,7 @@
 //! reconnaît pas est ignorée, jamais fatale.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::Path;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -324,6 +325,63 @@ pub struct Reference {
     pub form_index: HashMap<String, String>,
     /// Identifiant de livre → nom canonique (§2.6).
     pub book_names: HashMap<String, BookName>,
+}
+
+/// Les fiches denses du vault — `lexique/<lemme>.md`, une par terme.
+///
+/// ## Ce que le fichier contient, et pourquoi seulement des paragraphes
+///
+/// Le titre `# Elohim` sert de repère à l'auteur dans Obsidian ; le pipeline
+/// l'ignore. Tout le reste est de la prose, découpée en paragraphes sur les
+/// lignes vides.
+///
+/// **Rien d'autre que des paragraphes.** `TermSheet.swift` ne rend que
+/// `Block::Para` et laisse tomber le reste **sans rien dire** : un titre ou une
+/// liste dans une fiche disparaîtrait chez le lecteur, en silence. C'est la
+/// contrainte qui décide de la forme — et elle a une contrepartie : une fiche
+/// faite de paragraphes traverse la mise à jour réseau du corpus, donc atteint
+/// les apps **déjà installées**, sans compilation ni revue.
+///
+/// ## Ce qui n'est pas trouvé est dit
+///
+/// Une fiche dont le nom ne retombe sur aucune entrée serait écrite, committée,
+/// publiée — et jamais lue par personne. Le pipeline la signale au lieu de la
+/// laisser tomber.
+pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
+    let mut fiches = HashMap::new();
+    let dossier = racine.join(crate::config::LEXIQUE);
+    let Ok(entrées) = std::fs::read_dir(&dossier) else {
+        return fiches;
+    };
+
+    let mut noms: Vec<_> = entrées
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "md"))
+        .collect();
+    noms.sort();
+
+    for chemin in noms {
+        let Ok(texte) = std::fs::read_to_string(&chemin) else {
+            continue;
+        };
+        let lemme = chemin
+            .file_stem()
+            .map(|s| slugify(&s.to_string_lossy()))
+            .unwrap_or_default();
+        let blocs: Vec<Block> = texte
+            .split("\n\n")
+            .map(str::trim)
+            .filter(|p| !p.is_empty() && !p.starts_with('#'))
+            .map(|p| Block::Para {
+                nodes: parse_inline(&p.replace('\n', " ")),
+            })
+            .collect();
+        if !blocs.is_empty() {
+            fiches.insert(lemme, blocs);
+        }
+    }
+    fiches
 }
 
 /// Lit `CLAUDE.md` et en tire le glossaire et les noms de livres.
