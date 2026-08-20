@@ -41,6 +41,22 @@ pub const SKELETON: &str = "in-writing";
 /// Le document de référence : conventions, glossaire, répertoires de noms.
 pub const REFERENCE: &str = "CLAUDE.md";
 
+/// Les fiches de lexique — un fichier par terme, `lexique/chesed.md`.
+///
+/// ## Pourquoi elles ne sont pas dans `CLAUDE.md`
+///
+/// Le document de référence est écrit **pour le traducteur** : ses entrées
+/// consignent un arbitrage — pourquoi *Elohim* reste en hébreu. Le lecteur du
+/// 21ᵉ siècle qui touche le mot d'or n'a pas cette question ; il en a une
+/// autre, à laquelle rien ne répondait — ce que le mot voulait dire pour qui
+/// l'écrivait.
+///
+/// Une seule source par *fait*, et non une source par champ : `CLAUDE.md`
+/// garde l'hébreu, les formes, le rendu et la règle de balisage ; `lexique/`
+/// ne porte que l'explication au lecteur, et remplace la définition quand elle
+/// existe.
+pub const LEXIQUE: &str = "lexique";
+
 /// Les titres d'affichage des corpus et des modes.
 ///
 /// Les dossiers portent des identifiants sans apostrophe ni majuscule —
