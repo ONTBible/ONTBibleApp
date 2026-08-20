@@ -600,7 +600,8 @@ pub fn build() -> Result<BuildResult, String> {
     let connus: HashSet<String> = glossary
         .iter()
         .flat_map(|e| {
-            std::iter::once(e.lemma.clone()).chain(e.forms.iter().map(|f| crate::inline::slugify(f)))
+            std::iter::once(e.lemma.clone())
+                .chain(e.forms.iter().map(|f| crate::inline::slugify(f)))
         })
         .collect();
     let mut ors_morts: Vec<String> = Vec::new();
@@ -614,7 +615,9 @@ pub fn build() -> Result<BuildResult, String> {
             format!("CLAUDE.md — entrée {}", entry.title)
         };
         for bloc in entry.definition.iter().flatten() {
-            let Block::Para { nodes } = bloc else { continue };
+            let Block::Para { nodes } = bloc else {
+                continue;
+            };
             collect_or_morts(nodes, &connus, &source, &mut ors_morts);
         }
     }
@@ -802,11 +805,13 @@ pub fn build() -> Result<BuildResult, String> {
     let rapport = format_report(
         &corpora,
         &glossary,
-        &lu.issues,
-        &indexed.unknown,
-        &lu.superseded,
-        &fiches_orphelines,
-        &ors_morts,
+        &Anomalies {
+            issues: &lu.issues,
+            unknown: &indexed.unknown,
+            superseded: &lu.superseded,
+            fiches_orphelines: &fiches_orphelines,
+            ors_morts: &ors_morts,
+        },
         &racine,
     );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
@@ -843,16 +848,32 @@ fn collect_or_morts(
     }
 }
 
+/// Ce que le rapport relève, en un seul paramètre.
+///
+/// Groupé parce que la liste s'allongeait à chaque contrôle ajouté, et que
+/// huit paramètres positionnels finissent par se prendre l'un pour l'autre —
+/// tous des tranches, tous du même type.
+struct Anomalies<'a> {
+    issues: &'a [Issue],
+    unknown: &'a BTreeMap<String, Unknown>,
+    superseded: &'a [String],
+    fiches_orphelines: &'a [String],
+    ors_morts: &'a [String],
+}
+
 fn format_report(
     corpora: &[Corpus],
     glossary: &[GlossaryEntry],
-    issues: &[Issue],
-    unknown: &BTreeMap<String, Unknown>,
-    superseded: &[String],
-    fiches_orphelines: &[String],
-    ors_morts: &[String],
+    a: &Anomalies,
     racine: &Path,
 ) -> String {
+    let Anomalies {
+        issues,
+        unknown,
+        superseded,
+        fiches_orphelines,
+        ors_morts,
+    } = *a;
     let books: Vec<&Book> = corpora
         .iter()
         .flat_map(|c| c.modes.iter().flat_map(|m| m.books.iter()))
