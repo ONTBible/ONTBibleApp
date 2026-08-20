@@ -125,3 +125,80 @@ depuis `Captures/` donnerait une affiche entière au lieu d'une dalle.
 où `vitrine.py` le rastérise pour le poser sur les affiches de l'App Store.
 **Toucher au wordmark du site oblige à reporter la copie**, sinon la vitrine de
 l'App Store porte l'ancienne marque.
+
+### 19 août 2026 — tout nom propre porte `==…==`, dans les trois dépôts
+
+**Source : le vault.** Le §2.5 bis généralise sa règle — tout nom propre est
+balisé `==Nom==` à **chacune** de ses occurrences, corps du texte et gloses
+comprises. 1 898 marques posées par
+`ONTBibleTranslation/scripts/marquer-les-noms-propres.py`, idempotent, à
+relancer après chaque chapitre écrit.
+
+**Pour l'app et le site : rien à changer, et c'est pourquoi `==` a été retenu.**
+Le pipeline lit déjà `==…==` comme un terme important, `ONTColors.important` le
+rend en `#862742` (parchemin, clair) et `#D87994` (sombre, mystique), le site en
+`--color-important`. Une quatrième marque aurait demandé un type de nœud, une
+teinte de plus dans la rampe, un rendu Swift et un rendu Rust — quatre endroits
+à tenir d'accord pour dire ce que la marque existante disait déjà.
+
+**Ce qui traverse quand même :** les données. Toucher au vault oblige à rejouer
+le pipeline **et** à recopier `dist/` dans `App/app/Resources/data/`, sinon
+l'app affiche l'ancien corpus sans que rien ne le signale. Fait dans la même
+session.
+
+**Deux noms restent nus, et attendent l'auteur :** `Shem` et `Adam` sont tantôt
+noms propres, tantôt intraduisibles — la casse ne les sépare pas, et 126
+occurrences nues mélangent les deux sens. Les marquer en masse donnerait du
+bordeaux à des intraduisibles.
+
+### 19 août 2026 — le linker d'Apple ne tient plus le corpus embarqué
+
+**Ne concerne que le site, mais toute session macOS le rencontrera.**
+`ONTBibleWebapp` embarque tout `dist/` par `include_str!` : passé deux
+mégaoctets de données statiques, `ld` refuse ou plante. Le défaut était masqué
+par la compilation incrémentale et se découvre au premier `cargo clean` — on
+croit alors avoir cassé quelque chose, et l'on cherche dans le mauvais commit.
+
+Correction : `Webapp/scripts/linker-local.sh`, à lancer **une fois par
+machine**, plus un `[profile.dev]` dans son `Cargo.toml`. Aucun des deux ne
+suffit seul. Ni la CI ni le déploiement ne sont touchés.
+
+**Ce qui traverse :** le corpus grossit à chaque livre. Ce sursis tombera vers
+le cinquième ou sixième, et la réponse sera alors de compresser les JSON
+embarqués — décision qui appartient au site, mais que le vault déclenche.
+
+### 20 août 2026 — le lexique du lecteur sort de `CLAUDE.md`
+
+**Source : le vault.** Les fiches d'intraduisibles étaient engendrées depuis
+`ONTBibleTranslation/CLAUDE.md`, qui est une *référence de traduction* : le
+lecteur qui touchait un mot d'or recevait l'arbitrage du traducteur — deux
+phrases pour **Elohim**, 238 octets pour **YHWH**, trois lignes de médiane.
+L'explication au lecteur vit désormais dans **`lexique/<lemme>.md`** (§2.5 ter).
+
+**Pour l'app :** `pipeline/src/reference.rs` lit ce dossier et **recouvre le
+champ `definition`**. Rien ne change au schéma — les fiches passent donc par
+`CorpusUpdater` et atteignent les apps **déjà installées**, sans revue Apple.
+
+**Contrainte à connaître avant d'écrire une fiche :** `TermSheet.swift` ne rend
+que `Block::Para` et **laisse tomber le reste sans rien dire**. Un titre ou une
+liste dans une fiche disparaît chez le lecteur, en silence. Des paragraphes,
+donc — jusqu'à ce que la vue sache rendre le reste.
+
+**Pour le site :** il embarque `dist/` à la compilation ; les fiches denses
+arrivent au prochain déploiement, sans rien à changer chez lui.
+
+### 20 août 2026 — le relevé des noms propres avait trois trous
+
+**Source : le vault.** `marquer-les-noms-propres.py` annonçait « 0 marque à
+poser » alors que quatre-vingts occurrences étaient nues : il ne voyait le nom
+que par son niveau 3 capitalisé. Il a désormais une seconde source — le mot
+capitalisé collé au niveau 3 — et **il nomme ce qu'il écarte**, parce qu'un
+relevé muet sur ses refus se lit comme une couverture complète.
+
+**Deux arbitrages d'auteur reportés partout :** les gentilés sont des noms
+propres, sans exception ; **Nephilim** passe en intraduisible — l'or supplante
+le bordeaux — et sa fiche reste à écrire.
+
+**Pour l'app et le site : rien à changer.** La chaîne a été vérifiée de bout en
+bout — `pipeline/src/inline.rs:325` → `ONTTextRenderer.swift:242` →
+`ONTBibleWebapp/src/interface/design/verset.rs:135`.
