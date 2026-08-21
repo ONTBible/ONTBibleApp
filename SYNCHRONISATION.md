@@ -103,6 +103,70 @@ l'ordre :
 
 ---
 
+## Plusieurs sessions à la fois — se parler, toujours
+
+**Posé le 21 août 2026, après deux pertes dans la même journée.**
+
+Il arrive que deux sessions Claude — ou plus — travaillent en même temps sur
+ces dépôts. Elles ne partagent pas des copies : elles partagent **les mêmes
+dossiers et le même arbre de travail**. Ce qu'une session écrit, l'autre le
+voit ; ce qu'une session jette, l'autre le perd.
+
+Ce jour-là, une session a lancé `git reset --hard origin/main` dans
+`ONTBibleWebapp` et jeté une journée de travail non commité. Quelques heures
+plus tard, la même a commité et rebasé dans `ONTBibleApp` **sans regarder sur
+quelle branche elle était** : son correctif a atterri sur la branche de
+l'autre, et son `push` a échoué sans qu'elle le voie.
+
+### La règle
+
+**Se parler, et d'abord.** `ListAgents` montre les autres sessions ;
+`SendMessage` leur écrit. Le réflexe n'est pas « je vérifie s'il y a quelqu'un
+quand ça coince », c'est **« je dis ce que je vais faire avant de le faire »** —
+et ça vaut entre toutes les sessions, y compris celles qui viendront.
+
+Quatre moments où le silence coûte cher :
+
+1. **À l'ouverture d'une session** qui va toucher un dépôt : annoncer sur quoi
+   on part, et demander si quelqu'un y est déjà.
+2. **Avant toute opération destructive** — `reset --hard`, `rebase`, `checkout`,
+   `stash`, `clean`. Prévenir, et attendre la réponse. Aucune de ces commandes
+   ne distingue son travail de celui d'un autre.
+3. **Avant de fusionner ou de promouvoir**, parce que ça déplace le sol sous
+   les branches des autres.
+4. **En rendant**, pour dire ce qui a changé et ce qui reste à faire.
+
+### L'arbre de travail se tient à un seul
+
+Une seule session à la fois, et la passation est **explicite** : « je prends » /
+« je rends », vérifiée avant — `git branch --show-current`, `git status` — et on
+ne touche à rien entre les deux. Annoncer qu'on prend l'arbre ne suffit pas : il
+faut déplacer `HEAD`, et le constater.
+
+### Vérifier ce que l'autre affirme
+
+Une session sœur travaille de bonne foi et se trompe quand même. Ce jour-là,
+quatre affirmations sur l'état du dépôt étaient fausses — dans les deux sens,
+chacune de nous s'y est mise.
+
+Donc : **on ne valide pas un raisonnement dont on ne peut pas voir les pièces.**
+Avant de sauter des commits qu'on vous dit « déjà en amont », comparer le
+contenu. Avant de croire qu'un fichier a survécu, chercher le **nom du symbole**
+et non un mot qui y ressemble — dans un dépôt écrit en français, le vocabulaire
+du domaine est partout dans les commentaires, et `grep "glose"` ne prouve rien.
+
+Et vérifier son propre instrument avec la même sévérité : deux de ces quatre
+erreurs venaient d'une commande mal écrite qui avalait sa sortie, pas d'une
+donnée fausse. C'est la règle du §4 du site tirée du DNS — on ne juge pas un
+enregistrement sur ce qu'on croit avoir collé.
+
+### Commiter tôt, sur une branche à soi
+
+Un travail non commité n'est protégé de rien. C'est ce qui a rendu la première
+perte possible. Dès que ça compile : une branche, un commit signé.
+
+---
+
 ## Journal
 
 Ce qui a traversé, et quand. Une ligne par franchissement — pas un changelog du

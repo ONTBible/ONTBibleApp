@@ -732,6 +732,42 @@ mod tests {
     }
 
     #[test]
+    fn un_nom_propre_se_marque_jusque_dans_une_glose() {
+        // Depuis la généralisation du §2.5 bis du vault, **tout** nom propre
+        // porte `==…==` — corps du texte et gloses comprises. La glose est
+        // reconnue avant l'accentuation dans l'ordre du tokeniseur ; c'est sa
+        // récursion sur ses enfants qui rend le marquage possible dedans, et
+        // rien ne le garantissait avant ce test.
+        let nodes = parse_inline("les fils de ==Noach== *[dont ==Cham==, père de ==Kena'an==]*");
+
+        let Inline::Accentuation { children } = &nodes[1] else {
+            panic!("le nom propre du corps doit être une accentuation")
+        };
+        assert!(matches!(children.first(), Some(Inline::Text { v }) if v == "Noach"));
+
+        let Some(Inline::Gloss { children }) =
+            nodes.iter().find(|n| matches!(n, Inline::Gloss { .. }))
+        else {
+            panic!("la glose doit survivre")
+        };
+        let dedans: Vec<&str> = children
+            .iter()
+            .filter_map(|n| match n {
+                Inline::Accentuation { children } => match children.first() {
+                    Some(Inline::Text { v }) => Some(v.as_str()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            dedans,
+            vec!["Cham", "Kena'an"],
+            "les deux noms propres de la glose doivent être marqués"
+        );
+    }
+
+    #[test]
     fn une_accentuation_porte_des_enfants() {
         // Il peut contenir un intraduisible : l'aplatir perdrait le lien vers
         // sa fiche, en silence.

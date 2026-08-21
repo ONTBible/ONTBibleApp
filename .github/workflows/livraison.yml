@@ -71,6 +71,21 @@ name: Livraison
 on:
   push:
     branches: [dev, staging, main]
+    # **Ce qui ne peut pas changer le binaire ne déclenche pas de livraison.**
+    #
+    # Un correctif de CI poussé dans `main` faisait partir un build **et une
+    # soumission à l'App Store** — pendant qu'une revue était en cours. Le
+    # 21 août 2026, l'épingle de la chaîne Rust du backend a dû traverser
+    # `dev → staging → main` pour atteindre le déploiement, et rien ne
+    # distinguait ce trajet d'une vraie livraison.
+    #
+    # `paths-ignore` ne saute que si **tous** les fichiers touchés y sont : un
+    # changement mêlé à du code d'app livre toujours. Et `workflow_dispatch`
+    # reste là pour éprouver un changement de ce fichier même seul.
+    paths-ignore:
+      - ".github/workflows/**"
+      - "backend/**"
+      - "**/*.md"
   workflow_dispatch:
     inputs:
       canal:
