@@ -49,8 +49,8 @@ extension Inline {
             self = .hebrew(v)
         case .gloss(let children):
             self = .gloss(children.map(Inline.init))
-        case .important(let children):
-            self = .important(children.map(Inline.init))
+        case .accentuation(let children):
+            self = .accentuation(children.map(Inline.init))
         case .em(let children):
             self = .emphasis(children.map(Inline.init))
         case .link(let children, let href):

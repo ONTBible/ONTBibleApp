@@ -15,7 +15,7 @@
 //! 1. *[ … ]*        la glose        avant l'italique — elle commence par `*`
 //! 2. (* … * / …)    le niveau 3     avant l'italique — il commence par `(*`
 //! 3. ** … **        l'intraduisible avant l'italique — `**` avant `*`
-//! 3b. == … ==       le terme important
+//! 3b. == … ==       l'accentuation
 //! 4. [[ … ]]        le lien
 //! 5. * … *          l'italique ordinaire
 //! ```
@@ -322,16 +322,16 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
             continue;
         }
 
-        // 3b. Le terme important — `== … ==`
+        // 3b. L'accentuation — `== … ==`
         //
-        // **Après** l'intraduisible et avant l'emphase : un terme important
+        // **Après** l'intraduisible et avant l'emphase : une accentuation
         // peut contenir de l'emphase, l'inverse n'a pas de sens.
         if c == b'=' && bytes.get(i + 1) == Some(&b'=') {
             if let Some(rel) = src[i + 2..].find("==") {
                 let end = i + 2 + rel;
                 if end > i + 2 {
                     flush!();
-                    out.push(Inline::Important {
+                    out.push(Inline::Accentuation {
                         children: parse_inline(&src[i + 2..end]),
                     });
                     i = end + 2;
@@ -456,7 +456,7 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
                     out.push(']');
                 }
             }
-            Inline::Important { children } | Inline::Em { children } => {
+            Inline::Accentuation { children } | Inline::Em { children } => {
                 out.push_str(&plain_text(children, options));
             }
             Inline::Link { children, .. } => out.push_str(&plain_text(children, options)),
@@ -555,7 +555,7 @@ pub fn collect_terms(nodes: &[Inline], level: TermLevel, into: &mut Vec<FoundTer
             // même s'il y est mis en emphase.
             Inline::Gloss { children } => collect_terms(children, TermLevel::Gloss, into),
             Inline::Em { children }
-            | Inline::Important { children }
+            | Inline::Accentuation { children }
             | Inline::Link { children, .. } => collect_terms(children, level, into),
             _ => {}
         }
@@ -579,7 +579,7 @@ mod tests {
                 Inline::Translit { .. } => "translit",
                 Inline::Heb { .. } => "heb",
                 Inline::Gloss { .. } => "gloss",
-                Inline::Important { .. } => "important",
+                Inline::Accentuation { .. } => "accentuation",
                 Inline::Em { .. } => "em",
                 Inline::Link { .. } => "link",
                 Inline::Break => "break",
@@ -732,12 +732,12 @@ mod tests {
     }
 
     #[test]
-    fn un_terme_important_porte_des_enfants() {
+    fn une_accentuation_porte_des_enfants() {
         // Il peut contenir un intraduisible : l'aplatir perdrait le lien vers
         // sa fiche, en silence.
         let nodes = parse_inline("le ==nom de **YHWH**== est saint");
-        let Inline::Important { children } = &nodes[1] else {
-            panic!("ce doit être un terme important")
+        let Inline::Accentuation { children } = &nodes[1] else {
+            panic!("ce doit être une accentuation")
         };
         assert!(types(children).contains(&"term"));
     }

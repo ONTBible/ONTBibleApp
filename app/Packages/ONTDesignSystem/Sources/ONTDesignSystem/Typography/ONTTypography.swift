@@ -186,15 +186,15 @@ public struct ONTTypography: Sendable {
         .init(font: .custom(body, size: size), color: ONTColors.accent(theme))
     }
 
-    /// Niveau 1 — un terme important, qui ne se touche pas.
+    /// Niveau 1 — une accentuation, qui ne se touche pas.
     ///
     /// Semi-gras **et** coloré : la couleur seule ne suffit pas — un lecteur
     /// daltonien ne verrait rien, et l'accessibilité n'est pas une option sur
     /// un texte qu'on lit des heures.
-    public var important: ONTTextStyle {
+    public var accentuation: ONTTextStyle {
         .init(
             font: .custom(body, size: size).weight(.semibold),
-            color: ONTColors.important(theme)
+            color: ONTColors.accentuation(theme)
         )
     }
 

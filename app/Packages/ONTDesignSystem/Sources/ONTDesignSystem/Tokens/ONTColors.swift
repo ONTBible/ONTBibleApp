@@ -64,7 +64,7 @@ public enum ONTColors {
         }
     }
 
-    /// La couleur du **terme important** — le troisième niveau de marquage.
+    /// La couleur de l'**accentuation** — le troisième niveau de marquage.
     ///
     /// Le bordeaux du logo, éclairci. **Même teinte exactement — 343°** : la
     /// parenté avec le fond des cartes et avec la marque doit se lire. Seules
@@ -80,7 +80,7 @@ public enum ONTColors {
     /// Les deux marquages se détachent avec la même force : ni l'un ni
     /// l'autre ne prend le pas. En dessous de ΔE 25, une couleur ne se
     /// distingue plus de façon fiable dans un texte courant.
-    public static func important(_ theme: ReadingTheme) -> Color {
+    public static func accentuation(_ theme: ReadingTheme) -> Color {
         switch theme {
         case .parchment, .light: Color(red: 0.525, green: 0.153, blue: 0.259)
         // Sur fond sombre, le même bordeaux disparaît dans le noir. On remonte

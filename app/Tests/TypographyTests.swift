@@ -147,28 +147,28 @@ struct AssetTests {
     }
 }
 
-/// Le troisième niveau de marquage — le terme important.
-struct ImportantTermTests {
+/// Le troisième niveau de marquage — l'accentuation.
+struct AccentuationTests {
     // Le décodage a ses propres tests, dans ONTDataTests. Ici on éprouve la
     // **composition typographique**, donc on lui donne des nœuds, pas du JSON.
 
     @Test("il porte le violet, et pas l'or")
     func wearsViolet() throws {
-        let n: [Inline] = [.important([.text("Sarah")])]
+        let n: [Inline] = [.accentuation([.text("Sarah")])]
         let theme = ONTTheme()
         let composed = ONTTextRenderer.compose(n, theme: theme)
 
         let couleurs = composed.runs.compactMap(\.foregroundColor)
-        #expect(couleurs.contains(ONTColors.important(theme.mode)))
+        #expect(couleurs.contains(ONTColors.accentuation(theme.mode)))
         #expect(!couleurs.contains(ONTColors.accent(theme.mode)), "l'or est réservé aux intraduisibles")
     }
 
     @Test("il ne se touche pas")
     func hasNoLink() throws {
         // Le cœur de la distinction : un intraduisible ouvre une fiche, un
-        // terme important n'en a pas. Un mot qui répond au doigt sans rien
+        // une accentuation n'en a pas. Un mot qui répond au doigt sans rien
         // avoir à dire est pire qu'un mot qui ne répond pas.
-        let n: [Inline] = [.important([.text("« Nuit »")])]
+        let n: [Inline] = [.accentuation([.text("« Nuit »")])]
         let composed = ONTTextRenderer.compose(n, theme: ONTTheme())
         #expect(composed.runs.allSatisfy { $0.link == nil })
     }
@@ -184,7 +184,7 @@ struct ImportantTermTests {
     func survivesLevelToggles() throws {
         // Il appartient au corps, pas à l'appareil critique : éteindre les
         // gloses ne doit pas l'emporter.
-        let n: [Inline] = [.important([.text("« Terre »")])]
+        let n: [Inline] = [.accentuation([.text("« Terre »")])]
         var prefs = ReadingPreferences.default
         prefs.showGloss = false
         prefs.showLevel3 = false
