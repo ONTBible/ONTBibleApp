@@ -26,6 +26,25 @@ struct CorpusUpdaterTests {
         return url
     }
 
+    /// Le corpus publié est-il au format que cette version sait lire ?
+    ///
+    /// Faux pendant une montée de schéma — entre la version qui apprend le
+    /// nouveau format et la publication qui l'émet. Les tests qui téléchargent
+    /// vraiment n'ont alors rien à éprouver : `CorpusUpdater` refuse le
+    /// manifeste **à dessein**, et c'est ce refus qui protège les versions
+    /// antérieures. `manifesteLisible` continue, lui, de vérifier que l'écart
+    /// va bien dans le sens inoffensif.
+    static var corpusAuFormatDeLApp: Bool {
+        get async {
+            let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
+            guard let (octets, _) = try? await URLSession.shared.data(from: url),
+                let manifeste = try? JSONDecoder().decode(
+                    CorpusUpdater.Manifest.self, from: octets)
+            else { return false }
+            return manifeste.schema == CorpusUpdater.schema
+        }
+    }
+
     static var reseauDisponible: Bool {
         get async {
             let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
@@ -44,7 +63,18 @@ struct CorpusUpdaterTests {
         let (octets, _) = try await URLSession.shared.data(from: url)
         let manifeste = try JSONDecoder().decode(CorpusUpdater.Manifest.self, from: octets)
 
-        #expect(manifeste.schema == CorpusUpdater.schema)
+        // **Pas une égalité — une direction.** Un corpus publié *en avance*
+        // sur l'app est le cas dangereux : les lecteurs installés cesseraient
+        // de se mettre à jour sans qu'aucune erreur ne le dise. L'app en
+        // avance sur le corpus est l'état normal d'une montée de schéma, entre
+        // le moment où une version part chez Apple et celui où le site publie
+        // le nouveau format ; l'app garde alors son corpus embarqué.
+        #expect(
+            manifeste.schema <= CorpusUpdater.schema,
+            "le corpus publié (schéma \(manifeste.schema)) est en avance sur \
+             l'app (schéma \(CorpusUpdater.schema)) — les lecteurs installés \
+             ne reçoivent plus rien, en silence"
+        )
         #expect(!manifeste.livres.isEmpty)
         // Les quatre fichiers que le lecteur de disque sait recouvrir. Un de
         // moins, et l'app lirait celui-là du bundle sans qu'on le sache.
@@ -56,6 +86,7 @@ struct CorpusUpdaterTests {
     @Test("Une première synchronisation télécharge tout, la seconde rien")
     func synchronisationIdempotente() async throws {
         guard await Self.reseauDisponible else { return }
+        guard await Self.corpusAuFormatDeLApp else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }
@@ -73,6 +104,7 @@ struct CorpusUpdaterTests {
     @Test("Le corpus téléchargé se lit, et recouvre le bundle")
     func lectureDepuisLeDisque() async throws {
         guard await Self.reseauDisponible else { return }
+        guard await Self.corpusAuFormatDeLApp else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }
