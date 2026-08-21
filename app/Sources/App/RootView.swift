@@ -32,7 +32,7 @@ struct RootView: View {
         @Bindable var router = router
 
         TabView(selection: $router.tab) {
-            OngletsFixes(appliquer: appliquer)
+            OngletsFixes(appliquer: appliquer, appliquerParutions: appliquerParutions)
             ForEach(corpusEnBarreLatérale) { corpus in
                 RayonDeLivres(titre: corpus.title, livres: livresRédigés(de: corpus))
             }
@@ -92,6 +92,20 @@ struct RootView: View {
         return true
     }
 
+    /// Le lecteur a changé d'avis sur les parutions.
+    ///
+    /// Activer demande l'autorisation puis enregistre le jeton ; couper
+    /// l'efface du serveur avant de se désabonner d'Apple. L'ordre compte : se
+    /// désabonner d'abord laisserait un jeton mort dans la table jusqu'à ce
+    /// qu'une diffusion le heurte.
+    private func appliquerParutions(_ actif: Bool) async -> Bool {
+        guard actif else {
+            await PushDistant.desactiver()
+            return true
+        }
+        return await PushDistant.activer()
+    }
+
     /// Les corpus à poser dans la barre latérale — aucun en largeur compacte.
     ///
     /// Seulement ceux qui ont un livre à proposer : un en-tête « Berit
@@ -146,6 +160,7 @@ struct RootView: View {
 /// les autres.
 private struct OngletsFixes: TabContent {
     let appliquer: (DailyVerseSchedule) async -> Bool
+    let appliquerParutions: (Bool) async -> Bool
 
     var body: some TabContent<Router.TabID> {
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
@@ -158,7 +173,7 @@ private struct OngletsFixes: TabContent {
             LexiconTab()
         }
         Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
-            YouTab(onDailyChange: appliquer)
+            YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
         }
     }
 }

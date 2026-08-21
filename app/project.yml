@@ -34,7 +34,16 @@ settings:
     # exactement ce que fait le téléversement des symboles vers Sentry.
     ENABLE_USER_SCRIPT_SANDBOXING: NO
   configs:
+    Debug:
+      # L'environnement APNs, substitué dans `ONT.entitlements`.
+      #
+      # Un jeton obtenu en `development` est refusé par le serveur de
+      # production d'Apple, et réciproquement — avec un `BadDeviceToken` qui ne
+      # nomme aucune des deux causes. Le figer sur une valeur ferait donc
+      # échouer la moitié des envois, selon l'origine du build.
+      APS_ENVIRONMENT: development
     Release:
+      APS_ENVIRONMENT: production
       # Sans dSYM, une pile Release arrive en adresses hexadécimales. C'est
       # déjà le défaut d'Xcode en Release ; on l'écrit pour que ça reste vrai.
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym

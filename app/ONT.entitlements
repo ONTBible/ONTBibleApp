@@ -16,6 +16,15 @@
 	     Le domaine nomme le projet, le bundle porte le nom français : les
 	     deux ne coïncident pas, et c'est voulu. Un identifiant d'app est gelé
 	     à la première publication. -->
+	<!-- Les notifications distantes. `development` en debug, `production` en
+	     livraison : Xcode substitue la valeur selon le profil. Une valeur
+	     figée ferait refuser tous les jetons par le serveur APNs de l'autre
+	     environnement, avec une erreur qui ne nomme pas la cause.
+
+	     Nécessite que l'App ID porte la capacité Push Notifications sur le
+	     portail développeur, et une clé APNs (.p8) côté backend. -->
+	<key>aps-environment</key>
+	<string>$(APS_ENVIRONMENT)</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:ontbible.com</string>
