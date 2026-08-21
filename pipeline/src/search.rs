@@ -78,7 +78,7 @@ fn hebrew_of(nodes: &[Inline], into: &mut Vec<String>) {
             Inline::Translit { hebrew, .. } => into.push(hebrew.clone()),
             Inline::Gloss { children }
             | Inline::Em { children }
-            | Inline::Important { children }
+            | Inline::Accentuation { children }
             | Inline::Link { children, .. } => hebrew_of(children, into),
             _ => {}
         }

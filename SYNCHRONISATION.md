@@ -61,7 +61,7 @@ aval, jamais l'inverse.
 |---|---|---|
 | le corpus | le vault | `App/pipeline` l'écrit dans `App/dist/`, que le site lit à la compilation — **jamais copié** |
 | le verset du jour | `App/dist/daily.json` | le site, par lecture directe du dépôt voisin |
-| la palette | `Webapp/style/main.css` — `--color-nuit`, `--color-or`, `--color-important` | `App/…/ONTDesignSystem/Tokens/ONTColors.swift`, qui les réécrit à la main |
+| la palette | `Webapp/style/main.css` — `--color-nuit`, `--color-or`, `--color-accentuation` | `App/…/ONTDesignSystem/Tokens/ONTColors.swift`, qui les réécrit à la main |
 | le wordmark et la montagne | `Webapp/public/images/*.svg` | `App/app/Marque/wordmark.svg`, **copie versée** ; l'icône de l'app |
 | les captures de l'app | `App/app/Captures/` | le site, pour `public/images/app-lecture.webp` |
 | le nom public de l'auteur | partout | **Gloire Bikouta.** Jamais « Sha'eliel », qui est interne au vault |
@@ -278,3 +278,35 @@ le dit désormais en toutes lettres ; il affirmait le contraire.
 refusée par le serveur bac à sable avec `BadEnvironmentKeyInToken`, et
 réciproquement. Le backend en porte donc **deux**, indexées par environnement.
 Sans cela, la moitié des appareils échouait sans que rien ne le signale.
+
+### 21 août 2026 — « important » devient « accentuation », le fil compris
+
+**Source : partout à la fois.** Le troisième niveau de marquage — `==mot==` —
+s'appelait « le terme important ». Il s'appelle désormais **l'accentuation**,
+dans les trois dépôts, dans la prose comme dans le code : `Inline::Accentuation`
+en Rust, `.accentuation` en Swift, `Noeud::Accentuation` sur le site,
+`--color-accentuation` en CSS.
+
+**Le tag du fil change avec le nom — et c'est ce qui demande de l'attention.**
+L'enum Rust tire son tag de son nom de variante ; le corpus publie désormais
+`{"t":"accentuation"}`. Les versions 1.0.1 et 1.0.2 attendent `"important"` et
+leur décodeur **lève** sur un nœud inconnu.
+
+Ce qui les protège n'est pas le décodeur, c'est le **numéro de schéma**, monté
+de 1 à 2. `CorpusUpdater` compare le schéma du manifeste au sien *avant* de
+télécharger quoi que ce soit et renonce à la mise à jour entière : une app
+antérieure garde son corpus embarqué, intact, et cesse simplement de recevoir
+les parutions jusqu'à sa propre mise à jour. C'est le comportement voulu d'un
+changement de format, et la raison pour laquelle le champ existe.
+
+**L'ordre est imposé, pas supposé.** L'étape « Le schéma du corpus » du
+déploiement du site compare `corpus-publie.py` à `CorpusUpdater.swift` **sur
+`main` de l'app**, et cette étape s'exécute avant la compilation. Monter le
+schéma côté site pendant que `main` est en 1.0.2 bloquerait donc le déploiement
+du site **entier**, pas seulement le corpus. La séquence tenable est donc :
+1.0.3 sur `main` d'abord, `corpus-publie.py` ensuite.
+
+**Ce qui n'a pas bougé.** L'adjectif français ordinaire — « le point le plus
+important », « le composant le plus important du site » — n'est pas le marqueur.
+Un remplacement en masse aurait corrompu une fiche de lexique et un commentaire
+de rendu. Le renommage s'est fait site par site.

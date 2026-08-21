@@ -840,7 +840,7 @@ fn collect_or_morts(
                 }
             }
             Inline::Em { children }
-            | Inline::Important { children }
+            | Inline::Accentuation { children }
             | Inline::Gloss { children }
             | Inline::Link { children, .. } => collect_or_morts(children, connus, source, out),
             _ => {}
