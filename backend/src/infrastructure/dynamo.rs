@@ -29,10 +29,12 @@ use async_trait::async_trait;
 use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
 use aws_sdk_dynamodb::Client;
 
-use crate::domain::ports::{SyncRepository, UserRepository};
+use crate::domain::diffusion::{Appareil, Environnement};
+use crate::domain::ports::{AppareilRepository, SyncRepository, UserRepository};
 use crate::domain::sync::{Highlight, Position};
 use crate::domain::token::UserId;
 use crate::domain::{DomainError, ExternalIdentity};
+use time::OffsetDateTime;
 
 #[derive(Clone)]
 pub struct Dynamo {
@@ -54,6 +56,134 @@ impl Dynamo {
 
     fn user_key(user: &UserId) -> String {
         format!("USER#{user}")
+    }
+
+    /// La partition des appareils.
+    ///
+    /// **Une seule**, et c'est délibéré : une diffusion les veut tous d'un
+    /// coup, sans ciblage. Répartir sur plusieurs partitions demanderait de
+    /// les parcourir toutes, pour une lecture qui n'a lieu qu'à chaque
+    /// parution — quelques fois par mois.
+    ///
+    /// La limite est connue : une partition DynamoDB tient 10 Go et 3 000
+    /// unités de lecture par seconde. Un jeton pèse deux cents octets, ce qui
+    /// laisse de la marge pour des millions de lecteurs — et le jour où ce
+    /// n'est plus vrai, ce sera un beau problème à avoir.
+    const APPAREILS: &'static str = "PUSH";
+}
+
+#[async_trait]
+impl AppareilRepository for Dynamo {
+    async fn enregistrer(&self, appareil: &Appareil) -> Result<(), DomainError> {
+        // L'empreinte comme clé de tri : deux enregistrements du même appareil
+        // se recouvrent. Sans ça, un lecteur qui rouvre l'app chaque jour
+        // multiplierait ses jetons et recevrait la même parution autant de
+        // fois qu'il en aurait accumulé.
+        let mut item = Self::key(
+            Self::APPAREILS,
+            &format!("APPAREIL#{}", appareil.empreinte()),
+        );
+        item.insert("jeton".into(), AttributeValue::S(appareil.jeton.clone()));
+        item.insert(
+            "environnement".into(),
+            AttributeValue::S(
+                match appareil.environnement {
+                    Environnement::Production => "production",
+                    Environnement::Sandbox => "sandbox",
+                }
+                .into(),
+            ),
+        );
+        // **Une échéance, et elle n'est pas un détail.**
+        //
+        // Un lecteur qui désinstalle l'app ne peut plus rien retirer : sans
+        // date de péremption, son jeton resterait indéfiniment. Apple finit
+        // par répondre `410`, mais seulement si on lui écrit — et on n'écrit
+        // qu'à chaque parution. Un an après le dernier signe de vie, l'entrée
+        // s'efface toute seule.
+        //
+        // Chaque ouverture de l'app la repousse : un appareil vivant ne
+        // disparaît jamais.
+        let an = OffsetDateTime::now_utc() + time::Duration::days(365);
+        item.insert(
+            "expire".into(),
+            AttributeValue::N(an.unix_timestamp().to_string()),
+        );
+
+        self.client
+            .put_item()
+            .table_name(&self.table)
+            .set_item(Some(item))
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!(erreur = ?e, "enregistrement d'appareil");
+                DomainError::Storage
+            })?;
+        Ok(())
+    }
+
+    async fn oublier(&self, empreinte: &str) -> Result<(), DomainError> {
+        self.client
+            .delete_item()
+            .table_name(&self.table)
+            .set_key(Some(Self::key(
+                Self::APPAREILS,
+                &format!("APPAREIL#{empreinte}"),
+            )))
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!(erreur = ?e, "retrait d'appareil");
+                DomainError::Storage
+            })?;
+        Ok(())
+    }
+
+    async fn tous(&self) -> Result<Vec<Appareil>, DomainError> {
+        // Paginé, et pas seulement par prudence : DynamoDB rend au plus un
+        // mégaoctet par page, quel que soit ce qu'on demande. Sans la boucle,
+        // la diffusion s'arrêterait silencieusement aux premiers milliers
+        // d'appareils — et personne ne le verrait, puisque les autres
+        // recevraient simplement rien.
+        let mut appareils = Vec::new();
+        let mut depuis = None;
+
+        loop {
+            let page = self
+                .client
+                .query()
+                .table_name(&self.table)
+                .key_condition_expression("pk = :p")
+                .expression_attribute_values(":p", AttributeValue::S(Self::APPAREILS.into()))
+                .set_exclusive_start_key(depuis.clone())
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!(erreur = ?e, "lecture des appareils");
+                    DomainError::Storage
+                })?;
+
+            for item in page.items() {
+                let Some(jeton) = string(item, "jeton") else {
+                    continue;
+                };
+                let environnement = match string(item, "environnement").as_deref() {
+                    Some("sandbox") => Environnement::Sandbox,
+                    _ => Environnement::Production,
+                };
+                appareils.push(Appareil {
+                    jeton,
+                    environnement,
+                });
+            }
+
+            depuis = page.last_evaluated_key().cloned();
+            if depuis.is_none() {
+                break;
+            }
+        }
+        Ok(appareils)
     }
 }
 
