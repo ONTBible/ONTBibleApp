@@ -74,6 +74,20 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # **La chaîne Rust est épinglée, et ce n'est pas de la prudence en l'air.**
+  #
+  # Le 21 août 2026, ce déploiement a cassé sans qu'une ligne ait été poussée :
+  # `rustup toolchain install stable` a ramené 1.98.0, dont le linker passe
+  # `--fix-cortex-a53-843419` que `cargo-zigbuild` ne sait pas filtrer. Ni Zig
+  # ni `cargo-zigbuild` n'avaient bougé — seule la chaîne s'était mise à jour
+  # toute seule.
+  #
+  # `ONTBibleWebapp/.github/workflows/deployer.yml` porte la **même** épingle,
+  # pour la même raison et à la même version. Les deux doivent bouger ensemble.
+  #
+  # **Quand la remonter :** dès que `cargo-zigbuild` sait filtrer cet argument.
+  # Essayer une version, laisser un déploiement tourner, garder si c'est vert.
+  VERSION_RUST: "1.97.1"
   REGION: eu-west-3
   FONCTION: ont-api
   # L'adresse stable, indépendante de l'identifiant `execute-api` qu'AWS change
@@ -88,7 +102,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Rust
-        run: rustup toolchain install stable --profile minimal
+        run: |
+          rustup toolchain install "$VERSION_RUST" --profile minimal
+          rustup default "$VERSION_RUST"
+          rustc --version
 
       - uses: Swatinem/rust-cache@v2
         with:
