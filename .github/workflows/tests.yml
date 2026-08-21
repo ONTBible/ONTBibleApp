@@ -36,6 +36,21 @@ concurrency:
 jobs:
   tests:
     runs-on: macos-15
+    # **Le seul workflow qui n'en avait pas**, et le plus cher : un runner
+    # macOS est facturé au décuple d'un runner Linux.
+    #
+    # Le 21 août 2026, `xcodebuild test` s'est bloqué sur quatre runs lancés en
+    # même temps. Ils ont tourné **deux heures** avant qu'on s'en aperçoive, et
+    # sans intervention ils seraient allés jusqu'à la limite de six heures de
+    # GitHub — vingt-quatre heures de runner macOS facturées, pour zéro signal.
+    #
+    # Le code n'y était pour rien : les mêmes commits, au fichier Markdown
+    # près, avaient passé en treize minutes une heure plus tôt. C'était
+    # transitoire. Ce qui manquait, c'était la borne.
+    #
+    # Trente minutes : plus du double du temps observé, assez pour absorber une
+    # lenteur de runner, assez court pour qu'un blocage se voie dans l'heure.
+    timeout-minutes: 30
 
     steps:
       - name: L'app

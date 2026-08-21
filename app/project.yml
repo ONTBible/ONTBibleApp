@@ -34,7 +34,16 @@ settings:
     # exactement ce que fait le téléversement des symboles vers Sentry.
     ENABLE_USER_SCRIPT_SANDBOXING: NO
   configs:
+    Debug:
+      # L'environnement APNs, substitué dans `ONT.entitlements`.
+      #
+      # Un jeton obtenu en `development` est refusé par le serveur de
+      # production d'Apple, et réciproquement — avec un `BadDeviceToken` qui ne
+      # nomme aucune des deux causes. Le figer sur une valeur ferait donc
+      # échouer la moitié des envois, selon l'origine du build.
+      APS_ENVIRONMENT: development
     Release:
+      APS_ENVIRONMENT: production
       # Sans dSYM, une pile Release arrive en adresses hexadécimales. C'est
       # déjà le défaut d'Xcode en Release ; on l'écrit pour que ça reste vrai.
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
@@ -119,7 +128,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
 
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0.2"
+        CFBundleShortVersionString: "1.0.3"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -222,7 +231,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.2"
+        CFBundleShortVersionString: "1.0.3"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf

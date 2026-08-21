@@ -18,9 +18,10 @@ fn main() {
             );
             println!("Recherche  {} entrées indexées", r.search_records);
             println!(
-                "Anomalies  {} termes inconnus, {} marqueurs déséquilibrés",
+                "Anomalies  {} termes inconnus, {} marqueurs déséquilibrés, {} mots d'or sans fiche",
                 s.unknown_terms.len(),
-                r.issues
+                r.issues,
+                r.ors_morts
             );
             println!("Sortie     {} Ko", r.bytes / 1024);
         }

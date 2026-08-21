@@ -24,7 +24,7 @@ use serde::Serialize;
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, out, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
-use crate::reference::{read_reference, BookName, Reference};
+use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Inline, Manifest, Mode, ModeOutline,
@@ -538,6 +538,12 @@ pub struct BuildResult {
     pub search_records: usize,
     pub issues: usize,
     pub bytes: usize,
+    /// Les `**…**` d'une fiche qui ne mènent à aucune entrée.
+    ///
+    /// Compté à part des `unknown_terms`, qui ne relèvent que le corps du
+    /// texte : une fiche ne passe pas par l'indexation des chapitres, et sa
+    /// faute restait donc muette.
+    pub ors_morts: usize,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -561,6 +567,62 @@ pub fn build() -> Result<BuildResult, String> {
         form_index,
         book_names,
     } = read_reference(&texte_reference, &ids);
+
+    // Les fiches denses recouvrent la définition tirée de `CLAUDE.md`. Elles ne
+    // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
+    // balisage restent au document de référence, qui en est la source.
+    let fiches = read_fiches(&racine);
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
+    for entry in glossary.iter_mut() {
+        if let Some(blocs) = fiches.get(&entry.lemma) {
+            entry.definition = Some(blocs.clone());
+        }
+    }
+
+    // Un mot d'or qui ne mène nulle part, dans une fiche.
+    //
+    // Le §2.5 réserve `**…**` aux intraduisibles : le mot sort en or et promet
+    // une entrée de lexique. Employé pour insister — « le poids **réel** » —,
+    // il promet une fiche qui n'existe pas, et c'est le défaut même que le
+    // §2.5 bis a été écrit pour supprimer.
+    //
+    // Le rapport le relève déjà pour le **corps du texte**. Les fiches y
+    // échappaient : elles n'entrent pas dans `index_occurrences`, qui ne
+    // parcourt que les chapitres. Trois lots de fiches ont donc été écrits avec
+    // la faute, et rien ne l'a dit — c'est la vigilance qui rattrapait, ce qui
+    // ne tient pas à cent fiches.
+    let connus: HashSet<String> = glossary
+        .iter()
+        .flat_map(|e| {
+            std::iter::once(e.lemma.clone())
+                .chain(e.forms.iter().map(|f| crate::inline::slugify(f)))
+        })
+        .collect();
+    let mut ors_morts: Vec<String> = Vec::new();
+    for entry in &glossary {
+        // **D'où vient la définition**, et non « d'où on la croit venue ». Une
+        // entrée sans fiche tire sa définition du `CLAUDE.md` : annoncer
+        // `lexique/merkavah.md` enverrait corriger un fichier qui n'existe pas.
+        let source = if fiches.contains_key(&entry.lemma) {
+            format!("lexique/{}.md", entry.lemma)
+        } else {
+            format!("CLAUDE.md — entrée {}", entry.title)
+        };
+        for bloc in entry.definition.iter().flatten() {
+            let Block::Para { nodes } = bloc else {
+                continue;
+            };
+            collect_or_morts(nodes, &connus, &source, &mut ors_morts);
+        }
+    }
+    ors_morts.sort();
+    ors_morts.dedup();
 
     let lu = read_chapters(&racine);
     let corpora = assemble(&skeleton, &lu.chapters, &book_names);
@@ -743,9 +805,13 @@ pub fn build() -> Result<BuildResult, String> {
     let rapport = format_report(
         &corpora,
         &glossary,
-        &lu.issues,
-        &indexed.unknown,
-        &lu.superseded,
+        &Anomalies {
+            issues: &lu.issues,
+            unknown: &indexed.unknown,
+            superseded: &lu.superseded,
+            fiches_orphelines: &fiches_orphelines,
+            ors_morts: &ors_morts,
+        },
         &racine,
     );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
@@ -755,17 +821,59 @@ pub fn build() -> Result<BuildResult, String> {
         search_records: search_records.len(),
         issues: lu.issues.len(),
         bytes,
+        ors_morts: ors_morts.len(),
     })
+}
+
+/// Descend dans un arbre d'inline et relève les termes sans entrée.
+fn collect_or_morts(
+    nodes: &[Inline],
+    connus: &HashSet<String>,
+    source: &str,
+    out: &mut Vec<String>,
+) {
+    for n in nodes {
+        match n {
+            Inline::Term { v, lemma } => {
+                if !connus.contains(lemma) {
+                    out.push(format!("`{source}` — **{v}**"));
+                }
+            }
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_or_morts(children, connus, source, out),
+            _ => {}
+        }
+    }
+}
+
+/// Ce que le rapport relève, en un seul paramètre.
+///
+/// Groupé parce que la liste s'allongeait à chaque contrôle ajouté, et que
+/// huit paramètres positionnels finissent par se prendre l'un pour l'autre —
+/// tous des tranches, tous du même type.
+struct Anomalies<'a> {
+    issues: &'a [Issue],
+    unknown: &'a BTreeMap<String, Unknown>,
+    superseded: &'a [String],
+    fiches_orphelines: &'a [String],
+    ors_morts: &'a [String],
 }
 
 fn format_report(
     corpora: &[Corpus],
     glossary: &[GlossaryEntry],
-    issues: &[Issue],
-    unknown: &BTreeMap<String, Unknown>,
-    superseded: &[String],
+    a: &Anomalies,
     racine: &Path,
 ) -> String {
+    let Anomalies {
+        issues,
+        unknown,
+        superseded,
+        fiches_orphelines,
+        ors_morts,
+    } = *a;
     let books: Vec<&Book> = corpora
         .iter()
         .flat_map(|c| c.modes.iter().flat_map(|m| m.books.iter()))
@@ -850,6 +958,39 @@ fn format_report(
             e.count,
             e.first_use.as_deref().unwrap_or("—")
         ));
+    }
+
+    // Une fiche écrite pour un lemme qui n'existe pas est du travail perdu :
+    // elle est committée, publiée, et personne ne la lit jamais. Le nom de
+    // fichier fait la jointure — `lexique/chesed.md` ↔ le lemme `chesed`.
+    if !fiches_orphelines.is_empty() {
+        l.extend([
+            String::new(),
+            "## Fiches sans entrée de glossaire".into(),
+            String::new(),
+            "Ces fiches de `lexique/` ne retombent sur aucun lemme : leur texte".into(),
+            "n'atteint aucun lecteur. Le nom du fichier doit être le lemme.".into(),
+            String::new(),
+        ]);
+        for f in fiches_orphelines {
+            l.push(format!("- `lexique/{f}.md`"));
+        }
+    }
+
+    // Le gras d'insistance dans une fiche promet une fiche qui n'existe pas.
+    if !ors_morts.is_empty() {
+        l.extend([
+            String::new(),
+            "## Mots d'or sans fiche, dans le lexique".into(),
+            String::new(),
+            "`**…**` promet une entrée de lexique. Employé pour insister, il".into(),
+            "promet une fiche absente — c'est le défaut que le §2.5 bis supprime.".into(),
+            "Passer ces formes en `==…==` (accentuation), ou leur écrire une entrée.".into(),
+            String::new(),
+        ]);
+        for o in ors_morts {
+            l.push(format!("- {o}"));
+        }
     }
 
     if !unknown.is_empty() {

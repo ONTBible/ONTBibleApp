@@ -96,12 +96,12 @@ indifférenciés. Ici chaque niveau reste un type de nœud distinct :
 |---|---|---|
 | texte ordinaire | `text` | 1 — le corps de la traduction |
 | `**chesed**` | `term` + `lemma` | 1 — intraduisible, **touchable** → fiche |
-| `==« Jour »==` | `important` | 1 — terme important, coloré mais **inerte** |
+| `==« Jour »==` | `accentuation` | 1 — une accentuation, colorée mais **inerte** |
 | `*[glose]*` | `gloss` | 2 — la voix du projet |
 | `(*chasdo* / חַסְדּוֹ)` | `translit` | 3 — translittération + hébreu |
 | hébreu isolé | `heb` | 3 — séquence RTL déjà repérée |
 
-Le nœud `important` (§2.5 bis) est né d'un défaut : du gras posé pour insister
+Le nœud `accentuation` (§2.5 bis) est né d'un défaut : du gras posé pour insister
 se retrouvait déclaré intraduisible, donc affiché en or et touchable, ouvrant
 une fiche de lexique vide. L'or promet une fiche et la tient ; le bordeaux clair
 `#862742` marque sans rien promettre.

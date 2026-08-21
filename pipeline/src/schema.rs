@@ -71,13 +71,18 @@ pub enum Inline {
     /// Niveau 2 — une glose `*[entre crochets en italique]*`.
     Gloss { children: Vec<Inline> },
 
-    /// Un terme **important** — ni corps ordinaire, ni intraduisible.
+    /// Une **accentuation** — ni corps ordinaire, ni intraduisible.
     ///
     /// La troisième catégorie, née d'un défaut : des mots mis en gras pour
     /// insister se retrouvaient déclarés intraduisibles, donc dorés et
     /// touchables, ouvrant une fiche vide. L'intention était juste, il lui
     /// manquait sa marque — `==ainsi==`, le surlignage natif d'Obsidian.
-    Important { children: Vec<Inline> },
+    ///
+    /// **Le tag du fil change avec elle**, en `"accentuation"` — d'où le
+    /// schéma du corpus monté à 2. Une app antérieure lèverait sur ce nœud
+    /// inconnu ; le numéro de schéma la fait renoncer à la mise à jour bien
+    /// avant, et elle garde son corpus embarqué, entier.
+    Accentuation { children: Vec<Inline> },
 
     /// De l'italique ordinaire `*ainsi*` — renvois de livres, mots cités.
     Em { children: Vec<Inline> },
@@ -500,4 +505,30 @@ pub struct SearchFile {
 pub struct DailyFile {
     pub schema: u32,
     pub verses: Vec<DailyVerse>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Le tag de l'accentuation sur le fil est `"accentuation"`.
+    ///
+    /// Il l'est **depuis le schéma 2**, et pas avant : les versions 1.0.1 et
+    /// 1.0.2 lisaient `"important"` et lèvent sur ce qu'elles ne connaissent
+    /// pas. Ce qui les protège n'est pas ce nom, c'est le numéro de schéma —
+    /// `CorpusUpdater` compare avant de télécharger et renonce à tout. Ce test
+    /// tient les deux moitiés du contrat ensemble : changer ce mot sans monter
+    /// le schéma casserait les lecteurs installés, en silence.
+    #[test]
+    fn l_accentuation_se_nomme_ainsi_sur_le_fil() {
+        let noeud = Inline::Accentuation {
+            children: vec![Inline::Text { v: "Jour".into() }],
+        };
+        let json = serde_json::to_string(&noeud).expect("sérialisation");
+        assert!(
+            json.contains(r#""t":"accentuation""#),
+            "le tag du fil ne correspond plus au schéma 2 — vérifier que le \
+             numéro de schéma a bougé avec lui. Obtenu : {json}"
+        );
+    }
 }

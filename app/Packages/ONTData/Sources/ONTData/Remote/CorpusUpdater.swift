@@ -76,7 +76,12 @@ public actor CorpusUpdater {
     }
 
     /// La version du manifeste que ce code sait lire.
-    static let schema = 1
+    ///
+    /// **2 depuis 1.0.3**, où l'accentuation a changé de nom sur le fil. Ce
+    /// numéro est ce qui protège les versions antérieures : elles refusent le
+    /// manifeste entier et gardent leur corpus embarqué, au lieu de lever sur
+    /// un nœud qu'elles ne connaissent pas.
+    static let schema = 2
 
     private let origine: URL
     private let dossier: URL

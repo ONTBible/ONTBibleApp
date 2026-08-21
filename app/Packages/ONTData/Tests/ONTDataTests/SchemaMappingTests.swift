@@ -71,7 +71,7 @@ struct SchemaMappingTests {
             [
               {"t":"heb","v":"אָדוֹן"},
               {"t":"em","children":[{"t":"text","v":"Bereshit"}]},
-              {"t":"important","children":[{"t":"text","v":"Jour"}]},
+              {"t":"accentuation","children":[{"t":"text","v":"Jour"}]},
               {"t":"link","children":[{"t":"text","v":"là"}],"href":"/x"},
               {"t":"break"}
             ]
@@ -81,7 +81,7 @@ struct SchemaMappingTests {
         guard case .hebrew(let h) = nodes[0] else { Issue.record("heb → hebrew"); return }
         #expect(h == "אָדוֹן")
         guard case .emphasis = nodes[1] else { Issue.record("em → emphasis"); return }
-        guard case .important = nodes[2] else { Issue.record("important"); return }
+        guard case .accentuation = nodes[2] else { Issue.record("accentuation"); return }
         guard case .link(_, let href) = nodes[3] else { Issue.record("link"); return }
         #expect(href == "/x")
         guard case .lineBreak = nodes[4] else { Issue.record("break → lineBreak"); return }

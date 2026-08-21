@@ -61,7 +61,7 @@ aval, jamais l'inverse.
 |---|---|---|
 | le corpus | le vault | `App/pipeline` l'écrit dans `App/dist/`, que le site lit à la compilation — **jamais copié** |
 | le verset du jour | `App/dist/daily.json` | le site, par lecture directe du dépôt voisin |
-| la palette | `Webapp/style/main.css` — `--color-nuit`, `--color-or`, `--color-important` | `App/…/ONTDesignSystem/Tokens/ONTColors.swift`, qui les réécrit à la main |
+| la palette | `Webapp/style/main.css` — `--color-nuit`, `--color-or`, `--color-accentuation` | `App/…/ONTDesignSystem/Tokens/ONTColors.swift`, qui les réécrit à la main |
 | le wordmark et la montagne | `Webapp/public/images/*.svg` | `App/app/Marque/wordmark.svg`, **copie versée** ; l'icône de l'app |
 | les captures de l'app | `App/app/Captures/` | le site, pour `public/images/app-lecture.webp` |
 | le nom public de l'auteur | partout | **Gloire Bikouta.** Jamais « Sha'eliel », qui est interne au vault |
@@ -125,3 +125,188 @@ depuis `Captures/` donnerait une affiche entière au lieu d'une dalle.
 où `vitrine.py` le rastérise pour le poser sur les affiches de l'App Store.
 **Toucher au wordmark du site oblige à reporter la copie**, sinon la vitrine de
 l'App Store porte l'ancienne marque.
+
+### 19 août 2026 — tout nom propre porte `==…==`, dans les trois dépôts
+
+**Source : le vault.** Le §2.5 bis généralise sa règle — tout nom propre est
+balisé `==Nom==` à **chacune** de ses occurrences, corps du texte et gloses
+comprises. 1 898 marques posées par
+`ONTBibleTranslation/scripts/marquer-les-noms-propres.py`, idempotent, à
+relancer après chaque chapitre écrit.
+
+**Pour l'app et le site : rien à changer, et c'est pourquoi `==` a été retenu.**
+Le pipeline lit déjà `==…==` comme un terme important, `ONTColors.important` le
+rend en `#862742` (parchemin, clair) et `#D87994` (sombre, mystique), le site en
+`--color-important`. Une quatrième marque aurait demandé un type de nœud, une
+teinte de plus dans la rampe, un rendu Swift et un rendu Rust — quatre endroits
+à tenir d'accord pour dire ce que la marque existante disait déjà.
+
+**Ce qui traverse quand même :** les données. Toucher au vault oblige à rejouer
+le pipeline **et** à recopier `dist/` dans `App/app/Resources/data/`, sinon
+l'app affiche l'ancien corpus sans que rien ne le signale. Fait dans la même
+session.
+
+**Deux noms restent nus, et attendent l'auteur :** `Shem` et `Adam` sont tantôt
+noms propres, tantôt intraduisibles — la casse ne les sépare pas, et 126
+occurrences nues mélangent les deux sens. Les marquer en masse donnerait du
+bordeaux à des intraduisibles.
+
+### 19 août 2026 — le linker d'Apple ne tient plus le corpus embarqué
+
+**Ne concerne que le site, mais toute session macOS le rencontrera.**
+`ONTBibleWebapp` embarque tout `dist/` par `include_str!` : passé deux
+mégaoctets de données statiques, `ld` refuse ou plante. Le défaut était masqué
+par la compilation incrémentale et se découvre au premier `cargo clean` — on
+croit alors avoir cassé quelque chose, et l'on cherche dans le mauvais commit.
+
+Correction : `Webapp/scripts/linker-local.sh`, à lancer **une fois par
+machine**, plus un `[profile.dev]` dans son `Cargo.toml`. Aucun des deux ne
+suffit seul. Ni la CI ni le déploiement ne sont touchés.
+
+**Ce qui traverse :** le corpus grossit à chaque livre. Ce sursis tombera vers
+le cinquième ou sixième, et la réponse sera alors de compresser les JSON
+embarqués — décision qui appartient au site, mais que le vault déclenche.
+
+### 20 août 2026 — le lexique du lecteur sort de `CLAUDE.md`
+
+**Source : le vault.** Les fiches d'intraduisibles étaient engendrées depuis
+`ONTBibleTranslation/CLAUDE.md`, qui est une *référence de traduction* : le
+lecteur qui touchait un mot d'or recevait l'arbitrage du traducteur — deux
+phrases pour **Elohim**, 238 octets pour **YHWH**, trois lignes de médiane.
+L'explication au lecteur vit désormais dans **`lexique/<lemme>.md`** (§2.5 ter).
+
+**Pour l'app :** `pipeline/src/reference.rs` lit ce dossier et **recouvre le
+champ `definition`**. Rien ne change au schéma — les fiches passent donc par
+`CorpusUpdater` et atteignent les apps **déjà installées**, sans revue Apple.
+
+**Contrainte à connaître avant d'écrire une fiche :** `TermSheet.swift` ne rend
+que `Block::Para` et **laisse tomber le reste sans rien dire**. Un titre ou une
+liste dans une fiche disparaît chez le lecteur, en silence. Des paragraphes,
+donc — jusqu'à ce que la vue sache rendre le reste.
+
+**Pour le site :** il embarque `dist/` à la compilation ; les fiches denses
+arrivent au prochain déploiement, sans rien à changer chez lui.
+
+### 20 août 2026 — le relevé des noms propres avait trois trous
+
+**Source : le vault.** `marquer-les-noms-propres.py` annonçait « 0 marque à
+poser » alors que quatre-vingts occurrences étaient nues : il ne voyait le nom
+que par son niveau 3 capitalisé. Il a désormais une seconde source — le mot
+capitalisé collé au niveau 3 — et **il nomme ce qu'il écarte**, parce qu'un
+relevé muet sur ses refus se lit comme une couverture complète.
+
+**Deux arbitrages d'auteur reportés partout :** les gentilés sont des noms
+propres, sans exception ; **Nephilim** passe en intraduisible — l'or supplante
+le bordeaux — et sa fiche reste à écrire.
+
+**Pour l'app et le site : rien à changer.** La chaîne a été vérifiée de bout en
+bout — `pipeline/src/inline.rs:325` → `ONTTextRenderer.swift:242` →
+`ONTBibleWebapp/src/interface/design/verset.rs:135`.
+
+### 21 août 2026 — le corpus publié suit `dev` de l'app, plus `main`
+
+**Source : le site.** `deployer.yml` clonait `ONTBibleApp` sur sa branche par
+défaut pour compiler le pipeline. Il clone désormais **`dev`**.
+
+**Pourquoi.** Le pipeline sert deux consommateurs de cadences opposées : le
+corpus publié atteint les apps **déjà installées** en minutes, par
+`CorpusUpdater`, sans revue ; le binaire iOS met des jours. Tant que le site
+clonait `main`, la publication du corpus héritait du filtre de toute la chaîne
+de promotion — une correction de pipeline ne pouvait pas atteindre un lecteur
+sans qu'un build parte chez Apple. C'est ce qui a tenu les cent six fiches de
+lexique hors de portée alors que le code était fusionné et testé.
+
+**Pour l'app :** une correction de `pipeline/**` fusionnée dans `dev` part en
+ligne au prochain déploiement du site. Elle n'attend plus `staging` ni `main`.
+La chaîne de promotion du **binaire** ne change pas.
+
+**Le garde-fou qui vient avec, et pourquoi il n'est pas optionnel.**
+`CorpusUpdater` s'abstient **en silence** devant un manifeste dont le schéma lui
+est inconnu : ni erreur, ni trace, elle reste sur son bundle. Publier un schéma
+monté cesserait donc de mettre à jour tous les lecteurs installés sans que rien
+ne le dise. Deux constantes, dans deux dépôts, qu'aucun test ne rapprochait —
+`"schema": 1` dans `corpus-publie.py`, `static let schema = 1` dans
+`CorpusUpdater.swift`. Le déploiement les compare et refuse de publier si elles
+divergent, la référence étant **`main` de l'app**, c'est-à-dire ce qui est en
+vente.
+
+**Conséquence à retenir :** monter le schéma du corpus demande désormais de
+livrer d'abord une version de l'app qui sait le lire. C'est l'ordre correct, et
+il est maintenant imposé plutôt que supposé.
+
+### 21 août 2026 — publier fait sonner les téléphones
+
+**Source : l'app et le site, mais la conséquence est pour le vault.**
+
+Jusqu'ici, publier depuis `ONTBibleTranslation` déposait un corpus qu'un lecteur
+découvrait à l'ouverture de l'app. Désormais, la même publication **notifie** :
+une alerte par livre paru, une par chapitre, une quand un lemme entre au
+lexique.
+
+**Ce que le vault doit en retenir.** Une fusion dans `main` du vault n'est plus
+un geste silencieux. Elle atteint un écran verrouillé, le soir, sans que
+personne ne l'ait demandée au moment où elle arrive. Deux règles en découlent :
+
+- **Ne pas publier pour éprouver.** Un aller-retour `brouillon` → `locked` →
+  `brouillon` sur un chapitre déjà paru ne renotifie pas — c'est garanti par
+  `NouveautesNotifications` — mais un livre publié par erreur, si.
+- **Un chapitre paraît une fois.** L'état est retenu en `livre:chapitre`, pas en
+  identifiant de chapitre nu : deux chapitres 3 dans deux livres ne se
+  masquent plus l'un l'autre. Renommer un livre revient donc à faire reparaître
+  tous ses chapitres. À faire, si besoin, avant la première parution.
+
+**Deux chemins, pas un.** L'app décide seule, hors ligne, en comparant le corpus
+qu'elle vient de télécharger à celui qu'elle avait — c'est le chemin qui marche
+sans serveur ni consentement. Le push distant (APNs) ne sert qu'à l'instantané :
+le déploiement du site appelle le backend, qui pousse. Si le backend tombe,
+l'alerte arrive quand même, à la prochaine ouverture. **Aucune parution ne
+dépend d'Apple.**
+
+**Pour le site : deux étapes ajoutées à `deployer.yml`.** « L'annonce de la
+parution » compare le plan publié au précédent et n'appelle le backend que sur
+une vraie différence — un redéploiement sans changement de texte ne notifie
+personne.
+
+**Pour la confidentialité.** Un jeton d'appareil retenu côté serveur révèle
+qu'un appareil lit une Bible : c'est une donnée de l'article 9 du RGPD. Le push
+est donc **désactivé par défaut**, activé sur consentement explicite, et le
+retrait efface le jeton du serveur **avant** de se désinscrire chez Apple —
+jamais l'inverse, sous peine de laisser un jeton orphelin. `confidentialite.rs`
+le dit désormais en toutes lettres ; il affirmait le contraire.
+
+**Une clé APNs ne couvre qu'un environnement.** Une clé de production est
+refusée par le serveur bac à sable avec `BadEnvironmentKeyInToken`, et
+réciproquement. Le backend en porte donc **deux**, indexées par environnement.
+Sans cela, la moitié des appareils échouait sans que rien ne le signale.
+
+### 21 août 2026 — « important » devient « accentuation », le fil compris
+
+**Source : partout à la fois.** Le troisième niveau de marquage — `==mot==` —
+s'appelait « le terme important ». Il s'appelle désormais **l'accentuation**,
+dans les trois dépôts, dans la prose comme dans le code : `Inline::Accentuation`
+en Rust, `.accentuation` en Swift, `Noeud::Accentuation` sur le site,
+`--color-accentuation` en CSS.
+
+**Le tag du fil change avec le nom — et c'est ce qui demande de l'attention.**
+L'enum Rust tire son tag de son nom de variante ; le corpus publie désormais
+`{"t":"accentuation"}`. Les versions 1.0.1 et 1.0.2 attendent `"important"` et
+leur décodeur **lève** sur un nœud inconnu.
+
+Ce qui les protège n'est pas le décodeur, c'est le **numéro de schéma**, monté
+de 1 à 2. `CorpusUpdater` compare le schéma du manifeste au sien *avant* de
+télécharger quoi que ce soit et renonce à la mise à jour entière : une app
+antérieure garde son corpus embarqué, intact, et cesse simplement de recevoir
+les parutions jusqu'à sa propre mise à jour. C'est le comportement voulu d'un
+changement de format, et la raison pour laquelle le champ existe.
+
+**L'ordre est imposé, pas supposé.** L'étape « Le schéma du corpus » du
+déploiement du site compare `corpus-publie.py` à `CorpusUpdater.swift` **sur
+`main` de l'app**, et cette étape s'exécute avant la compilation. Monter le
+schéma côté site pendant que `main` est en 1.0.2 bloquerait donc le déploiement
+du site **entier**, pas seulement le corpus. La séquence tenable est donc :
+1.0.3 sur `main` d'abord, `corpus-publie.py` ensuite.
+
+**Ce qui n'a pas bougé.** L'adjectif français ordinaire — « le point le plus
+important », « le composant le plus important du site » — n'est pas le marqueur.
+Un remplacement en masse aurait corrompu une fiche de lexique et un commentaire
+de rendu. Le renommage s'est fait site par site.

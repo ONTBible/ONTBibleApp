@@ -39,6 +39,36 @@ pub struct Config {
     pub apple: Option<AppleCredentials>,
     pub google: Option<OAuthCredentials>,
     pub github: Option<OAuthCredentials>,
+    /// De quoi signer les notifications. `None` désactive la diffusion sans
+    /// empêcher le reste : lire ne dépend pas de savoir notifier.
+    pub apns: Option<ApnsCredentials>,
+    /// Le secret que le déploiement présente pour déclencher une diffusion.
+    pub secret_diffusion: Option<String>,
+}
+
+/// La clé APNs.
+///
+/// **Distincte de celle de Sign in with Apple**, même si les trois premiers
+/// champs se ressemblent. Une clé du portail développeur porte des capacités
+/// précises : celle qui signe les connexions ne signe pas les notifications,
+/// et Apple répond alors un `403` qui ne nomme pas la cause.
+#[derive(Clone, Debug)]
+pub struct ApnsCredentials {
+    pub team_id: String,
+    /// La clé de **production** — celle qui joint les lecteurs.
+    pub key_id: String,
+    pub private_key: String,
+    /// La clé de **sandbox**, facultative.
+    ///
+    /// Une clé du portail ne couvre qu'un environnement : celle de production
+    /// se fait refuser par le serveur de sandbox avec un
+    /// `BadEnvironmentKeyInToken`, et réciproquement. Sans celle-ci, les builds
+    /// de debug ne reçoivent rien — supportable en développement, mais qui
+    /// mérite d'être su plutôt que découvert.
+    pub sandbox_key_id: Option<String>,
+    pub sandbox_private_key: Option<String>,
+    /// Le « topic » — le bundle de l'app.
+    pub topic: String,
 }
 
 impl Config {
@@ -49,6 +79,30 @@ impl Config {
             tracing::error!("JWT_SECRET absent — impossible d'émettre des sessions");
             DomainError::Storage
         })?;
+
+        // Les quatre ensemble, ou rien. Une clé sans son identifiant d'équipe
+        // ne signe pas, et l'erreur ne se verrait qu'au premier envoi.
+        let apns = match (
+            var("APNS_TEAM_ID"),
+            var("APNS_KEY_ID"),
+            var("APNS_PRIVATE_KEY"),
+            var("APNS_TOPIC"),
+        ) {
+            (Some(team_id), Some(key_id), Some(private_key), Some(topic)) => {
+                Some(ApnsCredentials {
+                    team_id,
+                    key_id,
+                    private_key,
+                    sandbox_key_id: var("APNS_SANDBOX_KEY_ID"),
+                    sandbox_private_key: var("APNS_SANDBOX_PRIVATE_KEY"),
+                    topic,
+                })
+            }
+            _ => {
+                tracing::info!("APNs non configuré — la diffusion est désactivée");
+                None
+            }
+        };
 
         let pair = |id: &str, secret: &str| match (var(id), var(secret)) {
             (Some(client_id), Some(client_secret)) => Some(OAuthCredentials {
@@ -84,6 +138,8 @@ impl Config {
             apple,
             google: pair("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
             github: pair("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
+            apns,
+            secret_diffusion: var("SECRET_DIFFUSION"),
         })
     }
 }

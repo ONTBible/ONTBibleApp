@@ -17,9 +17,14 @@ public struct YouTab: View {
     /// Ce que fait l'app quand le rappel change. Injecté depuis la cible
     /// d'app : `UserNotifications` n'a rien à faire dans une feature.
     private let onDailyChange: (DailyVerseSchedule) async -> Bool
+    private let onParutions: (Bool) async -> Bool
 
-    public init(onDailyChange: @escaping (DailyVerseSchedule) async -> Bool = { _ in false }) {
+    public init(
+        onDailyChange: @escaping (DailyVerseSchedule) async -> Bool = { _ in false },
+        onParutions: @escaping (Bool) async -> Bool = { _ in false }
+    ) {
         self.onDailyChange = onDailyChange
+        self.onParutions = onParutions
     }
 
     public var body: some View {
@@ -34,7 +39,7 @@ public struct YouTab: View {
                         Label("Réglages de lecture", systemImage: "textformat.size")
                     }
                     NavigationLink {
-                        DailyVerseSettings(onChange: onDailyChange)
+                        DailyVerseSettings(onChange: onDailyChange, onParutions: onParutions)
                     } label: {
                         Label("Verset du jour", systemImage: "sun.horizon")
                     }

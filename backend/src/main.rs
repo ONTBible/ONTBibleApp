@@ -7,8 +7,10 @@
 use std::sync::Arc;
 
 use ont_backend::application::App;
-use ont_backend::domain::ports::SystemClock;
+use ont_backend::domain::diffusion::Environnement;
+use ont_backend::domain::ports::{AppareilRepository, Notificateur, SystemClock};
 use ont_backend::domain::token::TokenIssuer;
+use ont_backend::infrastructure::apns::Apns;
 use ont_backend::infrastructure::config::Config;
 use ont_backend::infrastructure::dynamo::Dynamo;
 use ont_backend::infrastructure::providers::HttpIdentityProvider;
@@ -95,10 +97,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         config.table.clone(),
     ));
 
+    // La diffusion s'allume seulement si la clé est là. Sans elle, les routes
+    // d'appareils répondent `503` et tout le reste fonctionne : ne pas savoir
+    // notifier n'est pas une raison d'empêcher de lire.
+    let notificateur: Option<Arc<dyn Notificateur>> = config.apns.as_ref().map(|a| {
+        let mut cles = std::collections::HashMap::new();
+        cles.insert(
+            Environnement::Production,
+            (a.key_id.clone(), a.private_key.clone().into_bytes()),
+        );
+        // La sandbox n'est pas exigée : sans elle, les builds de debug ne sont
+        // pas joints, et c'est un état acceptable en développement. On le dit
+        // au démarrage plutôt que de le laisser découvrir.
+        match (&a.sandbox_key_id, &a.sandbox_private_key) {
+            (Some(id), Some(pem)) => {
+                cles.insert(
+                    Environnement::Sandbox,
+                    (id.clone(), pem.clone().into_bytes()),
+                );
+            }
+            _ => tracing::info!(
+                "aucune clé APNs de sandbox — les builds de debug ne seront pas joints"
+            ),
+        }
+        Arc::new(Apns::new(a.team_id.clone(), cles, a.topic.clone())) as Arc<dyn Notificateur>
+    });
+
     let app = App {
         identity: Arc::new(HttpIdentityProvider::new(config.clone())),
         users: dynamo.clone(),
-        sync: dynamo,
+        sync: dynamo.clone(),
+        appareils: notificateur
+            .as_ref()
+            .map(|_| dynamo.clone() as Arc<dyn AppareilRepository>),
+        notificateur,
+        secret_diffusion: config.secret_diffusion.clone(),
         tokens: TokenIssuer::new(&config.jwt_secret),
         clock: Arc::new(SystemClock),
     };

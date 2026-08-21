@@ -153,11 +153,11 @@ struct ThemeContrastTests {
         #expect(mesure >= 3, "\(theme.label) : accent sur surface à \(arrondi(mesure)):1")
     }
 
-    @Test("le terme important se détache du fond", arguments: ReadingTheme.allCases)
-    func importantOnBackground(_ theme: ReadingTheme) {
-        let mesure = contraste(ONTColors.important(theme), sur: ONTColors.background(theme))
+    @Test("l'accentuation se détache du fond", arguments: ReadingTheme.allCases)
+    func accentuationOnBackground(_ theme: ReadingTheme) {
+        let mesure = contraste(ONTColors.accentuation(theme), sur: ONTColors.background(theme))
         // Du texte courant, dans une phrase : le seuil plein.
-        #expect(mesure >= 4.5, "\(theme.label) : terme important à \(arrondi(mesure)):1, seuil AA 4,5:1")
+        #expect(mesure >= 4.5, "\(theme.label) : accentuation à \(arrondi(mesure)):1, seuil AA 4,5:1")
     }
 
     // MARK: - Ce qui se pose sur un aplat de marque
