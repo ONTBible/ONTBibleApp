@@ -110,6 +110,14 @@ export TF_VAR_apple_key_id="$APPLE_KEY_ID"
 export TF_VAR_apple_private_key="$(cat "${APPLE_KEY_PATH/#\~/$HOME}")"
 export TF_VAR_google_client_id="$GOOGLE_CLIENT_ID"
 export TF_VAR_google_client_secret="$GOOGLE_CLIENT_SECRET"
+# APNs. Facultatif : sans ces valeurs, la diffusion reste éteinte et le
+# backend se déploie normalement. `:-` plutôt qu'une erreur, parce qu'un
+# backend sans notifications reste un backend qui marche.
+export TF_VAR_apns_team_id="${APNS_TEAM_ID:-}"
+export TF_VAR_apns_key_id="${APNS_KEY_ID:-}"
+export TF_VAR_apns_private_key="$([ -n "${APNS_KEY_PATH:-}" ] && cat "${APNS_KEY_PATH/#\~/$HOME}" || echo "")"
+export TF_VAR_apns_topic="${APNS_TOPIC:-com.labibleont.ONT}"
+export TF_VAR_secret_diffusion="${SECRET_DIFFUSION:-}"
 export TF_VAR_github_client_id="$GITHUB_CLIENT_ID"
 export TF_VAR_github_client_secret="$GITHUB_CLIENT_SECRET"
 
