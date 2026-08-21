@@ -71,9 +71,11 @@ struct CorpusUpdaterTests {
         // le nouveau format ; l'app garde alors son corpus embarqué.
         #expect(
             manifeste.schema <= CorpusUpdater.schema,
-            "le corpus publié (schéma \(manifeste.schema)) est en avance sur \
-             l'app (schéma \(CorpusUpdater.schema)) — les lecteurs installés \
-             ne reçoivent plus rien, en silence"
+            """
+            le corpus publié (schéma \(manifeste.schema)) est en avance sur \
+            l'app (schéma \(CorpusUpdater.schema)) — les lecteurs installés \
+            ne reçoivent plus rien, en silence
+            """
         )
         #expect(!manifeste.livres.isEmpty)
         // Les quatre fichiers que le lecteur de disque sait recouvrir. Un de
