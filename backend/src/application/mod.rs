@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use time::OffsetDateTime;
 
-use crate::domain::ports::{Clock, IdentityProvider, SyncRepository, UserRepository};
+use crate::domain::ports::{
+    AppareilRepository, Clock, IdentityProvider, Notificateur, SyncRepository, UserRepository,
+};
 use crate::domain::sync::{resolve, PullResponse, PushRequest};
 use crate::domain::token::{RefreshToken, TokenIssuer, UserId, REFRESH_TTL};
 use crate::domain::{DomainError, Provider};
@@ -24,6 +26,13 @@ pub struct Session {
 #[derive(Clone)]
 pub struct App {
     pub identity: Arc<dyn IdentityProvider>,
+    /// Le registre des appareils. `None` tant que la clé APNs n'est pas
+    /// fournie : les routes répondent alors `503`, et le reste du backend
+    /// fonctionne — une notification manquante ne doit pas empêcher de lire.
+    pub appareils: Option<Arc<dyn AppareilRepository>>,
+    pub notificateur: Option<Arc<dyn Notificateur>>,
+    /// Le secret que le déploiement présente pour déclencher une diffusion.
+    pub secret_diffusion: Option<String>,
     pub users: Arc<dyn UserRepository>,
     pub sync: Arc<dyn SyncRepository>,
     pub tokens: TokenIssuer,

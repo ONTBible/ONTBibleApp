@@ -1,5 +1,6 @@
 //! Le domaine — ce que le backend sait, indépendamment d'AWS et d'axum.
 
+pub mod diffusion;
 pub mod ports;
 pub mod sync;
 pub mod token;
@@ -70,4 +71,12 @@ pub enum DomainError {
     SessionInvalid,
     #[error("erreur de stockage")]
     Storage,
+    /// Une panne de la chaîne de notification — clé illisible, signature
+    /// impossible, charge non sérialisable.
+    ///
+    /// Distincte de `Storage` : celle-ci ne dit rien au lecteur et ne doit
+    /// jamais faire échouer autre chose. Une parution non annoncée est un
+    /// agrément perdu ; le texte, lui, est arrivé.
+    #[error("la notification n'a pas pu partir : {0}")]
+    Notification(String),
 }

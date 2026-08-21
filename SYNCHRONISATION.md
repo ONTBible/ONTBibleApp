@@ -233,3 +233,48 @@ vente.
 **Conséquence à retenir :** monter le schéma du corpus demande désormais de
 livrer d'abord une version de l'app qui sait le lire. C'est l'ordre correct, et
 il est maintenant imposé plutôt que supposé.
+
+### 21 août 2026 — publier fait sonner les téléphones
+
+**Source : l'app et le site, mais la conséquence est pour le vault.**
+
+Jusqu'ici, publier depuis `ONTBibleTranslation` déposait un corpus qu'un lecteur
+découvrait à l'ouverture de l'app. Désormais, la même publication **notifie** :
+une alerte par livre paru, une par chapitre, une quand un lemme entre au
+lexique.
+
+**Ce que le vault doit en retenir.** Une fusion dans `main` du vault n'est plus
+un geste silencieux. Elle atteint un écran verrouillé, le soir, sans que
+personne ne l'ait demandée au moment où elle arrive. Deux règles en découlent :
+
+- **Ne pas publier pour éprouver.** Un aller-retour `brouillon` → `locked` →
+  `brouillon` sur un chapitre déjà paru ne renotifie pas — c'est garanti par
+  `NouveautesNotifications` — mais un livre publié par erreur, si.
+- **Un chapitre paraît une fois.** L'état est retenu en `livre:chapitre`, pas en
+  identifiant de chapitre nu : deux chapitres 3 dans deux livres ne se
+  masquent plus l'un l'autre. Renommer un livre revient donc à faire reparaître
+  tous ses chapitres. À faire, si besoin, avant la première parution.
+
+**Deux chemins, pas un.** L'app décide seule, hors ligne, en comparant le corpus
+qu'elle vient de télécharger à celui qu'elle avait — c'est le chemin qui marche
+sans serveur ni consentement. Le push distant (APNs) ne sert qu'à l'instantané :
+le déploiement du site appelle le backend, qui pousse. Si le backend tombe,
+l'alerte arrive quand même, à la prochaine ouverture. **Aucune parution ne
+dépend d'Apple.**
+
+**Pour le site : deux étapes ajoutées à `deployer.yml`.** « L'annonce de la
+parution » compare le plan publié au précédent et n'appelle le backend que sur
+une vraie différence — un redéploiement sans changement de texte ne notifie
+personne.
+
+**Pour la confidentialité.** Un jeton d'appareil retenu côté serveur révèle
+qu'un appareil lit une Bible : c'est une donnée de l'article 9 du RGPD. Le push
+est donc **désactivé par défaut**, activé sur consentement explicite, et le
+retrait efface le jeton du serveur **avant** de se désinscrire chez Apple —
+jamais l'inverse, sous peine de laisser un jeton orphelin. `confidentialite.rs`
+le dit désormais en toutes lettres ; il affirmait le contraire.
+
+**Une clé APNs ne couvre qu'un environnement.** Une clé de production est
+refusée par le serveur bac à sable avec `BadEnvironmentKeyInToken`, et
+réciproquement. Le backend en porte donc **deux**, indexées par environnement.
+Sans cela, la moitié des appareils échouait sans que rien ne le signale.

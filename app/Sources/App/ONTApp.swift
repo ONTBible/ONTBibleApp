@@ -7,9 +7,40 @@ import ReadingFeature
 import SearchFeature
 import SwiftUI
 import YouFeature
+import os
+
+/// Le seul rôle de ce délégué : recevoir le jeton d'appareil.
+///
+/// SwiftUI n'expose pas `didRegisterForRemoteNotificationsWithDeviceToken` —
+/// c'est une méthode d'`UIApplicationDelegate`, et iOS n'a pas d'autre voie
+/// pour rendre le jeton. Il faut donc en poser un, même vide par ailleurs.
+final class PushDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken jeton: Data
+    ) {
+        Task { await PushDistant.enregistrer(jeton) }
+    }
+
+    /// L'échec est **silencieux pour le lecteur**, et tracé pour nous.
+    ///
+    /// Il arrive pour des raisons qui ne le concernent pas — pas de réseau au
+    /// lancement, capacité Push absente du profil, simulateur sans compte
+    /// Apple. Lui montrer une alerte reviendrait à lui reprocher notre
+    /// configuration.
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Logger(subsystem: "com.labibleont.ONT", category: "push")
+            .error("APNs a refusé l'enregistrement : \(error.localizedDescription)")
+    }
+}
 
 @main
 struct ONTApp: App {
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
+
     /// L'unique endroit où les types concrets sont nommés.
     ///
     /// Partout ailleurs, le code ne connaît que les protocoles d'`ONTKit`.
