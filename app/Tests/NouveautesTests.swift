@@ -125,3 +125,72 @@ struct NouveautesTests {
         #expect(d.stringArray(forKey: "unites-parues") == nil)
     }
 }
+
+/// Les termes qui entrent au lexique.
+struct NouveautesLexiqueTests {
+    private struct FauxLexique: GlossaryRepository {
+        let lemmes: [String]
+        func entries() throws -> [GlossaryEntry] {
+            lemmes.map {
+                GlossaryEntry(
+                    lemma: $0, title: $0, tagged: true, forms: [$0], hebrew: nil,
+                    rendering: nil, definition: nil, taggingNote: nil, firstUse: nil,
+                    sourceSection: nil, count: 0, bodyCount: 0, glossCount: 0)
+            }
+        }
+        func occurrences(of lemma: String) -> [Occurrence] { [] }
+    }
+
+    private struct CorpusVide: CorpusRepository {
+        func corpora() throws -> [Corpus] { [] }
+        func book(_ id: String) throws -> Book { throw NSError(domain: "vide", code: 0) }
+    }
+
+    private func defaults(_ nom: String) -> UserDefaults {
+        let d = UserDefaults(suiteName: nom)!
+        d.removePersistentDomain(forName: nom)
+        return d
+    }
+
+    @Test("le premier passage prend l'état sans rien annoncer")
+    func premierPassage() async {
+        let d = defaults("lexique-premier")
+        await NouveautesNotifications.verifier(
+            CorpusVide(), lexique: FauxLexique(lemmes: ["elohim", "yhwh"]), defaults: d)
+
+        #expect(d.stringArray(forKey: "lemmes-connus") == ["elohim", "yhwh"])
+    }
+
+    @Test("un lemme neuf est retenu")
+    func lemmeNeuf() async {
+        let d = defaults("lexique-neuf")
+        await NouveautesNotifications.verifier(
+            CorpusVide(), lexique: FauxLexique(lemmes: ["elohim"]), defaults: d)
+        await NouveautesNotifications.verifier(
+            CorpusVide(), lexique: FauxLexique(lemmes: ["elohim", "chokhmah"]), defaults: d)
+
+        #expect(d.stringArray(forKey: "lemmes-connus") == ["chokhmah", "elohim"])
+    }
+
+    /// Le jour où les cent six fiches ont été densifiées, aucun lemme n'a
+    /// changé. Réveiller tout le monde pour ça aurait été une nuisance.
+    @Test("une fiche réécrite n'est pas un lemme neuf")
+    func ficheReecriteNAnnonceRien() async {
+        let d = defaults("lexique-fiche")
+        let avant = FauxLexique(lemmes: ["elohim", "yhwh"])
+        await NouveautesNotifications.verifier(CorpusVide(), lexique: avant, defaults: d)
+        let etat = d.stringArray(forKey: "lemmes-connus")
+        await NouveautesNotifications.verifier(CorpusVide(), lexique: avant, defaults: d)
+
+        #expect(d.stringArray(forKey: "lemmes-connus") == etat)
+    }
+
+    @Test("un lexique vide ne fixe aucun état")
+    func lexiqueVide() async {
+        let d = defaults("lexique-vide")
+        await NouveautesNotifications.verifier(
+            CorpusVide(), lexique: FauxLexique(lemmes: []), defaults: d)
+
+        #expect(d.stringArray(forKey: "lemmes-connus") == nil)
+    }
+}

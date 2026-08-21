@@ -172,7 +172,7 @@ final class Composition {
             // **C'est ici que la notification a du sens.** Au lancement, le
             // lecteur a l'app sous les yeux — il verra le livre. Réveillé par
             // iOS, il ne saura rien sans qu'on le lui dise.
-            Task { await NouveautesNotifications.verifier(corpusSurDisque) }
+            Task { await NouveautesNotifications.verifier(corpusSurDisque, lexique: lexiqueSurDisque) }
         }
         CorpusRefresh.schedule()
 
@@ -208,7 +208,7 @@ final class Composition {
             // Un slot qui cesse d'être vide est une parution, et le lecteur
             // veut le savoir. Après l'oubli des caches, jamais avant : c'est
             // le dépôt relu qui porte l'état neuf.
-            await NouveautesNotifications.verifier(corpusSurDisque)
+            await NouveautesNotifications.verifier(corpusSurDisque, lexique: lexiqueSurDisque)
         }
 
         let sessions = KeychainSessionStore()

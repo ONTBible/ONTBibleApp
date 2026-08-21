@@ -3,7 +3,7 @@ import ONTKit
 import UserNotifications
 import os
 
-/// Prévenir qu'un texte vient de paraître — un livre, ou un chapitre.
+/// Prévenir qu'un texte vient de paraître — un livre, un chapitre, un terme.
 ///
 /// ## Locale, comme le rappel du jour — et pour la même raison
 ///
@@ -46,6 +46,7 @@ import os
 /// est le comportement juste, pas un cas limite oublié.
 enum NouveautesNotifications {
     private static let cle = "unites-parues"
+    private static let cleLexique = "lemmes-connus"
     private static let prefixe = "texte-paru"
     private static let log = Logger(subsystem: "com.labibleont.ONT", category: "nouveautes")
 
@@ -54,7 +55,12 @@ enum NouveautesNotifications {
     /// Appelée après chaque synchronisation — au lancement comme au réveil
     /// d'arrière-plan. Idempotente : deux appels de suite n'annoncent rien la
     /// seconde fois, puisque l'état a été enregistré.
-    static func verifier(_ corpus: CorpusRepository, defaults: UserDefaults = .standard) async {
+    static func verifier(
+        _ corpus: CorpusRepository,
+        lexique: GlossaryRepository? = nil,
+        defaults: UserDefaults = .standard
+    ) async {
+        await verifierLexique(lexique, defaults: defaults)
         let livres = corpus.writtenBooks()
         // `book:chapitre` plutôt que le seul identifiant de chapitre : rien
         // n'interdit à deux livres de numéroter leurs unités pareil, et une
@@ -124,6 +130,77 @@ enum NouveautesNotifications {
         )
         try? await centre.add(requete)
         log.info("parution annoncée : \(livre.id), \(unites) unité(s), livre entier : \(entier)")
+    }
+
+    /// Les termes qui entrent au lexique.
+    ///
+    /// ## Pourquoi un lemme neuf, et pas une fiche enrichie
+    ///
+    /// Deux événements se ressemblent et n'ont pas la même valeur. Un **lemme
+    /// neuf** est une décision de traduction : l'auteur a tranché qu'un mot est
+    /// intraduisible, et le lecteur gagne une entrée qui n'existait pas. Une
+    /// **fiche réécrite** ne lui apprend rien de nouveau sur le corpus — le
+    /// terme était déjà là, il est mieux expliqué.
+    ///
+    /// Notifier la seconde aurait réveillé tout le monde le jour où les cent
+    /// six fiches ont été densifiées d'un coup, pour un lexique dont la liste
+    /// n'avait pas bougé. On s'en tient donc aux lemmes.
+    ///
+    /// ## Une seule alerte, jamais une par terme
+    ///
+    /// Les termes arrivent par fournées — les six **ruachim** de *Yeshayahu*
+    /// 11:2-3 ont été déclarés ensemble, avec `qodesh` et `navi`. Huit alertes
+    /// pour une seule décision seraient huit fois trop.
+    private static func verifierLexique(
+        _ lexique: GlossaryRepository?, defaults: UserDefaults
+    ) async {
+        guard let lexique, let entrees = try? lexique.entries(), !entrees.isEmpty else { return }
+        let presents = Set(entrees.map(\.lemma))
+
+        guard let connus = defaults.stringArray(forKey: cleLexique).map(Set.init) else {
+            defaults.set(Array(presents).sorted(), forKey: cleLexique)
+            log.info("état initial du lexique enregistré : \(presents.count) lemmes")
+            return
+        }
+
+        let neufs = presents.subtracting(connus)
+        defaults.set(Array(presents).sorted(), forKey: cleLexique)
+        guard !neufs.isEmpty else { return }
+
+        let centre = UNUserNotificationCenter.current()
+        guard await autorise(centre) else {
+            log.info("\(neufs.count) lemme(s) neuf(s), notification non autorisée")
+            return
+        }
+
+        // Les titres, pas les lemmes : `ruach-ha-qodesh` est une clé de
+        // jointure, `Ruach ha-Qodesh` est ce que le lecteur voit.
+        let titres = entrees.filter { neufs.contains($0.lemma) }
+            .map(\.title).sorted()
+
+        let contenu = UNMutableNotificationContent()
+        contenu.title = "Le lexique s'agrandit"
+        contenu.body =
+            titres.count <= 3
+            ? "\(liste(titres)) \(titres.count == 1 ? "entre" : "entrent") au lexique de La Bible ONT."
+            : "\(titres.count) nouveaux termes entrent au lexique, dont \(liste(Array(titres.prefix(2))))."
+        contenu.sound = .default
+        contenu.userInfo = ["lexique": titres.first ?? ""]
+
+        let requete = UNNotificationRequest(
+            identifier: "lexique-\(titres.count)-\(Int(Date().timeIntervalSince1970))",
+            content: contenu,
+            trigger: nil
+        )
+        try? await centre.add(requete)
+        log.info("lexique annoncé : \(titres.count) terme(s)")
+    }
+
+    /// « Elohim, YHWH et Nephilim » — la conjonction avant le dernier.
+    private static func liste(_ mots: [String]) -> String {
+        guard let dernier = mots.last else { return "" }
+        guard mots.count > 1 else { return dernier }
+        return mots.dropLast().joined(separator: ", ") + " et " + dernier
     }
 
     private static func autorise(_ centre: UNUserNotificationCenter) async -> Bool {
