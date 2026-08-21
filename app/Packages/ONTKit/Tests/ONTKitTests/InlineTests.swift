@@ -40,15 +40,15 @@ struct InlineTests {
         #expect(nodes.lemmas == ["chesed", "berith"])
     }
 
-    /// Un lien et un terme important portent des enfants, donc des lemmes.
+    /// Un lien et une accentuation portent des enfants, donc des lemmes.
     ///
     /// Ils avaient été oubliés de la première version de `lemmas`, qui ne
     /// descendait que dans les gloses : un intraduisible cité à l'intérieur
     /// d'un lien n'apparaissait alors dans aucune fiche.
-    @Test("les lemmes remontent aussi des liens et des termes importants")
-    func lemmasIncludeLinksAndImportant() {
+    @Test("les lemmes remontent aussi des liens et des accentuations")
+    func lemmasIncludeLinksAndAccentuation() {
         let nodes: [Inline] = [
-            .important([.term("Elohim", lemma: "elohim")]),
+            .accentuation([.term("Elohim", lemma: "elohim")]),
             .link([.term("berith", lemma: "berith")], href: "/fr/lexique/berith"),
         ]
 

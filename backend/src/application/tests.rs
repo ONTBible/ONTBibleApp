@@ -163,6 +163,12 @@ fn app(accept: bool) -> (App, Arc<FakeUsers>, Arc<FakeSync>) {
     let sync = Arc::new(FakeSync::default());
 
     let app = App {
+        // La diffusion n'est pas branchée dans ces tests : ils portent sur
+        // l'authentification et la synchronisation, où un appareil n'a rien à
+        // faire. `None` est ici l'état correct, pas un raccourci.
+        appareils: None,
+        notificateur: None,
+        secret_diffusion: None,
         identity: Arc::new(FakeProvider {
             identity: identity(),
             accept,

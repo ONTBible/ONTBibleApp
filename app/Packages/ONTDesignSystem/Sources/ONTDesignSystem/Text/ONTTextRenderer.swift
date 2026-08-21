@@ -239,14 +239,14 @@ public enum ONTTextRenderer {
                 append(children, to: &output, type: type, inGloss: true)
                 output += run("]", type.apparatus)
 
-            case .important(let children):
-                // Aucun lien, délibérément : un terme important n'a pas de
+            case .accentuation(let children):
+                // Aucun lien, délibérément : une accentuation n'a pas de
                 // fiche de lexique, et un mot qui répond au doigt sans rien
                 // avoir à dire est pire qu'un mot qui ne répond pas.
                 var marque = AttributedString()
                 append(children, to: &marque, type: type, inGloss: inGloss)
                 for piece in marque.runs where piece.attributes.link == nil {
-                    marque[piece.range].foregroundColor = ONTColors.important(type.theme)
+                    marque[piece.range].foregroundColor = ONTColors.accentuation(type.theme)
                     if let font = marque[piece.range].font {
                         marque[piece.range].font = font.weight(.semibold)
                     }
@@ -309,12 +309,12 @@ extension [Inline] {
                 kept.append(
                     .emphasis(children.prepared(showGloss: showGloss, showLevel3: showLevel3))
                 )
-            case .important(let children):
-                // Un terme important survit à l'extinction des niveaux : il
+            case .accentuation(let children):
+                // Une accentuation survit à l'extinction des niveaux : elle
                 // appartient au corps, pas à l'appareil critique. Mais ses
                 // enfants sont nettoyés — il peut contenir une glose.
                 kept.append(
-                    .important(children.prepared(showGloss: showGloss, showLevel3: showLevel3))
+                    .accentuation(children.prepared(showGloss: showGloss, showLevel3: showLevel3))
                 )
             case .link(let children, let href):
                 kept.append(

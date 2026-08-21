@@ -67,19 +67,35 @@ class Client:
         r.raise_for_status()
         return r.json()
 
-    def post(self, chemin: str, corps: dict, tolerer: tuple[int, ...] = ()) -> dict:
+    def post(
+        self,
+        chemin: str,
+        corps: dict,
+        tolerer: tuple[int, ...] = (),
+        tolerer_si: tuple[str, ...] = (),
+    ) -> dict:
         """`tolerer` nomme les codes d'échec qui ne sont pas des échecs.
 
         Apple rend 409 quand on redemande ce qu'il a déjà — une soumission de
         bêta pour un build qu'il a déjà vu, par exemple. Ce n'est pas une
         erreur : c'est l'état voulu, atteint plus tôt. Sans cette porte, une
         relance du workflow échouerait pour avoir réussi.
+
+        `tolerer_si` fait la même chose, mais **sur le motif** : le code seul ne
+        suffit pas toujours à distinguer une file d'attente d'une vraie
+        malfaçon. Un 422 dit aussi bien « un autre build est déjà en revue »,
+        qui se résout tout seul, que « il manque une information de test », qui
+        ne se résout jamais. Tolérer le code entier masquerait la seconde.
         """
         r = self.session.post(f"{API}/{chemin}", json=corps, timeout=30)
         if r.status_code in tolerer:
             return {}
         if r.status_code >= 400:
-            raise SystemExit(f"{r.status_code} sur {chemin} :\n{detailler(r)}")
+            motif = detailler(r)
+            if any(m in motif for m in tolerer_si):
+                print(f"  toléré — {motif.strip()}")
+                return {}
+            raise SystemExit(f"{r.status_code} sur {chemin} :\n{motif}")
         # Une relation créée rend 204 : appeler `.json()` dessus lèverait.
         return r.json() if r.content else {}
 

@@ -25,17 +25,17 @@ public enum Inline: Hashable, Sendable {
     /// Une séquence en écriture hébraïque rencontrée hors d'un `.translit`.
     case hebrew(String)
     case gloss([Inline])
-    /// Un terme **important** — ni corps ordinaire, ni intraduisible.
+    /// Une **accentuation** — ni corps ordinaire, ni intraduisible.
     ///
     /// La troisième catégorie, née d'un défaut : des mots mis en gras pour
     /// insister se retrouvaient déclarés intraduisibles, donc affichés en or
     /// et touchables, ouvrant une fiche de lexique vide. L'intention était
     /// juste, il lui manquait sa marque.
     ///
-    /// Il porte sa propre couleur et **ne se touche pas** : il n'a pas de
+    /// Elle porte sa propre couleur et **ne se touche pas** : elle n'a pas de
     /// fiche, et un mot qui répond au doigt sans rien avoir à dire est pire
     /// qu'un mot qui ne répond pas.
-    case important([Inline])
+    case accentuation([Inline])
     case emphasis([Inline])
     case link([Inline], href: String)
     /// Une coupure de ligne signifiante — le bloc de référence d'une feuille
@@ -73,7 +73,7 @@ public extension [Inline] {
                 if level3 { output += "(\(translit) / \(hebrew))" }
             case .gloss(let children):
                 if gloss { output += children.plainText(gloss: gloss, level3: level3) }
-            case .emphasis(let children), .important(let children), .link(let children, _):
+            case .emphasis(let children), .accentuation(let children), .link(let children, _):
                 output += children.plainText(gloss: gloss, level3: level3)
             case .lineBreak:
                 output += "\n"
@@ -86,7 +86,7 @@ public extension [Inline] {
         flatMap { node -> [String] in
             switch node {
             case .term(_, let lemma): [lemma]
-            case .gloss(let children), .emphasis(let children), .important(let children),
+            case .gloss(let children), .emphasis(let children), .accentuation(let children),
                 .link(let children, _):
                 children.lemmas
             default: []

@@ -1,0 +1,89 @@
+# Une modification du pipeline part en ligne toute seule.
+#
+# ## Le trou que ceci ferme
+#
+# `ONTBibleTranslation` a son `propager.yml` depuis le 14 août : le vault
+# bouge, le site se redéploie et l'app se reconstruit. Le sens inverse n'avait
+# rien.
+#
+# Or le site **compile cette caisse** au moment où il se déploie : son
+# `deployer.yml` clone `ONTBibleApp`, lance `ont-pipeline` sur le vault et
+# embarque le `dist/` produit. C'est la même étape qui publie
+# `ontbible.com/corpus/`, d'où `CorpusUpdater` sert les apps installées.
+#
+# Conséquence : une correction du pipeline — un nœud rendu autrement, une
+# source de lexique ajoutée — restait sans effet nulle part. Le code était
+# fusionné, signé, et le corpus en ligne continuait d'être produit par la
+# version précédente. Personne ne pouvait le voir depuis ce dépôt.
+#
+# ## Ce qui déclenche, et ce qui ne déclenche pas
+#
+# Seul `pipeline/**`. La liseuse, le backend et les scripts ne produisent pas
+# une ligne de corpus : les faire redéployer le site serait du bruit. La
+# liseuse a sa propre chaîne — `livraison.yml`.
+#
+# ## Le jeton
+#
+# Même dispositif que chez le vault, et **le même jeton** : il porte déjà
+# `ONTBible/ONTBibleWebapp` dans sa portée. Il suffit de le déposer ici :
+#
+#     Settings → Secrets and variables → Actions → New repository secret
+#     Nom : DECLENCHEUR
+#
+# Rappel de sa portée, s'il faut le regénérer :
+#
+#     https://github.com/settings/personal-access-tokens
+#     Resource owner    : ONTBible   (et non le compte personnel)
+#     Repository access : ONTBible/ONTBibleWebapp et ONTBible/ONTBibleApp
+#     Permissions       : Actions → Read and write   (et rien d'autre)
+
+name: Propager
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/propager.yml"
+  workflow_dispatch:
+
+# Trois commits de pipeline poussés coup sur coup ne doivent pas lancer trois
+# déploiements : chacun reconstruit tout, le dernier contient les autres.
+concurrency:
+  group: propager
+  cancel-in-progress: true
+
+jobs:
+  propager:
+    runs-on: ubuntu-latest
+
+    steps:
+      # La même vérification que chez le vault, et pour la même raison : le
+      # secret absent, le jeton expiré et le jeton mal cadré rendent trois
+      # erreurs qui se ressemblent et ne se nomment pas.
+      - name: Le jeton peut déclencher
+        env:
+          GH_TOKEN: ${{ secrets.DECLENCHEUR }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Le secret DECLENCHEUR manque. Voir l'en-tête de ce fichier."
+            exit 1
+          fi
+          if reponse=$(gh api "repos/ONTBible/ONTBibleWebapp/actions/workflows" --jq '.total_count' 2>&1); then
+            echo "  ONTBible/ONTBibleWebapp : $reponse workflows visibles"
+          else
+            echo "::error::Le jeton ne voit pas les workflows du site."
+            echo "::error::Réponse de l'API : $reponse"
+            echo "::error::404 sur une organisation : le jeton attend souvent une approbation —"
+            echo "::error::ONTBible → Settings → Third-party Access → Pending requests."
+            exit 1
+          fi
+
+      # Le site, qui recompile le pipeline et republie `ontbible.com/corpus/`.
+      # Les apps installées suivent par `CorpusUpdater`, sans revue Apple.
+      - name: Le site
+        env:
+          GH_TOKEN: ${{ secrets.DECLENCHEUR }}
+        run: |
+          gh workflow run deployer.yml --repo ONTBible/ONTBibleWebapp --ref main
+          echo "→ https://github.com/ONTBible/ONTBibleWebapp/actions/workflows/deployer.yml"

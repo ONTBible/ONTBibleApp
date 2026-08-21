@@ -7,6 +7,7 @@
 
 use async_trait::async_trait;
 
+use super::diffusion::{Annonce, Appareil};
 use super::sync::{Highlight, Position};
 use super::token::UserId;
 use super::{DomainError, ExternalIdentity, Provider};
@@ -75,6 +76,41 @@ pub trait SyncRepository: Send + Sync {
     ) -> Result<(), DomainError>;
 
     async fn set_position(&self, user: &UserId, position: &Position) -> Result<(), DomainError>;
+}
+
+/// Le registre des appareils à joindre.
+///
+/// Séparé de `UserRepository` **à dessein**, et pas seulement pour la forme :
+/// un appareil n'appartient à personne ici. Mettre ces méthodes sur le dépôt
+/// des comptes rendrait la jointure tentante, et un jour quelqu'un la ferait.
+#[async_trait]
+pub trait AppareilRepository: Send + Sync {
+    /// Enregistre, ou recouvre si l'appareil est déjà connu.
+    async fn enregistrer(&self, appareil: &Appareil) -> Result<(), DomainError>;
+
+    /// Retire un appareil — au retrait du consentement, ou sur un `410` d'Apple.
+    async fn oublier(&self, empreinte: &str) -> Result<(), DomainError>;
+
+    /// Tous les appareils à joindre.
+    ///
+    /// Une diffusion les prend d'un bloc : il n'y a pas de ciblage, et il ne
+    /// doit pas y en avoir. Tout le monde reçoit la même annonce, ou personne.
+    async fn tous(&self) -> Result<Vec<Appareil>, DomainError>;
+}
+
+/// L'envoi proprement dit, chez Apple.
+#[async_trait]
+pub trait Notificateur: Send + Sync {
+    /// Rend les empreintes des appareils qu'Apple déclare morts — `410 Gone`.
+    ///
+    /// C'est le seul moyen de purger : un lecteur qui désinstalle l'app ne
+    /// peut plus rien retirer lui-même, et son jeton resterait sinon
+    /// indéfiniment dans la table.
+    async fn diffuser(
+        &self,
+        appareils: &[Appareil],
+        annonce: &Annonce,
+    ) -> Result<Vec<String>, DomainError>;
 }
 
 /// L'horloge — injectée pour que les tests d'expiration soient déterministes.
