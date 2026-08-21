@@ -202,3 +202,34 @@ le bordeaux — et sa fiche reste à écrire.
 **Pour l'app et le site : rien à changer.** La chaîne a été vérifiée de bout en
 bout — `pipeline/src/inline.rs:325` → `ONTTextRenderer.swift:242` →
 `ONTBibleWebapp/src/interface/design/verset.rs:135`.
+
+### 21 août 2026 — le corpus publié suit `dev` de l'app, plus `main`
+
+**Source : le site.** `deployer.yml` clonait `ONTBibleApp` sur sa branche par
+défaut pour compiler le pipeline. Il clone désormais **`dev`**.
+
+**Pourquoi.** Le pipeline sert deux consommateurs de cadences opposées : le
+corpus publié atteint les apps **déjà installées** en minutes, par
+`CorpusUpdater`, sans revue ; le binaire iOS met des jours. Tant que le site
+clonait `main`, la publication du corpus héritait du filtre de toute la chaîne
+de promotion — une correction de pipeline ne pouvait pas atteindre un lecteur
+sans qu'un build parte chez Apple. C'est ce qui a tenu les cent six fiches de
+lexique hors de portée alors que le code était fusionné et testé.
+
+**Pour l'app :** une correction de `pipeline/**` fusionnée dans `dev` part en
+ligne au prochain déploiement du site. Elle n'attend plus `staging` ni `main`.
+La chaîne de promotion du **binaire** ne change pas.
+
+**Le garde-fou qui vient avec, et pourquoi il n'est pas optionnel.**
+`CorpusUpdater` s'abstient **en silence** devant un manifeste dont le schéma lui
+est inconnu : ni erreur, ni trace, elle reste sur son bundle. Publier un schéma
+monté cesserait donc de mettre à jour tous les lecteurs installés sans que rien
+ne le dise. Deux constantes, dans deux dépôts, qu'aucun test ne rapprochait —
+`"schema": 1` dans `corpus-publie.py`, `static let schema = 1` dans
+`CorpusUpdater.swift`. Le déploiement les compare et refuse de publier si elles
+divergent, la référence étant **`main` de l'app**, c'est-à-dire ce qui est en
+vente.
+
+**Conséquence à retenir :** monter le schéma du corpus demande désormais de
+livrer d'abord une version de l'app qui sait le lire. C'est l'ordre correct, et
+il est maintenant imposé plutôt que supposé.
