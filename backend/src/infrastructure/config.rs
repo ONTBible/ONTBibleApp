@@ -55,9 +55,18 @@ pub struct Config {
 #[derive(Clone, Debug)]
 pub struct ApnsCredentials {
     pub team_id: String,
+    /// La clé de **production** — celle qui joint les lecteurs.
     pub key_id: String,
-    /// La clé privée `.p8`, au format PEM.
     pub private_key: String,
+    /// La clé de **sandbox**, facultative.
+    ///
+    /// Une clé du portail ne couvre qu'un environnement : celle de production
+    /// se fait refuser par le serveur de sandbox avec un
+    /// `BadEnvironmentKeyInToken`, et réciproquement. Sans celle-ci, les builds
+    /// de debug ne reçoivent rien — supportable en développement, mais qui
+    /// mérite d'être su plutôt que découvert.
+    pub sandbox_key_id: Option<String>,
+    pub sandbox_private_key: Option<String>,
     /// Le « topic » — le bundle de l'app.
     pub topic: String,
 }
@@ -84,6 +93,8 @@ impl Config {
                     team_id,
                     key_id,
                     private_key,
+                    sandbox_key_id: var("APNS_SANDBOX_KEY_ID"),
+                    sandbox_private_key: var("APNS_SANDBOX_PRIVATE_KEY"),
                     topic,
                 })
             }

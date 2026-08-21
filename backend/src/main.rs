@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use ont_backend::application::App;
+use ont_backend::domain::diffusion::Environnement;
 use ont_backend::domain::ports::{AppareilRepository, Notificateur, SystemClock};
 use ont_backend::domain::token::TokenIssuer;
 use ont_backend::infrastructure::apns::Apns;
@@ -100,12 +101,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // d'appareils répondent `503` et tout le reste fonctionne : ne pas savoir
     // notifier n'est pas une raison d'empêcher de lire.
     let notificateur: Option<Arc<dyn Notificateur>> = config.apns.as_ref().map(|a| {
-        Arc::new(Apns::new(
-            a.team_id.clone(),
-            a.key_id.clone(),
-            a.private_key.clone().into_bytes(),
-            a.topic.clone(),
-        )) as Arc<dyn Notificateur>
+        let mut cles = std::collections::HashMap::new();
+        cles.insert(
+            Environnement::Production,
+            (a.key_id.clone(), a.private_key.clone().into_bytes()),
+        );
+        // La sandbox n'est pas exigée : sans elle, les builds de debug ne sont
+        // pas joints, et c'est un état acceptable en développement. On le dit
+        // au démarrage plutôt que de le laisser découvrir.
+        match (&a.sandbox_key_id, &a.sandbox_private_key) {
+            (Some(id), Some(pem)) => {
+                cles.insert(
+                    Environnement::Sandbox,
+                    (id.clone(), pem.clone().into_bytes()),
+                );
+            }
+            _ => tracing::info!(
+                "aucune clé APNs de sandbox — les builds de debug ne seront pas joints"
+            ),
+        }
+        Arc::new(Apns::new(a.team_id.clone(), cles, a.topic.clone())) as Arc<dyn Notificateur>
     });
 
     let app = App {

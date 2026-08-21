@@ -21,13 +21,14 @@
 //! fonctionnalité soit compilée — sans elle, la connexion aboutit et chaque
 //! envoi rend un `403` qui ne dit pas pourquoi.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
 use serde::Serialize;
 use time::OffsetDateTime;
 
-use crate::domain::diffusion::{Annonce, Appareil};
+use crate::domain::diffusion::{Annonce, Appareil, Environnement};
 use crate::domain::ports::Notificateur;
 use crate::domain::DomainError;
 
@@ -35,15 +36,22 @@ use crate::domain::DomainError;
 pub struct Apns {
     /// L'identifiant de l'équipe — dix caractères, dans le portail développeur.
     equipe: String,
-    /// L'identifiant de la clé `.p8`.
-    cle_id: String,
-    /// La clé privée elle-même, au format PEM.
-    cle: Vec<u8>,
+    /// **Une clé par environnement**, et ce n'est pas une précaution.
+    ///
+    /// Une clé du portail ne couvre qu'un environnement : celle qui signe pour
+    /// `api.push.apple.com` se fait refuser par `api.sandbox.push.apple.com`
+    /// avec un `BadEnvironmentKeyInToken`, et réciproquement. Or un build de
+    /// debug obtient un jeton *sandbox*, un build TestFlight ou App Store un
+    /// jeton *production* — les deux coexistent en permanence.
+    ///
+    /// Avec une seule clé, la moitié des envois échouerait ; et comme
+    /// `diffuser` ne fait qu'avertir sur un refus, l'échec serait **silencieux**.
+    cles: HashMap<Environnement, (String, Vec<u8>)>,
     /// Le bundle de l'app — le « topic » au sens d'Apple.
     topic: String,
     http: reqwest::Client,
-    /// Le jeton courant et sa date d'émission.
-    jeton: Mutex<Option<(String, OffsetDateTime)>>,
+    /// Le jeton courant par environnement, avec sa date d'émission.
+    jetons: Mutex<HashMap<Environnement, (String, OffsetDateTime)>>,
 }
 
 /// Une heure moins dix : Apple refuse au-delà d'une heure, et reproche les
@@ -74,23 +82,31 @@ struct Alerte<'a> {
 }
 
 impl Apns {
-    pub fn new(equipe: String, cle_id: String, cle: Vec<u8>, topic: String) -> Self {
+    pub fn new(
+        equipe: String,
+        cles: HashMap<Environnement, (String, Vec<u8>)>,
+        topic: String,
+    ) -> Self {
         Self {
             equipe,
-            cle_id,
-            cle,
+            cles,
             topic,
             http: reqwest::Client::new(),
-            jeton: Mutex::new(None),
+            jetons: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Le jeton de fournisseur, signé en ES256.
-    fn jeton(&self) -> Result<String, DomainError> {
+    /// Le jeton de fournisseur pour un environnement, signé en ES256.
+    fn jeton(&self, env: Environnement) -> Result<String, DomainError> {
+        let Some((cle_id, cle)) = self.cles.get(&env) else {
+            return Err(DomainError::Notification(format!(
+                "aucune clé APNs pour l'environnement {env:?}"
+            )));
+        };
         let maintenant = OffsetDateTime::now_utc();
         {
-            let garde = self.jeton.lock().expect("verrou du jeton APNs");
-            if let Some((jeton, emis)) = garde.as_ref() {
+            let garde = self.jetons.lock().expect("verrou des jetons APNs");
+            if let Some((jeton, emis)) = garde.get(&env) {
                 if maintenant - *emis < DUREE_JETON {
                     return Ok(jeton.clone());
                 }
@@ -105,10 +121,10 @@ impl Apns {
 
         let entete = {
             let mut e = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::ES256);
-            e.kid = Some(self.cle_id.clone());
+            e.kid = Some(cle_id.clone());
             e
         };
-        let cle = jsonwebtoken::EncodingKey::from_ec_pem(&self.cle)
+        let cle = jsonwebtoken::EncodingKey::from_ec_pem(cle)
             .map_err(|e| DomainError::Notification(format!("clé APNs illisible : {e}")))?;
         let jeton = jsonwebtoken::encode(
             &entete,
@@ -120,7 +136,10 @@ impl Apns {
         )
         .map_err(|e| DomainError::Notification(format!("signature APNs : {e}")))?;
 
-        *self.jeton.lock().expect("verrou du jeton APNs") = Some((jeton.clone(), maintenant));
+        self.jetons
+            .lock()
+            .expect("verrou des jetons APNs")
+            .insert(env, (jeton.clone(), maintenant));
         Ok(jeton)
     }
 }
@@ -132,7 +151,6 @@ impl Notificateur for Apns {
         appareils: &[Appareil],
         annonce: &Annonce,
     ) -> Result<Vec<String>, DomainError> {
-        let jeton = self.jeton()?;
         let charge = Charge {
             aps: Aps {
                 alert: Alerte {
@@ -149,6 +167,16 @@ impl Notificateur for Apns {
 
         let mut morts = Vec::new();
         for appareil in appareils {
+            // Le jeton dépend de l'environnement de l'appareil : deux clés,
+            // deux signatures, et un appareil de debug ne se joint pas avec la
+            // clé de production.
+            let jeton = match self.jeton(appareil.environnement) {
+                Ok(j) => j,
+                Err(e) => {
+                    tracing::warn!(erreur = %e, "pas de clé pour cet environnement");
+                    continue;
+                }
+            };
             let url = format!(
                 "https://{}/3/device/{}",
                 appareil.environnement.hote(),

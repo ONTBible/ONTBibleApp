@@ -132,6 +132,16 @@ export TF_VAR_google_client_secret="$GOOGLE_CLIENT_SECRET"
 # APNs. Facultatif : sans ces valeurs, la diffusion reste éteinte et le
 # backend se déploie normalement. `:-` plutôt qu'une erreur, parce qu'un
 # backend sans notifications reste un backend qui marche.
+# **Le DSN de Sentry, qui n'était posé nulle part.**
+#
+# La variable Terraform vaut `""` par défaut : chaque déploiement écrasait donc
+# la valeur en production, et le backend cessait de remonter ses erreurs. Le
+# projet `ont-api` avait reçu un événement le 12 août — renseigné à la main —
+# puis le déploiement suivant l'a effacé, en silence.
+#
+# C'est ce qui a rendu invisible la panne de Sign in with Apple du 21 août : le
+# backend ne pouvait rien signaler.
+export TF_VAR_sentry_dsn="${SENTRY_DSN:-}"
 export TF_VAR_apns_team_id="${APNS_TEAM_ID:-}"
 export TF_VAR_apns_key_id="${APNS_KEY_ID:-}"
 # APNs, lui, reste facultatif : sans chemin, la diffusion est éteinte et c'est
@@ -139,6 +149,8 @@ export TF_VAR_apns_key_id="${APNS_KEY_ID:-}"
 # une absence — on ne peut pas la distinguer d'un secret perdu.
 export TF_VAR_apns_private_key="$([ -n "${APNS_KEY_PATH:-}" ] && verifier_cle "$APNS_KEY_PATH" "APNs" || echo "")"
 export TF_VAR_apns_topic="${APNS_TOPIC:-com.labibleont.ONT}"
+export TF_VAR_apns_sandbox_key_id="${APNS_SANDBOX_KEY_ID:-}"
+export TF_VAR_apns_sandbox_private_key="$([ -n "${APNS_SANDBOX_KEY_PATH:-}" ] && verifier_cle "$APNS_SANDBOX_KEY_PATH" "APNs sandbox" || echo "")"
 export TF_VAR_secret_diffusion="${SECRET_DIFFUSION:-}"
 export TF_VAR_github_client_id="$GITHUB_CLIENT_ID"
 export TF_VAR_github_client_secret="$GITHUB_CLIENT_SECRET"

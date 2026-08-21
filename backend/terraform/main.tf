@@ -87,6 +87,19 @@ variable "apns_private_key" {
   default   = ""
 }
 
+# La clé de sandbox, facultative : sans elle, les builds de debug ne sont pas
+# joints. Une clé du portail ne couvre qu'un environnement.
+variable "apns_sandbox_key_id" {
+  type    = string
+  default = ""
+}
+
+variable "apns_sandbox_private_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "apns_topic" {
   type    = string
   default = ""
@@ -304,23 +317,25 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME           = aws_dynamodb_table.ont.name
-      SENTRY_DSN           = var.sentry_dsn
-      JWT_SECRET           = var.jwt_secret
-      APPLE_CLIENT_ID      = var.apple_client_id
-      APPLE_TEAM_ID        = var.apple_team_id
-      APPLE_KEY_ID         = var.apple_key_id
-      APPLE_PRIVATE_KEY    = var.apple_private_key
-      GOOGLE_CLIENT_ID     = var.google_client_id
-      GOOGLE_CLIENT_SECRET = var.google_client_secret
-      GITHUB_CLIENT_ID     = var.github_client_id
-      GITHUB_CLIENT_SECRET = var.github_client_secret
-      APNS_TEAM_ID         = var.apns_team_id
-      APNS_KEY_ID          = var.apns_key_id
-      APNS_PRIVATE_KEY     = var.apns_private_key
-      APNS_TOPIC           = var.apns_topic
-      SECRET_DIFFUSION     = var.secret_diffusion
-      RUST_LOG             = "info,ont_backend=info"
+      TABLE_NAME               = aws_dynamodb_table.ont.name
+      SENTRY_DSN               = var.sentry_dsn
+      JWT_SECRET               = var.jwt_secret
+      APPLE_CLIENT_ID          = var.apple_client_id
+      APPLE_TEAM_ID            = var.apple_team_id
+      APPLE_KEY_ID             = var.apple_key_id
+      APPLE_PRIVATE_KEY        = var.apple_private_key
+      GOOGLE_CLIENT_ID         = var.google_client_id
+      GOOGLE_CLIENT_SECRET     = var.google_client_secret
+      GITHUB_CLIENT_ID         = var.github_client_id
+      GITHUB_CLIENT_SECRET     = var.github_client_secret
+      APNS_TEAM_ID             = var.apns_team_id
+      APNS_KEY_ID              = var.apns_key_id
+      APNS_PRIVATE_KEY         = var.apns_private_key
+      APNS_TOPIC               = var.apns_topic
+      APNS_SANDBOX_KEY_ID      = var.apns_sandbox_key_id
+      APNS_SANDBOX_PRIVATE_KEY = var.apns_sandbox_private_key
+      SECRET_DIFFUSION         = var.secret_diffusion
+      RUST_LOG                 = "info,ont_backend=info"
     }
   }
 
