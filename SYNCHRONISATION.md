@@ -374,3 +374,40 @@ du site **entier**, pas seulement le corpus. La séquence tenable est donc :
 important », « le composant le plus important du site » — n'est pas le marqueur.
 Un remplacement en masse aurait corrompu une fiche de lexique et un commentaire
 de rendu. Le renommage s'est fait site par site.
+
+### 21 août 2026 — deux épingles Rust, et la seconde a manqué une journée
+
+**Source : le site, puis l'app.** `rustup toolchain install stable` a ramené
+Rust 1.98.0 sans que personne n'ait rien poussé. Son linker passe
+`--fix-cortex-a53-843419`, que `cargo-zigbuild` ne sait pas filtrer. Les deux
+dépôts compilent du Rust pour la même cible, par la même chaîne d'outils : les
+deux ont cassé.
+
+**Le site a été corrigé le matin** — `VERSION_RUST: "1.97.1"` dans
+`deployer.yml`. **La correction n'a pas été portée dans l'app**, et son
+déploiement de backend a continué d'échouer **en silence** jusqu'au soir : les
+routes `/appareils` et `/diffuser` répondaient 404 en production, et le push
+distant ne pouvait pas fonctionner. On a cherché la panne dans Terraform, dans
+la passerelle, dans le routeur — partout sauf dans un déploiement qui échouait
+déjà.
+
+**Les deux épingles se nomment désormais l'une l'autre** dans leurs
+commentaires : `ONTBibleWebapp/.github/workflows/deployer.yml` et
+`ONTBibleApp/.github/workflows/deployer-backend.yml`. Remonter l'une sans
+l'autre est ce qu'il faut empêcher — et rien ne le vérifie, c'est un
+commentaire, pas un contrôle.
+
+**Ce qui va avec, et qui est propre à l'app.** Le rôle AWS n'autorise le
+déploiement du backend que depuis `main`, à dessein : un `workflow_dispatch`
+depuis une branche est refusé par `sts:AssumeRoleWithWebIdentity`. Un correctif
+de CI doit donc traverser `dev → staging → main`. Or `livraison.yml` n'avait
+aucun filtre de chemins : ce trajet déclenchait un build **et une soumission à
+l'App Store**, pendant qu'une revue était en cours. Un `paths-ignore` écarte
+maintenant les workflows, le backend et la documentation — ce qui ne peut pas
+entrer dans le binaire iOS. Il ne saute que si **tous** les fichiers touchés y
+figurent, donc un changement mêlé à du code d'app livre toujours.
+
+**La leçon, pour les trois dépôts :** un outil qui suit `stable` casse un matin
+sans qu'on ait rien fait, et il casse **partout où il est employé**. Épingler
+un dépôt sans regarder ses voisins ne corrige que la moitié du défaut — et
+l'autre moitié échoue là où personne ne regarde.
