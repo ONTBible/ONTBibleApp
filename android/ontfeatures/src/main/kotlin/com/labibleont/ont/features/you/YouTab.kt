@@ -1,241 +1,216 @@
 package com.labibleont.ont.features.you
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.WbTwilight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.labibleont.ont.designsystem.metrics.ONTRadius
+import com.labibleont.ont.designsystem.metrics.ontSpacing
+import com.labibleont.ont.designsystem.surfaces.ONTGroup
+import com.labibleont.ont.designsystem.surfaces.ONTGroupDivider
+import com.labibleont.ont.designsystem.surfaces.ONTLargeTitle
+import com.labibleont.ont.designsystem.surfaces.ONTPage
+import com.labibleont.ont.designsystem.surfaces.ONTRow
+import com.labibleont.ont.designsystem.surfaces.ONTSectionHeader
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
-import com.labibleont.ont.designsystem.typography.ONTFonts
-import com.labibleont.ont.kit.reader.DailyVerseSchedule
-import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPreferences
-import com.labibleont.ont.kit.reader.ReadingTheme
+
+/** Ce vers quoi une ligne de l'onglet Vous conduit. */
+public enum class DestinationVous {
+    LECTURE,
+    VERSET_DU_JOUR,
+    PARUTIONS,
+}
 
 /**
- * L'onglet Vous — ce que le lecteur règle.
+ * L'onglet Vous — un **hall**, pas un déversoir de réglages.
  *
- * ## Les deux premiers interrupteurs ne sont pas des préférences d'affichage
+ * ## Pourquoi des sous-écrans et non une page unique
  *
- * Ce sont les **niveaux du texte** (§2.1), et pouvoir les éteindre est la raison
- * d'être de la liseuse. Corps seul, on lit d'une traite ; gloses allumées, on
- * lit l'appareil ; hébreu allumé, on travaille. Ils sont donc en tête, avant la
- * taille et le thème.
+ * La première version d'Android empilait tout : niveaux, taille, thème, fonte,
+ * rappel. C'était lisible et ça ne ressemblait à rien — une colonne
+ * d'interrupteurs séparés par des traits pleine largeur.
+ *
+ * iOS en fait un sommaire : quelques groupes encartés, chaque ligne menant à un
+ * écran qui ne traite qu'une chose. Ce n'est pas une préférence esthétique.
+ * C'est ce qui permet à l'écran du **verset du jour** d'exister séparément de
+ * celui des **parutions** — la distinction que la PR #74 a établie côté iOS, et
+ * qu'une page unique aurait effacée.
+ *
+ * On reprend donc la structure. Ce qui change, ce sont les gestes : le retour
+ * système ferme un sous-écran, et les lignes suivent la cible tactile
+ * d'Android.
  */
 @Composable
 public fun YouTab(
     preferences: ReadingPreferences,
-    onChange: (ReadingPreferences) -> Unit,
-    /**
-     * Appelé quand le rappel change — pour demander l'autorisation et
-     * (re)programmer le réveil.
-     *
-     * L'écran ne le fait pas lui-même : demander une autorisation système
-     * demande une activité, et un module de fonctionnalités n'en a pas. C'est
-     * la racine de composition qui sait.
-     */
-    onRappel: (DailyVerseSchedule) -> Unit = {},
+    slotsRediges: Int,
+    slotsTotal: Int,
+    versets: Int,
+    onAller: (DestinationVous) -> Unit,
+    onPasEncore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
+    val espace = ontSpacing
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .verticalScroll(rememberScrollState()),
     ) {
-        Text(
-            "Vous",
-            fontFamily = ONTFonts.display,
-            fontSize = 32.sp,
-            color = ONTColors.inkStrong(theme),
-            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp),
-        )
+        ONTPage {
+            ONTLargeTitle("Vous")
 
-        Section("Les niveaux du texte")
-        Interrupteur(
-            titre = "Les gloses",
-            detail = "Niveau 2 — la voix du projet, entre crochets",
-            actif = preferences.showGloss,
-            onChange = { onChange(preferences.copy(showGloss = it)) },
-        )
-        Interrupteur(
-            titre = "Translittération et hébreu",
-            detail = "Niveau 3 — entre parenthèses",
-            actif = preferences.showLevel3,
-            onChange = { onChange(preferences.copy(showLevel3 = it)) },
-        )
-
-        Section("La lecture")
-        Interrupteur(
-            titre = "Versets à la suite",
-            detail = "En prose continue plutôt qu'un verset par bloc",
-            actif = preferences.continuous,
-            onChange = { onChange(preferences.copy(continuous = it)) },
-        )
-
-        Spacer(Modifier.height(8.dp))
-        Text("Taille du texte", color = ONTColors.ink(theme))
-        Text(
-            // Le curseur du système s'applique par-dessus : ce réglage-ci est
-            // la taille de base, pas la taille finale. Le dire évite qu'on le
-            // croie plafonné quand c'est l'inverse.
-            "${preferences.textSize.toInt()} pt — l'accessibilité du système s'y ajoute",
-            fontSize = 12.sp,
-            color = ONTColors.inkSoft(theme),
-        )
-        Slider(
-            value = preferences.textSize.toFloat(),
-            onValueChange = { onChange(preferences.copy(textSize = it.toDouble())) },
-            valueRange = 14f..34f,
-            steps = 19,
-        )
-
-        Section("Notifications")
-        Interrupteur(
-            titre = "Le verset du jour",
-            detail = "Posé par l'appareil, à l'heure que vous choisissez",
-            actif = preferences.daily.enabled,
-            onChange = { actif ->
-                val rappel = preferences.daily.copy(enabled = actif)
-                onChange(preferences.copy(daily = rappel))
-                onRappel(rappel)
-            },
-        )
-        if (preferences.daily.enabled) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("À ", color = ONTColors.ink(theme))
-                Text(
-                    "%02d:%02d".format(preferences.daily.hour, preferences.daily.minute),
-                    fontFamily = ONTFonts.display,
-                    fontSize = 20.sp,
-                    color = ONTColors.accent(theme),
-                )
-                Spacer(Modifier.padding(8.dp))
-                // À la minute près, parce que la minute est ce qui rend le
-                // rappel utilisable : 7 h 00 tombe dans le réveil, 7 h 12 dans
-                // le trajet. N'offrir que des heures rondes force à choisir
-                // entre deux mauvais moments.
-                for (pas in listOf(-60, -5, 5, 60)) {
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            val total = (preferences.daily.hour * 60 +
-                                preferences.daily.minute + pas + 1440) % 1440
-                            val rappel = DailyVerseSchedule.borne(
-                                enabled = true,
-                                hour = total / 60,
-                                minute = total % 60,
-                            )
-                            onChange(preferences.copy(daily = rappel))
-                            onRappel(rappel)
-                        },
-                        label = {
-                            Text(
-                                if (pas > 0) "+${if (pas == 60) "1 h" else "$pas min"}"
-                                else "−${if (pas == -60) "1 h" else "${-pas} min"}",
-                                fontSize = 12.sp,
-                            )
-                        },
-                        modifier = Modifier.padding(end = 4.dp),
-                    )
+            ONTSectionHeader("Compte")
+            ONTGroup {
+                Column(
+                    modifier = Modifier.padding(espace.m),
+                    verticalArrangement = Arrangement.spacedBy(espace.s),
+                ) {
+                    BoutonDeConnexion("Continuer avec Google") { onPasEncore() }
+                    BoutonDeConnexion("Continuer avec GitHub") { onPasEncore() }
                 }
             }
             Text(
-                // Le point où Android fait mieux qu'iOS, et il vaut d'être dit
-                // au lecteur : là-bas les deux usages partagent une seule
-                // autorisation, ici ce sont deux canaux qu'il règle séparément
-                // depuis le système.
-                "Les parutions sont un canal séparé : vous pouvez couper l'un " +
-                    "sans l'autre depuis les réglages d'Android.",
-                fontSize = 12.sp,
+                // Le dire avant qu'on se demande : rien n'oblige à créer un
+                // compte. C'est une propriété de l'app, pas une concession.
+                "La lecture, les surlignages et les notes fonctionnent " +
+                    "entièrement sans compte. La connexion ne sert qu'à les " +
+                    "retrouver sur un autre appareil.",
                 color = ONTColors.inkSoft(theme),
-                modifier = Modifier.padding(bottom = 8.dp),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(
+                    start = espace.l,
+                    end = espace.l,
+                    top = espace.s,
+                ),
             )
-        }
 
-        Section("La peau")
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            for (t in ReadingTheme.entries) {
-                FilterChip(
-                    selected = preferences.theme == t,
-                    onClick = { onChange(preferences.copy(theme = t)) },
-                    label = { Text(t.label) },
-                    modifier = Modifier.padding(end = 6.dp),
+            Spacer(Modifier.height(espace.xl))
+
+            ONTSectionHeader("Notifications")
+            ONTGroup {
+                ONTRow(
+                    titre = "Verset du jour",
+                    detail = if (preferences.daily.enabled) {
+                        "à %02d:%02d".format(preferences.daily.hour, preferences.daily.minute)
+                    } else {
+                        "éteint"
+                    },
+                    icone = Icons.Filled.WbTwilight,
+                    onClick = { onAller(DestinationVous.VERSET_DU_JOUR) },
+                    fin = { Chevron() },
+                )
+                ONTGroupDivider()
+                ONTRow(
+                    titre = "Parutions",
+                    detail = "quand un livre paraît",
+                    icone = Icons.AutoMirrored.Filled.MenuBook,
+                    onClick = { onAller(DestinationVous.PARUTIONS) },
+                    fin = { Chevron() },
                 )
             }
-        }
 
-        Section("La fonte du corps")
-        for (f in ReadingFont.entries) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FilterChip(
-                    selected = preferences.bodyFont == f,
-                    onClick = { onChange(preferences.copy(bodyFont = f)) },
-                    label = { Text(f.label) },
+            Spacer(Modifier.height(espace.xl))
+
+            ONTSectionHeader("Lecture")
+            ONTGroup {
+                ONTRow(
+                    titre = "Réglages de lecture",
+                    detail = "niveaux, taille, thème, fonte",
+                    icone = Icons.Filled.FormatSize,
+                    onClick = { onAller(DestinationVous.LECTURE) },
+                    fin = { Chevron() },
                 )
-                Spacer(Modifier.padding(6.dp))
-                Text(f.note, fontSize = 12.sp, color = ONTColors.inkSoft(theme))
             }
-        }
 
-        Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(espace.xl))
+
+            ONTSectionHeader("Le corpus")
+            ONTGroup {
+                ONTRow(titre = "Slots rédigés", fin = { Valeur("$slotsRediges / $slotsTotal") })
+                ONTGroupDivider()
+                ONTRow(titre = "Versets", fin = { Valeur("$versets") })
+            }
+
+            Spacer(Modifier.height(espace.xxl))
+        }
     }
 }
 
 @Composable
-private fun Section(titre: String) {
+private fun Chevron() {
     val theme = LocalReadingTheme.current
-    Spacer(Modifier.height(20.dp))
-    Text(
-        titre,
-        fontFamily = ONTFonts.display,
-        fontSize = 15.sp,
-        color = ONTColors.brandInk(theme),
-    )
-    HorizontalDivider(
-        color = ONTColors.separator(theme),
-        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+    Icon(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = ONTColors.inkSoft(theme),
     )
 }
 
 @Composable
-private fun Interrupteur(
-    titre: String,
-    detail: String,
-    actif: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
+private fun Valeur(texte: String) {
     val theme = LocalReadingTheme.current
+    Text(texte, color = ONTColors.inkSoft(theme), fontSize = 15.sp)
+}
+
+/**
+ * Un bouton de connexion.
+ *
+ * Éteint tant que le compte n'existe pas, et **il le dit** : un bouton qui ne
+ * répond pas sans expliquer pourquoi se lit comme un défaut de l'app.
+ *
+ * Pas de « Continuer avec Apple » : sur Android, il faudrait passer par le web,
+ * et le lecteur qui a un compte Apple l'aura créé sur son iPhone. On l'ajoutera
+ * quand la synchronisation existera, pas avant — annoncer trois fournisseurs
+ * dont un ne marche pas est pire que d'en annoncer deux.
+ */
+@Composable
+private fun BoutonDeConnexion(intitule: String, onAppui: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(ONTRadius.pill))
+            // **Plein**, pas délavé. Un bouton grisé se lit comme un défaut de
+            // l'app ; celui-ci répond, et ce qu'il répond est qu'il n'est pas
+            // encore branché. Dire « pas encore » vaut mieux que ne rien dire.
+            .background(ONTColors.burgundy)
+            .clickable(onClick = onAppui)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(titre, color = ONTColors.ink(theme))
-            Text(detail, fontSize = 12.sp, color = ONTColors.inkSoft(theme))
-        }
-        Switch(checked = actif, onCheckedChange = onChange)
+        Text(
+            intitule,
+            color = ONTColors.gold,
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center,
+        )
     }
 }

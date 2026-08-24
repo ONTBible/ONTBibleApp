@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">La Bible ONT</string>
+    <!-- L'apostrophe s'échappe dans une ressource Android, sinon aapt refuse le
+         fichier entier. C'est le même piège que celui trouvé aujourd'hui dans
+         le vault, à l'envers : ici l'échappement est **exigé**. -->
+    <string name="widget_description">Le verset du jour, sur votre écran d\'accueil.</string>
+    <!-- L'aperçu porte le premier verset du corpus : c'est celui que le
+         lecteur reconnaîtra, et il dit ce que le widget affiche. -->
+    <string name="widget_apercu_texte">Quand Elohim commença à orchestrer les Cieux et la Terre…</string>
 </resources>

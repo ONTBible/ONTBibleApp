@@ -74,9 +74,75 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onVerset: ((Int) -> Unit)? = null,
+        /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
+        fond: androidx.compose.ui.graphics.Color? = null,
+        /**
+         * Vrai quand un autre verset est désigné : celui-ci s'efface.
+         *
+         * Employé en **prose continue**, où il n'y a pas de composable par
+         * verset. En mode blocs, l'appelant préfère `Modifier.alpha`, qui fait
+         * la même chose plus simplement puisqu'il tient un composable.
+         */
+        estompe: Boolean = false,
+        /**
+         * Le fond sur lequel le texte se pose — nécessaire pour estomper.
+         *
+         * Il n'est pas déduit du thème : la carte bordeaux du Qahal n'a pas le
+         * fond de la page, et un estompage calculé sur le mauvais fond se
+         * verrait comme un halo.
+         */
+        fondDuTheme: androidx.compose.ui.graphics.Color =
+            ONTColors.background(typo.theme),
     ): AnnotatedString = buildAnnotatedString {
-        append(numeroDeVerset(verse.n, typo))
-        append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+        val corps = buildAnnotatedString {
+            append(numeroDeVerset(verse.n, typo))
+            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+        }
+
+        // ## L'estompage se calcule, il ne s'applique pas
+        //
+        // Le procédé vient de Bible Strong : on n'éclaire pas le verset
+        // désigné, on efface les autres.
+        //
+        // `SpanStyle` n'a pas d'opacité — seulement une couleur — et poser une
+        // couleur unique par-dessus écraserait les teintes des trois niveaux :
+        // l'or des intraduisibles, l'encre douce des gloses, tout deviendrait
+        // une seule couleur passée.
+        //
+        // Mais estomper à l'opacité **est** un mélange au fond : afficher une
+        // couleur à 32 % sur un fond revient exactement à afficher le mélange
+        // des deux dans cette proportion. On calcule donc le mélange pour
+        // chaque fragment, et le résultat est identique au pixel près — les
+        // rapports entre les trois niveaux sont conservés, parce qu'ils sont
+        // mêlés au même fond dans la même proportion.
+        //
+        // C'est ce qui permet à la prose continue d'estomper comme le mode
+        // blocs, alors qu'elle n'a pas de composable par verset : tous les
+        // versets y sont dans un seul texte pour que les lignes se lient.
+        val enveloppe = SpanStyle(
+            background = fond ?: androidx.compose.ui.graphics.Color.Unspecified,
+        )
+
+        val rendu = if (estompe) corps.estompeSur(fondDuTheme) else corps
+
+        if (onVerset == null) {
+            withStyle(enveloppe) { append(rendu) }
+        } else {
+            // Le lien le plus **intérieur** l'emporte : toucher un
+            // intraduisible ouvre sa fiche, toucher ailleurs désigne le verset.
+            withLink(
+                LinkAnnotation.Clickable(
+                    tag = "$TAG_VERSET/${verse.n}",
+                    styles = TextLinkStyles(
+                        style = SpanStyle(textDecoration = TextDecoration.None),
+                    ),
+                    linkInteractionListener = { onVerset(verse.n) },
+                ),
+            ) {
+                withStyle(enveloppe) { append(rendu) }
+            }
+        }
     }
 
     /**
@@ -112,9 +178,31 @@ public object ONTTextRenderer {
     ): AnnotatedString {
         val base = compose(nodes, typo, showGloss = false, showLevel3 = false)
         if (ink == null) return base
-        return buildAnnotatedString {
-            withStyle(SpanStyle(color = ink)) { append(base) }
-        }
+
+        // ## Écraser les couleurs, et non les poser dessous
+        //
+        // Envelopper le texte dans un `SpanStyle(color = ink)` ne suffit pas :
+        // les fragments intérieurs portent déjà la leur — l'encre du corps,
+        // l'or des intraduisibles — et un fragment intérieur l'emporte sur son
+        // enveloppe. Le corps du verset restait donc à l'encre sombre, posée
+        // sur un aplat bordeaux, illisible ; seuls les intraduisibles se
+        // voyaient, parce que leur or coïncidait avec ce qu'on voulait.
+        //
+        // Le Swift écrit `output.foregroundColor = ink`, qui **remplace** la
+        // couleur de tous les fragments. On fait pareil : on force la couleur
+        // de chaque fragment, et on ajoute un fragment de pleine étendue pour
+        // le texte qu'aucun ne couvre.
+        //
+        // Le reste des attributs survit — graisse, italique, fonte hébraïque —
+        // parce qu'on ne remplace que la couleur.
+        @Suppress("DEPRECATION")
+        return AnnotatedString(
+            text = base.text,
+            spanStyles = listOf(
+                AnnotatedString.Range(SpanStyle(color = ink), 0, base.text.length),
+            ) + base.spanStyles.map { it.copy(item = it.item.copy(color = ink)) },
+            paragraphStyles = base.paragraphStyles,
+        )
     }
 
     // ── La composition ──────────────────────────────────────────────────
@@ -214,6 +302,35 @@ public object ONTTextRenderer {
                 Inline.LineBreak -> append("\n")
             }
         }
+    }
+
+    /**
+     * Le texte mêlé au fond, dans la proportion de l'estompage.
+     *
+     * Chaque fragment garde sa graisse, son italique et sa fonte ; seule sa
+     * couleur est mêlée. Un fragment de pleine étendue couvre ce qu'aucun autre
+     * ne couvre — sans lui, le texte non stylé garderait sa couleur pleine et
+     * ressortirait au milieu de ce qui s'efface.
+     */
+    private fun AnnotatedString.estompeSur(
+        fond: androidx.compose.ui.graphics.Color,
+    ): AnnotatedString {
+        fun melanger(c: androidx.compose.ui.graphics.Color) =
+            androidx.compose.ui.graphics.lerp(fond, c, ONTColors.DIMMED_OPACITY)
+
+        @Suppress("DEPRECATION")
+        return AnnotatedString(
+            text = text,
+            spanStyles = spanStyles.map { plage ->
+                val couleur = plage.item.color
+                if (couleur == androidx.compose.ui.graphics.Color.Unspecified) {
+                    plage
+                } else {
+                    plage.copy(item = plage.item.copy(color = melanger(couleur)))
+                }
+            },
+            paragraphStyles = paragraphStyles,
+        )
     }
 
     /**
