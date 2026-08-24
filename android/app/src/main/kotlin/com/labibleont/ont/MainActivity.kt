@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -77,6 +78,7 @@ import com.labibleont.ont.features.qahal.QahalTab
 import com.labibleont.ont.features.reading.BibleTab
 import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
+import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
@@ -111,7 +113,7 @@ private sealed interface Ecran {
     data object Onglets : Ecran
     data object Lecture : Ecran
     data object Recherche : Ecran
-    data object Selecteur : Ecran
+    data class Selecteur(val livre: String? = null) : Ecran
     data class Reglage(val ou: DestinationVous) : Ecran
 }
 
@@ -191,6 +193,7 @@ private fun Racine(
     var onglet by remember { mutableStateOf(Onglet.BIBLE) }
     var ecran: Ecran by remember { mutableStateOf(Ecran.Onglets) }
     var terme: String? by remember { mutableStateOf(null) }
+    var reglagesOuverts by remember { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
     val portee = rememberCoroutineScope()
 
@@ -215,7 +218,7 @@ private fun Racine(
     BackHandler(enabled = ecran != Ecran.Onglets || lecture.selection.isNotEmpty()) {
         when {
             lecture.selection.isNotEmpty() -> lecture.deselectionner()
-            ecran == Ecran.Selecteur -> ecran = Ecran.Lecture
+            ecran is Ecran.Selecteur -> ecran = Ecran.Lecture
             else -> ecran = Ecran.Onglets
         }
     }
@@ -223,7 +226,7 @@ private fun Racine(
     val titreDeLEcran = when (val e = ecran) {
         Ecran.Lecture -> lecture.livre?.title.orEmpty()
         Ecran.Recherche -> "Rechercher"
-        Ecran.Selecteur -> "Aller à"
+        is Ecran.Selecteur -> "Aller à"
         is Ecran.Reglage -> when (e.ou) {
             DestinationVous.LECTURE -> "Réglages de lecture"
             DestinationVous.VERSET_DU_JOUR -> "Verset du jour"
@@ -252,10 +255,24 @@ private fun Racine(
                             PastilleDeRenvoi(
                                 renvoi = lecture.chapitre?.title
                                     ?: lecture.livre?.title.orEmpty(),
-                                onClick = { ecran = Ecran.Selecteur },
+                                onClick = { ecran = Ecran.Selecteur() },
                             )
                         } else {
                             Text(titreDeLEcran)
+                        }
+                    },
+                    actions = {
+                        if (ecran == Ecran.Lecture) {
+                            // On règle la taille du texte quand on bute dessus,
+                            // pas quand on y pense. Obliger à quitter le
+                            // chapitre pour y aller, c'est garantir que
+                            // personne n'y touchera jamais.
+                            IconButton(onClick = { reglagesOuverts = true }) {
+                                Icon(
+                                    Icons.Filled.FormatSize,
+                                    contentDescription = "Réglages de lecture",
+                                )
+                            }
                         }
                     },
                     navigationIcon = {
@@ -264,7 +281,7 @@ private fun Racine(
                                 // Le sélecteur revient à la lecture, pas au
                                 // sommaire : on l'a ouvert **depuis** un
                                 // chapitre, et le fermer ne doit pas le perdre.
-                                ecran = if (ecran == Ecran.Selecteur) {
+                                ecran = if (ecran is Ecran.Selecteur) {
                                     Ecran.Lecture
                                 } else {
                                     Ecran.Onglets
@@ -277,12 +294,12 @@ private fun Racine(
                             // qui ne font pas la même chose se lisent comme un
                             // défaut, et on ne sait plus laquelle presser.
                             Icon(
-                                if (ecran == Ecran.Selecteur) {
+                                if (ecran is Ecran.Selecteur) {
                                     Icons.Filled.Close
                                 } else {
                                     Icons.AutoMirrored.Filled.ArrowBack
                                 },
-                                contentDescription = if (ecran == Ecran.Selecteur) {
+                                contentDescription = if (ecran is Ecran.Selecteur) {
                                     "Fermer sans changer de passage"
                                 } else {
                                     "Revenir"
@@ -294,6 +311,7 @@ private fun Racine(
                         containerColor = Color.Transparent,
                         titleContentColor = ONTColors.brandInk(theme),
                         navigationIconContentColor = ONTColors.brandInk(theme),
+                        actionIconContentColor = ONTColors.brandInk(theme),
                     ),
                 )
             } else if (onglet == Onglet.BIBLE) {
@@ -369,6 +387,7 @@ private fun Racine(
                     model = lecture,
                     livreCourant = lecture.livre?.id,
                     uniteCourante = lecture.chapitre?.id,
+                    livreImpose = (ecran as Ecran.Selecteur).livre,
                     onAller = { livre, unite, verset ->
                         lecture.ouvrir(livre, unite)
                         verset?.let { lecture.basculer(it) }
@@ -442,8 +461,16 @@ private fun Racine(
                     model = lecture,
                     position = lecture.reprendre(),
                     onOuvrir = { livre, unite ->
-                        lecture.ouvrir(livre, unite)
-                        ecran = Ecran.Lecture
+                        if (unite == null) {
+                            // Toucher un livre montre **ses unités**, il ne
+                            // saute pas à la première. C'était le manque :
+                            // aucun chemin vers un autre chapitre depuis le
+                            // sommaire.
+                            ecran = Ecran.Selecteur(livre)
+                        } else {
+                            lecture.ouvrir(livre, unite)
+                            ecran = Ecran.Lecture
+                        }
                     },
                 )
 
@@ -469,6 +496,20 @@ private fun Racine(
                     },
                 )
             }
+        }
+    }
+
+    if (reglagesOuverts) {
+        ModalBottomSheet(
+            onDismissRequest = { reglagesOuverts = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = ONTColors.background(theme),
+        ) {
+            ReadingSettingsSheet(
+                chapitre = lecture.chapitre,
+                preferences = preferences,
+                onChange = onPreferences,
+            )
         }
     }
 

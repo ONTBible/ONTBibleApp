@@ -86,17 +86,30 @@ public fun ReferencePicker(
     /** L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste. */
     livreCourant: String?,
     uniteCourante: String?,
+    /**
+     * Un livre imposé à l'ouverture, distinct de celui qu'on lit.
+     *
+     * C'est par là que passe l'onglet Bible : y toucher un livre doit montrer
+     * **ses** unités, pas celles du chapitre ouvert ailleurs — et surtout pas
+     * sauter directement à la première, ce qu'il faisait.
+     */
+    livreImpose: String? = null,
     onAller: (bookId: String, chapterId: String, verse: Int?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Un chemin, pas des onglets : on avance et on revient. La pile est tenue
     // ici plutôt que par la navigation de l'app, parce qu'elle ne sort pas de
     // ce sélecteur — l'app n'a pas à connaître ses étapes.
-    var etape: Etape by remember(livreCourant) {
+    var etape: Etape by remember(livreCourant, livreImpose) {
         mutableStateOf(
-            // On ouvre sur le livre courant : le lecteur cherche presque
-            // toujours à côté de là où il est.
-            if (livreCourant != null) Etape.Unites(livreCourant) else Etape.Livres,
+            when {
+                // Un livre imposé l'emporte : il vient d'un geste explicite.
+                livreImpose != null -> Etape.Unites(livreImpose)
+                // Sinon on ouvre sur le livre courant : le lecteur cherche
+                // presque toujours à côté de là où il est.
+                livreCourant != null -> Etape.Unites(livreCourant)
+                else -> Etape.Livres
+            },
         )
     }
 
