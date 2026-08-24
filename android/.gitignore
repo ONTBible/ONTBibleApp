@@ -1,0 +1,10 @@
+# Ce qui dépend du poste ou naît du build.
+local.properties
+.gradle/
+build/
+*/build/
+.kotlin/
+*.apk
+*.aab
+*.keystore
+captures/

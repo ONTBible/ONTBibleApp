@@ -100,14 +100,31 @@ fn echapper(nom: &str) -> String {
     }
 }
 
+/// Le type Kotlin, collections **pleinement qualifiées**.
+///
+/// ## Pourquoi `kotlin.collections.List` et non `List`
+///
+/// Parce qu'une variante d'union peut porter le nom d'un type standard, et que
+/// `Block` le fait : sa variante `list` est la liste à puces. Imbriquée dans
+/// l'interface, elle devient `Block.List` — et masque `kotlin.collections.List`
+/// dans tout le corps de l'interface. `List<Inline>` y désigne alors la
+/// variante, qui n'accepte aucun paramètre de type :
+///
+///     No type arguments expected for 'data class List : Block'
+///
+/// Le masquage n'est pas un mot réservé : la liste des `RESERVES` ne pouvait
+/// pas l'attraper, et rien ne le signale avant que le fichier engendré refuse
+/// de compiler. Qualifier coûte quelques caractères dans un fichier que
+/// personne ne relit, et vaut pour **tout** nom qu'une variante prendra un
+/// jour — `Map`, `Set`, `Pair`, `Result`. On n'aura pas à y revenir.
 fn kotlin_type(t: &Type) -> String {
     match t {
         Type::Chaine => "String".into(),
         Type::Entier => "Int".into(),
         Type::Booleen => "Boolean".into(),
         Type::Optionnel(inner) => format!("{}?", kotlin_type(inner)),
-        Type::Liste(inner) => format!("List<{}>", kotlin_type(inner)),
-        Type::Table(inner) => format!("Map<String, {}>", kotlin_type(inner)),
+        Type::Liste(inner) => format!("kotlin.collections.List<{}>", kotlin_type(inner)),
+        Type::Table(inner) => format!("kotlin.collections.Map<String, {}>", kotlin_type(inner)),
         Type::Nomme(n) => n.clone(),
     }
 }
@@ -457,7 +474,10 @@ mod tests {
         assert!(s.contains("@SerialName(\"rule\")"), "{s}");
         // Avec charge utile : une classe imbriquée.
         assert!(s.contains("public data class Para("), "{s}");
-        assert!(s.contains("public val nodes: List<Inline>"), "{s}");
+        assert!(
+            s.contains("public val nodes: kotlin.collections.List<Inline>"),
+            "{s}"
+        );
         assert!(s.contains(") : Block"), "{s}");
     }
 
@@ -540,11 +560,17 @@ mod tests {
         "#,
         );
         assert!(
-            s.contains("public val byLemma: Map<String, List<Occurrence>>"),
+            s.contains(
+                "public val byLemma: kotlin.collections.Map<String, \
+                 kotlin.collections.List<Occurrence>>"
+            ),
             "{s}"
         );
         assert!(
-            s.contains("public val rows: List<List<List<Inline>>>"),
+            s.contains(
+                "public val rows: kotlin.collections.List<kotlin.collections.List<\
+                 kotlin.collections.List<Inline>>>"
+            ),
             "{s}"
         );
     }
@@ -581,7 +607,7 @@ mod tests {
         "#,
         );
         assert!(
-            s.contains("public val groups: List<Group> = emptyList()"),
+            s.contains("public val groups: kotlin.collections.List<Group> = emptyList()"),
             "{s}"
         );
     }
@@ -591,7 +617,10 @@ mod tests {
         // La contre-épreuve : sans `skip_serializing_if`, la clé est toujours
         // écrite, et une valeur par défaut masquerait un fichier tronqué.
         let s = rendu("pub struct Book { pub chapters: Vec<Chapter> }");
-        assert!(s.contains("public val chapters: List<Chapter>"), "{s}");
+        assert!(
+            s.contains("public val chapters: kotlin.collections.List<Chapter>"),
+            "{s}"
+        );
         assert!(!s.contains("emptyList()"), "{s}");
     }
 
@@ -614,6 +643,24 @@ mod tests {
         // Inventer `0` serait un défaut muet. On le refuse ici plutôt que de
         // le découvrir dans un chapitre.
         rendu(r#"pub struct A { #[serde(default)] pub count: u32 }"#);
+    }
+
+    #[test]
+    fn une_variante_nommee_comme_un_type_standard_ne_masque_rien() {
+        // Le cas réel : `Block::List` est la liste à puces. Imbriquée, elle
+        // masquait `kotlin.collections.List` dans tout le corps de l'interface,
+        // et le fichier engendré ne compilait pas.
+        let s = rendu(
+            r#"
+            #[serde(tag = "t", rename_all = "lowercase")]
+            pub enum Block { List { items: Vec<Inline> }, Para { nodes: Vec<Inline> } }
+        "#,
+        );
+        assert!(s.contains("public data class List("), "{s}");
+        assert!(
+            s.contains("public val items: kotlin.collections.List<Inline>"),
+            "{s}"
+        );
     }
 
     #[test]
