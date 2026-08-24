@@ -78,45 +78,56 @@ public object ONTTextRenderer {
         /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
         fond: androidx.compose.ui.graphics.Color? = null,
         /**
-         * Vrai quand un autre verset est désigné.
+         * Vrai quand un autre verset est désigné : celui-ci s'efface.
          *
-         * Sans effet en prose continue — voir le corps de la fonction. En mode
-         * blocs, c'est `Modifier.alpha` qui l'applique.
+         * Employé en **prose continue**, où il n'y a pas de composable par
+         * verset. En mode blocs, l'appelant préfère `Modifier.alpha`, qui fait
+         * la même chose plus simplement puisqu'il tient un composable.
          */
-        @Suppress("UNUSED_PARAMETER") estompe: Boolean = false,
+        estompe: Boolean = false,
+        /**
+         * Le fond sur lequel le texte se pose — nécessaire pour estomper.
+         *
+         * Il n'est pas déduit du thème : la carte bordeaux du Qahal n'a pas le
+         * fond de la page, et un estompage calculé sur le mauvais fond se
+         * verrait comme un halo.
+         */
+        fondDuTheme: androidx.compose.ui.graphics.Color =
+            ONTColors.background(typo.theme),
     ): AnnotatedString = buildAnnotatedString {
         val corps = buildAnnotatedString {
             append(numeroDeVerset(verse.n, typo))
             append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
         }
 
-        // ## L'estompage ne se pose pas ici, et il faut dire pourquoi
+        // ## L'estompage se calcule, il ne s'applique pas
         //
         // Le procédé vient de Bible Strong : on n'éclaire pas le verset
-        // désigné, on efface les autres. Mais `SpanStyle` n'a pas d'opacité —
-        // seulement une couleur. L'appliquer par fragment écraserait les
-        // teintes des trois niveaux : l'or des intraduisibles, l'encre douce
-        // des gloses, tout deviendrait une seule couleur passée.
+        // désigné, on efface les autres.
         //
-        // En **mode blocs**, chaque verset est son propre composable :
-        // `Modifier.alpha` l'estompe entier, couleurs comprises, et c'est là
-        // que ça se fait.
+        // `SpanStyle` n'a pas d'opacité — seulement une couleur — et poser une
+        // couleur unique par-dessus écraserait les teintes des trois niveaux :
+        // l'or des intraduisibles, l'encre douce des gloses, tout deviendrait
+        // une seule couleur passée.
         //
-        // En **prose continue**, tous les versets sont dans un seul texte pour
-        // que les lignes se lient — il n'y a plus de composable par verset.
-        // L'estompage y demanderait un dessin fragment par fragment, comme le
-        // `ONTProseRenderer` d'iOS. Il n'est donc pas encore rendu dans ce
-        // mode ; le surlignage, lui, l'est, parce qu'un fond **est** une
-        // propriété de fragment.
+        // Mais estomper à l'opacité **est** un mélange au fond : afficher une
+        // couleur à 32 % sur un fond revient exactement à afficher le mélange
+        // des deux dans cette proportion. On calcule donc le mélange pour
+        // chaque fragment, et le résultat est identique au pixel près — les
+        // rapports entre les trois niveaux sont conservés, parce qu'ils sont
+        // mêlés au même fond dans la même proportion.
         //
-        // Le paramètre reste, pour que l'appelant n'ait pas à savoir lequel
-        // des deux modes il sert.
+        // C'est ce qui permet à la prose continue d'estomper comme le mode
+        // blocs, alors qu'elle n'a pas de composable par verset : tous les
+        // versets y sont dans un seul texte pour que les lignes se lient.
         val enveloppe = SpanStyle(
             background = fond ?: androidx.compose.ui.graphics.Color.Unspecified,
         )
 
+        val rendu = if (estompe) corps.estompeSur(fondDuTheme) else corps
+
         if (onVerset == null) {
-            withStyle(enveloppe) { append(corps) }
+            withStyle(enveloppe) { append(rendu) }
         } else {
             // Le lien le plus **intérieur** l'emporte : toucher un
             // intraduisible ouvre sa fiche, toucher ailleurs désigne le verset.
@@ -129,7 +140,7 @@ public object ONTTextRenderer {
                     linkInteractionListener = { onVerset(verse.n) },
                 ),
             ) {
-                withStyle(enveloppe) { append(corps) }
+                withStyle(enveloppe) { append(rendu) }
             }
         }
     }
@@ -291,6 +302,35 @@ public object ONTTextRenderer {
                 Inline.LineBreak -> append("\n")
             }
         }
+    }
+
+    /**
+     * Le texte mêlé au fond, dans la proportion de l'estompage.
+     *
+     * Chaque fragment garde sa graisse, son italique et sa fonte ; seule sa
+     * couleur est mêlée. Un fragment de pleine étendue couvre ce qu'aucun autre
+     * ne couvre — sans lui, le texte non stylé garderait sa couleur pleine et
+     * ressortirait au milieu de ce qui s'efface.
+     */
+    private fun AnnotatedString.estompeSur(
+        fond: androidx.compose.ui.graphics.Color,
+    ): AnnotatedString {
+        fun melanger(c: androidx.compose.ui.graphics.Color) =
+            androidx.compose.ui.graphics.lerp(fond, c, ONTColors.DIMMED_OPACITY)
+
+        @Suppress("DEPRECATION")
+        return AnnotatedString(
+            text = text,
+            spanStyles = spanStyles.map { plage ->
+                val couleur = plage.item.color
+                if (couleur == androidx.compose.ui.graphics.Color.Unspecified) {
+                    plage
+                } else {
+                    plage.copy(item = plage.item.copy(color = melanger(couleur)))
+                }
+            },
+            paragraphStyles = paragraphStyles,
+        )
     }
 
     /**
