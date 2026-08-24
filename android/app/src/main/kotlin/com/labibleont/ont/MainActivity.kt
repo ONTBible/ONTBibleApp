@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +41,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.PreferencesStore
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.theme.ONTTheme
@@ -50,6 +52,8 @@ import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.reading.BibleTab
 import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
+import com.labibleont.ont.features.search.SearchModel
+import com.labibleont.ont.features.search.SearchScreen
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.reader.ReadingPreferences
 
@@ -77,6 +81,7 @@ public class MainActivity : ComponentActivity() {
 
         val corpus = AssetCorpusRepository(applicationContext)
         val glossaire = AssetGlossaryRepository(applicationContext)
+        val index = AssetSearchIndex(applicationContext)
         val reglages = PreferencesStore(applicationContext)
 
         setContent {
@@ -90,11 +95,16 @@ public class MainActivity : ComponentActivity() {
                 key = "lexique",
                 factory = fabrique { LexiconModel(glossaire) },
             )
+            val recherche: SearchModel = viewModel(
+                key = "recherche",
+                factory = fabrique { SearchModel(index, glossaire) },
+            )
 
             ONTTheme(theme = preferences.theme) {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
+                    recherche = recherche,
                     preferences = preferences,
                     onPreferences = {
                         reglages.preferences = it
@@ -116,6 +126,7 @@ public class MainActivity : ComponentActivity() {
 private fun Racine(
     lecture: ReadingModel,
     lexique: LexiconModel,
+    recherche: SearchModel,
     preferences: ReadingPreferences,
     onPreferences: (ReadingPreferences) -> Unit,
 ) {
@@ -123,18 +134,51 @@ private fun Racine(
     var onglet by remember { mutableStateOf(Onglet.BIBLE) }
     var enLecture by remember { mutableStateOf(false) }
     var terme: String? by remember { mutableStateOf(null) }
+    var enRecherche by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
     LaunchedEffect(onglet) { if (onglet == Onglet.LEXIQUE) lexique.charger() }
 
     // Le retour système ferme la lecture avant de quitter l'app. Sur Android
     // c'est le geste principal — le lui refuser oblige à viser une flèche.
-    BackHandler(enabled = enLecture) { enLecture = false }
+    BackHandler(enabled = enLecture || enRecherche) {
+        if (enRecherche) enRecherche = false else enLecture = false
+    }
 
     Scaffold(
         containerColor = ONTColors.background(theme),
         topBar = {
-            if (enLecture) {
+            if (enRecherche) {
+                TopAppBar(
+                    title = { Text("Rechercher") },
+                    navigationIcon = {
+                        IconButton(onClick = { enRecherche = false }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Fermer la recherche",
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = ONTColors.brandInk(theme),
+                        navigationIconContentColor = ONTColors.brandInk(theme),
+                    ),
+                )
+            } else if (onglet == Onglet.BIBLE && !enLecture) {
+                TopAppBar(
+                    title = {},
+                    actions = {
+                        IconButton(onClick = { enRecherche = true }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Rechercher")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        actionIconContentColor = ONTColors.brandInk(theme),
+                    ),
+                )
+            } else if (enLecture) {
                 TopAppBar(
                     title = { Text(lecture.livre?.title.orEmpty()) },
                     navigationIcon = {
@@ -154,7 +198,7 @@ private fun Racine(
             }
         },
         bottomBar = {
-            if (!enLecture) {
+            if (!enLecture && !enRecherche) {
                 NavigationBar(containerColor = ONTColors.surface(theme)) {
                     for (o in Onglet.entries) {
                         NavigationBarItem(
@@ -186,6 +230,15 @@ private fun Racine(
     ) { marges ->
         Box(modifier = Modifier.fillMaxSize().padding(marges)) {
             when {
+                enRecherche -> SearchScreen(
+                    model = recherche,
+                    onOuvrir = { livre, unite ->
+                        lecture.ouvrir(livre, unite)
+                        enRecherche = false
+                        enLecture = true
+                    },
+                )
+
                 lecture.chargement -> CircularProgressIndicator(
                     color = ONTColors.accent(theme),
                     modifier = Modifier.align(Alignment.Center),
