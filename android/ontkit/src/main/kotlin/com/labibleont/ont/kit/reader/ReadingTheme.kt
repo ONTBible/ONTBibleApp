@@ -39,23 +39,3 @@ public enum class ReadingTheme(public val cle: String, public val label: String)
             entries.firstOrNull { it.cle == cle } ?: PARCHMENT
     }
 }
-
-/**
- * Les cinq couleurs de surlignage.
- *
- * Le domaine ne connaît que le **nom**. La teinte vit dans le design system,
- * ce qui permet de retoucher la palette sans migrer les surlignages déjà
- * enregistrés chez les lecteurs.
- */
-public enum class HighlightColor(public val cle: String) {
-    GOLD("gold"),
-    OLIVE("olive"),
-    SKY("sky"),
-    ROSE("rose"),
-    VIOLET("violet");
-
-    public companion object {
-        public fun depuis(cle: String?): HighlightColor =
-            entries.firstOrNull { it.cle == cle } ?: GOLD
-    }
-}
