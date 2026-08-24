@@ -1,4 +1,4 @@
-//! L'engendrement des liaisons — `schema.rs` devient du Swift, demain du Kotlin.
+//! L'engendrement des liaisons — `schema.rs` devient du Swift et du Kotlin.
 //!
 //! ## Pourquoi engendrer plutôt que recopier
 //!
@@ -16,7 +16,7 @@
 //!
 //! ```text
 //!   schema.rs ──[syn]──▶ Modele ──┬──▶ swift.rs  ──▶ Schema.swift
-//!                                 └──▶ kotlin.rs ──▶ Schema.kt    (le jour venu)
+//!                                 └──▶ kotlin.rs ──▶ Schema.kt
 //! ```
 //!
 //! Le `Modele` ne connaît ni Swift ni Rust : ce sont des types, des champs, des
@@ -36,6 +36,7 @@
 //! L'alternative aurait été une liste de types à tenir à la main, donc une
 //! liste de plus à oublier de mettre à jour.
 
+pub mod kotlin;
 pub mod swift;
 
 use std::collections::{BTreeSet, VecDeque};

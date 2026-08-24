@@ -48,6 +48,7 @@ DerivedData/
 # committe finit par diverger de sa source, parce que quelqu'un le modifiera à
 # la main un jour où il sera pressé. Absent du dépôt, il ne peut qu'être à jour.
 app/Packages/ONTData/Sources/ONTData/Bundle/Schema.swift
+android/ontdata/src/main/kotlin/com/labibleont/ont/data/schema/Schema.kt
 
 # Les `Info.plist`, engendrés par xcodegen depuis les blocs `info:` de
 # `project.yml`.
