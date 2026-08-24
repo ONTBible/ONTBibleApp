@@ -110,7 +110,9 @@ fn echapper(nom: &str) -> String {
 /// dans tout le corps de l'interface. `List<Inline>` y désigne alors la
 /// variante, qui n'accepte aucun paramètre de type :
 ///
-///     No type arguments expected for 'data class List : Block'
+/// ```text
+/// No type arguments expected for 'data class List : Block'
+/// ```
 ///
 /// Le masquage n'est pas un mot réservé : la liste des `RESERVES` ne pouvait
 /// pas l'attraper, et rien ne le signale avant que le fichier engendré refuse
