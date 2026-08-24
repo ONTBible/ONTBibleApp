@@ -3,7 +3,11 @@ package com.labibleont.ont
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -56,6 +61,7 @@ import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.reader.ReadingPreferences
+import com.labibleont.ont.notifications.VersetDuJourWorker
 
 /** Les trois onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
@@ -135,6 +141,20 @@ private fun Racine(
     var enLecture by remember { mutableStateOf(false) }
     var terme: String? by remember { mutableStateOf(null) }
     var enRecherche by remember { mutableStateOf(false) }
+    val contexte = LocalContext.current
+
+    // La permission de notifier n'existe qu'à partir d'Android 13. En deçà, la
+    // programmation part directement — c'est le système qui décide, pas nous.
+    val demanderLaPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { accordee ->
+        // Refusée est une réponse. On programme quand même le travail : s'il
+        // ne peut pas notifier il ne notifiera pas, sans se plaindre, et le
+        // jour où le lecteur change d'avis dans les réglages système, le
+        // rappel est déjà là.
+        if (accordee) Unit
+        VersetDuJourWorker.programmer(contexte, preferences.daily)
+    }
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
     LaunchedEffect(onglet) { if (onglet == Onglet.LEXIQUE) lexique.charger() }
@@ -280,7 +300,19 @@ private fun Racine(
                     onOuvrir = { terme = it },
                 )
 
-                else -> YouTab(preferences = preferences, onChange = onPreferences)
+                else -> YouTab(
+                    preferences = preferences,
+                    onChange = onPreferences,
+                    onRappel = { rappel ->
+                        if (rappel.enabled &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        ) {
+                            demanderLaPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            VersetDuJourWorker.programmer(contexte, rappel)
+                        }
+                    },
+                )
             }
         }
     }

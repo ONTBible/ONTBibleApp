@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
+import com.labibleont.ont.kit.reader.DailyVerseSchedule
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.kit.reader.ReadingTheme
@@ -39,6 +40,15 @@ import com.labibleont.ont.kit.reader.ReadingTheme
 public fun YouTab(
     preferences: ReadingPreferences,
     onChange: (ReadingPreferences) -> Unit,
+    /**
+     * Appelé quand le rappel change — pour demander l'autorisation et
+     * (re)programmer le réveil.
+     *
+     * L'écran ne le fait pas lui-même : demander une autorisation système
+     * demande une activité, et un module de fonctionnalités n'en a pas. C'est
+     * la racine de composition qui sait.
+     */
+    onRappel: (DailyVerseSchedule) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -95,6 +105,72 @@ public fun YouTab(
             valueRange = 14f..34f,
             steps = 19,
         )
+
+        Section("Notifications")
+        Interrupteur(
+            titre = "Le verset du jour",
+            detail = "Posé par l'appareil, à l'heure que vous choisissez",
+            actif = preferences.daily.enabled,
+            onChange = { actif ->
+                val rappel = preferences.daily.copy(enabled = actif)
+                onChange(preferences.copy(daily = rappel))
+                onRappel(rappel)
+            },
+        )
+        if (preferences.daily.enabled) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("À ", color = ONTColors.ink(theme))
+                Text(
+                    "%02d:%02d".format(preferences.daily.hour, preferences.daily.minute),
+                    fontFamily = ONTFonts.display,
+                    fontSize = 20.sp,
+                    color = ONTColors.accent(theme),
+                )
+                Spacer(Modifier.padding(8.dp))
+                // À la minute près, parce que la minute est ce qui rend le
+                // rappel utilisable : 7 h 00 tombe dans le réveil, 7 h 12 dans
+                // le trajet. N'offrir que des heures rondes force à choisir
+                // entre deux mauvais moments.
+                for (pas in listOf(-60, -5, 5, 60)) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val total = (preferences.daily.hour * 60 +
+                                preferences.daily.minute + pas + 1440) % 1440
+                            val rappel = DailyVerseSchedule.borne(
+                                enabled = true,
+                                hour = total / 60,
+                                minute = total % 60,
+                            )
+                            onChange(preferences.copy(daily = rappel))
+                            onRappel(rappel)
+                        },
+                        label = {
+                            Text(
+                                if (pas > 0) "+${if (pas == 60) "1 h" else "$pas min"}"
+                                else "−${if (pas == -60) "1 h" else "${-pas} min"}",
+                                fontSize = 12.sp,
+                            )
+                        },
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
+                }
+            }
+            Text(
+                // Le point où Android fait mieux qu'iOS, et il vaut d'être dit
+                // au lecteur : là-bas les deux usages partagent une seule
+                // autorisation, ici ce sont deux canaux qu'il règle séparément
+                // depuis le système.
+                "Les parutions sont un canal séparé : vous pouvez couper l'un " +
+                    "sans l'autre depuis les réglages d'Android.",
+                fontSize = 12.sp,
+                color = ONTColors.inkSoft(theme),
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
 
         Section("La peau")
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
