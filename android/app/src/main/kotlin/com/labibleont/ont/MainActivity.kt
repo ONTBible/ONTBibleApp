@@ -32,6 +32,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -44,6 +50,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
@@ -58,6 +67,7 @@ import com.labibleont.ont.designsystem.catalog.DSCatalog
 import com.labibleont.ont.designsystem.surfaces.ontScreen
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.theme.ONTTheme
+import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
@@ -67,6 +77,7 @@ import com.labibleont.ont.features.qahal.QahalTab
 import com.labibleont.ont.features.reading.BibleTab
 import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
+import com.labibleont.ont.features.reading.ReferencePicker
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -100,6 +111,7 @@ private sealed interface Ecran {
     data object Onglets : Ecran
     data object Lecture : Ecran
     data object Recherche : Ecran
+    data object Selecteur : Ecran
     data class Reglage(val ou: DestinationVous) : Ecran
 }
 
@@ -203,6 +215,7 @@ private fun Racine(
     BackHandler(enabled = ecran != Ecran.Onglets || lecture.selection.isNotEmpty()) {
         when {
             lecture.selection.isNotEmpty() -> lecture.deselectionner()
+            ecran == Ecran.Selecteur -> ecran = Ecran.Lecture
             else -> ecran = Ecran.Onglets
         }
     }
@@ -210,6 +223,7 @@ private fun Racine(
     val titreDeLEcran = when (val e = ecran) {
         Ecran.Lecture -> lecture.livre?.title.orEmpty()
         Ecran.Recherche -> "Rechercher"
+        Ecran.Selecteur -> "Aller à"
         is Ecran.Reglage -> when (e.ou) {
             DestinationVous.LECTURE -> "Réglages de lecture"
             DestinationVous.VERSET_DU_JOUR -> "Verset du jour"
@@ -228,12 +242,51 @@ private fun Racine(
         topBar = {
             if (titreDeLEcran != null) {
                 TopAppBar(
-                    title = { Text(titreDeLEcran) },
+                    title = {
+                        if (ecran == Ecran.Lecture) {
+                            // Une pastille, pas un titre : elle dit où l'on est
+                            // **et** elle s'ouvre. C'est le geste de YouVersion
+                            // et de Bible Strong. Sans elle, aller de
+                            // Bereshit 1 à Bereshit 18 demandait de revenir au
+                            // sommaire, replier le livre, le déplier, viser.
+                            PastilleDeRenvoi(
+                                renvoi = lecture.chapitre?.title
+                                    ?: lecture.livre?.title.orEmpty(),
+                                onClick = { ecran = Ecran.Selecteur },
+                            )
+                        } else {
+                            Text(titreDeLEcran)
+                        }
+                    },
                     navigationIcon = {
-                        IconButton(onClick = { ecran = Ecran.Onglets }) {
+                        IconButton(
+                            onClick = {
+                                // Le sélecteur revient à la lecture, pas au
+                                // sommaire : on l'a ouvert **depuis** un
+                                // chapitre, et le fermer ne doit pas le perdre.
+                                ecran = if (ecran == Ecran.Selecteur) {
+                                    Ecran.Lecture
+                                } else {
+                                    Ecran.Onglets
+                                }
+                            },
+                        ) {
+                            // Une croix pour **fermer**, une flèche pour
+                            // **revenir**. Le sélecteur porte déjà une flèche
+                            // qui remonte d'une étape ; deux flèches empilées
+                            // qui ne font pas la même chose se lisent comme un
+                            // défaut, et on ne sait plus laquelle presser.
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Revenir",
+                                if (ecran == Ecran.Selecteur) {
+                                    Icons.Filled.Close
+                                } else {
+                                    Icons.AutoMirrored.Filled.ArrowBack
+                                },
+                                contentDescription = if (ecran == Ecran.Selecteur) {
+                                    "Fermer sans changer de passage"
+                                } else {
+                                    "Revenir"
+                                },
                             )
                         }
                     },
@@ -310,6 +363,17 @@ private fun Racine(
                 lecture.chargement -> CircularProgressIndicator(
                     color = ONTColors.accent(theme),
                     modifier = Modifier.align(Alignment.Center),
+                )
+
+                ecran is Ecran.Selecteur -> ReferencePicker(
+                    model = lecture,
+                    livreCourant = lecture.livre?.id,
+                    uniteCourante = lecture.chapitre?.id,
+                    onAller = { livre, unite, verset ->
+                        lecture.ouvrir(livre, unite)
+                        verset?.let { lecture.basculer(it) }
+                        ecran = Ecran.Lecture
+                    },
                 )
 
                 ecran is Ecran.Recherche -> SearchScreen(
@@ -416,6 +480,32 @@ private fun Racine(
         ) {
             TermSheet(lemme = lemme, model = lexique, preferences = preferences)
         }
+    }
+}
+
+/**
+ * La pastille de renvoi, dans la barre du haut.
+ *
+ * Elle dit où l'on est et s'ouvre d'un appui. Le chevron le signale : sans lui,
+ * elle se lirait comme un titre, et personne ne penserait à la toucher.
+ */
+@Composable
+private fun PastilleDeRenvoi(renvoi: String, onClick: () -> Unit) {
+    val theme = LocalReadingTheme.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(ONTRadius.pill))
+            .background(ONTColors.brandInk(theme).copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Text(renvoi, color = ONTColors.brandInk(theme), fontSize = 16.sp)
+        Icon(
+            Icons.Filled.ExpandMore,
+            contentDescription = "Aller à un autre passage",
+            tint = ONTColors.brandInk(theme),
+        )
     }
 }
 
