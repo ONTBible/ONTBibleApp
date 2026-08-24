@@ -270,8 +270,19 @@ pub struct Mode {
     pub title: String,
     pub order: u32,
     /// Les conteneurs de ce mode, dans l'ordre où leurs livres paraissent.
-    /// Vide pour la plupart — seuls quatre modes en ont.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    ///
+    /// **La clé est toujours écrite, même vide.** Elle portait d'abord un
+    /// `skip_serializing_if` — cinq modes sur huit n'ont pas de conteneur, et
+    /// l'omettre paraissait sobre. C'était un défaut sérieux : le code Swift
+    /// engendré déclare `public let groups: [Group]`, non optionnel, et un
+    /// `Decodable` synthétisé **exige** la clé. Les liseuses déjà livrées
+    /// auraient levé `keyNotFound` sur ces cinq modes, sans qu'aucune garde ne
+    /// se déclenche — le numéro de schéma du corpus ne change pas ici.
+    ///
+    /// Une clé **en trop** est ignorée ; une clé **manquante** sur un champ
+    /// non optionnel lève. Ce n'est pas la même chose, et c'est la confusion
+    /// qui a produit ce défaut.
+    #[serde(default)]
     pub groups: Vec<Group>,
     pub books: Vec<Book>,
 }
@@ -493,7 +504,9 @@ pub struct ModeOutline {
     pub order: u32,
     /// Les conteneurs, portés jusqu'à la table des matières — c'est elle qui
     /// les affiche, donc c'est elle qui doit les recevoir.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    ///
+    /// Toujours écrite, même vide — voir `Mode::groups`.
+    #[serde(default)]
     pub groups: Vec<Group>,
     pub books: Vec<BookOutline>,
 }
@@ -550,6 +563,35 @@ pub struct DailyFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// La clé `groups` est écrite même quand elle est vide.
+    ///
+    /// **Ce test garde une liseuse, pas une structure.** Le code Swift
+    /// engendré déclare `public let groups: [Group]` — non optionnel. Un
+    /// `Decodable` synthétisé exige alors la clé : l'omettre lèverait
+    /// `keyNotFound` sur les cinq modes qui n'ont pas de conteneur, dans les
+    /// apps **déjà installées**, et le numéro de schéma du corpus ne bougeant
+    /// pas, aucune garde ne s'interposerait.
+    ///
+    /// Le piège est subtil et mérite d'être nommé ici : une clé **en trop**
+    /// est ignorée par les décodeurs, une clé **manquante** sur un champ non
+    /// optionnel lève. Éprouver la première ne dit rien de la seconde.
+    #[test]
+    fn un_mode_sans_conteneur_ecrit_quand_meme_la_cle() {
+        let mode = Mode {
+            id: "torah".into(),
+            title: "Torah".into(),
+            order: 1,
+            groups: Vec::new(),
+            books: Vec::new(),
+        };
+        let json = serde_json::to_string(&mode).expect("sérialisation");
+        assert!(
+            json.contains(r#""groups":[]"#),
+            "la clé `groups` a disparu du mode : les liseuses livrées ne \
+             décoderaient plus ce mode. Obtenu : {json}"
+        );
+    }
 
     /// Le tag de l'accentuation sur le fil est `"accentuation"`.
     ///
