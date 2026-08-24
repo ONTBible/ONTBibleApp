@@ -48,7 +48,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use super::{Decl, Enumeration, Modele, Structure, Type, Variante};
+use super::{Champ, Decl, Enumeration, Modele, Structure, Type, Variante};
 
 /// Le paquet du fichier engendré.
 const PAQUET: &str = "com.labibleont.ont.data.schema";
@@ -106,6 +106,42 @@ fn constante(cle: &str) -> String {
         }
     }
     sortie
+}
+
+/// La valeur par défaut d'un champ, quand la clé peut manquer.
+///
+/// ## Deux raisons distinctes d'en avoir une
+///
+/// Un **optionnel** en reçoit toujours. Ce n'est pas ce que serde exige — sans
+/// `skip_serializing_if`, il écrit `null` et la clé est bien là — mais c'est ce
+/// que fait le `Decodable` synthétisé de Swift, qui traite un `Optional` comme
+/// un `decodeIfPresent`. Les deux liseuses doivent accepter exactement les
+/// mêmes fichiers ; s'aligner sur la plus tolérante des deux est le seul moyen
+/// qu'un corpus lisible sur iPhone le soit aussi sur Android.
+///
+/// Un **champ escamotable** en reçoit une parce que le pipeline omet vraiment
+/// la clé. C'est le cas des `Vec` marqués `skip_serializing_if = "Vec::is_empty"`.
+///
+/// # Panique
+///
+/// Sur un scalaire escamotable — `Int`, `String`, `Boolean`, ou un type nommé.
+/// Il n'existe pas de valeur par défaut évidente pour eux : `0` et `""` sont
+/// des inventions, et une invention dans un décodeur est un défaut muet. Si le
+/// schéma en a besoin, c'est une décision à écrire dans `schema.rs`, pas à
+/// deviner ici.
+fn defaut(champ: &Champ) -> String {
+    match &champ.type_ {
+        Type::Optionnel(_) => " = null".into(),
+        _ if !champ.escamotable => String::new(),
+        Type::Liste(_) => " = emptyList()".into(),
+        Type::Table(_) => " = emptyMap()".into(),
+        autre => panic!(
+            "le champ « {} » est escamotable mais de type {}, qui n'a pas de \
+             valeur par défaut évidente — la déclarer dans schema.rs",
+            champ.cle,
+            kotlin_type(autre)
+        ),
+    }
 }
 
 /// La documentation Rust devient du KDoc.
@@ -246,10 +282,7 @@ fn structure(sortie: &mut String, s: &Structure) {
         // Un optionnel prend `= null` pour que le champ puisse manquer :
         // `skip_serializing_if` fait que le pipeline ne l'écrit pas quand il
         // est vide, et sans valeur par défaut le décodage échouerait là-dessus.
-        let defaut = match &champ.type_ {
-            Type::Optionnel(_) => " = null",
-            _ => "",
-        };
+        let defaut = defaut(champ);
         let virgule = if i + 1 < s.champs.len() { "," } else { "" };
         let _ = writeln!(
             sortie,
@@ -323,10 +356,7 @@ fn variante_imbriquee(sortie: &mut String, union: &str, variante: &Variante) {
     let _ = writeln!(sortie, "    public data class {nom}(");
     for (i, champ) in variante.champs.iter().enumerate() {
         doc(sortie, &champ.doc, "        ");
-        let defaut = match &champ.type_ {
-            Type::Optionnel(_) => " = null",
-            _ => "",
-        };
+        let defaut = defaut(champ);
         let virgule = if i + 1 < variante.champs.len() {
             ","
         } else {
@@ -507,6 +537,55 @@ mod tests {
         assert!(s.contains(" * Le sous-titre de référence."), "{s}");
         assert!(s.contains(" * Nul sur une introduction."), "{s}");
         assert!(!s.contains("/// Le sous-titre"), "{s}");
+    }
+
+    #[test]
+    fn une_liste_escamotable_recoit_une_valeur_par_defaut() {
+        // Le cas qui a révélé le défaut : le pipeline n'écrit pas la clé quand
+        // la liste est vide, donc la plupart des modes n'en ont pas. Sans
+        // valeur par défaut, `MissingFieldException` sur presque tout.
+        let s = rendu(
+            r#"
+            pub struct Mode {
+                #[serde(default, skip_serializing_if = "Vec::is_empty")]
+                pub groups: Vec<Group>,
+            }
+        "#,
+        );
+        assert!(
+            s.contains("public val groups: List<Group> = emptyList()"),
+            "{s}"
+        );
+    }
+
+    #[test]
+    fn une_liste_obligatoire_n_en_recoit_pas() {
+        // La contre-épreuve : sans `skip_serializing_if`, la clé est toujours
+        // écrite, et une valeur par défaut masquerait un fichier tronqué.
+        let s = rendu("pub struct Book { pub chapters: Vec<Chapter> }");
+        assert!(s.contains("public val chapters: List<Chapter>"), "{s}");
+        assert!(!s.contains("emptyList()"), "{s}");
+    }
+
+    #[test]
+    fn une_table_escamotable_aussi() {
+        let s = rendu(
+            r#"
+            pub struct F {
+                #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+                pub by_lemma: BTreeMap<String, Occurrence>,
+            }
+        "#,
+        );
+        assert!(s.contains("= emptyMap()"), "{s}");
+    }
+
+    #[test]
+    #[should_panic(expected = "escamotable")]
+    fn un_scalaire_escamotable_arrete_l_engendrement() {
+        // Inventer `0` serait un défaut muet. On le refuse ici plutôt que de
+        // le découvrir dans un chapitre.
+        rendu(r#"pub struct A { #[serde(default)] pub count: u32 }"#);
     }
 
     #[test]

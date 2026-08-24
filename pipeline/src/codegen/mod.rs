@@ -102,6 +102,25 @@ pub struct Champ {
     pub cle: String,
     pub doc: Vec<String>,
     pub type_: Type,
+    /// La clé peut **manquer** du fichier.
+    ///
+    /// Vrai dès que le champ porte `skip_serializing_if` ou `default` : le
+    /// premier dit que le pipeline n'écrira pas la clé dans certains cas, le
+    /// second que serde sait s'en passer.
+    ///
+    /// ## Pourquoi ça a sa place dans le modèle
+    ///
+    /// Ce module a longtemps ignoré ces deux attributs, au motif qu'ils ne
+    /// changent pas la **forme** des données mais la façon de les produire.
+    /// C'est vrai d'un producteur, et faux d'un décodeur : « cette clé peut
+    /// être absente » est précisément une propriété de forme, et c'est la
+    /// seule chose qu'un décodeur a besoin de savoir pour ne pas échouer.
+    ///
+    /// Le défaut est resté sans effet tant que `schema.rs` n'a porté aucun de
+    /// ces attributs. Le premier `Vec` escamotable ajouté au schéma aurait
+    /// engendré, des deux côtés, un champ obligatoire pour une clé omise — et
+    /// une liseuse en production qui n'ouvre plus rien.
+    pub escamotable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -244,6 +263,7 @@ fn structure(item: &syn::ItemStruct) -> Result<Structure, String> {
                 .unwrap_or_else(|| renommer(&nom, serde.rename_all.as_deref())),
             doc: docs(&champ.attrs),
             type_: type_de(&champ.ty)?,
+            escamotable: propre.escamotable,
         });
     }
 
@@ -277,6 +297,7 @@ fn enumeration(item: &syn::ItemEnum) -> Result<Enumeration, String> {
                         cle: nom.clone(),
                         doc: docs(&champ.attrs),
                         type_: type_de(&champ.ty)?,
+                        escamotable: attributs_serde(&champ.attrs).escamotable,
                     });
                 }
                 sortie
@@ -312,6 +333,8 @@ struct Serde {
     rename_all: Option<String>,
     rename: Option<String>,
     tag: Option<String>,
+    /// `default` ou `skip_serializing_if` — voir [`Champ::escamotable`].
+    escamotable: bool,
 }
 
 fn attributs_serde(attrs: &[syn::Attribute]) -> Serde {
@@ -320,10 +343,23 @@ fn attributs_serde(attrs: &[syn::Attribute]) -> Serde {
         if !attr.path().is_ident("serde") {
             continue;
         }
-        // Les clés qu'on ne connaît pas sont ignorées volontairement :
-        // `default`, `skip_serializing_if` et consorts ne changent pas la
-        // **forme** des données, seulement la façon de les produire.
+        // Les clés qu'on ne connaît pas restent ignorées : elles ne changent
+        // ni la forme des données ni la façon de les lire.
+        //
+        // `default` et `skip_serializing_if` font exception, et c'est une
+        // correction : ils disent qu'une clé peut manquer, ce qu'un décodeur
+        // doit savoir. Les tenir pour de simples détails de production a
+        // engendré des champs obligatoires pour des clés omises.
         let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("default") || meta.path.is_ident("skip_serializing_if") {
+                sortie.escamotable = true;
+                // `default` s'écrit seul ou avec une valeur ; consommer celle-ci
+                // quand elle est là, pour ne pas arrêter la lecture des autres.
+                if let Ok(valeur) = meta.value() {
+                    let _ = valeur.parse::<syn::LitStr>();
+                }
+                return Ok(());
+            }
             let cible = if meta.path.is_ident("rename_all") {
                 &mut sortie.rename_all
             } else if meta.path.is_ident("rename") {
