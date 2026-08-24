@@ -61,9 +61,34 @@ const PAQUET: &str = "com.labibleont.ont.data.schema";
 /// autre arrive, le Kotlin engendré ne compile pas, ce qui est exactement le
 /// bon moment pour l'apprendre.
 const RESERVES: &[&str] = &[
-    "as", "break", "class", "continue", "do", "else", "false", "for", "fun", "if", "in",
-    "interface", "is", "null", "object", "package", "return", "super", "this", "throw", "true",
-    "try", "typealias", "typeof", "val", "var", "when", "while",
+    "as",
+    "break",
+    "class",
+    "continue",
+    "do",
+    "else",
+    "false",
+    "for",
+    "fun",
+    "if",
+    "in",
+    "interface",
+    "is",
+    "null",
+    "object",
+    "package",
+    "return",
+    "super",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typealias",
+    "typeof",
+    "val",
+    "var",
+    "when",
+    "while",
 ];
 
 /// Kotlin échappe par accents graves, comme Swift.
@@ -518,7 +543,10 @@ mod tests {
             s.contains("public val byLemma: Map<String, List<Occurrence>>"),
             "{s}"
         );
-        assert!(s.contains("public val rows: List<List<List<Inline>>>"), "{s}");
+        assert!(
+            s.contains("public val rows: List<List<List<Inline>>>"),
+            "{s}"
+        );
     }
 
     #[test]

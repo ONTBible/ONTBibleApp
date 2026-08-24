@@ -64,9 +64,8 @@ fn main() {
     // Le `contrat` est réutilisé tel quel : les deux liseuses lisent les mêmes
     // fichiers, donc elles ont les mêmes types. Deux appels à `atteignables`
     // laisseraient croire qu'elles pourraient diverger.
-    let cible_kt = racine.join(
-        "../android/ontdata/src/main/kotlin/com/labibleont/ont/data/schema/Schema.kt",
-    );
+    let cible_kt =
+        racine.join("../android/ontdata/src/main/kotlin/com/labibleont/ont/data/schema/Schema.kt");
     let kotlin = codegen::kotlin::emettre(&contrat);
 
     if let Some(parent) = cible_kt.parent() {

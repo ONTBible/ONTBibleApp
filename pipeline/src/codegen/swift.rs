@@ -194,7 +194,10 @@ fn defaut(champ: &Champ) -> String {
 
 /// Le décodeur engendré, pour les structures qui en ont besoin.
 fn decodeur(sortie: &mut String, s: &Structure) {
-    let _ = writeln!(sortie, "\n        private enum CodingKeys: String, CodingKey {{");
+    let _ = writeln!(
+        sortie,
+        "\n        private enum CodingKeys: String, CodingKey {{"
+    );
     let _ = writeln!(
         sortie,
         "            case {}",
@@ -206,7 +209,10 @@ fn decodeur(sortie: &mut String, s: &Structure) {
     );
     let _ = writeln!(sortie, "        }}");
 
-    let _ = writeln!(sortie, "\n        public init(from decoder: any Decoder) throws {{");
+    let _ = writeln!(
+        sortie,
+        "\n        public init(from decoder: any Decoder) throws {{"
+    );
     let _ = writeln!(
         sortie,
         "            let container = try decoder.container(keyedBy: CodingKeys.self)"
@@ -497,9 +503,14 @@ mod tests {
         "#,
         );
         assert!(s.contains("private enum CodingKeys"), "{s}");
-        assert!(s.contains("public init(from decoder: any Decoder) throws"), "{s}");
         assert!(
-            s.contains("self.groups = try container.decodeIfPresent([Group].self, forKey: .groups) ?? []"),
+            s.contains("public init(from decoder: any Decoder) throws"),
+            "{s}"
+        );
+        assert!(
+            s.contains(
+                "self.groups = try container.decodeIfPresent([Group].self, forKey: .groups) ?? []"
+            ),
             "{s}"
         );
         // Les champs obligatoires restent obligatoires dans le même décodeur.
