@@ -525,10 +525,6 @@ mod tests {
 mod tests_du_paratexte {
     use super::*;
 
-    fn lignes(s: &str) -> Vec<String> {
-        s.split('\n').map(str::to_string).collect()
-    }
-
     /// Le paratexte n'est pas contrôlé — il n'est pas publié.
     #[test]
     fn le_paratexte_ne_produit_pas_d_anomalie() {
