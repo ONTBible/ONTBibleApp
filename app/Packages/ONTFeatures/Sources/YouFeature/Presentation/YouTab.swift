@@ -32,16 +32,33 @@ public struct YouTab: View {
             List {
                 AccountSection()
 
+                // **Ce qui interrompt le lecteur est rangé à part.**
+                //
+                // Les deux réglages ci-dessous ne servaient qu'à un seul
+                // écran, « Verset du jour », rangé sous « Lecture ». Accepter
+                // d'envoyer un identifiant d'appareil à un serveur se faisait
+                // donc au troisième niveau d'une section qui parle de
+                // typographie. Le verset du jour y était mal rangé aussi : il
+                // interrompt, il ne se lit pas.
+                Section("Notifications") {
+                    NavigationLink {
+                        DailyVerseSettings(onChange: onDailyChange)
+                    } label: {
+                        Label("Verset du jour", systemImage: "sun.horizon")
+                    }
+                    NavigationLink {
+                        ParutionsSettings(onParutions: onParutions)
+                    } label: {
+                        Label("Parutions", systemImage: "book.closed")
+                    }
+                }
+                .ontRow()
+
                 Section("Lecture") {
                     NavigationLink {
                         ReadingSettingsSheet()
                     } label: {
                         Label("Réglages de lecture", systemImage: "textformat.size")
-                    }
-                    NavigationLink {
-                        DailyVerseSettings(onChange: onDailyChange, onParutions: onParutions)
-                    } label: {
-                        Label("Verset du jour", systemImage: "sun.horizon")
                     }
                 }
                 .ontRow()
