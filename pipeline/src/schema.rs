@@ -231,12 +231,59 @@ pub struct Book {
     pub empty: bool,
 }
 
+/// Un conteneur intermédiaire — `eduyot`, `trei-asar`, les deux `igerot`.
+///
+/// ## Pourquoi il devient un objet, et non plus un simple identifiant
+///
+/// Les livres portaient déjà un `group_id`, qui traversait tout — pipeline,
+/// schéma, `Corpus.swift` — sans qu'aucune interface ne l'affiche. Le
+/// regroupement existait dans les données et **le lecteur ne le voyait nulle
+/// part** : les vingt-et-une *Igerot* se lisaient comme une liste plate.
+///
+/// Or l'une de ces coupures n'est pas un rangement. `corpus-order.md` la nomme
+/// **pivot herméneutique** : le *Ḥurban*, la destruction du Second Temple en
+/// 70. Avant, les lettres parlent du Temple au présent — *Igeret HaIvrim* est
+/// « le dernier mot du *Bayit* vivant ». Après, il n'existe plus.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    /// Le nom ONT — `Igerot lifnei haḤurban`.
+    pub title: String,
+    /// Le pont de navigation, comme pour les livres.
+    pub french: String,
+    /// Ce que le nom dit, quand ça ne se confond pas avec le pont.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glose: Option<String>,
+    /// La ligne de sens qui **précède** ce groupe, quand la coupure est une
+    /// rupture et non une subdivision.
+    ///
+    /// Réservée au *Ḥurban* : *Eduyot* et *Trei Asar* regroupent, ils ne
+    /// fracturent pas. Une césure marquée partout ne marquerait plus rien.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rupture: Option<String>,
+}
+
 /// Un mode fonctionnel — Torah, Nevi'im, Ketouvim, Nistarot (§1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Mode {
     pub id: String,
     pub title: String,
     pub order: u32,
+    /// Les conteneurs de ce mode, dans l'ordre où leurs livres paraissent.
+    ///
+    /// **La clé est toujours écrite, même vide.** Elle portait d'abord un
+    /// `skip_serializing_if` — cinq modes sur huit n'ont pas de conteneur, et
+    /// l'omettre paraissait sobre. C'était un défaut sérieux : le code Swift
+    /// engendré déclare `public let groups: [Group]`, non optionnel, et un
+    /// `Decodable` synthétisé **exige** la clé. Les liseuses déjà livrées
+    /// auraient levé `keyNotFound` sur ces cinq modes, sans qu'aucune garde ne
+    /// se déclenche — le numéro de schéma du corpus ne change pas ici.
+    ///
+    /// Une clé **en trop** est ignorée ; une clé **manquante** sur un champ
+    /// non optionnel lève. Ce n'est pas la même chose, et c'est la confusion
+    /// qui a produit ce défaut.
+    #[serde(default)]
+    pub groups: Vec<Group>,
     pub books: Vec<Book>,
 }
 
@@ -455,6 +502,12 @@ pub struct ModeOutline {
     pub id: String,
     pub title: String,
     pub order: u32,
+    /// Les conteneurs, portés jusqu'à la table des matières — c'est elle qui
+    /// les affiche, donc c'est elle qui doit les recevoir.
+    ///
+    /// Toujours écrite, même vide — voir `Mode::groups`.
+    #[serde(default)]
+    pub groups: Vec<Group>,
     pub books: Vec<BookOutline>,
 }
 
@@ -510,6 +563,35 @@ pub struct DailyFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// La clé `groups` est écrite même quand elle est vide.
+    ///
+    /// **Ce test garde une liseuse, pas une structure.** Le code Swift
+    /// engendré déclare `public let groups: [Group]` — non optionnel. Un
+    /// `Decodable` synthétisé exige alors la clé : l'omettre lèverait
+    /// `keyNotFound` sur les cinq modes qui n'ont pas de conteneur, dans les
+    /// apps **déjà installées**, et le numéro de schéma du corpus ne bougeant
+    /// pas, aucune garde ne s'interposerait.
+    ///
+    /// Le piège est subtil et mérite d'être nommé ici : une clé **en trop**
+    /// est ignorée par les décodeurs, une clé **manquante** sur un champ non
+    /// optionnel lève. Éprouver la première ne dit rien de la seconde.
+    #[test]
+    fn un_mode_sans_conteneur_ecrit_quand_meme_la_cle() {
+        let mode = Mode {
+            id: "torah".into(),
+            title: "Torah".into(),
+            order: 1,
+            groups: Vec::new(),
+            books: Vec::new(),
+        };
+        let json = serde_json::to_string(&mode).expect("sérialisation");
+        assert!(
+            json.contains(r#""groups":[]"#),
+            "la clé `groups` a disparu du mode : les liseuses livrées ne \
+             décoderaient plus ce mode. Obtenu : {json}"
+        );
+    }
 
     /// Le tag de l'accentuation sur le fil est `"accentuation"`.
     ///
