@@ -22,7 +22,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
-use crate::config::{display_name, groupe, out, vault, REFERENCE, SKELETON, TREES};
+use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::schema::{
@@ -316,6 +316,7 @@ fn assemble(
                 .as_ref()
                 .map(|s| s.french.clone())
                 .unwrap_or_else(|| entry.french.clone()),
+            glose: glose(&entry.id).map(str::to_string),
             hebrew: declared
                 .map(|d| d.hebrew.clone())
                 .or_else(|| from_subtitle.as_ref().map(|s| s.hebrew.clone())),
@@ -329,18 +330,24 @@ fn assemble(
 
         let corpus = corpora.entry(entry.corpus.id.clone()).or_insert_with(|| {
             ordre_corpus.push(entry.corpus.id.clone());
+            let (fr, gl) = section(&entry.corpus.id).unwrap_or(("", None));
             Corpus {
                 id: entry.corpus.id.clone(),
                 title: display_name(&entry.corpus.id),
+                french: fr.to_string(),
+                glose: gl.map(str::to_string),
                 order: entry.corpus.order,
                 modes: Vec::new(),
             }
         });
 
         if !corpus.modes.iter().any(|m| m.id == entry.mode.id) {
+            let (fr, gl) = section(&entry.mode.id).unwrap_or(("", None));
             corpus.modes.push(Mode {
                 id: entry.mode.id.clone(),
                 title: display_name(&entry.mode.id),
+                french: fr.to_string(),
+                glose: gl.map(str::to_string),
                 order: entry.mode.order,
                 // Remplis après coup, quand tous les livres du mode sont
                 // connus : l'ordre des conteneurs est celui de leurs livres,
@@ -540,6 +547,7 @@ fn outline(book: &Book) -> BookOutline {
         slot: book.slot,
         title: book.title.clone(),
         french: book.french.clone(),
+        glose: book.glose.clone(),
         hebrew: book.hebrew.clone(),
         group_id: book.group_id.clone(),
         empty: book.empty,
@@ -688,6 +696,8 @@ pub fn build() -> Result<BuildResult, String> {
                 .map(|c| CorpusOutline {
                     id: c.id.clone(),
                     title: c.title.clone(),
+                    french: c.french.clone(),
+                    glose: c.glose.clone(),
                     order: c.order,
                     modes: c
                         .modes
@@ -695,6 +705,8 @@ pub fn build() -> Result<BuildResult, String> {
                         .map(|m| ModeOutline {
                             id: m.id.clone(),
                             title: m.title.clone(),
+                            french: m.french.clone(),
+                            glose: m.glose.clone(),
                             order: m.order,
                             groups: m.groups.clone(),
                             books: m.books.iter().map(outline).collect(),
