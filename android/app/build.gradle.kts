@@ -49,6 +49,35 @@ android {
     }
 }
 
+/**
+ * Les données du pipeline deviennent des assets.
+ *
+ * Une tâche plutôt qu'une copie commitée, pour la même raison que `Schema.kt`
+ * n'est pas dans le dépôt : un fichier engendré qui vit à deux endroits finit
+ * par diverger le jour où quelqu'un corrige l'un des deux. Ici, le corpus a une
+ * seule source — `app/Resources/data`, ce que le pipeline écrit — et Android le
+ * recopie à chaque build.
+ *
+ * La liseuse iOS lit exactement ces fichiers-là. Les deux ne peuvent donc pas
+ * afficher deux textes différents.
+ */
+val donneesDuPipeline = layout.projectDirectory.dir("../../app/Resources/data")
+val assetsEngendres = layout.buildDirectory.dir("generated/assets").get().asFile
+
+tasks.register<Sync>("copierLesDonnees") {
+    description = "Recopie le corpus produit par le pipeline dans les assets."
+    from(donneesDuPipeline)
+    into(File(assetsEngendres, "data"))
+}
+
+// Un `File` et non un `Provider` : l'API des sources Android refuse les
+// seconds, parce qu'Android Studio doit pouvoir dire à l'indexation où sont les
+// fichiers sans exécuter le build.
+android.sourceSets.getByName("main").assets.directories.add(assetsEngendres.path)
+
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
+    .configureEach { dependsOn("copierLesDonnees") }
+
 dependencies {
     implementation(project(":ontkit"))
     implementation(project(":ontdata"))
