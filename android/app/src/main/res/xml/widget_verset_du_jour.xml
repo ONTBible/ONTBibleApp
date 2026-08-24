@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Le gabarit du widget.
+
+  `updatePeriodMillis` à zéro, délibérément : le système ne réveille pas ce
+  widget à intervalle. Le verset ne change qu'au passage de minuit, et un
+  réveil périodique coûterait de la batterie pour recalculer la même chose.
+  C'est le travail périodique du verset du jour qui demandera la mise à jour.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:description="@string/widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:previewLayout="@layout/widget_apercu"
+    android:widgetCategory="home_screen" />

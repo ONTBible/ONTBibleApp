@@ -71,7 +71,7 @@ public object ONTColors {
     internal val nuitSurface: Color = Color(0xFF261016)
 
     /** `--color-encre` du site — **#CFC5B9**, 11,4:1 sur la nuit. */
-    internal val nuitEncre: Color = Color(0xFFCFC5B9)
+    public val nuitEncre: Color = Color(0xFFCFC5B9)
 
     // ─────────────────────────────────────────────────────────────────────
     // Surfaces de lecture
