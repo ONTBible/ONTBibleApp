@@ -25,6 +25,7 @@ use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
+use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
@@ -671,7 +672,28 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.dedup();
 
     let lu = read_chapters(&racine);
-    let corpora = assemble(&skeleton, &lu.chapters, &book_names);
+    let mut corpora = assemble(&skeleton, &lu.chapters, &book_names);
+
+    // **Les renvois se lient après l'assemblage, et il n'y a pas le choix.**
+    //
+    // Résoudre « Bereshit 9:5 » demande de savoir quelle unité couvre 9:1-17,
+    // donc de connaître **toutes** les plages du corpus. On ne peut pas le
+    // faire en lisant un chapitre : à ce moment-là, on ignore encore ce que
+    // contiennent les autres.
+    {
+        let index = renvois::Index::nouveau(&corpora);
+        for corpus in &mut corpora {
+            for mode in &mut corpus.modes {
+                for livre in &mut mode.books {
+                    for unite in &mut livre.chapters {
+                        let origine = unite.id.clone();
+                        renvois::lier(&mut unite.blocks, &index, &origine);
+                    }
+                }
+            }
+        }
+    }
+    let corpora = corpora;
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
