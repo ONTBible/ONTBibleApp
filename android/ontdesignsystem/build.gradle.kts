@@ -49,6 +49,45 @@ android {
     }
 }
 
+/**
+ * Les fontes du projet deviennent des ressources Android.
+ *
+ * Mêmes fichiers que la liseuse iOS — `app/Resources/Fonts` — recopiés à chaque
+ * build plutôt que dupliqués dans le dépôt. Deux copies d'une fonte finissent
+ * par ne plus être la même fonte le jour où l'une est mise à jour. Le dossier
+ * d'arrivée est donc ignoré par git, comme `Schema.kt` et comme `dist/`.
+ *
+ * Le renommage n'est pas cosmétique : Android exige qu'un nom de ressource soit
+ * en minuscules avec des soulignés. `Literata-SemiBold.ttf` ne compile pas,
+ * `literata_semibold.ttf` oui. On le fait ici plutôt qu'en renommant les
+ * fichiers, pour que les deux plateformes lisent le même dossier.
+ *
+ * On écrit dans `src/main/res/font` plutôt que dans un dossier engendré ajouté
+ * aux sources : sur un module bibliothèque, AGP 9 refuse qu'on touche à
+ * `sourceSets` après coup. Écrire à l'endroit attendu évite l'API entière.
+ *
+ * Les licences OFL ne sont pas recopiées : ce ne sont pas des ressources
+ * Android, et la fiche Play les portera comme la fiche App Store les porte.
+ */
+val fontesDuProjet = layout.projectDirectory.dir("../../app/Resources/Fonts")
+
+val copierLesFontes = tasks.register<Sync>("copierLesFontes") {
+    description = "Recopie les fontes OFL du projet en ressources Android."
+    from(fontesDuProjet) { include("*.ttf") }
+    into(layout.projectDirectory.dir("src/main/res/font"))
+    rename { nom ->
+        nom.replace("-", "_")
+            .replace(Regex("([a-z0-9])([A-Z])"), "$1_$2")
+            .lowercase()
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("preBuild") || name.contains("Resources") || name.contains("Assets")) {
+        dependsOn(copierLesFontes)
+    }
+}
+
 dependencies {
     // Le domaine, pour les types que la peau doit savoir rendre —
     // `ReadingTheme`, `Inline`, `Block`. Pas d'accès aux données.

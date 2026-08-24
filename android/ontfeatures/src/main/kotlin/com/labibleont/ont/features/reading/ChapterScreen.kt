@@ -1,0 +1,263 @@
+package com.labibleont.ont.features.reading
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.labibleont.ont.designsystem.text.ONTTextRenderer
+import com.labibleont.ont.designsystem.theme.LocalReadingTheme
+import com.labibleont.ont.designsystem.tokens.ONTColors
+import com.labibleont.ont.designsystem.typography.ONTFonts
+import com.labibleont.ont.designsystem.typography.ONTTypography
+import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.corpus.Chapter
+import com.labibleont.ont.kit.corpus.fusingConsecutiveVerses
+import com.labibleont.ont.kit.reader.ReadingPreferences
+
+/**
+ * La lecture d'une unité.
+ *
+ * ## Deux façons de lire, pas deux goûts
+ *
+ * En **prose continue**, les versets consécutifs sont réunis avant d'être
+ * composés : c'est la lecture suivie, où la découpe en versets est un artefact
+ * du XIIIᵉ siècle qui hache une phrase en trois. En **blocs**, chaque verset se
+ * tient seul — c'est l'étude, où l'on vise, on annote, on compare.
+ *
+ * La réunion se fait dans le domaine (`fusingConsecutiveVerses`) et non ici :
+ * c'est une question de texte, pas d'affichage. Côté iOS, l'avoir mise dans la
+ * vue rendait le mode inopérant partout où le corpus ne groupait pas déjà —
+ * 504 blocs d'un seul verset contre 109 qui en groupent plusieurs. Rien ne le
+ * signalait : le réglage s'enregistrait, la branche s'exécutait, le rendu ne
+ * changeait pas d'un pixel.
+ */
+@Composable
+public fun ChapterScreen(
+    chapitre: Chapter,
+    preferences: ReadingPreferences,
+    onTerme: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalReadingTheme.current
+    val typo = ONTTypography(
+        size = preferences.textSize.toFloat(),
+        theme = theme,
+        face = preferences.bodyFont,
+    )
+    val blocs = if (preferences.continuous) {
+        chapitre.blocks.fusingConsecutiveVerses()
+    } else {
+        chapitre.blocks
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 20.dp, end = 20.dp, top = 12.dp, bottom = 48.dp,
+        ),
+    ) {
+        item { EnTete(chapitre, typo) }
+
+        itemsIndexed(blocs) { bloc ->
+            BlocDeTexte(
+                bloc = bloc,
+                typo = typo,
+                preferences = preferences,
+                onTerme = onTerme,
+            )
+        }
+    }
+}
+
+/** `items` avec index, sans clé — les blocs n'ont pas d'identité stable. */
+private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexed(
+    blocs: kotlin.collections.List<Block>,
+    contenu: @Composable (Block) -> Unit,
+) {
+    items(blocs.size) { i -> contenu(blocs[i]) }
+}
+
+/**
+ * Le titre de l'unité et son sous-titre de référence.
+ *
+ * Le renvoi biblique — « Genèse 18:1-33 » — est la **seule** trace de la
+ * numérotation d'origine. L'ONT découpe en unités fonctionnelles : un bloc se
+ * clôt quand une fonction cosmique est accomplie, pas quand un numéro change.
+ * Sans ce sous-titre, un lecteur venu d'une autre Bible ne saurait pas où il
+ * est.
+ */
+@Composable
+private fun EnTete(chapitre: Chapter, typo: ONTTypography) {
+    val theme = LocalReadingTheme.current
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+        Text(
+            chapitre.title,
+            fontFamily = ONTFonts.display,
+            fontSize = (typo.size * 1.7f).sp,
+            color = ONTColors.inkStrong(theme),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        chapitre.subtitle?.let { sous ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                listOfNotNull(sous.french, sous.reference).joinToString(" "),
+                fontSize = (typo.size * 0.8f).sp,
+                color = ONTColors.inkSoft(theme),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color = ONTColors.separator(theme))
+    }
+}
+
+@Composable
+private fun BlocDeTexte(
+    bloc: Block,
+    typo: ONTTypography,
+    preferences: ReadingPreferences,
+    onTerme: (String) -> Unit,
+) {
+    val theme = LocalReadingTheme.current
+    // L'interligne est un multiple de la taille du corps, comme sur iOS : un
+    // interligne en points absolus ne suivrait pas le curseur d'accessibilité,
+    // et le texte se resserrerait à mesure qu'on l'agrandit.
+    val interligne = (1f + preferences.lineSpacing.toFloat()).em
+
+    when (bloc) {
+        is Block.Heading -> Column(Modifier.padding(top = 22.dp, bottom = 8.dp)) {
+            Text(
+                ONTTextRenderer.compose(
+                    bloc.nodes, typo,
+                    showGloss = preferences.showGloss,
+                    showLevel3 = preferences.showLevel3,
+                ),
+                style = androidx.compose.ui.text.TextStyle(
+                    lineHeight = interligne,
+                    color = ONTColors.brandInk(theme),
+                    fontFamily = ONTFonts.display,
+                    fontSize = (typo.size * 1.25f).sp,
+                ),
+            )
+        }
+
+        is Block.Verses -> Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(vertical = 4.dp),
+        ) {
+            // En prose continue, le bloc réuni ne contient qu'un enchaînement :
+            // on le compose d'un seul tenant pour que les lignes se lient.
+            if (preferences.continuous) {
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        for (verset in bloc.verses) {
+                            append(ONTTextRenderer.numeroDeVerset(verset.n, typo))
+                            append(
+                                ONTTextRenderer.compose(
+                                    verset.nodes, typo,
+                                    showGloss = preferences.showGloss,
+                                    showLevel3 = preferences.showLevel3,
+                                    onTerme = onTerme,
+                                ),
+                            )
+                            append(" ")
+                        }
+                    },
+                    style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                )
+            } else {
+                for (verset in bloc.verses) {
+                    Text(
+                        ONTTextRenderer.composeVerse(
+                            verset, typo,
+                            showGloss = preferences.showGloss,
+                            showLevel3 = preferences.showLevel3,
+                            onTerme = onTerme,
+                        ),
+                        style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                    )
+                }
+            }
+        }
+
+        is Block.Paragraph -> Text(
+            ONTTextRenderer.compose(
+                bloc.nodes, typo,
+                showGloss = preferences.showGloss,
+                showLevel3 = preferences.showLevel3,
+                onTerme = onTerme,
+            ),
+            style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+            modifier = Modifier.padding(vertical = 6.dp),
+        )
+
+        is Block.Quote -> Text(
+            ONTTextRenderer.compose(
+                bloc.nodes, typo,
+                showGloss = preferences.showGloss,
+                showLevel3 = preferences.showLevel3,
+                onTerme = onTerme,
+            ),
+            style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+        )
+
+        is Block.List -> Column(Modifier.padding(vertical = 6.dp)) {
+            bloc.items.forEachIndexed { i, item ->
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        append(if (bloc.ordered) "${i + 1}. " else "• ")
+                        append(
+                            ONTTextRenderer.compose(
+                                item, typo,
+                                showGloss = preferences.showGloss,
+                                showLevel3 = preferences.showLevel3,
+                                onTerme = onTerme,
+                            ),
+                        )
+                    },
+                    style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                )
+            }
+        }
+
+        is Block.Table -> Column(Modifier.padding(vertical = 8.dp)) {
+            // Un tableau du lexique — rare, et jamais large. On empile les
+            // cellules plutôt que d'imposer un défilement horizontal, qui sur
+            // téléphone se dispute toujours avec le geste de page.
+            for (ligne in bloc.rows) {
+                Text(
+                    ligne.joinToString("  ·  ") {
+                        ONTTextRenderer.compose(
+                            it, typo,
+                            showGloss = preferences.showGloss,
+                            showLevel3 = preferences.showLevel3,
+                        ).text
+                    },
+                    fontSize = (typo.size * 0.9f).sp,
+                    color = ONTColors.ink(theme),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
+        }
+
+        Block.Rule -> HorizontalDivider(
+            color = ONTColors.separator(theme),
+            modifier = Modifier.padding(vertical = 18.dp),
+        )
+    }
+}

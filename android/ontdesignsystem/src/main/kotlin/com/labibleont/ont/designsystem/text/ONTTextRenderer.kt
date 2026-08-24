@@ -1,0 +1,231 @@
+package com.labibleont.ont.designsystem.text
+
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
+import com.labibleont.ont.designsystem.tokens.ONTColors
+import com.labibleont.ont.designsystem.typography.ONTTypography
+import com.labibleont.ont.kit.corpus.Inline
+import com.labibleont.ont.kit.corpus.Verse
+
+/**
+ * Le rendu du texte ONT — les trois niveaux en typographie.
+ *
+ * Transforme un arbre `List<Inline>` en `AnnotatedString`. Toutes les décisions
+ * visuelles viennent d'[ONTTypography] : ce fichier ne contient pas une seule
+ * taille ni une seule couleur en dur, donc changer de fonte ou ajouter un thème
+ * ne demande pas d'y revenir.
+ *
+ * ## Les intraduisibles se **touchent**
+ *
+ * Ils portent une [LinkAnnotation.Clickable] : les toucher ouvre leur fiche. On
+ * préfère le toucher à l'appui long de Bible Strong parce qu'ici les cibles
+ * sont rares et identifiées — pas besoin de distinguer le geste de la sélection
+ * de texte.
+ *
+ * `LinkAnnotation` plutôt qu'une annotation de chaîne : Compose en tire seul le
+ * traitement d'accessibilité, donc un lecteur d'écran annonce le terme comme
+ * actionnable. Une annotation nue aurait laissé un mot doré muet pour qui ne
+ * voit pas l'or.
+ */
+public object ONTTextRenderer {
+
+    /** L'étiquette portée par le lien d'un intraduisible. */
+    public const val TAG_TERME: String = "ont:term"
+
+    /** L'étiquette portée par le lien d'un verset, en lecture continue. */
+    public const val TAG_VERSET: String = "ont:verse"
+
+    /**
+     * Compose un fragment de texte ONT.
+     *
+     * [onTerme] reçoit le lemme touché. Nul quand le fragment ne doit pas être
+     * actionnable — un extrait de recherche, un texte partagé.
+     */
+    public fun compose(
+        nodes: kotlin.collections.List<Inline>,
+        typo: ONTTypography,
+        showGloss: Boolean,
+        showLevel3: Boolean,
+        onTerme: ((String) -> Unit)? = null,
+    ): AnnotatedString = buildAnnotatedString {
+        val prepares = nodes.prepared(showGloss = showGloss, showLevel3 = showLevel3)
+        ajouter(prepares, typo, inGloss = false, onTerme = onTerme)
+    }
+
+    /**
+     * Compose un verset, précédé de son numéro en exposant.
+     *
+     * Le numéro est **à part** du corps, et c'est ce qui permet de l'épargner
+     * quand le verset est désigné : le pointillé se trace sous la ligne, et il
+     * ferait un décroché à chaque début de verset s'il rejoignait un exposant.
+     */
+    public fun composeVerse(
+        verse: Verse,
+        typo: ONTTypography,
+        showGloss: Boolean,
+        showLevel3: Boolean,
+        onTerme: ((String) -> Unit)? = null,
+    ): AnnotatedString = buildAnnotatedString {
+        append(numeroDeVerset(verse.n, typo))
+        append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+    }
+
+    /**
+     * Le numéro de verset, en exposant.
+     *
+     * `BaselineShift` est un multiple de la taille du fragment, là où iOS pose
+     * un décalage absolu. On convertit plutôt que de choisir une valeur qui
+     * « rendrait bien » : les deux liseuses doivent poser le chiffre à la même
+     * hauteur, sinon la comparaison de captures ne veut plus rien dire.
+     */
+    public fun numeroDeVerset(n: Int, typo: ONTTypography): AnnotatedString =
+        buildAnnotatedString {
+            val tailleDuChiffre = typo.size * 0.62f
+            withStyle(
+                typo.verseNumber.copy(
+                    baselineShift = BaselineShift(typo.verseBaselineOffset / tailleDuChiffre),
+                ),
+            ) {
+                append("$n ")
+            }
+        }
+
+    /**
+     * Compose le corps seul — ce qu'on partage, ou ce qu'on met en exergue.
+     *
+     * Les deux niveaux d'appareil sont éteints : un verset partagé doit se lire
+     * d'une traite, et les gloses de l'ONT font parfois quarante mots.
+     */
+    public fun composeBare(
+        nodes: kotlin.collections.List<Inline>,
+        typo: ONTTypography,
+        ink: androidx.compose.ui.graphics.Color? = null,
+    ): AnnotatedString {
+        val base = compose(nodes, typo, showGloss = false, showLevel3 = false)
+        if (ink == null) return base
+        return buildAnnotatedString {
+            withStyle(SpanStyle(color = ink)) { append(base) }
+        }
+    }
+
+    // ── La composition ──────────────────────────────────────────────────
+
+    private fun AnnotatedString.Builder.ajouter(
+        nodes: kotlin.collections.List<Inline>,
+        typo: ONTTypography,
+        inGloss: Boolean,
+        onTerme: ((String) -> Unit)?,
+    ) {
+        for (node in nodes) {
+            when (node) {
+                is Inline.Text ->
+                    withStyle(if (inGloss) typo.gloss else typo.corpus) { append(node.value) }
+
+                is Inline.Term -> {
+                    // Dans une glose, l'intraduisible garde sa couleur d'or mais
+                    // prend la taille de la glose : il appartient au niveau 2 le
+                    // temps de cette parenthèse.
+                    val style = if (inGloss) {
+                        typo.term.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.term
+                    }
+                    if (onTerme == null) {
+                        withStyle(style) { append(node.value) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "$TAG_TERME/${node.lemma}",
+                                // **Sans soulignement.** Compose souligne les
+                                // liens par défaut, et ce serait une marque de
+                                // plus sur un texte qui en porte déjà trois :
+                                // l'or dit l'intraduisible, les crochets la
+                                // glose, les parenthèses le niveau 3. Un
+                                // soulignement en surplus ferait ressembler le
+                                // corps de la traduction à une page web.
+                                //
+                                // C'est aussi ce que fait la liseuse iOS —
+                                // l'or seul, et le pointillé réservé à la
+                                // désignation d'un verset, qui est un geste du
+                                // lecteur et non une propriété du texte.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { onTerme(node.lemma) },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.value) }
+                        }
+                    }
+                }
+
+                is Inline.Hebrew ->
+                    hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
+
+                is Inline.Translit -> {
+                    withStyle(typo.apparatus) { append("(") }
+                    withStyle(typo.translit) { append(node.translit) }
+                    withStyle(typo.apparatus) { append(" / ") }
+                    hebreu(node.hebrew, typo.hebrewSmall)
+                    withStyle(typo.apparatus) { append(")") }
+                }
+
+                is Inline.Gloss -> {
+                    withStyle(typo.apparatus) { append("[") }
+                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme)
+                    withStyle(typo.apparatus) { append("]") }
+                }
+
+                is Inline.Accentuation ->
+                    // Aucun lien, délibérément : une accentuation n'a pas de
+                    // fiche de lexique, et un mot qui répond au doigt sans rien
+                    // avoir à dire est pire qu'un mot qui ne répond pas.
+                    //
+                    // La couleur et la graisse se posent **par-dessus** les
+                    // styles des enfants, sans les écraser : une accentuation
+                    // peut contenir de l'hébreu, dont la fonte doit survivre.
+                    withStyle(
+                        SpanStyle(
+                            color = ONTColors.accentuation(typo.theme),
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                    ) {
+                        ajouter(node.children, typo, inGloss, onTerme)
+                    }
+
+                is Inline.Emphasis ->
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                        ajouter(node.children, typo, inGloss, onTerme)
+                    }
+
+                // Le lien du vault ne mène nulle part dans la liseuse : on en
+                // garde le texte, pas la cible.
+                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme)
+
+                Inline.LineBreak -> append("\n")
+            }
+        }
+    }
+
+    /**
+     * Une séquence hébraïque, isolée du texte latin qui l'entoure.
+     *
+     * Les marques d'isolation Unicode — FSI (U+2068) et PDI (U+2069) —
+     * empêchent l'algorithme bidirectionnel d'emporter la ponctuation française
+     * voisine dans le sens droite-à-gauche. Sans elles, une parenthèse fermante
+     * saute de l'autre côté du mot, et le lecteur voit « )חסד » au lieu de
+     * « (חסד) ».
+     */
+    private fun AnnotatedString.Builder.hebreu(valeur: String, style: SpanStyle) {
+        withStyle(style) { append("⁨$valeur⁩") }
+    }
+}
