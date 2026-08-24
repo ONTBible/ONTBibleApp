@@ -11,6 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -18,7 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextLayoutResult
 import com.labibleont.ont.designsystem.text.ONTTextRenderer
+import com.labibleont.ont.designsystem.text.soulignerEnPointille
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
@@ -186,48 +192,82 @@ private fun BlocDeTexte(
         ) {
             // En prose continue, le bloc réuni ne contient qu'un enchaînement :
             // on le compose d'un seul tenant pour que les lignes se lient.
+            val pointille = ONTColors.accent(theme).copy(alpha = 0.8f)
+
             if (preferences.continuous) {
                 // Un seul texte pour que les lignes se lient. La désignation et
                 // le surlignage y passent par des fragments — voir le rendu.
+                var mise by remember { mutableStateOf<TextLayoutResult?>(null) }
+                val plages = remember(bloc, selection, preferences) { mutableMapOf<Int, IntRange>() }
+
+                val texte = androidx.compose.ui.text.buildAnnotatedString {
+                    for (verset in bloc.verses) {
+                        val debut = length
+                        append(
+                            ONTTextRenderer.composeVerse(
+                                verset, typo,
+                                showGloss = preferences.showGloss,
+                                showLevel3 = preferences.showLevel3,
+                                onTerme = onTerme,
+                                onVerset = onVerset,
+                                fond = fondDe(marque(verset.n)),
+                                estompe = selection.isNotEmpty() && verset.n !in selection,
+                                fondDuTheme = ONTColors.background(theme),
+                            ),
+                        )
+                        // Le corps commence après le numéro : celui-ci est en
+                        // exposant, et un pointillé qui le rejoindrait ferait
+                        // un décroché à chaque début de verset.
+                        plages[verset.n] = (debut + "${'$'}{verset.n} ".length) until length
+                        // Une espace pleine entre deux versets, jamais un
+                        // retour à la ligne : c'est toute la différence entre
+                        // les deux modes.
+                        append(" ")
+                    }
+                }
+
                 Text(
-                    androidx.compose.ui.text.buildAnnotatedString {
-                        for (verset in bloc.verses) {
-                            append(
-                                ONTTextRenderer.composeVerse(
-                                    verset, typo,
-                                    showGloss = preferences.showGloss,
-                                    showLevel3 = preferences.showLevel3,
-                                    onTerme = onTerme,
-                                    onVerset = onVerset,
-                                    fond = fondDe(marque(verset.n)),
-                                    estompe = selection.isNotEmpty() && verset.n !in selection,
-                                ),
-                            )
-                            // Une espace pleine entre deux versets, jamais un
-                            // retour à la ligne : c'est toute la différence
-                            // entre les deux modes.
-                            append(" ")
-                        }
-                    },
+                    texte,
                     style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                    onTextLayout = { mise = it },
+                    modifier = Modifier.soulignerEnPointille(
+                        layout = { mise },
+                        plages = { selection.mapNotNull { plages[it] } },
+                        couleur = pointille,
+                    ),
                 )
             } else {
                 for (verset in bloc.verses) {
                     val estompe = selection.isNotEmpty() && verset.n !in selection
+                    val designe = verset.n in selection
+                    var mise by remember(verset.n) { mutableStateOf<TextLayoutResult?>(null) }
+                    val texte = ONTTextRenderer.composeVerse(
+                        verset, typo,
+                        showGloss = preferences.showGloss,
+                        showLevel3 = preferences.showLevel3,
+                        onTerme = onTerme,
+                        fond = fondDe(marque(verset.n)),
+                    )
                     Text(
-                        ONTTextRenderer.composeVerse(
-                            verset, typo,
-                            showGloss = preferences.showGloss,
-                            showLevel3 = preferences.showLevel3,
-                            onTerme = onTerme,
-                            fond = fondDe(marque(verset.n)),
-                        ),
+                        texte,
                         style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                        onTextLayout = { mise = it },
                         modifier = Modifier
                             // `Modifier.alpha` et non une couleur : il efface
                             // le verset **entier**, l'or des intraduisibles et
                             // l'encre douce des gloses comprises.
                             .alpha(if (estompe) ONTColors.DIMMED_OPACITY else 1f)
+                            .soulignerEnPointille(
+                                layout = { mise },
+                                plages = {
+                                    if (designe) {
+                                        listOf("${'$'}{verset.n} ".length until texte.text.length)
+                                    } else {
+                                        emptyList()
+                                    }
+                                },
+                                couleur = pointille,
+                            )
                             .clickable { onVerset(verset.n) },
                     )
                 }

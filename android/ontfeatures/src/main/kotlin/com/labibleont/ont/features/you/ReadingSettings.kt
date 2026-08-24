@@ -41,13 +41,24 @@ import com.labibleont.ont.kit.reader.ReadingTheme
 public fun ReadingSettings(
     preferences: ReadingPreferences,
     onChange: (ReadingPreferences) -> Unit,
+    /**
+     * Faux quand l'écran est **déjà** dans un défilement.
+     *
+     * Deux défilements verticaux imbriqués font lever Compose : le parent
+     * mesure l'enfant avec une hauteur infinie, et un composant défilant ne
+     * sait pas quoi en faire. C'est ce qui faisait planter la feuille des
+     * réglages en boucle.
+     */
+    defilant: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
 
     Column(
-        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (defilant) Modifier.verticalScroll(rememberScrollState()) else Modifier),
     ) {
         ONTPage {
             ONTSectionHeader("Les niveaux du texte")

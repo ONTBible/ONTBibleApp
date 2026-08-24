@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.labibleont.ont.kit.corpus.Book
+import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.Corpus
 import com.labibleont.ont.kit.ports.CorpusRepository
@@ -226,6 +227,24 @@ public class ReadingModel(
     }
 
     public fun reprendre(): ReadingPosition? = positionRepository.position
+
+    /**
+     * L'**esquisse** d'un livre — son titre, ses unités, leurs numéros.
+     *
+     * Prise dans l'arborescence déjà chargée, jamais en ouvrant le livre :
+     * `books/bereshit.json` fait 750 Ko d'arbre d'inline, et le sélecteur n'a
+     * besoin que de numéros et de statuts. L'esquisse les porte déjà.
+     */
+    public fun esquisse(bookId: String): BookOutline? =
+        corpora.asSequence()
+            .flatMap { it.modes.asSequence() }
+            .flatMap { it.books.asSequence() }
+            .firstOrNull { it.id == bookId }
+
+    /** Tous les livres, dans l'ordre canonique des slots. */
+    public fun tousLesLivres(): kotlin.collections.List<BookOutline> =
+        corpora.sortedBy { it.order }
+            .flatMap { c -> c.modes.sortedBy { it.order }.flatMap { it.books } }
 
     // ── L'état du corpus ────────────────────────────────────────────────
 
