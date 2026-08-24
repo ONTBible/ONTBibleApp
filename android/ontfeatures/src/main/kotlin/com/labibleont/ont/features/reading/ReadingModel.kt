@@ -9,8 +9,14 @@ import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.Corpus
 import com.labibleont.ont.kit.ports.CorpusRepository
+import com.labibleont.ont.kit.ports.HighlightRepository
+import com.labibleont.ont.kit.ports.PositionRepository
 import com.labibleont.ont.kit.ports.PreferencesRepository
+import com.labibleont.ont.kit.reader.Highlight
+import com.labibleont.ont.kit.reader.HighlightColor
+import com.labibleont.ont.kit.reader.ReadingPosition
 import com.labibleont.ont.kit.reader.ReadingPreferences
+import com.labibleont.ont.kit.reader.VerseRange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,6 +43,8 @@ import kotlinx.coroutines.withContext
 public class ReadingModel(
     private val corpusRepository: CorpusRepository,
     private val preferencesRepository: PreferencesRepository,
+    private val highlightRepository: HighlightRepository,
+    private val positionRepository: PositionRepository,
 ) : ViewModel() {
 
     public var corpora: kotlin.collections.List<Corpus> by mutableStateOf(emptyList())
@@ -114,5 +122,108 @@ public class ReadingModel(
 
     public fun aller(vers: Chapter) {
         chapitre = vers
+        selection = emptySet()
     }
+
+    // ── La sélection ────────────────────────────────────────────────────
+
+    /**
+     * Les versets désignés.
+     *
+     * Un ensemble et non un seul verset : on cite « 1-3, 7 », on surligne un
+     * passage. C'est aussi ce qui justifie que `VerseRange` vive dans le
+     * domaine — la forme est lue **et** écrite, par l'écran et par le routeur.
+     */
+    public var selection: Set<Int> by mutableStateOf(emptySet())
+        private set
+
+    public fun basculer(verset: Int) {
+        selection = if (verset in selection) selection - verset else selection + verset
+    }
+
+    public fun deselectionner() {
+        selection = emptySet()
+    }
+
+    /** Le renvoi de la sélection — « Bereshit 1:1-3, 7 ». */
+    public fun renvoi(): String =
+        VerseRange.reference(selection, chapitre?.title.orEmpty())
+
+    // ── Les surlignages ─────────────────────────────────────────────────
+
+    /**
+     * Un compteur qui ne sert qu'à faire recomposer.
+     *
+     * Le dépôt de surlignages n'est pas observable — c'est un port, et un port
+     * qui rendrait un flux imposerait la coroutine à toutes ses
+     * implémentations, y compris aux doublures de test. On publie donc un
+     * jeton que l'écran lit : il change à chaque écriture, la recomposition
+     * suit, et le port reste une interface de trois méthodes.
+     */
+    public var revisionDesMarques: Int by mutableStateOf(0)
+        private set
+
+    public fun surlignage(verset: Int): Highlight? {
+        val id = chapitre?.id ?: return null
+        return highlightRepository.highlight(id, verset)
+    }
+
+    public fun surligner(couleur: HighlightColor) {
+        val unite = chapitre ?: return
+        for (verset in selection) {
+            val existant = highlightRepository.highlight(unite.id, verset)
+            highlightRepository.save(
+                Highlight(
+                    // On réemploie l'identité quand elle existe : changer la
+                    // couleur d'un surlignage n'en crée pas un second, sinon la
+                    // synchronisation en verrait deux pour un même verset.
+                    id = existant?.id ?: java.util.UUID.randomUUID().toString(),
+                    bookId = unite.bookId,
+                    chapterId = unite.id,
+                    verse = verset,
+                    color = couleur,
+                    note = existant?.note,
+                ),
+            )
+        }
+        revisionDesMarques += 1
+        selection = emptySet()
+    }
+
+    public fun effacerLesMarques() {
+        val unite = chapitre ?: return
+        for (verset in selection) {
+            highlightRepository.highlight(unite.id, verset)?.let(highlightRepository::remove)
+        }
+        revisionDesMarques += 1
+        selection = emptySet()
+    }
+
+    /** Vrai si au moins un verset désigné porte déjà une marque. */
+    public fun selectionEstMarquee(): Boolean {
+        val unite = chapitre ?: return false
+        return selection.any { highlightRepository.highlight(unite.id, it) != null }
+    }
+
+    // ── La position ─────────────────────────────────────────────────────
+
+    /**
+     * Retenir où l'on en est.
+     *
+     * Le dépôt n'écrit que si la position a réellement bougé — ce fichier est
+     * touché à chaque défilement.
+     */
+    public fun retenir(verset: Int) {
+        val unite = chapitre ?: return
+        positionRepository.remember(
+            ReadingPosition(
+                bookId = unite.bookId,
+                chapterId = unite.id,
+                chapterTitle = unite.title,
+                verse = verset,
+            ),
+        )
+    }
+
+    public fun reprendre(): ReadingPosition? = positionRepository.position
 }

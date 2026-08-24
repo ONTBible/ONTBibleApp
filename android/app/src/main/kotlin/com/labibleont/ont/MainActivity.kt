@@ -1,5 +1,6 @@
 package com.labibleont.ont
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -47,7 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
-import com.labibleont.ont.data.store.PreferencesStore
+import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.theme.ONTTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
@@ -57,9 +58,11 @@ import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.reading.BibleTab
 import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
+import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
 import com.labibleont.ont.features.you.YouTab
+import com.labibleont.ont.kit.corpus.plainText
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 
@@ -88,14 +91,14 @@ public class MainActivity : ComponentActivity() {
         val corpus = AssetCorpusRepository(applicationContext)
         val glossaire = AssetGlossaryRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
-        val reglages = PreferencesStore(applicationContext)
+        val lecteur = FileReaderStore(applicationContext)
 
         setContent {
-            var preferences by remember { mutableStateOf(reglages.preferences) }
+            var preferences by remember { mutableStateOf(lecteur.preferences) }
 
             val lecture: ReadingModel = viewModel(
                 key = "lecture",
-                factory = fabrique { ReadingModel(corpus, reglages) },
+                factory = fabrique { ReadingModel(corpus, lecteur, lecteur, lecteur) },
             )
             val lexique: LexiconModel = viewModel(
                 key = "lexique",
@@ -113,7 +116,7 @@ public class MainActivity : ComponentActivity() {
                     recherche = recherche,
                     preferences = preferences,
                     onPreferences = {
-                        reglages.preferences = it
+                        lecteur.preferences = it
                         preferences = it
                     },
                 )
@@ -161,8 +164,15 @@ private fun Racine(
 
     // Le retour système ferme la lecture avant de quitter l'app. Sur Android
     // c'est le geste principal — le lui refuser oblige à viser une flèche.
-    BackHandler(enabled = enLecture || enRecherche) {
-        if (enRecherche) enRecherche = false else enLecture = false
+    // Le retour défait une chose à la fois, de la plus fine à la plus large :
+    // la sélection, puis la lecture. Fermer le chapitre alors qu'on venait de
+    // désigner un verset serait une perte, pas un retour.
+    BackHandler(enabled = enLecture || enRecherche || lecture.selection.isNotEmpty()) {
+        when {
+            lecture.selection.isNotEmpty() -> lecture.deselectionner()
+            enRecherche -> enRecherche = false
+            else -> enLecture = false
+        }
     }
 
     Scaffold(
@@ -218,7 +228,37 @@ private fun Racine(
             }
         },
         bottomBar = {
-            if (!enLecture && !enRecherche) {
+            if (enLecture && lecture.selection.isNotEmpty()) {
+                SelectionBar(
+                    renvoi = lecture.renvoi(),
+                    dejaMarquee = lecture.selectionEstMarquee(),
+                    onCouleur = lecture::surligner,
+                    onEffacer = lecture::effacerLesMarques,
+                    onPartager = {
+                        // Le corps seul, sans l'appareil : on partage ce qui se
+                        // lit d'une traite. Les gloses de l'ONT font parfois
+                        // quarante mots, et personne ne colle ça dans un
+                        // message.
+                        val passage = lecture.chapitre?.verses
+                            ?.filter { it.n in lecture.selection }
+                            ?.joinToString(" ") { v ->
+                                v.nodes.plainText()
+                            }
+                            .orEmpty()
+                        val texte = "« $passage »\n\n${lecture.renvoi()} — La Bible ONT"
+                        contexte.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, texte)
+                                },
+                                null,
+                            ),
+                        )
+                    },
+                    onFermer = lecture::deselectionner,
+                )
+            } else if (!enLecture && !enRecherche) {
                 NavigationBar(containerColor = ONTColors.surface(theme)) {
                     for (o in Onglet.entries) {
                         NavigationBarItem(
@@ -273,9 +313,16 @@ private fun Racine(
                             modifier = Modifier.align(Alignment.Center),
                         )
                     } else {
+                        // Le jeton de révision est lu ici pour que la pose
+                        // d'une marque déclenche la recomposition — voir sa
+                        // documentation dans `ReadingModel`.
+                        @Suppress("UNUSED_EXPRESSION") lecture.revisionDesMarques
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
+                            selection = lecture.selection,
+                            onVerset = lecture::basculer,
+                            marque = { verset -> lecture.surlignage(verset)?.color },
                             onTerme = { lemme ->
                                 // La fiche s'ouvre par-dessus le texte, sans le
                                 // quitter : on consulte un terme et on revient à

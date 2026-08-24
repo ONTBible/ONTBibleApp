@@ -10,7 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -23,6 +25,7 @@ import com.labibleont.ont.designsystem.typography.ONTTypography
 import com.labibleont.ont.kit.corpus.Block
 import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.fusingConsecutiveVerses
+import com.labibleont.ont.kit.reader.HighlightColor
 import com.labibleont.ont.kit.reader.ReadingPreferences
 
 /**
@@ -47,6 +50,11 @@ public fun ChapterScreen(
     chapitre: Chapter,
     preferences: ReadingPreferences,
     onTerme: (String) -> Unit,
+    /** Les versets désignés — vide quand le lecteur lit sans rien viser. */
+    selection: Set<Int> = emptySet(),
+    onVerset: (Int) -> Unit = {},
+    /** La couleur posée par le lecteur sur un verset, s'il y en a une. */
+    marque: (Int) -> HighlightColor? = { null },
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -75,6 +83,9 @@ public fun ChapterScreen(
                 typo = typo,
                 preferences = preferences,
                 onTerme = onTerme,
+                selection = selection,
+                onVerset = onVerset,
+                marque = marque,
             )
         }
     }
@@ -130,6 +141,9 @@ private fun BlocDeTexte(
     typo: ONTTypography,
     preferences: ReadingPreferences,
     onTerme: (String) -> Unit,
+    selection: Set<Int> = emptySet(),
+    onVerset: (Int) -> Unit = {},
+    marque: (Int) -> HighlightColor? = { null },
 ) {
     val theme = LocalReadingTheme.current
     // L'interligne est un multiple de la taille du corps, comme sur iOS : un
@@ -161,18 +175,25 @@ private fun BlocDeTexte(
             // En prose continue, le bloc réuni ne contient qu'un enchaînement :
             // on le compose d'un seul tenant pour que les lignes se lient.
             if (preferences.continuous) {
+                // Un seul texte pour que les lignes se lient. La désignation et
+                // le surlignage y passent par des fragments — voir le rendu.
                 Text(
                     androidx.compose.ui.text.buildAnnotatedString {
                         for (verset in bloc.verses) {
-                            append(ONTTextRenderer.numeroDeVerset(verset.n, typo))
                             append(
-                                ONTTextRenderer.compose(
-                                    verset.nodes, typo,
+                                ONTTextRenderer.composeVerse(
+                                    verset, typo,
                                     showGloss = preferences.showGloss,
                                     showLevel3 = preferences.showLevel3,
                                     onTerme = onTerme,
+                                    onVerset = onVerset,
+                                    fond = fondDe(marque(verset.n)),
+                                    estompe = selection.isNotEmpty() && verset.n !in selection,
                                 ),
                             )
+                            // Une espace pleine entre deux versets, jamais un
+                            // retour à la ligne : c'est toute la différence
+                            // entre les deux modes.
                             append(" ")
                         }
                     },
@@ -180,14 +201,22 @@ private fun BlocDeTexte(
                 )
             } else {
                 for (verset in bloc.verses) {
+                    val estompe = selection.isNotEmpty() && verset.n !in selection
                     Text(
                         ONTTextRenderer.composeVerse(
                             verset, typo,
                             showGloss = preferences.showGloss,
                             showLevel3 = preferences.showLevel3,
                             onTerme = onTerme,
+                            fond = fondDe(marque(verset.n)),
                         ),
                         style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                        modifier = Modifier
+                            // `Modifier.alpha` et non une couleur : il efface
+                            // le verset **entier**, l'or des intraduisibles et
+                            // l'encre douce des gloses comprises.
+                            .alpha(if (estompe) ONTColors.DIMMED_OPACITY else 1f)
+                            .clickable { onVerset(verset.n) },
                     )
                 }
             }
@@ -261,3 +290,15 @@ private fun BlocDeTexte(
         )
     }
 }
+
+/**
+ * La teinte réelle d'une marque, avec son opacité.
+ *
+ * Le domaine ne connaît que le nom de la couleur ; la valeur vit dans le design
+ * system, ce qui permet de retoucher la palette sans migrer les surlignages
+ * déjà enregistrés chez les lecteurs.
+ */
+private fun fondDe(couleur: HighlightColor?): androidx.compose.ui.graphics.Color? =
+    couleur?.let {
+        ONTColors.highlight(it).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
+    }

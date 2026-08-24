@@ -74,9 +74,64 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onVerset: ((Int) -> Unit)? = null,
+        /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
+        fond: androidx.compose.ui.graphics.Color? = null,
+        /**
+         * Vrai quand un autre verset est désigné.
+         *
+         * Sans effet en prose continue — voir le corps de la fonction. En mode
+         * blocs, c'est `Modifier.alpha` qui l'applique.
+         */
+        @Suppress("UNUSED_PARAMETER") estompe: Boolean = false,
     ): AnnotatedString = buildAnnotatedString {
-        append(numeroDeVerset(verse.n, typo))
-        append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+        val corps = buildAnnotatedString {
+            append(numeroDeVerset(verse.n, typo))
+            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+        }
+
+        // ## L'estompage ne se pose pas ici, et il faut dire pourquoi
+        //
+        // Le procédé vient de Bible Strong : on n'éclaire pas le verset
+        // désigné, on efface les autres. Mais `SpanStyle` n'a pas d'opacité —
+        // seulement une couleur. L'appliquer par fragment écraserait les
+        // teintes des trois niveaux : l'or des intraduisibles, l'encre douce
+        // des gloses, tout deviendrait une seule couleur passée.
+        //
+        // En **mode blocs**, chaque verset est son propre composable :
+        // `Modifier.alpha` l'estompe entier, couleurs comprises, et c'est là
+        // que ça se fait.
+        //
+        // En **prose continue**, tous les versets sont dans un seul texte pour
+        // que les lignes se lient — il n'y a plus de composable par verset.
+        // L'estompage y demanderait un dessin fragment par fragment, comme le
+        // `ONTProseRenderer` d'iOS. Il n'est donc pas encore rendu dans ce
+        // mode ; le surlignage, lui, l'est, parce qu'un fond **est** une
+        // propriété de fragment.
+        //
+        // Le paramètre reste, pour que l'appelant n'ait pas à savoir lequel
+        // des deux modes il sert.
+        val enveloppe = SpanStyle(
+            background = fond ?: androidx.compose.ui.graphics.Color.Unspecified,
+        )
+
+        if (onVerset == null) {
+            withStyle(enveloppe) { append(corps) }
+        } else {
+            // Le lien le plus **intérieur** l'emporte : toucher un
+            // intraduisible ouvre sa fiche, toucher ailleurs désigne le verset.
+            withLink(
+                LinkAnnotation.Clickable(
+                    tag = "$TAG_VERSET/${verse.n}",
+                    styles = TextLinkStyles(
+                        style = SpanStyle(textDecoration = TextDecoration.None),
+                    ),
+                    linkInteractionListener = { onVerset(verse.n) },
+                ),
+            ) {
+                withStyle(enveloppe) { append(corps) }
+            }
+        }
     }
 
     /**
