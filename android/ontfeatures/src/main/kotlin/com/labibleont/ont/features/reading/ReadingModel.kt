@@ -226,4 +226,24 @@ public class ReadingModel(
     }
 
     public fun reprendre(): ReadingPosition? = positionRepository.position
+
+    // ── L'état du corpus ────────────────────────────────────────────────
+
+    /**
+     * Ce que l'onglet Vous affiche du corpus.
+     *
+     * Calculé depuis l'arborescence déjà chargée, et non lu d'un fichier de
+     * rapport : `dist/manifest.json` existe, mais c'est un rapport de **build**
+     * — il dit ce que le pipeline a produit, pas ce que cette app porte. Les
+     * deux coïncident aujourd'hui et n'ont aucune raison de le rester quand
+     * l'app téléchargera ses mises à jour de corpus.
+     */
+    public val slotsTotal: Int
+        get() = corpora.sumOf { c -> c.modes.sumOf { it.books.size } }
+
+    public val slotsRediges: Int
+        get() = corpora.sumOf { c -> c.modes.sumOf { m -> m.books.count { !it.empty } } }
+
+    public val versets: Int
+        get() = corpora.sumOf { c -> c.modes.sumOf { m -> m.books.sumOf { it.verseCount } } }
 }

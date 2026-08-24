@@ -1,23 +1,23 @@
 package com.labibleont.ont
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import android.Manifest
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +29,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -38,39 +40,46 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
-import com.labibleont.ont.data.bundle.AssetGlossaryRepository
 import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
+import com.labibleont.ont.data.bundle.AssetGlossaryRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
+import com.labibleont.ont.designsystem.surfaces.ontScreen
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.theme.ONTTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
 import com.labibleont.ont.features.lexicon.TermSheet
+import com.labibleont.ont.features.qahal.QahalModel
+import com.labibleont.ont.features.qahal.QahalTab
 import com.labibleont.ont.features.reading.BibleTab
 import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
-import com.labibleont.ont.features.qahal.QahalModel
-import com.labibleont.ont.features.qahal.QahalTab
 import com.labibleont.ont.features.search.SearchScreen
+import com.labibleont.ont.features.you.DailyVerseSettings
+import com.labibleont.ont.features.you.DestinationVous
+import com.labibleont.ont.features.you.ParutionsSettings
+import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
+import kotlinx.coroutines.launch
 
-/** Les trois onglets, dans l'ordre de la liseuse iOS. */
+/** Les quatre onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
     QAHAL("Qahal"),
     BIBLE("Bible"),
@@ -79,13 +88,26 @@ private enum class Onglet(val titre: String) {
 }
 
 /**
+ * Où l'on est, au-dessus des onglets.
+ *
+ * Une pile à un seul étage plutôt qu'un graphe de navigation : l'app n'a que
+ * des sous-écrans de premier niveau, et un `NavHost` demanderait de déclarer
+ * des routes, de sérialiser des arguments et de tenir un état que trois
+ * booléens décrivent déjà. On le prendra quand il y aura de quoi le remplir.
+ */
+private sealed interface Ecran {
+    data object Onglets : Ecran
+    data object Lecture : Ecran
+    data object Recherche : Ecran
+    data class Reglage(val ou: DestinationVous) : Ecran
+}
+
+/**
  * L'unique activité, et la racine de composition.
  *
  * C'est **ici** que les implémentations rencontrent les ports : `ontfeatures`
- * ne connaît que `CorpusRepository` et `GlossaryRepository`, et ce sont ces
- * lignes-ci qui décident que derrière il y a des assets. Le jour où le corpus
- * viendra d'ailleurs — d'un téléchargement, d'un cache — c'est ce fichier qui
- * change, et lui seul.
+ * ne connaît que des interfaces, et ce sont ces lignes-ci qui décident que
+ * derrière il y a des assets et un fichier JSON.
  */
 public class MainActivity : ComponentActivity() {
 
@@ -152,24 +174,12 @@ private fun Racine(
     onPreferences: (ReadingPreferences) -> Unit,
 ) {
     val theme = LocalReadingTheme.current
-    var onglet by remember { mutableStateOf(Onglet.BIBLE) }
-    var enLecture by remember { mutableStateOf(false) }
-    var terme: String? by remember { mutableStateOf(null) }
-    var enRecherche by remember { mutableStateOf(false) }
     val contexte = LocalContext.current
-
-    // La permission de notifier n'existe qu'à partir d'Android 13. En deçà, la
-    // programmation part directement — c'est le système qui décide, pas nous.
-    val demanderLaPermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { accordee ->
-        // Refusée est une réponse. On programme quand même le travail : s'il
-        // ne peut pas notifier il ne notifiera pas, sans se plaindre, et le
-        // jour où le lecteur change d'avis dans les réglages système, le
-        // rappel est déjà là.
-        if (accordee) Unit
-        VersetDuJourWorker.programmer(contexte, preferences.daily)
-    }
+    var onglet by remember { mutableStateOf(Onglet.BIBLE) }
+    var ecran: Ecran by remember { mutableStateOf(Ecran.Onglets) }
+    var terme: String? by remember { mutableStateOf(null) }
+    val messages = remember { SnackbarHostState() }
+    val portee = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
     LaunchedEffect(onglet) {
@@ -177,30 +187,51 @@ private fun Racine(
         if (onglet == Onglet.QAHAL) qahal.choisir()
     }
 
-    // Le retour système ferme la lecture avant de quitter l'app. Sur Android
-    // c'est le geste principal — le lui refuser oblige à viser une flèche.
+    val demanderLaPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        // Refusée est une réponse : on programme quand même. Le travail ne
+        // notifiera pas, et le jour où le lecteur change d'avis dans les
+        // réglages système, le rappel est déjà là.
+        VersetDuJourWorker.programmer(contexte, preferences.daily)
+    }
+
     // Le retour défait une chose à la fois, de la plus fine à la plus large :
-    // la sélection, puis la lecture. Fermer le chapitre alors qu'on venait de
+    // la sélection, puis l'écran. Fermer le chapitre alors qu'on venait de
     // désigner un verset serait une perte, pas un retour.
-    BackHandler(enabled = enLecture || enRecherche || lecture.selection.isNotEmpty()) {
+    BackHandler(enabled = ecran != Ecran.Onglets || lecture.selection.isNotEmpty()) {
         when {
             lecture.selection.isNotEmpty() -> lecture.deselectionner()
-            enRecherche -> enRecherche = false
-            else -> enLecture = false
+            else -> ecran = Ecran.Onglets
         }
     }
 
+    val titreDeLEcran = when (val e = ecran) {
+        Ecran.Lecture -> lecture.livre?.title.orEmpty()
+        Ecran.Recherche -> "Rechercher"
+        is Ecran.Reglage -> when (e.ou) {
+            DestinationVous.LECTURE -> "Réglages de lecture"
+            DestinationVous.VERSET_DU_JOUR -> "Verset du jour"
+            DestinationVous.PARUTIONS -> "Parutions"
+        }
+        Ecran.Onglets -> null
+    }
+
     Scaffold(
-        containerColor = ONTColors.background(theme),
+        // Transparent : le fond et son grain sont posés par `ontScreen`, en un
+        // seul endroit, pour qu'ils ne puissent ni manquer ni se doubler.
+        containerColor = Color.Transparent,
+        modifier = Modifier.ontScreen(),
+        snackbarHost = { SnackbarHost(messages) },
         topBar = {
-            if (enRecherche) {
+            if (titreDeLEcran != null) {
                 TopAppBar(
-                    title = { Text("Rechercher") },
+                    title = { Text(titreDeLEcran) },
                     navigationIcon = {
-                        IconButton(onClick = { enRecherche = false }) {
+                        IconButton(onClick = { ecran = Ecran.Onglets }) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Fermer la recherche",
+                                contentDescription = "Revenir",
                             )
                         }
                     },
@@ -210,11 +241,11 @@ private fun Racine(
                         navigationIconContentColor = ONTColors.brandInk(theme),
                     ),
                 )
-            } else if (onglet == Onglet.BIBLE && !enLecture) {
+            } else if (onglet == Onglet.BIBLE) {
                 TopAppBar(
                     title = {},
                     actions = {
-                        IconButton(onClick = { enRecherche = true }) {
+                        IconButton(onClick = { ecran = Ecran.Recherche }) {
                             Icon(Icons.Filled.Search, contentDescription = "Rechercher")
                         }
                     },
@@ -223,57 +254,25 @@ private fun Racine(
                         actionIconContentColor = ONTColors.brandInk(theme),
                     ),
                 )
-            } else if (enLecture) {
-                TopAppBar(
-                    title = { Text(lecture.livre?.title.orEmpty()) },
-                    navigationIcon = {
-                        IconButton(onClick = { enLecture = false }) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Revenir au sommaire",
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = ONTColors.brandInk(theme),
-                        navigationIconContentColor = ONTColors.brandInk(theme),
-                    ),
-                )
             }
         },
         bottomBar = {
-            if (enLecture && lecture.selection.isNotEmpty()) {
+            if (ecran == Ecran.Lecture && lecture.selection.isNotEmpty()) {
                 SelectionBar(
                     renvoi = lecture.renvoi(),
                     dejaMarquee = lecture.selectionEstMarquee(),
                     onCouleur = lecture::surligner,
                     onEffacer = lecture::effacerLesMarques,
                     onPartager = {
-                        // Le corps seul, sans l'appareil : on partage ce qui se
-                        // lit d'une traite. Les gloses de l'ONT font parfois
-                        // quarante mots, et personne ne colle ça dans un
-                        // message.
                         val passage = lecture.chapitre?.verses
                             ?.filter { it.n in lecture.selection }
-                            ?.joinToString(" ") { v ->
-                                v.nodes.plainText()
-                            }
+                            ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        val texte = "« $passage »\n\n${lecture.renvoi()} — La Bible ONT"
-                        contexte.startActivity(
-                            Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, texte)
-                                },
-                                null,
-                            ),
-                        )
+                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
                     },
                     onFermer = lecture::deselectionner,
                 )
-            } else if (!enLecture && !enRecherche) {
+            } else if (ecran == Ecran.Onglets) {
                 NavigationBar(containerColor = ONTColors.surface(theme)) {
                     for (o in Onglet.entries) {
                         NavigationBarItem(
@@ -306,21 +305,39 @@ private fun Racine(
     ) { marges ->
         Box(modifier = Modifier.fillMaxSize().padding(marges)) {
             when {
-                enRecherche -> SearchScreen(
-                    model = recherche,
-                    onOuvrir = { livre, unite ->
-                        lecture.ouvrir(livre, unite)
-                        enRecherche = false
-                        enLecture = true
-                    },
-                )
-
                 lecture.chargement -> CircularProgressIndicator(
                     color = ONTColors.accent(theme),
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                enLecture -> {
+                ecran is Ecran.Recherche -> SearchScreen(
+                    model = recherche,
+                    onOuvrir = { livre, unite ->
+                        lecture.ouvrir(livre, unite)
+                        ecran = Ecran.Lecture
+                    },
+                )
+
+                ecran is Ecran.Reglage -> when ((ecran as Ecran.Reglage).ou) {
+                    DestinationVous.LECTURE -> ReadingSettings(preferences, onPreferences)
+                    DestinationVous.VERSET_DU_JOUR -> DailyVerseSettings(
+                        preferences = preferences,
+                        apercu = remember { VersetDuJourWorker.apercu(contexte) },
+                        onChange = { rappel ->
+                            onPreferences(preferences.copy(daily = rappel))
+                            if (rappel.enabled &&
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                            ) {
+                                demanderLaPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                VersetDuJourWorker.programmer(contexte, rappel)
+                            }
+                        },
+                    )
+                    DestinationVous.PARUTIONS -> ParutionsSettings()
+                }
+
+                ecran is Ecran.Lecture -> {
                     val chapitre = lecture.chapitre
                     if (chapitre == null) {
                         Text(
@@ -329,20 +346,17 @@ private fun Racine(
                             modifier = Modifier.align(Alignment.Center),
                         )
                     } else {
-                        // Le jeton de révision est lu ici pour que la pose
-                        // d'une marque déclenche la recomposition — voir sa
-                        // documentation dans `ReadingModel`.
                         @Suppress("UNUSED_EXPRESSION") lecture.revisionDesMarques
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
                             selection = lecture.selection,
-                            onVerset = lecture::basculer,
+                            onVerset = { n ->
+                                lecture.basculer(n)
+                                lecture.retenir(n)
+                            },
                             marque = { verset -> lecture.surlignage(verset)?.color },
                             onTerme = { lemme ->
-                                // La fiche s'ouvre par-dessus le texte, sans le
-                                // quitter : on consulte un terme et on revient à
-                                // la ligne où l'on était.
                                 lexique.charger()
                                 terme = lemme
                             },
@@ -354,24 +368,15 @@ private fun Racine(
                     chapitre = qahal.chapitre,
                     verset = qahal.verset,
                     preferences = preferences,
-                    onPartager = { texte ->
-                        contexte.startActivity(
-                            Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, texte)
-                                },
-                                null,
-                            ),
-                        )
-                    },
+                    onPartager = { partager(contexte, it) },
                 )
 
                 onglet == Onglet.BIBLE -> BibleTab(
                     model = lecture,
+                    position = lecture.reprendre(),
                     onOuvrir = { livre, unite ->
                         lecture.ouvrir(livre, unite)
-                        enLecture = true
+                        ecran = Ecran.Lecture
                     },
                 )
 
@@ -382,14 +387,16 @@ private fun Racine(
 
                 else -> YouTab(
                     preferences = preferences,
-                    onChange = onPreferences,
-                    onRappel = { rappel ->
-                        if (rappel.enabled &&
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                        ) {
-                            demanderLaPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            VersetDuJourWorker.programmer(contexte, rappel)
+                    slotsRediges = lecture.slotsRediges,
+                    slotsTotal = lecture.slotsTotal,
+                    versets = lecture.versets,
+                    onAller = { ecran = Ecran.Reglage(it) },
+                    onPasEncore = {
+                        portee.launch {
+                            messages.showSnackbar(
+                                "La connexion arrive avec la synchronisation. " +
+                                    "La lecture n'en a pas besoin.",
+                            )
                         }
                     },
                 )
@@ -406,4 +413,17 @@ private fun Racine(
             TermSheet(lemme = lemme, model = lexique, preferences = preferences)
         }
     }
+}
+
+/** Le partage système — le même d'un écran à l'autre. */
+private fun partager(contexte: android.content.Context, texte: String) {
+    contexte.startActivity(
+        Intent.createChooser(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, texte)
+            },
+            null,
+        ),
+    )
 }

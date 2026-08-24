@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -69,10 +70,21 @@ public fun ChapterScreen(
         chapitre.blocks
     }
 
+    val espace = com.labibleont.ont.designsystem.metrics.ontSpacing
+
     LazyColumn(
-        modifier = modifier.fillMaxWidth(),
+        // La mesure est bornée, et les marges suivent le curseur
+        // d'accessibilité. Au-delà de cette largeur, l'œil ne retrouve plus le
+        // début de la ligne suivante — ça vaut surtout sur tablette, où rien ne
+        // limiterait sinon.
+        modifier = modifier
+            .fillMaxWidth()
+            .widthIn(max = com.labibleont.ont.designsystem.metrics.ONTLayout.readingWidth),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 20.dp, end = 20.dp, top = 12.dp, bottom = 48.dp,
+            start = espace.page,
+            end = espace.page,
+            top = espace.m,
+            bottom = espace(48),
         ),
     ) {
         item { EnTete(chapitre, typo) }
