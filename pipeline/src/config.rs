@@ -98,6 +98,51 @@ pub fn display_name(id: &str) -> String {
         .join(" ")
 }
 
+/// Les conteneurs intermédiaires, avec ce qu'ils disent au lecteur.
+///
+/// `(identifiant, français, glose, rupture)`. La glose n'est posée que
+/// lorsqu'elle ajoute quelque chose au pont ; la rupture, que lorsque la
+/// coupure en est une.
+///
+/// **Le Ḥurban est le seul à en porter une.** `corpus-order.md` le nomme
+/// *pivot herméneutique* : d'un côté le monde du *Bayit* vivant, de l'autre
+/// le monde d'après sa destruction. La ligne ne dit donc pas seulement la
+/// date — elle dit ce que ça change pour lire : au-dessus, le Temple
+/// fonctionne encore dans le texte.
+///
+/// *Ḥurban* et *Bayit* s'écrivent **en clair, sans or**. Ni l'un ni l'autre
+/// n'a de fiche, et le §2.5 est net : l'or promet une explication et la tient.
+/// Un mot doré sur du vide est le défaut que `==` a été créé pour supprimer.
+pub const GROUPES: [(&str, &str, Option<&str>, Option<&str>); 4] = [
+    (
+        "eduyot",
+        "les trois témoins",
+        Some("les eduyot — trois témoins au sens de Devarim 19:15"),
+        None,
+    ),
+    ("trei-asar", "les Douze", None, None),
+    (
+        "igerot-lifnei-hahurban",
+        "Lettres d'avant la destruction",
+        Some("les igerot d'avant le Ḥurban — le monde du Bayit vivant"),
+        None,
+    ),
+    (
+        "igerot-aharei-hahurban",
+        "Lettres d'après la destruction",
+        Some("les igerot d'après le Ḥurban — le monde d'après le Bayit"),
+        Some("Le Second Temple est détruit en 70. Ce qui précède en parle au présent."),
+    ),
+];
+
+/// Le conteneur nommé, s'il est déclaré.
+pub fn groupe(id: &str) -> Option<(&'static str, Option<&'static str>, Option<&'static str>)> {
+    GROUPES
+        .iter()
+        .find(|(k, ..)| *k == id)
+        .map(|(_, fr, glose, rupture)| (*fr, *glose, *rupture))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

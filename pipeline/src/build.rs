@@ -22,12 +22,12 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
-use crate::config::{display_name, out, vault, REFERENCE, SKELETON, TREES};
+use crate::config::{display_name, groupe, out, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
-    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Inline, Manifest, Mode, ModeOutline,
+    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
     Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
 };
 use crate::search::index_chapter;
@@ -342,6 +342,10 @@ fn assemble(
                 id: entry.mode.id.clone(),
                 title: display_name(&entry.mode.id),
                 order: entry.mode.order,
+                // Remplis après coup, quand tous les livres du mode sont
+                // connus : l'ordre des conteneurs est celui de leurs livres,
+                // et on ne le devine pas depuis le premier venu.
+                groups: Vec::new(),
                 books: Vec::new(),
             });
         }
@@ -361,8 +365,42 @@ fn assemble(
     result.sort_by_key(|c| c.order);
     for corpus in &mut result {
         corpus.modes.sort_by_key(|m| m.order);
+        for mode in &mut corpus.modes {
+            mode.groups = groupes_du_mode(&mode.books);
+        }
     }
     result
+}
+
+/// Les conteneurs d'un mode, dans l'ordre où leurs livres paraissent.
+///
+/// L'ordre vient des **livres**, jamais d'une liste écrite à côté : c'est le
+/// corpus qui décide où tombe une coupure, et une liste recopiée finirait par
+/// diverger de lui sans que rien ne le dise.
+///
+/// Un conteneur rencontré mais non déclaré dans `GROUPES` est **ignoré en
+/// silence**, à dessein : le regroupement est un ornement de lecture, et une
+/// table des matières qui refuse de se rendre pour un identifiant inconnu
+/// coûterait plus au lecteur que le groupe ne lui apporte.
+fn groupes_du_mode(books: &[Book]) -> Vec<Group> {
+    let mut vus: Vec<&str> = Vec::new();
+    for id in books.iter().filter_map(|b| b.group_id.as_deref()) {
+        if !vus.contains(&id) {
+            vus.push(id);
+        }
+    }
+    vus.into_iter()
+        .filter_map(|id| {
+            let (french, glose, rupture) = groupe(id)?;
+            Some(Group {
+                id: id.to_string(),
+                title: display_name(id),
+                french: french.to_string(),
+                glose: glose.map(str::to_string),
+                rupture: rupture.map(str::to_string),
+            })
+        })
+        .collect()
 }
 
 struct Indexed {
@@ -658,6 +696,7 @@ pub fn build() -> Result<BuildResult, String> {
                             id: m.id.clone(),
                             title: m.title.clone(),
                             order: m.order,
+                            groups: m.groups.clone(),
                             books: m.books.iter().map(outline).collect(),
                         })
                         .collect(),

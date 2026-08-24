@@ -231,12 +231,48 @@ pub struct Book {
     pub empty: bool,
 }
 
+/// Un conteneur intermédiaire — `eduyot`, `trei-asar`, les deux `igerot`.
+///
+/// ## Pourquoi il devient un objet, et non plus un simple identifiant
+///
+/// Les livres portaient déjà un `group_id`, qui traversait tout — pipeline,
+/// schéma, `Corpus.swift` — sans qu'aucune interface ne l'affiche. Le
+/// regroupement existait dans les données et **le lecteur ne le voyait nulle
+/// part** : les vingt-et-une *Igerot* se lisaient comme une liste plate.
+///
+/// Or l'une de ces coupures n'est pas un rangement. `corpus-order.md` la nomme
+/// **pivot herméneutique** : le *Ḥurban*, la destruction du Second Temple en
+/// 70. Avant, les lettres parlent du Temple au présent — *Igeret HaIvrim* est
+/// « le dernier mot du *Bayit* vivant ». Après, il n'existe plus.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    /// Le nom ONT — `Igerot lifnei haḤurban`.
+    pub title: String,
+    /// Le pont de navigation, comme pour les livres.
+    pub french: String,
+    /// Ce que le nom dit, quand ça ne se confond pas avec le pont.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glose: Option<String>,
+    /// La ligne de sens qui **précède** ce groupe, quand la coupure est une
+    /// rupture et non une subdivision.
+    ///
+    /// Réservée au *Ḥurban* : *Eduyot* et *Trei Asar* regroupent, ils ne
+    /// fracturent pas. Une césure marquée partout ne marquerait plus rien.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rupture: Option<String>,
+}
+
 /// Un mode fonctionnel — Torah, Nevi'im, Ketouvim, Nistarot (§1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Mode {
     pub id: String,
     pub title: String,
     pub order: u32,
+    /// Les conteneurs de ce mode, dans l'ordre où leurs livres paraissent.
+    /// Vide pour la plupart — seuls quatre modes en ont.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<Group>,
     pub books: Vec<Book>,
 }
 
@@ -455,6 +491,10 @@ pub struct ModeOutline {
     pub id: String,
     pub title: String,
     pub order: u32,
+    /// Les conteneurs, portés jusqu'à la table des matières — c'est elle qui
+    /// les affiche, donc c'est elle qui doit les recevoir.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<Group>,
     pub books: Vec<BookOutline>,
 }
 
