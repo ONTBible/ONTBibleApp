@@ -48,22 +48,69 @@ public fun ONTTheme(
     val marque = ONTColors.brandInk(theme)
     val surface = ONTColors.surface(theme)
 
-    // On part du schéma de la bonne clarté pour que les composants Material
-    // qu'on ne surcharge pas — ondulations, états désactivés — tombent du bon
-    // côté, puis on impose les rôles qui portent la marque.
+    // On part du schéma de la bonne clarté pour que ce qu'on ne surcharge pas —
+    // ondulations, états désactivés — tombe du bon côté, puis on impose **tous**
+    // les rôles que Material peint.
+    //
+    // ## Pourquoi la liste est aussi longue
+    //
+    // Surcharger `primary` et `surface` ne suffit pas, et le défaut ne se voit
+    // que sur un écran de réglages : les curseurs, les puces de choix et les
+    // pastilles de sélection tirent leur fond des rôles `…Container`, restés au
+    // **lavande** par défaut de Material. Du lavande dans une app dont la
+    // palette vient d'un logo bordeaux et or.
+    //
+    // On ne peut pas les laisser tomber « à peu près juste » : un rôle non
+    // défini n'est pas neutre, il porte une couleur inventée par la
+    // bibliothèque. La règle est donc la même que pour `ONTColors` — une teinte
+    // qui n'est pas la nôtre est une teinte qu'on n'a pas choisie.
     val base = if (theme.isDark) darkColorScheme() else lightColorScheme()
+    val doux = ONTColors.inkSoft(theme)
     val schema = base.copy(
         primary = marque,
         onPrimary = ONTColors.onBrand(theme),
+        primaryContainer = marque,
+        onPrimaryContainer = ONTColors.onBrand(theme),
+        inversePrimary = ONTColors.accent(theme),
+
         secondary = ONTColors.accent(theme),
+        onSecondary = ONTColors.onBrand(theme),
+        // Le fond d'une puce choisie : l'or très dilué, qui reste dans la
+        // famille du parchemin au lieu d'y poser une autre matière.
+        secondaryContainer = ONTColors.accent(theme).copy(alpha = 0.22f),
+        onSecondaryContainer = encre,
+
+        tertiary = ONTColors.accentuation(theme),
+        onTertiary = ONTColors.onBrand(theme),
+        tertiaryContainer = ONTColors.accentuation(theme).copy(alpha = 0.20f),
+        onTertiaryContainer = encre,
+
         background = fond,
         onBackground = encre,
         surface = surface,
         onSurface = encre,
         surfaceVariant = surface,
-        onSurfaceVariant = ONTColors.inkSoft(theme),
+        onSurfaceVariant = doux,
+        surfaceTint = marque,
+        inverseSurface = encre,
+        inverseOnSurface = fond,
+
+        surfaceContainerLowest = fond,
+        surfaceContainerLow = fond,
+        surfaceContainer = surface,
+        surfaceContainerHigh = surface,
+        surfaceContainerHighest = surface,
+        surfaceDim = fond,
+        surfaceBright = surface,
+
         outline = ONTColors.separator(theme),
+        outlineVariant = ONTColors.separator(theme),
+        scrim = ONTColors.nuit.copy(alpha = 0.6f),
+
         error = ONTColors.accentuation(theme),
+        onError = ONTColors.onBrand(theme),
+        errorContainer = ONTColors.accentuation(theme).copy(alpha = 0.20f),
+        onErrorContainer = encre,
     )
 
     CompositionLocalProvider(LocalReadingTheme provides theme) {

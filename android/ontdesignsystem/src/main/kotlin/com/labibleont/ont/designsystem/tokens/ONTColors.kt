@@ -65,7 +65,7 @@ public object ONTColors {
      * Ce n'est pas un noir : c'est un aubergine si sombre qu'on le prend pour
      * du noir jusqu'à ce que l'or se pose dessus.
      */
-    internal val nuit: Color = Color(0xFF18090D)
+    public val nuit: Color = Color(0xFF18090D)
 
     /** `--color-surface` du site — **#261016**. */
     internal val nuitSurface: Color = Color(0xFF261016)
