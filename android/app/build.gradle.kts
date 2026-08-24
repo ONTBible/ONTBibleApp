@@ -41,7 +41,13 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        // `BuildConfig.DEBUG` distingue la build de développement de celle
+        // qu'on livre. Depuis AGP 8, il n'est plus engendré par défaut : il
+        // faut le demander, sinon la constante n'existe pas.
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21

@@ -54,6 +54,7 @@ import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
+import com.labibleont.ont.designsystem.catalog.DSCatalog
 import com.labibleont.ont.designsystem.surfaces.ontScreen
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.theme.ONTTheme
@@ -213,6 +214,7 @@ private fun Racine(
             DestinationVous.LECTURE -> "Réglages de lecture"
             DestinationVous.VERSET_DU_JOUR -> "Verset du jour"
             DestinationVous.PARUTIONS -> "Parutions"
+            DestinationVous.CATALOGUE -> "Design system"
         }
         Ecran.Onglets -> null
     }
@@ -335,6 +337,7 @@ private fun Racine(
                         },
                     )
                     DestinationVous.PARUTIONS -> ParutionsSettings()
+                    DestinationVous.CATALOGUE -> DSCatalog()
                 }
 
                 ecran is Ecran.Lecture -> {
@@ -391,6 +394,7 @@ private fun Racine(
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,
                     onAller = { ecran = Ecran.Reglage(it) },
+                    enDeveloppement = BuildConfig.DEBUG,
                     onPasEncore = {
                         portee.launch {
                             messages.showSnackbar(

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.WbTwilight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -44,6 +45,9 @@ public enum class DestinationVous {
     LECTURE,
     VERSET_DU_JOUR,
     PARUTIONS,
+
+    /** Le catalogue du design system — en développement seulement. */
+    CATALOGUE,
 }
 
 /**
@@ -73,6 +77,13 @@ public fun YouTab(
     versets: Int,
     onAller: (DestinationVous) -> Unit,
     onPasEncore: () -> Unit,
+    /**
+     * Vrai en build de développement.
+     *
+     * Le catalogue n'a rien à faire dans une app livrée : il ne sert qu'à
+     * repérer une dérive de style avant qu'elle n'atteigne un écran de lecture.
+     */
+    enDeveloppement: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -156,6 +167,20 @@ public fun YouTab(
                 ONTRow(titre = "Slots rédigés", fin = { Valeur("$slotsRediges / $slotsTotal") })
                 ONTGroupDivider()
                 ONTRow(titre = "Versets", fin = { Valeur("$versets") })
+            }
+
+            if (enDeveloppement) {
+                Spacer(Modifier.height(espace.xl))
+                ONTSectionHeader("Développement")
+                ONTGroup {
+                    ONTRow(
+                        titre = "Design system",
+                        detail = "jetons, surfaces, fontes, rendu",
+                        icone = Icons.Filled.Palette,
+                        onClick = { onAller(DestinationVous.CATALOGUE) },
+                        fin = { Chevron() },
+                    )
+                }
             }
 
             Spacer(Modifier.height(espace.xxl))
