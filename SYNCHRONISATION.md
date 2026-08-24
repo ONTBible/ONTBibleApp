@@ -136,12 +136,71 @@ Quatre moments où le silence coûte cher :
    les branches des autres.
 4. **En rendant**, pour dire ce qui a changé et ce qui reste à faire.
 
-### L'arbre de travail se tient à un seul
+### L'arbre de travail se tient à un seul — ou, mieux, on n'en partage pas
 
 Une seule session à la fois, et la passation est **explicite** : « je prends » /
 « je rends », vérifiée avant — `git branch --show-current`, `git status` — et on
 ne touche à rien entre les deux. Annoncer qu'on prend l'arbre ne suffit pas : il
 faut déplacer `HEAD`, et le constater.
+
+C'est un protocole social. Il tient tant que tout le monde s'en souvient, et il
+coûte une journée le jour où quelqu'un l'oublie. On peut faire mieux.
+
+### `git worktree` — rendre le conflit impossible plutôt que déconseillé
+
+**Posé le 24 août 2026.** Deux sessions travaillaient en parallèle sur
+`ONTBibleApp` ; l'une a changé de branche pendant que l'autre écrivait. Rien n'a
+été perdu — elle a prévenu, et vérifié après coup que la branche voisine était
+intacte — mais le seul rempart avait été sa vigilance.
+
+Un dépôt git confond deux choses parce qu'elles vivent au même endroit : le
+dossier `.git`, qui porte **toute** l'histoire, et les fichiers autour, qui n'en
+montrent **qu'une branche**. D'où la limite : un dépôt, une branche visible. En
+changer déplace les fichiers de tout le monde.
+
+`git worktree` sépare les deux :
+
+    git worktree add ../ONTBibleApp-android ma-branche
+
+donne un **second dossier de fichiers**, sur une **autre branche**, partageant le
+**même** `.git`. Ce n'est pas un clone : rien n'est dupliqué, et le `.git` du
+nouveau dossier n'est même pas un dossier — c'est un fichier d'une ligne qui
+renvoie vers l'original.
+
+    ONTBibleApp/              ← branche A        session 1
+      .git/                   ← l'histoire, partagée
+    ONTBibleApp-android/      ← branche B        session 2
+      .git                    ← un renvoi, pas une copie
+
+Chaque dossier a son propre `HEAD`. Un `switch` chez l'une ne touche plus
+l'autre. Les commandes utiles tiennent en quatre lignes :
+
+    git worktree list                    qui travaille où, sur quelle branche
+    git worktree add <dossier> <branche>
+    git worktree remove <dossier>
+    git worktree prune                   nettoie les dossiers effacés à la main
+
+**Quand l'employer.** Dès qu'une session sœur est présente — `ListAgents` le
+dit. Le monter coûte une seconde ; la passation d'arbre coûte une conversation,
+et un oubli coûte une journée.
+
+**Quatre choses à savoir, dont une qui mord.**
+
+1. **Une branche ne s'ouvre que dans un seul worktree.** Git refuse la seconde
+   sortie — c'est une protection : deux dossiers sur la même branche
+   divergeraient.
+2. **Les fichiers non suivis ne suivent pas.** C'est le vrai piège, et il s'est
+   présenté le jour même : le travail en cours n'était pas encore commité, il a
+   fallu le déplacer à la main. Commiter avant de monter le worktree l'évite.
+3. **Branches, commits, `stash` sont partagés** — c'est le même dépôt. Seuls les
+   fichiers de travail sont séparés, et c'est exactement ce qu'on veut.
+4. **Les artefacts de build sont à refaire.** Chaque worktree a ses `target/`,
+   `build/`, `.gradle/`. Compter une première compilation complète, et un
+   `cargo clean` de plus en fin de chantier.
+
+**Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
+les décisions : deux sessions qui refondent le même module chacune de leur côté
+produiront deux refontes, proprement isolées et incompatibles.
 
 ### Vérifier ce que l'autre affirme
 
@@ -411,3 +470,24 @@ figurent, donc un changement mêlé à du code d'app livre toujours.
 sans qu'on ait rien fait, et il casse **partout où il est employé**. Épingler
 un dépôt sans regarder ses voisins ne corrige que la moitié du défaut — et
 l'autre moitié échoue là où personne ne regarde.
+
+### 24 août 2026 — `git worktree`, pour que deux sessions cessent de se disputer l'arbre
+
+**Source : l'incident du jour, sans perte cette fois.** Deux sessions
+travaillaient en parallèle sur `ONTBibleApp` ; l'une a déplacé `HEAD` pendant
+que l'autre écrivait le portage Android. Rien n'a été perdu — elle a prévenu, et
+vérifié la branche voisine après coup — mais le seul rempart avait été sa
+vigilance, et c'est exactement ce que le 21 août avait déjà coûté.
+
+**Pour les trois dépôts :** la section « Plusieurs sessions à la fois » ne dit
+plus seulement « l'arbre se tient à un seul ». Elle documente `git worktree`,
+qui donne à chaque session son propre dossier de fichiers sur sa propre branche,
+avec le même `.git` — donc le même historique, les mêmes commits, et deux `HEAD`
+indépendants. Le conflit devient **impossible** au lieu d'être déconseillé.
+
+Le piège à connaître, rencontré le jour même : **les fichiers non suivis ne
+suivent pas** le worktree. Commiter avant de le monter, ou les déplacer à la
+main.
+
+Cette page-ci a été écrite depuis trois worktrees, un par dépôt — les branches
+en cours des sessions sœurs n'ont pas été touchées.
