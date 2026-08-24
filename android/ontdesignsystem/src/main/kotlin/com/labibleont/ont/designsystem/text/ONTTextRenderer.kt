@@ -167,9 +167,31 @@ public object ONTTextRenderer {
     ): AnnotatedString {
         val base = compose(nodes, typo, showGloss = false, showLevel3 = false)
         if (ink == null) return base
-        return buildAnnotatedString {
-            withStyle(SpanStyle(color = ink)) { append(base) }
-        }
+
+        // ## Écraser les couleurs, et non les poser dessous
+        //
+        // Envelopper le texte dans un `SpanStyle(color = ink)` ne suffit pas :
+        // les fragments intérieurs portent déjà la leur — l'encre du corps,
+        // l'or des intraduisibles — et un fragment intérieur l'emporte sur son
+        // enveloppe. Le corps du verset restait donc à l'encre sombre, posée
+        // sur un aplat bordeaux, illisible ; seuls les intraduisibles se
+        // voyaient, parce que leur or coïncidait avec ce qu'on voulait.
+        //
+        // Le Swift écrit `output.foregroundColor = ink`, qui **remplace** la
+        // couleur de tous les fragments. On fait pareil : on force la couleur
+        // de chaque fragment, et on ajoute un fragment de pleine étendue pour
+        // le texte qu'aucun ne couvre.
+        //
+        // Le reste des attributs survit — graisse, italique, fonte hébraïque —
+        // parce qu'on ne remplace que la couleur.
+        @Suppress("DEPRECATION")
+        return AnnotatedString(
+            text = base.text,
+            spanStyles = listOf(
+                AnnotatedString.Range(SpanStyle(color = ink), 0, base.text.length),
+            ) + base.spanStyles.map { it.copy(item = it.item.copy(color = ink)) },
+            paragraphStyles = base.paragraphStyles,
+        )
     }
 
     // ── La composition ──────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +48,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
@@ -60,6 +62,8 @@ import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
+import com.labibleont.ont.features.qahal.QahalModel
+import com.labibleont.ont.features.qahal.QahalTab
 import com.labibleont.ont.features.search.SearchScreen
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
@@ -68,6 +72,7 @@ import com.labibleont.ont.notifications.VersetDuJourWorker
 
 /** Les trois onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
+    QAHAL("Qahal"),
     BIBLE("Bible"),
     LEXIQUE("Lexique"),
     VOUS("Vous"),
@@ -91,6 +96,7 @@ public class MainActivity : ComponentActivity() {
         val corpus = AssetCorpusRepository(applicationContext)
         val glossaire = AssetGlossaryRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
+        val vivier = AssetDailyVerseRepository(applicationContext)
         val lecteur = FileReaderStore(applicationContext)
 
         setContent {
@@ -104,6 +110,10 @@ public class MainActivity : ComponentActivity() {
                 key = "lexique",
                 factory = fabrique { LexiconModel(glossaire) },
             )
+            val qahal: QahalModel = viewModel(
+                key = "qahal",
+                factory = fabrique { QahalModel(vivier, corpus) },
+            )
             val recherche: SearchModel = viewModel(
                 key = "recherche",
                 factory = fabrique { SearchModel(index, glossaire) },
@@ -114,6 +124,7 @@ public class MainActivity : ComponentActivity() {
                     lecture = lecture,
                     lexique = lexique,
                     recherche = recherche,
+                    qahal = qahal,
                     preferences = preferences,
                     onPreferences = {
                         lecteur.preferences = it
@@ -136,6 +147,7 @@ private fun Racine(
     lecture: ReadingModel,
     lexique: LexiconModel,
     recherche: SearchModel,
+    qahal: QahalModel,
     preferences: ReadingPreferences,
     onPreferences: (ReadingPreferences) -> Unit,
 ) {
@@ -160,7 +172,10 @@ private fun Racine(
     }
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
-    LaunchedEffect(onglet) { if (onglet == Onglet.LEXIQUE) lexique.charger() }
+    LaunchedEffect(onglet) {
+        if (onglet == Onglet.LEXIQUE) lexique.charger()
+        if (onglet == Onglet.QAHAL) qahal.choisir()
+    }
 
     // Le retour système ferme la lecture avant de quitter l'app. Sur Android
     // c'est le geste principal — le lui refuser oblige à viser une flèche.
@@ -267,6 +282,7 @@ private fun Racine(
                             icon = {
                                 Icon(
                                     when (o) {
+                                        Onglet.QAHAL -> Icons.Filled.Groups
                                         Onglet.BIBLE -> Icons.AutoMirrored.Filled.MenuBook
                                         Onglet.LEXIQUE -> Icons.Filled.Translate
                                         Onglet.VOUS -> Icons.Filled.Person
@@ -333,6 +349,23 @@ private fun Racine(
                         )
                     }
                 }
+
+                onglet == Onglet.QAHAL -> QahalTab(
+                    chapitre = qahal.chapitre,
+                    verset = qahal.verset,
+                    preferences = preferences,
+                    onPartager = { texte ->
+                        contexte.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, texte)
+                                },
+                                null,
+                            ),
+                        )
+                    },
+                )
 
                 onglet == Onglet.BIBLE -> BibleTab(
                     model = lecture,
