@@ -889,3 +889,96 @@ Ce que le site en a tiré : `/llms.txt`, qui pose le cadre de lecture ONT à la
 racine plutôt que dans une page qu'il faut avoir trouvée. Il n'indexe rien — les
 soumissions à Bing et Google restent le seul geste qui fasse entrer un site dans
 un index, et elles appartiennent à Gloire.
+
+### 25 août 2026 — trois compteurs au vert, et une forme mal rangée dessous
+
+**Source : le vault**, en soldant le §13 de son `CLAUDE.md`. Rien à porter dans
+le pipeline ni dans le site — mais il faut reconstruire le corpus, et ce qui
+suit vaut pour les trois dépôts.
+
+**Ce que le vault a décidé.** Les sept termes que le pipeline signalait balisés
+sans entrée de glossaire sont réglés, et deux décisions dépassent le balisage :
+**shiphchah** devient intraduisible, et surtout la famille **chata** passe
+entière en hébreu — **chata** est le ==premier verbe intraduisible de l'ONT==,
+tous les verbes du §3.1 étaient traduits jusqu'ici. Le §2.3 reçoit par ailleurs
+l'argument d'exactitude sur le registre : « Chapitre 7 » pour une unité qui
+couvre *Bereshit* 7 et 8 est un intitulé faux, pas une commodité.
+
+#### Un compteur à zéro est un zéro, et il faut savoir ce qu'il comptait
+
+C'est ce que la journée ajoute à ce qu'elle avait déjà écrit.
+
+En déclarant un construit au §2.5, la puce de **tsedaqah** citait
+`**yirat YHWH**` comme exemple — **entre accents graves**. Or c'est exactement
+ce que le pipeline lit comme une *déclaration de forme*. `yirat YHWH` s'est
+donc retrouvé rattaché à **tsedaqah** au lieu de **yirah**.
+
+Le rapport de construction n'a rien dit. **Zéro terme inconnu, zéro marqueur
+déséquilibré, zéro mot d'or sans fiche** — les trois compteurs au vert, et une
+forme rangée sous le mauvais lemme. Un lecteur touchant le mot serait tombé sur
+la mauvaise fiche, sans qu'aucun contrôle ne s'en aperçoive.
+
+La cause n'est pas un contrôle défaillant : les trois vérifiaient exactement ce
+qu'ils annoncent — que tout terme balisé **a** une fiche. Aucun ne vérifiait
+qu'il a **la bonne**. Trouvé en ouvrant `dist/glossary.json` et en lisant les
+formes une par une, pas en lisant le rapport.
+
+**D'où la règle, qui prolonge celle du verdict qui se mesure :** un compteur à
+zéro ne dit pas que tout va bien, il dit que *ce qu'il comptait* est à zéro. Ce
+qu'il ne compte pas reste invisible, et l'aplomb du rapport ne distingue pas les
+deux. ==Lire la sortie construite, pas seulement le rapport qui la résume.==
+
+**Et ce n'est pas le même défaut que le « BUILD SUCCESSFUL » de l'entrée
+précédente — c'est un cran plus bas.** Là, la sortie survivait à une mesure qui
+n'avait pas eu lieu : il n'y avait rien derrière. Ici la mesure a bien eu lieu,
+les compteurs ont réellement compté, et ==le zéro était vrai==. C'est la
+*question* qui était à côté.
+
+La différence est pratique, pas philosophique : le premier cas se répare en
+**ajoutant une mesure**, le second ne se répare qu'en **changeant la question**.
+Aucune insistance sur la rigueur n'y mène — il fallait ouvrir la sortie et lire
+les formes une par une, c'est-à-dire faire à la main ce que le contrôle existe
+pour éviter.
+
+**La cause profonde a un nom, et elle ressortira ailleurs :** ==un langage qui
+n'a pas de citation ne peut pas distinguer *montrer* de *dire*.== Le §2.5 déclare
+ses formes entre accents graves ; il n'a donc aucun moyen d'écrire « voici à quoi
+ressemble une déclaration » sans écrire « ceci en est une ». Ce n'était pas une
+maladresse de rédaction mais une propriété du format, et tout document qui se
+lit lui-même comme configuration porte le même défaut.
+
+#### Le même motif, une fois de plus, sur le relevé qui ouvrait le chantier
+
+Le §13 annonçait « vingt-deux marqueurs déséquilibrés » dans les pieds de
+*Bereshit* 15 à 19. Le compte était relevé **par ligne** — or un `**…**` enjambe
+légitimement un retour à la ligne, et un gras ouvert en fin de ligne, fermé au
+début de la suivante, produit deux lignes « impaires » sans le moindre défaut.
+
+Mesuré **par paragraphe**, l'unité réelle du balisage : ==deux==, non
+vingt-deux. Les deux étaient réels et sont corrigés. Le balayage a ensuite été
+repassé sur tout le corpus, non sur les seuls chapitres que le §13 regardait :
+zéro.
+
+C'est le quatrième exemplaire du même motif en un jour, et il n'a rien de neuf
+sinon sa banalité : un nombre bien formé, aligné, crédible, qui mesurait autre
+chose que la question posée.
+
+#### Le contrôle de concordance n'élit plus de référence
+
+`concorder-la-synchronisation.py` retenait le contenu **majoritaire** parmi les
+dépôts. Juste contre une racine périmée, faux pendant une **fenêtre de
+propagation** : le dépôt qui vient de recevoir une entrée est minoritaire, donc
+la majorité est l'ancienne version. Il désignait le retard comme référence et
+proposait d'y figer la racine.
+
+Le refus d'aligner était déjà en place ; c'est le **verdict au-dessus** qui
+manquait, et une note sous un verdict est ce qu'on lit le moins. Quand les
+dépôts divergent, il n'existe pas de référence — le contrôle dit maintenant qui
+porte quoi, et rien d'autre.
+
+Éprouvé sur un état divergent **construit exprès**, jamais sur l'état du moment.
+C'est précisément ce qui n'avait jamais été fait, et pourquoi le défaut a
+attendu d'être rencontré pour se voir.
+
+**Ce que les trois dépôts doivent en retenir :** reconstruire le corpus après
+toute décision de balisage, et **lire la sortie**, pas seulement le résumé.
