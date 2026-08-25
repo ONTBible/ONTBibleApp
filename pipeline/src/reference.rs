@@ -368,7 +368,7 @@ const ORDINAUX: [(&str, &str); 3] = [("alef", "א׳"), ("bet", "ב׳"), ("gimel"
 ///
 /// Le répertoire du §2.6 porte **une entrée pour deux livres** — une seule
 /// ligne `El HaQorintiyim` avec son hébreu, pour *Alef* et *Bet*. La recherche
-/// se faisant sur le nom exact, `el-haqorintiyim-alef` ne trouvait rien : onze
+/// se faisant sur le nom exact, `el-ha-qorintiyim-alef` ne trouvait rien : onze
 /// livres s'affichaient sans écriture hébraïque au sommaire, alors que leur
 /// hébreu existait une ligne plus haut.
 ///
