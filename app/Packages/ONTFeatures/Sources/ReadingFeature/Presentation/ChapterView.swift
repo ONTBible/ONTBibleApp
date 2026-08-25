@@ -1445,29 +1445,6 @@ public struct ReadingSettingsSheet: View {
                 .ontRow()
 
                 Section {
-                    Toggle("Le français reçu", isOn: $model.preferences.french)
-                } header: {
-                    Text("Nom des livres")
-                } footer: {
-                    Text(
-                        "Allumé, les livres portent le nom qu'on leur connaît — "
-                            + "« Apocalypse », « la Loi », « Chapitre 7 ». Éteint, ils "
-                            + "portent ce que leur nom hébreu veut dire : « le machazeh "
-                            + "de Yohanan », « la Fondation », « Parashah 7 ».\n\n"
-                            + "L'écart entre les deux n'est pas une nuance de traduction. "
-                            + "La torah est l'instruction qui vise ; le grec l'a rendue par "
-                            + "nomos, le code qui contraint, et le français en a hérité "
-                            + "« la Loi ».\n\n"
-                            + "Ce réglage est une béquille, et il est allumé pour qu'on "
-                            + "puisse marcher avant de savoir. En l'éteignant, des mots "
-                            + "apparaissent que vous n'avez peut-être jamais lus — parashah, "
-                            + "la division que le scribe hébreu traçait en laissant un blanc, "
-                            + "mille ans avant qu'on numérote des chapitres."
-                    )
-                }
-                .ontRow()
-
-                Section {
                     Toggle("Gloses", isOn: $model.preferences.showGloss)
                     Toggle("Translittération et hébreu", isOn: $model.preferences.showLevel3)
                 } header: {

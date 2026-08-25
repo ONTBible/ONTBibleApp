@@ -666,3 +666,44 @@ chaque session ; le vote dit ce que **porte** chaque dépôt.
 
 Enfin, `--aligner-la-racine <DÉPÔT>` écrit la racine depuis un dépôt nommé. La
 direction est dans la commande, elle ne se devine plus.
+
+### 25 août 2026 — un type écrit à la main suit un contrat qu'il ne surveille pas
+
+**Le même défaut, le même jour, dans les trois dépôts et dans trois langages.**
+
+Aucun n'a été trouvé en le cherchant. Chacun est apparu parce qu'une session
+avait mis un nom sur le précédent — c'est le **motif** qui a voyagé, pas la
+recherche. D'où la règle qu'on en tire, et qui n'est pas « faire relire son code
+par le voisin » : **nommer un défaut, et pas seulement le corriger.**
+
+- **App / Android** — `PreferencesFichier`, écrit à la main, ne portait pas le
+  réglage « Le français reçu ». Il se basculait, l'écran suivait, il
+  disparaissait à la fermeture.
+- **Site** — quatre mappages lisaient le schéma du pipeline par accès de champ.
+  Un champ ajouté en amont passait en silence ; **quatre l'étaient déjà** sans
+  que personne le sache, dont l'`intro` d'un livre.
+- **App / iOS** — le conteneur `State` refusait de se décoder si une clé de haut
+  niveau manquait, et le `try?` avalait l'erreur : tous les surlignages du
+  lecteur, perdus sans un mot. **Latent, jamais déclenché** — les trois champs
+  sont là depuis le commit initial. Le prochain champ ajouté l'aurait armé, et
+  le prochain est la synchronisation de compte.
+
+**Trois gardes, chacune propre à ce que son langage permet :** déstructuration
+exhaustive en Rust — `error[E0027]` à la compilation, sans `..` qui rétablirait
+le silence ; réflexion sur le constructeur primaire en Kotlin, faute de motif
+exhaustif sur les data classes ; initialiseur mémberwise **sans valeurs par
+défaut** en Swift, où les défauts ne protégeaient rien et donnaient l'illusion
+du contraire — `var preferences: ReadingPreferences = .default` se lit comme une
+tolérance, et le décodage synthétisé ne consulte jamais cette valeur.
+
+**Chacune a été éprouvée en cassant exprès ce qu'elle garde** — un champ ajouté
+au schéma, un `@Required` posé, une clé retirée du fichier. C'est la seule façon
+de savoir qu'on a des gardes et non des intentions. Et une épreuve qui rougit
+**seule** en dit plus qu'une suite qui rougit en entier : quatre épreuves vertes
+autour d'une rouge bornent le défaut au lieu de le supposer partout.
+
+**Ce qui reste commun aux trois, après les correctifs** : une lecture ratée ne
+doit pas devenir une perte. Le fichier qu'on n'a pas su lire est mis de côté —
+`lecteur.illisible.json` — avant qu'on reparte à vide. Repartir vide est le bon
+comportement ; l'écraser ensuite transformait un incident de lecture en
+destruction définitive.
