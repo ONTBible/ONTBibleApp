@@ -865,6 +865,26 @@ appariement à regarder**, donc relire les lignes ne peut rien attraper là où 
 n'y a rien à lire. Seul un témoin dont on connaît d'avance la réponse distingue
 « rien trouvé » de « rien cherché ».
 
+#### Et elle innocente aussi souvent qu'elle accuse
+
+La forme séduisante de cette leçon est « les outils mentent ». Elle est fausse,
+et il faut l'écrire ici parce qu'elle se retient mieux que la vraie.
+
+Le jour même, `concorder-la-synchronisation.py` a annoncé le site à 709 lignes
+quand son disque en portait 763. L'écart était réel, l'accusation était prête —
+et l'instrument avait raison : sa colonne d'empreinte donne ce qui **fait foi**,
+c'est-à-dire l'état publié, et il signalait `disque ≠ origin/main` sur la même
+ligne. L'entrée manquante vivait sur une branche, donc n'était pas publiée, donc
+était à bon droit hors du compte.
+
+La règle a mordu **dans l'autre sens** : on a validé l'instrument sur un cas dont
+on connaissait la réponse, et c'est la lecture qui a cédé. Un instrument juste
+qu'on n'a pas lu jusqu'au bout se présente exactement comme un instrument
+fautif — et le réécrire aurait cassé la garde qui protège ce fichier-ci.
+
+Ce qu'on éprouve n'est donc pas la sincérité de l'outil, c'est **l'appariement
+entre ce qu'il mesure et ce qu'on lui demande**. Il tombe des deux côtés.
+
 Ce que le site en a tiré : `/llms.txt`, qui pose le cadre de lecture ONT à la
 racine plutôt que dans une page qu'il faut avoir trouvée. Il n'indexe rien — les
 soumissions à Bing et Google restent le seul geste qui fasse entrer un site dans
