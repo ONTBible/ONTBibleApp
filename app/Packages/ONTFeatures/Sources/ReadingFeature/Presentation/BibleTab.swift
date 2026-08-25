@@ -51,8 +51,13 @@ public struct BibleTab: View {
                     Section {
                         ForEach(corpus.modes.sorted(by: { $0.order < $1.order })) { mode in
                             DisclosureGroup {
-                                ForEach(mode.books) { book in
-                                    BookRow(book: book)
+                                ForEach(disposer(mode)) { element in
+                                    switch element.contenu {
+                                    case .entete(let groupe):
+                                        ConteneurLabel(groupe: groupe)
+                                    case .livre(let book):
+                                        BookRow(book: book)
+                                    }
                                 }
                             } label: {
                                 ModeLabel(mode: mode)
@@ -60,10 +65,22 @@ public struct BibleTab: View {
                             .ontRow()
                         }
                     } header: {
-                        Text(corpus.title)
-                            .font(.custom(ONTFonts.display, size: 15))
-                            .textCase(nil)
-                            .foregroundStyle(ONTColors.brandInk(theme.mode))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(corpus.title)
+                                .font(.custom(ONTFonts.display, size: 15))
+                                .textCase(nil)
+                                .foregroundStyle(ONTColors.brandInk(theme.mode))
+                            // Le second nom, dans le registre choisi. Rien ne
+                            // s'affiche quand il n'y a rien à dire — une
+                            // section dont la glose redirait le pont n'en
+                            // porte pas.
+                            if let second = registre(corpus.french, corpus.glose, model.preferences.french) {
+                                Text(second)
+                                    .font(.caption)
+                                    .textCase(nil)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
@@ -118,11 +135,17 @@ private struct ResumeRow: View {
 }
 
 private struct ModeLabel: View {
+    @Environment(ReadingModel.self) private var model
     let mode: Mode
 
     var body: some View {
         HStack {
-            Text(mode.title).font(.headline)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(mode.title).font(.headline)
+                if let second = registre(mode.french, mode.glose, model.preferences.french) {
+                    Text(second).font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Spacer()
             Text("\(mode.books.filter { !$0.empty }.count)/\(mode.books.count)")
                 .font(.caption.monospacedDigit())
@@ -244,12 +267,31 @@ private struct SousTitreDeBarre: ViewModifier {
 }
 
 private struct ChapterRow: View {
+    @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
+
+    /// Le libellé d'une unité, dans le registre choisi.
+    ///
+    /// Le titre d'une unité est « Bereshit 7 ». Le poser vingt fois dans la
+    /// page de *Bereshit* n'apprend rien et noie le seul chiffre utile — le
+    /// nom du livre est déjà dans la barre de navigation.
+    ///
+    /// La paire est instructive à elle seule : **« chapitre » est la division
+    /// de Stephen Langton**, XIIIᵉ siècle, que le §2.3 écarte comme
+    /// « administrative médiévale — souvent arbitraire » ; la **parashah** est
+    /// la division native de l'hébreu, attestée à Qumrân, et elle *ouvre* —
+    /// le scribe laisse le reste de la ligne blanc.
+    ///
+    /// Une introduction garde son titre : elle n'a pas de rang à afficher.
+    private var libelle: String {
+        guard stub.n > 0 else { return stub.title }
+        return model.preferences.french ? "Chapitre \(stub.n)" : "Parashah \(stub.n)"
+    }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(stub.title)
+                Text(libelle)
                 if let reference = stub.reference {
                     Text(reference).font(.caption).foregroundStyle(.tertiary)
                 }
@@ -295,4 +337,95 @@ struct ChapterLoader: View {
             )
         }
     }
+}
+
+// MARK: - Les conteneurs, et la fracture du Ḥurban
+
+/// Ce que la liste d'un mode pose l'un après l'autre.
+private struct Element: Identifiable {
+    enum Contenu {
+        case entete(Conteneur)
+        case livre(BookOutline)
+    }
+    let id: String
+    let contenu: Contenu
+}
+
+/// Intercale les en-têtes de conteneur dans la suite des livres.
+///
+/// L'ordre vient des **livres**, jamais de la liste des conteneurs : c'est le
+/// corpus qui décide où tombe une coupure. Un identifiant porté par un livre
+/// sans déclaration est ignoré — une table des matières qui refuserait de se
+/// rendre pour un ornement coûterait plus au lecteur qu'il ne lui apporte.
+private func disposer(_ mode: Mode) -> [Element] {
+    var sortie: [Element] = []
+    var courant: String?
+    for livre in mode.books {
+        if livre.groupId != courant {
+            courant = livre.groupId
+            if let id = courant, let g = mode.groups.first(where: { $0.id == id }) {
+                sortie.append(Element(id: "entete-\(id)", contenu: .entete(g)))
+            }
+        }
+        sortie.append(Element(id: livre.id, contenu: .livre(livre)))
+    }
+    return sortie
+}
+
+/// L'en-tête d'un conteneur, et sa césure quand il en a une.
+///
+/// **Deux poids, deux traitements.** Un conteneur qui regroupe reçoit un
+/// intertitre discret ; celui qui fracture reçoit d'abord un filet appuyé et la
+/// ligne qui dit ce que la fracture change pour lire.
+///
+/// C'est le *Ḥurban*, et lui seul. `corpus-order.md` le nomme **pivot
+/// herméneutique** : les lettres d'avant parlent du Temple au présent —
+/// *Igeret HaIvrim* est « le dernier mot du Bayit vivant » ; trois numéros plus
+/// loin, il n'existe plus.
+private struct ConteneurLabel: View {
+    @Environment(\.ontTheme) private var theme
+    @Environment(ReadingModel.self) private var model
+    let groupe: Conteneur
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let rupture = groupe.rupture {
+                // Le filet est en accentuation et non en or : l'or dit
+                // l'intraduisible partout ailleurs, et une règle horizontale
+                // n'en est pas un.
+                Rectangle()
+                    .fill(ONTColors.accentuation(theme.mode).opacity(0.5))
+                    .frame(height: 2)
+                    .padding(.top, 8)
+                Text(rupture)
+                    .font(.footnote.italic())
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 6)
+            }
+            Text(groupe.title)
+                .font(.caption.smallCaps())
+                .foregroundStyle(.secondary)
+            Text(model.preferences.french ? groupe.french : (groupe.glose ?? groupe.french))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .listRowSeparator(.hidden)
+    }
+}
+
+
+/// Le second nom d'une section, dans le registre que le lecteur a choisi.
+///
+/// **Le français par défaut** : un lecteur qui arrive doit pouvoir se repérer
+/// avec les mots qu'il connaît — « la Loi », « Écrits apocalyptiques ». En
+/// glose, il lit ce que le nom ONT veut dire — « la Fondation », « les Réalités
+/// voilées » — et l'écart entre les deux est ce que le projet montre.
+///
+/// Rend `nil` quand il n'y a rien à dire : une section dont la glose redirait
+/// le pont — *Ketouvim* est « Écrits » des deux côtés — n'en porte pas, et la
+/// ligne disparaît plutôt que de se répéter.
+private func registre(_ francais: String?, _ glose: String?, _ francaisRecu: Bool) -> String? {
+    let choisi = francaisRecu ? francais : (glose ?? francais)
+    guard let choisi, !choisi.isEmpty else { return nil }
+    return choisi
 }

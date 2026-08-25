@@ -136,71 +136,12 @@ Quatre moments où le silence coûte cher :
    les branches des autres.
 4. **En rendant**, pour dire ce qui a changé et ce qui reste à faire.
 
-### L'arbre de travail se tient à un seul — ou, mieux, on n'en partage pas
+### L'arbre de travail se tient à un seul
 
 Une seule session à la fois, et la passation est **explicite** : « je prends » /
 « je rends », vérifiée avant — `git branch --show-current`, `git status` — et on
 ne touche à rien entre les deux. Annoncer qu'on prend l'arbre ne suffit pas : il
 faut déplacer `HEAD`, et le constater.
-
-C'est un protocole social. Il tient tant que tout le monde s'en souvient, et il
-coûte une journée le jour où quelqu'un l'oublie. On peut faire mieux.
-
-### `git worktree` — rendre le conflit impossible plutôt que déconseillé
-
-**Posé le 24 août 2026.** Deux sessions travaillaient en parallèle sur
-`ONTBibleApp` ; l'une a changé de branche pendant que l'autre écrivait. Rien n'a
-été perdu — elle a prévenu, et vérifié après coup que la branche voisine était
-intacte — mais le seul rempart avait été sa vigilance.
-
-Un dépôt git confond deux choses parce qu'elles vivent au même endroit : le
-dossier `.git`, qui porte **toute** l'histoire, et les fichiers autour, qui n'en
-montrent **qu'une branche**. D'où la limite : un dépôt, une branche visible. En
-changer déplace les fichiers de tout le monde.
-
-`git worktree` sépare les deux :
-
-    git worktree add ../ONTBibleApp-android ma-branche
-
-donne un **second dossier de fichiers**, sur une **autre branche**, partageant le
-**même** `.git`. Ce n'est pas un clone : rien n'est dupliqué, et le `.git` du
-nouveau dossier n'est même pas un dossier — c'est un fichier d'une ligne qui
-renvoie vers l'original.
-
-    ONTBibleApp/              ← branche A        session 1
-      .git/                   ← l'histoire, partagée
-    ONTBibleApp-android/      ← branche B        session 2
-      .git                    ← un renvoi, pas une copie
-
-Chaque dossier a son propre `HEAD`. Un `switch` chez l'une ne touche plus
-l'autre. Les commandes utiles tiennent en quatre lignes :
-
-    git worktree list                    qui travaille où, sur quelle branche
-    git worktree add <dossier> <branche>
-    git worktree remove <dossier>
-    git worktree prune                   nettoie les dossiers effacés à la main
-
-**Quand l'employer.** Dès qu'une session sœur est présente — `ListAgents` le
-dit. Le monter coûte une seconde ; la passation d'arbre coûte une conversation,
-et un oubli coûte une journée.
-
-**Quatre choses à savoir, dont une qui mord.**
-
-1. **Une branche ne s'ouvre que dans un seul worktree.** Git refuse la seconde
-   sortie — c'est une protection : deux dossiers sur la même branche
-   divergeraient.
-2. **Les fichiers non suivis ne suivent pas.** C'est le vrai piège, et il s'est
-   présenté le jour même : le travail en cours n'était pas encore commité, il a
-   fallu le déplacer à la main. Commiter avant de monter le worktree l'évite.
-3. **Branches, commits, `stash` sont partagés** — c'est le même dépôt. Seuls les
-   fichiers de travail sont séparés, et c'est exactement ce qu'on veut.
-4. **Les artefacts de build sont à refaire.** Chaque worktree a ses `target/`,
-   `build/`, `.gradle/`. Compter une première compilation complète, et un
-   `cargo clean` de plus en fin de chantier.
-
-**Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
-les décisions : deux sessions qui refondent le même module chacune de leur côté
-produiront deux refontes, proprement isolées et incompatibles.
 
 ### Vérifier ce que l'autre affirme
 
@@ -471,23 +412,75 @@ sans qu'on ait rien fait, et il casse **partout où il est employé**. Épingler
 un dépôt sans regarder ses voisins ne corrige que la moitié du défaut — et
 l'autre moitié échoue là où personne ne regarde.
 
-### 24 août 2026 — `git worktree`, pour que deux sessions cessent de se disputer l'arbre
+### 25 août 2026 — le corpus se nomme dans deux registres
 
-**Source : l'incident du jour, sans perte cette fois.** Deux sessions
-travaillaient en parallèle sur `ONTBibleApp` ; l'une a déplacé `HEAD` pendant
-que l'autre écrivait le portage Android. Rien n'a été perdu — elle a prévenu, et
-vérifié la branche voisine après coup — mais le seul rempart avait été sa
-vigilance, et c'est exactement ce que le 21 août avait déjà coûté.
+**Source : le pipeline, mais la décision vient du vault.**
 
-**Pour les trois dépôts :** la section « Plusieurs sessions à la fois » ne dit
-plus seulement « l'arbre se tient à un seul ». Elle documente `git worktree`,
-qui donne à chaque session son propre dossier de fichiers sur sa propre branche,
-avec le même `.git` — donc le même historique, les mêmes commits, et deux `HEAD`
-indépendants. Le conflit devient **impossible** au lieu d'être déconseillé.
+Chaque section et chaque livre porte désormais **deux noms**. La règle qui les
+sépare tient en une ligne : **en français les intraduisibles sont rendus, en
+glose ils restent en hébreu.**
 
-Le piège à connaître, rencontré le jour même : **les fichiers non suivis ne
-suivent pas** le worktree. Commiter avant de le monter, ou les déplacer à la
-main.
+    Torah              la Loi                  ⟨la Fondation⟩
+    Nistarot           Écrits apocalyptiques   ⟨les Réalités voilées⟩
+    Machazeh Yohanan   Apocalypse              ⟨le machazeh de Yohanan⟩
 
-Cette page-ci a été écrite depuis trois worktrees, un par dépôt — les branches
-en cours des sessions sœurs n'ont pas été touchées.
+Un interrupteur laisse le lecteur passer de l'un à l'autre, **allumé par
+défaut** : il faut pouvoir marcher avant de savoir. L'écart entre les deux
+colonnes n'est pas une nuance de traduction — c'est ce que le projet montre.
+
+**Pour le vault :** le pont français d'un livre vient du **nom de dossier** de
+`in-writing/`. Quatorze ne menaient nulle part — `44. marqus (Marqus)` répétait
+le nom ONT, `48. gevurot-ha-neviim (les Gevurot des Neviim)` n'était pas du
+français. Renommer le libellé suffit ; l'identifiant, donc les URL, ne bouge
+pas. La glose ONT, elle, se déclare dans `config.rs` : les libellés de dossiers
+mélangent les registres et ne peuvent pas servir de source.
+
+**Pour les liseuses :** `Chapitre 7` en français, **`Parashah 7`** en glose — et
+`parashah` est un intraduisible, en or, avec sa fiche. C'est peut-être le
+premier que le lecteur rencontre, puisqu'il apparaît au moment où il éteint
+l'aide.
+
+### 25 août 2026 — les renvois d'un verset à un autre mènent quelque part
+
+**Source : le pipeline. Conséquence pour les trois liseuses.**
+
+Une glose écrit « déjà posé en *Bereshit* 9:27 ». Ailleurs, on ouvre le
+chapitre 9 et on descend. **Ici c'est impossible** : les unités ONT ne
+coïncident pas avec les chapitres reçus. Le renvoi biblique est à la fois la
+seule chose que le lecteur sait et précisément ce qu'il ne peut pas suivre.
+
+218 renvois sont désormais liés. « Bereshit 9:27 » mène à `bereshit-9?v=10` —
+le verset 27 est le dixième de l'unité, qui commence à 9:18.
+
+**Le calcul refuse de conclure quand il ne peut pas.** L'unité 2 annonce
+`2:4-25`, soit vingt-deux versets, et n'en porte que vingt et un : deux ont été
+réunis. 48 renvois sur 218 visent un verset ; les 170 autres mènent à l'unité
+**par prudence, pas par oubli**.
+
+**Aucune montée de schéma**, à dessein : un type de nœud inédit ferait *lever*
+les liseuses installées. On réemploie `Inline::Link` avec une adresse **absolue**
+vers `ontbible.com` — une app ancienne l'ouvre dans le navigateur, une app à
+jour reconnaît son domaine et navigue au-dedans. Le site rend le chemin relatif
+et n'ouvre pas d'onglet.
+
+### 25 août 2026 — tout champ ajouté au corpus est facultatif
+
+**La règle a été payée deux fois dans la même journée**, et elle vaut pour les
+trois dépôts.
+
+`groups`, puis `french`, ont été ajoutés au schéma **sans valeur par défaut**.
+Chaque fois, une app compilée depuis la branche ne pouvait plus lire le corpus
+**publié** — qui, lui, ne porte pas encore la clé.
+
+La distinction qui a produit le défaut, deux fois : une clé **en trop** est
+ignorée par un décodeur ; une clé **manquante** sur un champ non optionnel
+**lève**. Éprouver la première ne dit rien de la seconde.
+
+**Et le numéro de schéma ne protège pas ici** : il ne bouge pas quand on ajoute
+une clé. La seule garde qui l'ait attrapé, les deux fois, est le test
+d'intégration qui interroge le **vrai serveur** — parce que seul un corpus
+réellement publié, plus ancien que le code, peut révéler le manque.
+
+Le corpus atteint des liseuses plus anciennes **et** plus récentes que lui.
+Cela vaut aussi dans l'autre sens : un champ retiré casse les liseuses qui
+l'attendent. Ajouter est sûr, retirer ne l'est pas.

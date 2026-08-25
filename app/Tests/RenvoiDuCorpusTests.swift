@@ -14,6 +14,11 @@ import Testing
 /// site que parce que sa configuration le nomme. Le test doit donc s'exécuter
 /// là où cette configuration existe. Écrit dans le paquet, il n'éprouvait pas
 /// le code : il éprouvait l'absence d'un fichier de configuration.
+/// **Sur l'acteur principal**, comme le routeur qu'elle éprouve : `Router`
+/// porte l'état de navigation d'une interface, donc il y est isolé. Un test
+/// qui l'appellerait d'ailleurs ne compilerait pas — et c'est le compilateur
+/// qui a raison.
+@MainActor
 @Suite("Le renvoi du corpus")
 struct RenvoiDuCorpusTests {
     /// **Le maillon qui relie deux chantiers.** Le pipeline résout
