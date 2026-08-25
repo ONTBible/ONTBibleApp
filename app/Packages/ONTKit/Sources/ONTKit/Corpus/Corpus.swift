@@ -92,6 +92,36 @@ public struct Chapter: Hashable, Sendable, Identifiable {
     }
 }
 
+/// Comment une unité se nomme devant le lecteur — le seul endroit où le mot
+/// se décide.
+///
+/// Il s'est déjà écrit deux fois : le sommaire du livre disait « Chapitre 2 »
+/// quand le sélecteur de renvoi disait encore « Bereshit 2 », et la pastille de
+/// l'écran de lecture ne suivait ni l'un ni l'autre. Trois écrans, trois états,
+/// parce que le calcul vivait dans une vue.
+public enum LibelleDUnite {
+    /// « Chapitre 7 » ou « Parashah 7 ».
+    ///
+    /// **« Chapitre » est la division de Stephen Langton**, XIIIᵉ siècle, que le
+    /// §2.3 du vault écarte comme « administrative médiévale — souvent
+    /// arbitraire » ; la **parashah** est la division native de l'hébreu,
+    /// attestée à Qumrân, et elle *ouvre* — le scribe laisse le reste de la
+    /// ligne blanc.
+    public static func rang(_ n: Int, french: Bool) -> String {
+        french ? "Chapitre \(n)" : "Parashah \(n)"
+    }
+
+    /// « Bereshit · Chapitre 7 » — le livre **et** le rang.
+    ///
+    /// Réservé aux écrans où rien d'autre ne dit dans quel livre on est :
+    /// l'écran de lecture, dont la pastille est le seul repère. Ailleurs — le
+    /// sommaire, le sélecteur — le nom du livre est déjà dans la barre, et le
+    /// répéter noierait le seul chiffre utile.
+    public static func situe(livre: String, rang n: Int, french: Bool) -> String {
+        "\(livre) · \(rang(n, french: french))"
+    }
+}
+
 /// La forme allégée d'une unité dans l'arborescence de navigation.
 public struct ChapterStub: Hashable, Sendable, Identifiable {
     public let id: String
@@ -108,6 +138,41 @@ public struct ChapterStub: Hashable, Sendable, Identifiable {
         self.status = status
         self.verseCount = verseCount
         self.reference = reference
+    }
+
+    /// Comment cette unité se nomme devant le lecteur, dans son registre.
+    ///
+    /// Le titre porté par le corpus est « Bereshit 7 » — le nom du livre suivi
+    /// d'un rang. Le répéter à chaque ligne de la page de *Bereshit* n'apprend
+    /// rien et noie le seul chiffre utile : le nom du livre est déjà dans la
+    /// barre de navigation.
+    ///
+    /// La paire est instructive à elle seule. **« Chapitre » est la division de
+    /// Stephen Langton**, XIIIᵉ siècle, que le §2.3 du vault écarte comme
+    /// « administrative médiévale — souvent arbitraire » ; la **parashah** est
+    /// la division native de l'hébreu, attestée à Qumrân, et elle *ouvre* — le
+    /// scribe laisse le reste de la ligne blanc.
+    ///
+    /// **Ce calcul vit ici et non dans une vue**, parce que trois écrans le
+    /// font : le sommaire du livre, le sélecteur de renvoi à l'étape des
+    /// unités, et son titre de barre à l'étape des versets. Écrit trois fois,
+    /// il aurait divergé au premier changement — et il avait déjà commencé :
+    /// le sommaire disait « Chapitre 2 » quand le sélecteur disait encore
+    /// « Bereshit 2 ».
+    ///
+    /// Une introduction garde son titre : elle n'a pas de rang à afficher.
+    public func label(french: Bool) -> String {
+        guard n > 0 else { return title }
+        return LibelleDUnite.rang(n, french: french)
+    }
+
+    /// Le nom de l'unité **comme genre**, pour une phrase qui la désigne.
+    ///
+    /// « Tout le chapitre » / « Toute la parashah » : le mot change, et le
+    /// genre grammatical avec lui. Rendre le seul nom laisserait au point
+    /// d'appel le soin d'accorder, et il l'oublierait.
+    public static func nomDuGenre(french: Bool) -> (article: String, nom: String) {
+        french ? ("Tout le", "chapitre") : ("Toute la", "parashah")
     }
 }
 

@@ -270,23 +270,9 @@ private struct ChapterRow: View {
     @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
 
-    /// Le libellé d'une unité, dans le registre choisi.
-    ///
-    /// Le titre d'une unité est « Bereshit 7 ». Le poser vingt fois dans la
-    /// page de *Bereshit* n'apprend rien et noie le seul chiffre utile — le
-    /// nom du livre est déjà dans la barre de navigation.
-    ///
-    /// La paire est instructive à elle seule : **« chapitre » est la division
-    /// de Stephen Langton**, XIIIᵉ siècle, que le §2.3 écarte comme
-    /// « administrative médiévale — souvent arbitraire » ; la **parashah** est
-    /// la division native de l'hébreu, attestée à Qumrân, et elle *ouvre* —
-    /// le scribe laisse le reste de la ligne blanc.
-    ///
-    /// Une introduction garde son titre : elle n'a pas de rang à afficher.
-    private var libelle: String {
-        guard stub.n > 0 else { return stub.title }
-        return model.preferences.french ? "Chapitre \(stub.n)" : "Parashah \(stub.n)"
-    }
+    /// Le libellé de l'unité, dans le registre choisi — le calcul vit dans
+    /// `ChapterStub` parce que le sélecteur de renvoi le fait aussi.
+    private var libelle: String { stub.label(french: model.preferences.french) }
 
     var body: some View {
         HStack {

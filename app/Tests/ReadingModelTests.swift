@@ -367,3 +367,79 @@ struct ReadingModelTests {
         #expect(!preferences.preferences.showGloss)
     }
 }
+
+/// Ce que le lecteur doit voir écrit, et savoir où il en est.
+///
+/// Ces deux épreuves couvrent un défaut qu'aucune des deux ne montre seule :
+/// le sélecteur de renvoi disait « Bereshit 2 » et « Toute l'unité » quand le
+/// sommaire disait déjà « Chapitre 2 », parce que le calcul était **écrit en
+/// dur dans une vue** et n'existait qu'à un seul endroit. Il vit maintenant sur
+/// `ChapterStub`, et c'est ce qui est éprouvé ici — pas le rendu.
+@MainActor
+struct RegistreDesUnitesTests {
+    private func stub(n: Int, title: String = "Bereshit 2") -> ChapterStub {
+        ChapterStub(
+            id: "bereshit-2", n: n, title: title,
+            status: .locked, verseCount: 21, reference: "2:4-25"
+        )
+    }
+
+    @Test("le registre décide du mot, pas de la vue")
+    func labelFollowsTheRegister() {
+        #expect(stub(n: 2).label(french: true) == "Chapitre 2")
+        #expect(stub(n: 2).label(french: false) == "Parashah 2")
+    }
+
+    /// Une introduction n'a pas de rang : elle garde son titre. Sans ce cas,
+    /// le sommaire annoncerait « Chapitre 0 ».
+    @Test("une introduction garde son titre")
+    func introKeepsItsTitle() {
+        let intro = stub(n: 0, title: "TOLEDOT ADAM VE-CHAVAH")
+        #expect(intro.label(french: true) == "TOLEDOT ADAM VE-CHAVAH")
+        #expect(intro.label(french: false) == "TOLEDOT ADAM VE-CHAVAH")
+    }
+
+    /// Le genre grammatical voyage avec le mot, sinon le point d'appel doit
+    /// l'accorder lui-même — et il l'oubliera.
+    @Test("le genre suit le mot")
+    func genderTravelsWithTheWord() {
+        let fr = ChapterStub.nomDuGenre(french: true)
+        let glose = ChapterStub.nomDuGenre(french: false)
+        #expect("\(fr.article) \(fr.nom)" == "Tout le chapitre")
+        #expect("\(glose.article) \(glose.nom)" == "Toute la parashah")
+    }
+}
+
+/// La position mémorisée **prévient** ceux qui la regardent.
+///
+/// `position` lit `revision` pour s'abonner : c'est ce qui fait qu'`@Observable`
+/// la surveille, puisque la valeur vient d'un dépôt qu'il ne voit pas.
+/// `remember` écrivait sans y toucher — donc sans le dire.
+///
+/// Ça ne se voyait pas : les deux vues qui lisent la position sont construites
+/// à neuf quand on les ouvre, et lisaient la bonne valeur **par accident**. Le
+/// sélecteur de renvoi s'appuie désormais dessus pour marquer le verset
+/// courant.
+@MainActor
+struct PositionObservableTests {
+    @Test("mémoriser une position fait bouger la révision")
+    func rememberingBumpsTheRevision() {
+        let model = ReadingModel(
+            corpus: ReadingModelTests.FakeCorpus(),
+            highlights: ReadingModelTests.FakeHighlights(),
+            positions: ReadingModelTests.FakePositions(),
+            preferences: ReadingModelTests.FakePreferences()
+        )
+        let avant = model.revision
+        model.remember(
+            chapter: Chapter(
+                id: "bereshit-18", bookId: "bereshit", kind: .chapter, n: 18,
+                title: "Bereshit 18", titleNodes: [], subtitle: nil, status: .locked,
+                blocks: [], footer: nil, verseCount: 33, lemmas: []
+            ),
+            verse: 12
+        )
+        #expect(model.revision > avant, "sans ça, une vue à l'écran garde l'ancienne position")
+        #expect(model.position?.verse == 12)
+    }
+}
