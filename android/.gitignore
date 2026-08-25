@@ -9,3 +9,4 @@ build/
 *.keystore
 captures/
 ontdesignsystem/src/main/res/font/
+android/captures/
