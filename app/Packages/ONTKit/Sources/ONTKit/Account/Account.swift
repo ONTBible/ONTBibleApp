@@ -92,6 +92,13 @@ public enum AccountError: LocalizedError, Equatable, Sendable {
     case providerRefused
     /// Le fournisseur n'a pas pu conclure, et ne dit pas pourquoi.
     case providerUnavailable(AuthProvider)
+    /// Ce fournisseur n'est pas installé sur le déploiement qu'on interroge.
+    ///
+    /// **Distinct de [`providerUnavailable`], et la nuance est celle qu'on dit
+    /// au lecteur** : là, réessayer peut marcher ; ici, jamais. Le serveur ne
+    /// possède pas les identifiants, et aucune patience n'y changera rien. Lui
+    /// dire d'attendre serait l'envoyer buter contre le même mur.
+    case providerNotConfigured(AuthProvider)
     case unauthorized
     case offline
     case server(Int)
@@ -109,6 +116,9 @@ public enum AccountError: LocalizedError, Equatable, Sendable {
                 "La connexion avec \(provider.label) n’a pas abouti. Réessayez "
                     + "dans un instant."
             }
+        case .providerNotConfigured(let provider):
+            "La connexion avec \(provider.label) n’est pas disponible. "
+                + "Essayez un autre moyen de connexion."
         case .unauthorized: "Session expirée — reconnectez-vous."
         case .offline: "Pas de connexion. Vos annotations restent sur cet appareil."
         case .server(let code): "Le serveur a répondu \(code)."

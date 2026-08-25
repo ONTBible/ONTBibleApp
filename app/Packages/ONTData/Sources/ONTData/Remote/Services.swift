@@ -134,10 +134,18 @@ public struct HTTPAuthService: AuthService {
             let redirectUri: String
             let codeVerifier: String?
         }
-        return try await post(
-            "auth/\(provider.rawValue)",
-            Body(code: code, redirectUri: redirectURI, codeVerifier: verifier)
-        )
+        do {
+            return try await post(
+                "auth/\(provider.rawValue)",
+                Body(code: code, redirectUri: redirectURI, codeVerifier: verifier)
+            )
+        } catch AccountError.server(503) {
+            // Le serveur dit qu'il n'a pas les identifiants de ce fournisseur.
+            // Sans cette traduction, le lecteur lisait « Le serveur a répondu
+            // 503 » — vrai, et inutilisable : rien ne lui disait qu'un autre
+            // bouton marcherait.
+            throw AccountError.providerNotConfigured(provider)
+        }
     }
 
     public func refresh(_ refreshToken: String) async throws -> Session {

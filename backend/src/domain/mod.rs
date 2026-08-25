@@ -65,6 +65,20 @@ impl ExternalIdentity {
 pub enum DomainError {
     #[error("le fournisseur a refusé le code d'autorisation")]
     ProviderRejected,
+    /// Le fournisseur n'a **pas** d'identifiants sur ce déploiement.
+    ///
+    /// Distinct de [`ProviderRejected`], et la distinction n'est pas cosmétique :
+    /// un identifiant absent était rapporté comme un refus, c'est-à-dire comme
+    /// le résultat d'un échange **qui n'a jamais eu lieu**. Celui qui exploite
+    /// voyait alors exactement ce que voit un lecteur dont le code a expiré, et
+    /// n'avait aucun moyen de distinguer « j'ai oublié le secret » de « ce code
+    /// est périmé ».
+    ///
+    /// Il ne renseigne pas un attaquant : la liste des fournisseurs proposés est
+    /// déjà publique — l'écran de connexion la montre. Savoir que l'un d'eux
+    /// n'est pas installé sur ce déploiement ne donne aucune prise.
+    #[error("le fournisseur n'est pas configuré sur ce déploiement")]
+    ProviderNotConfigured,
     #[error("le fournisseur est injoignable")]
     ProviderUnreachable,
     #[error("session inconnue ou révoquée")]
