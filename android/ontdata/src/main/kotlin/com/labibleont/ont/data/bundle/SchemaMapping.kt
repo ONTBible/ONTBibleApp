@@ -9,6 +9,7 @@ import com.labibleont.ont.data.schema.CorpusOutline as DtoCorpusOutline
 import com.labibleont.ont.data.schema.DailyVerse as DtoDailyVerse
 import com.labibleont.ont.data.schema.Footer as DtoFooter
 import com.labibleont.ont.data.schema.GlossaryEntry as DtoGlossaryEntry
+import com.labibleont.ont.data.schema.Group as DtoGroup
 import com.labibleont.ont.data.schema.Inline as DtoInline
 import com.labibleont.ont.data.schema.ModeOutline as DtoModeOutline
 import com.labibleont.ont.data.schema.Occurrence as DtoOccurrence
@@ -20,6 +21,7 @@ import com.labibleont.ont.data.schema.Subtitle as DtoSubtitle
 import com.labibleont.ont.data.schema.TermLevel as DtoTermLevel
 import com.labibleont.ont.data.schema.Verse as DtoVerse
 import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.Chapter
@@ -187,16 +189,31 @@ internal fun DtoBookOutline.versDomaine(): BookOutline = BookOutline(
     chapters = chapters.map { it.versDomaine() },
 )
 
+// `Group` du DTO devient `Conteneur` du domaine — le nom engendré suit le JSON,
+// le nom du domaine évite la collision avec le `Group` de Compose.
+internal fun DtoGroup.versDomaine(): Conteneur = Conteneur(
+    id = id,
+    title = title,
+    french = french,
+    glose = glose,
+    rupture = rupture,
+)
+
 internal fun DtoModeOutline.versDomaine(): Mode = Mode(
     id = id,
     title = title,
+    french = french,
+    glose = glose,
     order = order,
+    groups = groups.map { it.versDomaine() },
     books = books.map { it.versDomaine() },
 )
 
 internal fun DtoCorpusOutline.versDomaine(): Corpus = Corpus(
     id = id,
     title = title,
+    french = french,
+    glose = glose,
     order = order,
     modes = modes.map { it.versDomaine() },
 )

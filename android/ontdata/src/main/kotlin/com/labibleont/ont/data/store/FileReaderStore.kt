@@ -45,11 +45,20 @@ import kotlinx.serialization.json.Json
  * le lecteur verrait ses marques clignoter à chaque ouverture.
  */
 public class FileReaderStore(
-    context: Context,
-    nom: String = "lecteur.json",
+    private val fichier: File,
 ) : HighlightRepository, PositionRepository, PreferencesRepository {
 
-    private val fichier = File(context.filesDir, nom)
+    /**
+     * Le constructeur de l'app.
+     *
+     * La vraie dépendance de cet adaptateur est **un fichier**, pas un
+     * `Context` : le `Context` n'est que la façon dont Android le lui fournit.
+     * Prendre le fichier directement rend le magasin éprouvable sur la JVM —
+     * et c'est ce qui manquait le jour où « Le français reçu » s'est laissé
+     * basculer puis a disparu à la réouverture.
+     */
+    public constructor(context: Context, nom: String = "lecteur.json") :
+        this(File(context.filesDir, nom))
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var etat: Etat
 
@@ -65,9 +74,36 @@ public class FileReaderStore(
     init {
         etat = runCatching {
             if (fichier.exists()) json.decodeFromString<Etat>(fichier.readText()) else Etat()
-        }.getOrElse { Etat() }
+        }.getOrElse {
+            mettreDeCoteLIllisible()
+            Etat()
+        }
         purgerLesPierresTombales()
         reindexer()
+    }
+
+    /**
+     * Garder ce qu'on n'a pas su lire, au lieu de l'écraser.
+     *
+     * Repartir d'un état vide est le bon comportement : mieux vaut une app qui
+     * s'ouvre sans les annotations qu'une app qui refuse de s'ouvrir. Mais la
+     * première écriture qui suit réécrit le fichier par-dessus — et ce qui
+     * n'était qu'une **lecture ratée** devient alors une perte définitive.
+     *
+     * Le renommer coûte trois lignes et rend la récupération possible : un JSON
+     * tronqué par une écriture interrompue garde presque toujours l'essentiel de
+     * ce qu'un lecteur avait annoté.
+     *
+     * Ce n'est pas un changement de comportement, c'est un arrêt de destruction :
+     * l'app s'ouvre exactement comme avant. Le nom est fixe, comme sur iOS —
+     * deux corruptions successives écrasent donc le premier sauvetage, ce qui
+     * est le prix d'un dossier qui ne grossit pas indéfiniment.
+     */
+    private fun mettreDeCoteLIllisible() {
+        runCatching {
+            if (!fichier.exists()) return
+            fichier.renameTo(File(fichier.parentFile, "lecteur.illisible.json"))
+        }
     }
 
     // ── Surlignages ─────────────────────────────────────────────────────
@@ -251,7 +287,7 @@ private data class PositionFichier(
 )
 
 @Serializable
-private data class PreferencesFichier(
+internal data class PreferencesFichier(
     val showGloss: Boolean = true,
     val showLevel3: Boolean = true,
     val textSize: Double = 19.0,
@@ -259,6 +295,7 @@ private data class PreferencesFichier(
     val theme: String = "parchment",
     val bodyFont: String = "literata",
     val continuous: Boolean = true,
+    val french: Boolean = true,
     val dailyEnabled: Boolean = false,
     val dailyHour: Int = 7,
     val dailyMinute: Int = 30,
@@ -286,7 +323,7 @@ private fun Highlight.versFichier() = HighlightFichier(
     deleted = deleted,
 )
 
-private fun PreferencesFichier.versDomaine() = ReadingPreferences(
+internal fun PreferencesFichier.versDomaine() = ReadingPreferences(
     showGloss = showGloss,
     showLevel3 = showLevel3,
     textSize = textSize,
@@ -294,10 +331,11 @@ private fun PreferencesFichier.versDomaine() = ReadingPreferences(
     theme = ReadingTheme.depuis(theme),
     bodyFont = ReadingFont.depuis(bodyFont),
     continuous = continuous,
+    french = french,
     daily = DailyVerseSchedule.borne(dailyEnabled, dailyHour, dailyMinute),
 )
 
-private fun ReadingPreferences.versFichier() = PreferencesFichier(
+internal fun ReadingPreferences.versFichier() = PreferencesFichier(
     showGloss = showGloss,
     showLevel3 = showLevel3,
     textSize = textSize,
@@ -305,6 +343,7 @@ private fun ReadingPreferences.versFichier() = PreferencesFichier(
     theme = theme.cle,
     bodyFont = bodyFont.cle,
     continuous = continuous,
+    french = french,
     dailyEnabled = daily.enabled,
     dailyHour = daily.hour,
     dailyMinute = daily.minute,

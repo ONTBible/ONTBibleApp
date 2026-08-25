@@ -64,14 +64,27 @@ public class ReadingModel(
     public var echec: String? by mutableStateOf(null)
         private set
 
-    public var preferences: ReadingPreferences
-        get() = preferencesRepository.preferences
-        set(value) {
-            preferencesRepository.preferences = value
-            // Une préférence change le rendu de tout le texte : on force la
-            // recomposition en republiant le chapitre courant.
-            chapitre = chapitre
-        }
+    /**
+     * Les réglages de lecture, **en état Compose**.
+     *
+     * La première version rendait directement `preferencesRepository.preferences`
+     * et forçait la recomposition en republiant `chapitre`. Ça tenait tant que
+     * la vue du chapitre était le seul consommateur : elle lit `chapitre`, donc
+     * elle se redessinait. `BibleTab` ne le lit pas — et « Le français reçu » n'a
+     * donc rien changé à l'arborescence tant que le champ n'a pas été un vrai
+     * état.
+     *
+     * Le dépôt reste la persistance ; l'état, lui, appartient au modèle. Écrire
+     * dans les deux au même endroit est ce qui garantit qu'ils ne divergent pas.
+     */
+    public var preferences: ReadingPreferences by mutableStateOf(preferencesRepository.preferences)
+        private set
+
+    /** Enregistre et publie — les deux, toujours ensemble. */
+    public fun changerLesPreferences(valeur: ReadingPreferences) {
+        preferencesRepository.preferences = valeur
+        preferences = valeur
+    }
 
     public fun chargerLArborescence() {
         if (corpora.isNotEmpty()) return

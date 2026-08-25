@@ -42,6 +42,7 @@ import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.corpus.BookOutline
+import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Mode
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPosition
@@ -88,12 +89,28 @@ public fun BibleTab(
                     corpus.title,
                     teinte = ONTColors.brandInk(LocalReadingTheme.current),
                 )
+                // Le second nom, dans le registre choisi. Rien ne s'affiche
+                // quand il n'y a rien à dire — une section dont la glose
+                // redirait le pont n'en porte pas.
+                registre(corpus.french, corpus.glose, model.preferences.french)?.let {
+                    Text(
+                        it,
+                        fontSize = 12.sp,
+                        color = ONTColors.inkSoft(LocalReadingTheme.current),
+                        modifier = Modifier.padding(
+                            start = espace.l,
+                            end = espace.l,
+                            bottom = espace.xs,
+                        ),
+                    )
+                }
                 ONTGroup {
                     corpus.modes.sortedBy { it.order }.forEachIndexed { i, mode ->
                         if (i > 0) ONTGroupDivider(retrait = false)
                         val cle = "${corpus.id}/${mode.id}"
                         SectionDeMode(
                             mode = mode,
+                            francaisRecu = model.preferences.french,
                             deplie = deplies[cle] == true,
                             onBasculer = { deplies[cle] = deplies[cle] != true },
                             onOuvrir = onOuvrir,
@@ -153,6 +170,7 @@ private fun CarteReprendre(position: ReadingPosition, onOuvrir: (String, String?
 @Composable
 private fun SectionDeMode(
     mode: Mode,
+    francaisRecu: Boolean,
     deplie: Boolean,
     onBasculer: () -> Unit,
     onOuvrir: (String, String?) -> Unit,
@@ -170,13 +188,17 @@ private fun SectionDeMode(
                 .padding(horizontal = espace.l, vertical = espace.m),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                mode.title,
-                fontFamily = ONTFonts.display,
-                fontSize = 18.sp,
-                color = ONTColors.ink(theme),
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    mode.title,
+                    fontFamily = ONTFonts.display,
+                    fontSize = 18.sp,
+                    color = ONTColors.ink(theme),
+                )
+                registre(mode.french, mode.glose, francaisRecu)?.let {
+                    Text(it, fontSize = 12.sp, color = ONTColors.inkSoft(theme))
+                }
+            }
             Text(
                 "$rediges/${mode.books.size}",
                 fontSize = 14.sp,
@@ -192,9 +214,14 @@ private fun SectionDeMode(
 
         AnimatedVisibility(visible = deplie) {
             Column {
-                for (livre in mode.books.sortedBy { it.slot }) {
+                for (element in disposer(mode)) {
                     ONTGroupDivider()
-                    LigneDeLivre(livre = livre, onOuvrir = onOuvrir)
+                    when (element) {
+                        is Element.Entete ->
+                            EnteteDeConteneur(element.conteneur, francaisRecu)
+                        is Element.Livre ->
+                            LigneDeLivre(livre = element.livre, onOuvrir = onOuvrir)
+                    }
                 }
             }
         }
@@ -247,5 +274,95 @@ private fun LigneDeLivre(livre: BookOutline, onOuvrir: (String, String?) -> Unit
             fontSize = 12.sp,
             color = ONTColors.inkSoft(theme),
         )
+    }
+}
+
+// --- Les conteneurs, et la fracture du Ḥurban ---
+
+/**
+ * Choisit le second nom dans le registre voulu.
+ *
+ * Rend `null` plutôt qu'une chaîne vide : l'appelant n'affiche alors rien du
+ * tout, au lieu de réserver une ligne blanche sous le titre.
+ */
+private fun registre(francais: String?, glose: String?, francaisRecu: Boolean): String? {
+    val choisi = if (francaisRecu) francais else (glose ?: francais)
+    return choisi?.takeIf { it.isNotEmpty() }
+}
+
+/** Ce que la liste d'un mode pose l'un après l'autre. */
+private sealed interface Element {
+    data class Entete(val conteneur: Conteneur) : Element
+    data class Livre(val livre: BookOutline) : Element
+}
+
+/**
+ * Intercale les en-têtes de conteneur dans la suite des livres.
+ *
+ * L'ordre vient des **livres**, jamais de la liste des conteneurs : c'est le
+ * corpus qui décide où tombe une coupure. Un identifiant porté par un livre
+ * sans déclaration est ignoré — une table des matières qui refuserait de se
+ * rendre pour un ornement coûterait plus au lecteur qu'elle ne lui apporte.
+ */
+private fun disposer(mode: Mode): kotlin.collections.List<Element> {
+    val sortie = mutableListOf<Element>()
+    var courant: String? = null
+    var premier = true
+    for (livre in mode.books.sortedBy { it.slot }) {
+        if (premier || livre.groupId != courant) {
+            courant = livre.groupId
+            premier = false
+            val declare = courant?.let { id -> mode.groups.firstOrNull { it.id == id } }
+            if (declare != null) sortie.add(Element.Entete(declare))
+        }
+        sortie.add(Element.Livre(livre))
+    }
+    return sortie
+}
+
+/**
+ * L'en-tête d'un conteneur, et sa césure quand il en a une.
+ *
+ * **Deux poids, deux traitements.** Un conteneur qui regroupe reçoit un
+ * intertitre discret ; celui qui fracture reçoit d'abord un filet appuyé et la
+ * ligne qui dit ce que la fracture change pour lire.
+ *
+ * C'est le *Ḥurban*, et lui seul. `corpus-order.md` le nomme **pivot
+ * herméneutique** : les lettres d'avant parlent du Temple au présent —
+ * *Igeret HaIvrim* est « le dernier mot du Bayit vivant » ; trois numéros plus
+ * loin, il n'existe plus.
+ */
+@Composable
+private fun EnteteDeConteneur(conteneur: Conteneur, francaisRecu: Boolean) {
+    val theme = LocalReadingTheme.current
+    val espace = ontSpacing
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = espace.xl, end = espace.l, top = espace.s, bottom = espace.s),
+    ) {
+        conteneur.rupture?.let { rupture ->
+            // Le filet est en accentuation et non en or : l'or dit
+            // l'intraduisible partout ailleurs, et une règle horizontale n'en
+            // est pas un.
+            Spacer(
+                Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(ONTColors.accentuation(theme).copy(alpha = 0.5f)),
+            )
+            Text(
+                rupture,
+                fontStyle = FontStyle.Italic,
+                fontSize = 13.sp,
+                color = ONTColors.inkSoft(theme),
+                modifier = Modifier.padding(top = espace.xs, bottom = espace.s),
+            )
+        }
+        SectionCaption(conteneur.title)
+        registre(conteneur.french, conteneur.glose, francaisRecu)?.let {
+            Text(it, fontSize = 11.sp, color = ONTColors.inkSoft(theme))
+        }
     }
 }
