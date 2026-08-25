@@ -117,3 +117,40 @@ public fun kotlin.collections.List<Block>.versetEnTete(premierBlocVisible: Int):
         .firstNotNullOfOrNull { bloc ->
             (bloc as? Block.Verses)?.verses?.firstOrNull()?.n
         }
+
+/**
+ * Le verset atteint, au prorata de ce qu'on a parcouru d'un bloc fondu.
+ *
+ * ## Pourquoi il faut ça
+ *
+ * En prose continue — **le mode par défaut** — tout un chapitre est fondu en un
+ * seul bloc. Le rang de l'item ne bouge donc jamais, et la position retenue
+ * restait le premier verset du chapitre quel que soit l'endroit où l'on lisait.
+ *
+ * La parade vient de la liseuse iOS : répartir la hauteur **au prorata du poids
+ * de chaque verset**, en signes. Elle y est posée en superposition de vues
+ * transparentes ; ici c'est de l'arithmétique, parce que la liste paresseuse
+ * donne déjà le décalage et la hauteur de son item.
+ *
+ * ## Ce que ça vaut
+ *
+ * C'est une **approximation** : un verset serré et un verset aéré ne tiennent
+ * pas la même place à nombre de signes égal. Elle vaut à un verset près, là où
+ * le procédé d'avant se trompait d'un chapitre entier.
+ *
+ * @param fraction la part du bloc déjà passée au-dessus du haut de l'écran,
+ *   entre 0 et 1. Bornée ici : le défilement élastique peut la faire déborder.
+ */
+public fun Block.Verses.versetAuProrata(fraction: Float): Int? {
+    if (verses.isEmpty()) return null
+    val poids = verses.map { it.nodes.plainText().length.coerceAtLeast(1) }
+    val total = poids.sum().toFloat()
+    val vise = fraction.coerceIn(0f, 1f) * total
+
+    var parcouru = 0f
+    for ((i, p) in poids.withIndex()) {
+        parcouru += p
+        if (vise < parcouru) return verses[i].n
+    }
+    return verses.last().n
+}

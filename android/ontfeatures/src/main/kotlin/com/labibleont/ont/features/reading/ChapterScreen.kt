@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
+import com.labibleont.ont.kit.corpus.versetAuProrata
 import com.labibleont.ont.kit.corpus.versetEnTete
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -98,19 +99,29 @@ public fun ChapterScreen(
     // L'en-tête occupe l'item 0 ; les blocs suivent. On retranche donc un rang
     // pour retomber sur l'index du bloc.
     //
-    // **Ce que cette mesure vaut, et ce qu'elle ne vaut pas.** En mode blocs,
-    // chaque verset est un item : la position est exacte. En prose continue,
-    // `fusingConsecutiveVerses` fond tout un chapitre en **un seul** item, et le
-    // défilement ne peut donc pas distinguer les versets — la position retenue
-    // est le premier verset du bloc visible, c'est-à-dire le premier du chapitre.
+    // **Et on lit le décalage, pas seulement le rang.** En prose continue — le
+    // mode par défaut — tout un chapitre est fondu en un seul item : son rang ne
+    // bouge jamais. Sans la fraction parcourue, la position resterait le premier
+    // verset du chapitre où qu'on lise.
     //
-    // Le chapitre, lui, est juste dans les deux cas, et c'est l'essentiel de ce
-    // que « Reprendre » sert à retrouver. Affiner en prose demanderait de lire
-    // le `TextLayoutResult` du bloc fondu pour savoir quel verset touche le haut
-    // de la fenêtre — faisable, pas fait, et pas caché.
+    // La parade vient de la liseuse iOS : répartir au prorata du poids de chaque
+    // verset. Elle y est posée en superposition de vues transparentes ; ici
+    // c'est de l'arithmétique, parce que `LazyListItemInfo` donne déjà le
+    // décalage et la hauteur. C'est approximatif — un verset serré et un verset
+    // aéré ne tiennent pas la même place à nombre de signes égal — et ça vaut à
+    // un verset près, là où le procédé d'avant se trompait d'un chapitre.
     LaunchedEffect(etat, chapitre.id, blocs) {
-        snapshotFlow { etat.firstVisibleItemIndex }
-            .map { blocs.versetEnTete(it - 1) }
+        snapshotFlow {
+            val info = etat.layoutInfo.visibleItemsInfo.firstOrNull()
+            info?.let { it.index to (-it.offset).toFloat() / it.size.coerceAtLeast(1) }
+        }
+            .filterNotNull()
+            .map { (rang, fraction) ->
+                val i = rang - 1
+                val bloc = blocs.getOrNull(i)
+                if (bloc is Block.Verses) bloc.versetAuProrata(fraction)
+                else blocs.versetEnTete(i)
+            }
             .filterNotNull()
             .distinctUntilChanged()
             .collect(onLire)

@@ -90,11 +90,36 @@ public data class ChapterStub(
      *
      * Une introduction garde son titre : elle n'a pas de rang à afficher.
      */
-    public fun libelle(francaisRecu: Boolean): String = when {
-        n <= 0 -> title
-        francaisRecu -> "Chapitre $n"
-        else -> "Parashah $n"
-    }
+    public fun libelle(francaisRecu: Boolean): String =
+        if (n <= 0) title else LibelleDUnite.rang(n, francaisRecu)
+}
+
+/**
+ * Comment nommer une unité — le seul endroit où ce calcul vit.
+ *
+ * Il était d'abord privé au sommaire, puis recopié dans le sélecteur, puis
+ * manquant à la pastille de lecture. Trois écrans, trois états, pour la même
+ * question. C'est ce qui arrive à un calcul qui vit dans une vue.
+ */
+public object LibelleDUnite {
+
+    /** Le rang seul — « Chapitre 6 » ou « Parashah 6 ». */
+    public fun rang(n: Int, francaisRecu: Boolean): String =
+        if (francaisRecu) "Chapitre $n" else "Parashah $n"
+
+    /**
+     * Le livre **et** le rang, pour la pastille de lecture.
+     *
+     * La pastille est le **seul** repère de l'écran de lecture — ni barre de
+     * navigation, ni sommaire au-dessus. Le rang seul dirait *quelle* unité
+     * sans dire *de quoi*.
+     *
+     * Et c'est là que le registre compte le plus : c'est le seul endroit où le
+     * lecteur croise le mot **pendant** qu'il lit. Le sommaire et le sélecteur
+     * se traversent ; la pastille reste sous les yeux.
+     */
+    public fun situe(livre: String, rang: Int, francaisRecu: Boolean): String =
+        if (rang <= 0) livre else "$livre · ${rang(rang, francaisRecu)}"
 }
 
 /** Un livre — un des 70 slots de `corpus-order.md`. */

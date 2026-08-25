@@ -88,6 +88,7 @@ import com.labibleont.ont.features.you.DestinationVous
 import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.corpus.plainText
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
@@ -256,8 +257,19 @@ private fun Racine(
                             // Bereshit 1 à Bereshit 18 demandait de revenir au
                             // sommaire, replier le livre, le déplier, viser.
                             PastilleDeRenvoi(
-                                renvoi = lecture.chapitre?.title
-                                    ?: lecture.livre?.title.orEmpty(),
+                                // Le livre **et** le rang. La pastille est le
+                                // seul repère de cet écran — ni barre de
+                                // navigation, ni sommaire au-dessus : le rang
+                                // seul dirait quelle unité sans dire de quoi.
+                                // Et c'est le seul endroit où le lecteur croise
+                                // le mot *pendant* qu'il lit.
+                                renvoi = lecture.chapitre?.let {
+                                    LibelleDUnite.situe(
+                                        livre = lecture.livre?.title.orEmpty(),
+                                        rang = it.n,
+                                        francaisRecu = preferences.french,
+                                    )
+                                } ?: lecture.livre?.title.orEmpty(),
                                 onClick = { ecran = Ecran.Selecteur() },
                             )
                         } else {
