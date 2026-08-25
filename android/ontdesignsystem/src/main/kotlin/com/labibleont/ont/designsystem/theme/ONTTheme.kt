@@ -7,6 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import android.app.Activity
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.kit.reader.ReadingTheme
 
@@ -138,6 +142,33 @@ public fun ONTTheme(
         errorContainer = ONTColors.accentuation(theme).copy(alpha = 0.20f),
         onErrorContainer = encre,
     )
+
+    // ## Les icônes de la barre d'état suivent le thème de lecture
+    //
+    // `enableEdgeToEdge()` sans argument règle leur polarité sur le mode
+    // clair/sombre **du système**, pas sur celui de l'app. Les deux
+    // coïncidaient tant qu'on ne les faisait pas diverger — mais un lecteur
+    // dont le téléphone est en sombre et qui lit sur parchemin recevait des
+    // icônes blanches sur fond crème. L'heure et la batterie disparaissaient.
+    //
+    // C'est ici que ça se règle et pas dans l'activité : le seul endroit qui
+    // sache si l'on est sur parchemin ou sur la nuit, c'est le thème.
+    //
+    // `SideEffect` plutôt qu'un appel direct : on écrit dans la fenêtre, qui
+    // est hors de la composition. Le faire pendant la composition la rendrait
+    // dépendante d'un effet de bord, et le résultat varierait selon le nombre
+    // de recompositions.
+    val vue = LocalView.current
+    if (!vue.isInEditMode) {
+        val fenetre = (vue.context as? Activity)?.window
+        if (fenetre != null) {
+            SideEffect {
+                val controleur = WindowCompat.getInsetsController(fenetre, vue)
+                controleur.isAppearanceLightStatusBars = !theme.isDark
+                controleur.isAppearanceLightNavigationBars = !theme.isDark
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalReadingTheme provides theme) {
         MaterialTheme(
