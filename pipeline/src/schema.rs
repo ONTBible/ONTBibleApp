@@ -219,6 +219,11 @@ pub struct Book {
     pub title: String,
     /// Le nom français, pont de navigation pour le lecteur occidental.
     pub french: String,
+    /// Ce que le nom ONT veut dire — absent quand il n'a rien à dire de plus
+    /// que son pont. *Marqus* est un nom d'homme ; *Machazeh Yohanan* nomme
+    /// une modalité de vision qu'« Apocalypse » ne porte pas.
+    #[serde(default)]
+    pub glose: Option<String>,
     /// Le titre en écriture hébraïque, quand il est connu.
     pub hebrew: Option<String>,
     pub corpus_id: String,
@@ -268,6 +273,28 @@ pub struct Group {
 pub struct Mode {
     pub id: String,
     pub title: String,
+    /// Le pont de navigation — le mot que le lecteur cherche.
+    ///
+    /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
+    ///
+    /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
+    /// Fondation », *Berit Hadashah* « la berith renouvelée ». L'écart entre
+    /// les deux colonnes est ce que le projet cherche à faire voir.
+    #[serde(default)]
+    pub glose: Option<String>,
     pub order: u32,
     /// Les conteneurs de ce mode, dans l'ordre où leurs livres paraissent.
     ///
@@ -292,6 +319,28 @@ pub struct Mode {
 pub struct Corpus {
     pub id: String,
     pub title: String,
+    /// Le pont de navigation — le mot que le lecteur cherche.
+    ///
+    /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
+    ///
+    /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
+    /// Fondation », *Berit Hadashah* « la berith renouvelée ». L'écart entre
+    /// les deux colonnes est ce que le projet cherche à faire voir.
+    #[serde(default)]
+    pub glose: Option<String>,
     pub order: u32,
     pub modes: Vec<Mode>,
 }
@@ -490,6 +539,9 @@ pub struct BookOutline {
     pub slot: u32,
     pub title: String,
     pub french: String,
+    /// Ce que le nom ONT veut dire — voir `Book::glose`.
+    #[serde(default)]
+    pub glose: Option<String>,
     pub hebrew: Option<String>,
     pub group_id: Option<String>,
     pub empty: bool,
@@ -501,6 +553,28 @@ pub struct BookOutline {
 pub struct ModeOutline {
     pub id: String,
     pub title: String,
+    /// Le pont de navigation — le mot que le lecteur cherche.
+    ///
+    /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
+    ///
+    /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
+    /// Fondation », *Berit Hadashah* « la berith renouvelée ». L'écart entre
+    /// les deux colonnes est ce que le projet cherche à faire voir.
+    #[serde(default)]
+    pub glose: Option<String>,
     pub order: u32,
     /// Les conteneurs, portés jusqu'à la table des matières — c'est elle qui
     /// les affiche, donc c'est elle qui doit les recevoir.
@@ -515,6 +589,28 @@ pub struct ModeOutline {
 pub struct CorpusOutline {
     pub id: String,
     pub title: String,
+    /// Le pont de navigation — le mot que le lecteur cherche.
+    ///
+    /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
+    ///
+    /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
+    /// Fondation », *Berit Hadashah* « la berith renouvelée ». L'écart entre
+    /// les deux colonnes est ce que le projet cherche à faire voir.
+    #[serde(default)]
+    pub glose: Option<String>,
     pub order: u32,
     pub modes: Vec<ModeOutline>,
 }
@@ -581,6 +677,8 @@ mod tests {
         let mode = Mode {
             id: "torah".into(),
             title: "Torah".into(),
+            french: Some("la Loi".into()),
+            glose: Some("la Fondation".into()),
             order: 1,
             groups: Vec::new(),
             books: Vec::new(),

@@ -176,16 +176,64 @@ public struct Book: Hashable, Sendable, Identifiable {
 /// Ce ne sont pas des divisions canoniques mais des modes distincts
 /// d'engagement avec le réel : institution, lecture dans l'histoire,
 /// habitation intérieure, traversée architecturale.
+/// Un conteneur de livres — les *Eduyot*, les *Trei Asar*, les deux *Igerot*.
+///
+/// **Nommé en français, et pas `Group`** : SwiftUI porte déjà un `Group`, et
+/// une vue qui écrirait `Group { … }` à côté de celui-ci deviendrait ambiguë
+/// pour le compilateur. Le site l'appelle `Conteneur` ; les deux liseuses
+/// parlent donc la même langue.
+///
+/// Il existait dans les données sous forme d'un identifiant porté par chaque
+/// livre, et **aucune interface ne l'affichait**. Les vingt-et-une *Igerot* se
+/// lisaient comme une liste plate, alors que leur ordre porte un argument.
+public struct Conteneur: Hashable, Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let french: String
+    public let glose: String?
+    /// La ligne de sens qui **précède** ce conteneur, quand la coupure est une
+    /// rupture et non un rangement. Le *Ḥurban* est le seul à en porter une :
+    /// une césure marquée partout ne marquerait plus rien.
+    public let rupture: String?
+
+    public init(id: String, title: String, french: String, glose: String?, rupture: String?) {
+        self.id = id
+        self.title = title
+        self.french = french
+        self.glose = glose
+        self.rupture = rupture
+    }
+}
+
 public struct Mode: Hashable, Sendable, Identifiable {
     public let id: String
     public let title: String
+    /// Le pont de navigation — le mot que le lecteur cherche. Les
+    /// intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    public let french: String?
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont. Les
+    /// intraduisibles y **restent en hébreu** : « la Fondation ».
+    public let glose: String?
     public let order: Int
+    /// Dans l'ordre où leurs livres paraissent. Vide pour la plupart.
+    public let groups: [Conteneur]
     public let books: [BookOutline]
 
-    public init(id: String, title: String, order: Int, books: [BookOutline]) {
+    public init(
+        id: String,
+        title: String,
+        french: String? = nil,
+        glose: String? = nil,
+        order: Int,
+        groups: [Conteneur] = [],
+        books: [BookOutline]
+    ) {
         self.id = id
         self.title = title
+        self.french = french
+        self.glose = glose
         self.order = order
+        self.groups = groups
         self.books = books
     }
 }
@@ -194,12 +242,27 @@ public struct Mode: Hashable, Sendable, Identifiable {
 public struct Corpus: Hashable, Sendable, Identifiable {
     public let id: String
     public let title: String
+    /// Le pont de navigation — le mot que le lecteur cherche. Les
+    /// intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+    public let french: String?
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont. Les
+    /// intraduisibles y **restent en hébreu** : « la Fondation ».
+    public let glose: String?
     public let order: Int
     public let modes: [Mode]
 
-    public init(id: String, title: String, order: Int, modes: [Mode]) {
+    public init(
+        id: String,
+        title: String,
+        french: String? = nil,
+        glose: String? = nil,
+        order: Int,
+        modes: [Mode]
+    ) {
         self.id = id
         self.title = title
+        self.french = french
+        self.glose = glose
         self.order = order
         self.modes = modes
     }

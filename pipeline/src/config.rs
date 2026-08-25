@@ -143,6 +143,110 @@ pub fn groupe(id: &str) -> Option<(&'static str, Option<&'static str>, Option<&'
         .map(|(_, fr, glose, rupture)| (*fr, *glose, *rupture))
 }
 
+/// Ce qu'une section dit au lecteur, dans les deux registres.
+///
+/// `(identifiant, français, glose)`.
+///
+/// ## Pourquoi deux colonnes et non une
+///
+/// Le français d'un livre est un **pont de navigation** : *Bereshit* est
+/// ponté vers « Genèse », que personne ne tient pour une traduction. Le champ
+/// sert d'ailleurs à la recherche — on tape le mot qu'on connaît.
+///
+/// Mais un pont dit où l'on est, pas ce que le nom veut dire. *Torah* se ponte
+/// vers « la Loi » parce que c'est ainsi qu'on la nomme en français ; c'est
+/// pourtant exactement la dégradation que l'ONT décrit — *torah*, l'instruction
+/// qui vise, devenue *nomos*, le code qui contraint.
+///
+/// D'où la seconde colonne. **La règle qui les sépare est nette : en français
+/// les intraduisibles sont rendus, en glose ils restent en hébreu.** L'écart
+/// entre les deux est précisément ce que le projet cherche à faire voir.
+///
+/// La glose est absente quand elle redirait le français — *Ketouvim* est
+/// « Écrits » dans les deux registres, et une glose qui répète n'apprend rien.
+///
+/// ## Pourquoi ce n'est pas déduit des dossiers du vault
+///
+/// Les noms de dossiers portent bien un libellé — `1. torah (la Fondation)` —
+/// mais leur registre est **incohérent** : « la Fondation » et « les Réalités
+/// voilées » sont des gloses ONT, « Prophètes » et « Écrits » du français
+/// reçu. Les prendre tels quels mélangerait les deux colonnes. Ils restent
+/// utiles pour les livres, où le libellé est bien un pont.
+pub const SECTIONS: [(&str, &str, Option<&str>); 7] = [
+    ("kenesset", "le Rassemblement", None),
+    ("torah", "la Loi", Some("la Fondation")),
+    ("neviim", "Prophètes", Some("ceux qui portent le davar")),
+    ("ketouvim", "Écrits", None),
+    (
+        "nistarot",
+        "Écrits apocalyptiques",
+        Some("les Réalités voilées"),
+    ),
+    (
+        "berit-hadashah",
+        "Nouvelle Alliance",
+        Some("la berith renouvelée"),
+    ),
+    (
+        "besorot",
+        "Évangiles",
+        Some("les besorot — annonce royale d'un acte accompli"),
+    ),
+];
+
+/// La glose d'une section, si elle en a une.
+pub fn section(id: &str) -> Option<(&'static str, Option<&'static str>)> {
+    SECTIONS
+        .iter()
+        .find(|(k, ..)| *k == id)
+        .map(|(_, fr, glose)| (*fr, *glose))
+}
+
+/// Ce que le nom ONT d'un livre veut dire.
+///
+/// Seuls les livres dont le nom **dit quelque chose** en ont une. *Marqus* n'a
+/// pas de sens à rendre — c'est un nom d'homme, et son pont vers « Marc »
+/// suffit. *Machazeh Yohanan*, lui, nomme une modalité de vision que le mot
+/// « Apocalypse » ne porte pas.
+pub const GLOSES: [(&str, &str); 24] = [
+    ("bereshit-ha-yohanan", "le Bereshit de Yohanan"),
+    ("gevurot-ha-neviim", "les gevurot de YHWH par ses neviim"),
+    ("el-haromiyim", "aux Romiyim"),
+    ("el-haqorintiyim-alef", "aux Qorintiyim, première"),
+    ("el-haqorintiyim-bet", "aux Qorintiyim, seconde"),
+    ("el-hagalatiyim", "aux Galatiyim"),
+    ("el-haefesiyim", "aux Efesiyim"),
+    ("el-hafilipiyim", "aux Filipiyim"),
+    ("el-haqolossiyim", "aux Qolossiyim"),
+    ("el-hatessaloniqiyim-alef", "aux Tessaloniqiyim, première"),
+    ("el-hatessaloniqiyim-bet", "aux Tessaloniqiyim, seconde"),
+    ("el-filemon", "à Filemon"),
+    ("igeret-yaaqov", "igeret de Ya'aqov"),
+    ("igeret-kefa-alef", "première igeret de Kefa"),
+    ("igeret-kefa-bet", "seconde igeret de Kefa"),
+    ("igeret-haivrim", "igeret aux Ivrim"),
+    ("el-timotiyos-alef", "à Timotiyos, première"),
+    ("el-timotiyos-bet", "à Timotiyos, seconde"),
+    ("el-titos", "à Titos"),
+    ("igeret-yohanan-alef", "première igeret de Yohanan"),
+    ("igeret-yohanan-bet", "deuxième igeret de Yohanan"),
+    ("igeret-yohanan-gimel", "troisième igeret de Yohanan"),
+    ("igeret-yehudah", "igeret de Yehudah"),
+    // Celui qui porte le plus. « Apocalypse » est le pont — c'est le mot que
+    // le lecteur cherche — mais il traduit *apokalypsis*, que le §2 écarte
+    // explicitement : « ne pas utiliser *giluy*, calque du grec ». Le nom ONT
+    // dit autre chose, et la glose est le seul endroit où il peut le dire.
+    (
+        "machazeh-yohanan",
+        "le machazeh de Yohanan — la vision intérieure",
+    ),
+];
+
+/// La glose d'un livre, s'il en a une.
+pub fn glose(id: &str) -> Option<&'static str> {
+    GLOSES.iter().find(|(k, _)| *k == id).map(|(_, g)| *g)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

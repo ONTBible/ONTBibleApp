@@ -37,6 +37,8 @@ pub mod inline;
 #[cfg(feature = "parsers")]
 pub mod reference;
 #[cfg(feature = "parsers")]
+pub mod renvois;
+#[cfg(feature = "parsers")]
 pub mod search;
 #[cfg(feature = "parsers")]
 pub mod vault;
