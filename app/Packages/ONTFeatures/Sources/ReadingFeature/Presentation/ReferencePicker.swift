@@ -22,16 +22,35 @@ public struct ReferencePicker: View {
     var echelle = ONTScaled()
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
-    private let current: Chapter
-
-    public init(current: Chapter) {
-        self.current = current
-    }
+    ///
+    /// **Facultative**, parce qu'on entre ici par deux portes. Depuis la
+    /// lecture, il y a une unité courante et le sélecteur la marque. Depuis le
+    /// sommaire d'un livre, il n'y en a pas : on n'a rien ouvert, on choisit.
+    private let current: Chapter?
 
     /// L'étape en cours. Un chemin, pas des onglets : on avance et on revient.
     private enum Etape: Hashable {
         case unites(book: String)
         case versets(book: String, chapter: String)
+    }
+
+    /// Où la feuille s'ouvre.
+    private let depart: Etape?
+
+    public init(current: Chapter) {
+        self.current = current
+        self.depart = nil
+    }
+
+    /// Le sélecteur ouvert **directement sur les versets** d'une unité.
+    ///
+    /// C'est la porte du sommaire : le lecteur y a déjà choisi son livre et son
+    /// unité, la seule chose qui lui reste à dire est *où commencer*. Le faire
+    /// repasser par les deux étapes précédentes serait lui redemander ce qu'il
+    /// vient de répondre.
+    public init(book: String, chapter: String) {
+        self.current = nil
+        self.depart = .versets(book: book, chapter: chapter)
     }
 
     @State private var chemin: [Etape] = []
@@ -59,7 +78,7 @@ public struct ReferencePicker: View {
         .onAppear {
             // On ouvre sur le livre courant : le lecteur cherche presque
             // toujours à côté de là où il est.
-            chemin = [.unites(book: current.bookId)]
+            chemin = depart.map { [$0] } ?? [.unites(book: current?.bookId ?? "")]
         }
     }
 
@@ -79,7 +98,7 @@ public struct ReferencePicker: View {
                             Button {
                                 chemin = [.unites(book: livre.id)]
                             } label: {
-                                LivreLigne(livre: livre, courant: livre.id == current.bookId)
+                                LivreLigne(livre: livre, courant: livre.id == current?.bookId)
                                     // Même défaut que « Reprendre » : le vide à
                                     // droite du titre ne répondait pas.
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,7 +175,7 @@ public struct ReferencePicker: View {
                         ForEach(livre.chapters) { unite in
                             Case(
                                 titre: "\(unite.n)",
-                                courant: unite.id == current.id,
+                                courant: unite.id == current?.id,
                                 brouillon: unite.status == .brouillon
                             ) {
                                 chemin.append(.versets(book: bookId, chapter: unite.id))
