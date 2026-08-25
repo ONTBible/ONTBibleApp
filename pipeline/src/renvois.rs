@@ -33,6 +33,14 @@ use crate::schema::{Block, Inline};
 pub struct Cible {
     pub livre: String,
     pub unite: String,
+    /// Le verset **interne** visé, quand on peut l'établir sans supposer.
+    ///
+    /// La numérotation ONT repart de 1 à chaque unité (§2.2) : le verset
+    /// biblique 9:5 est le cinquième de l'unité qui couvre 9:1-17, mais le
+    /// troisième de celle qui couvre 9:18-29 ne s'appelle pas 20.
+    ///
+    /// **Nul dès que le compte ne confirme pas le calcul.** Voir `interne`.
+    pub verset: Option<u32>,
 }
 
 /// La plage biblique que recouvre une unité.
@@ -101,15 +109,16 @@ fn couple(s: &str) -> Option<(u32, u32)> {
 pub struct Index {
     /// Nom de livre affiché → identifiant du livre.
     livres: HashMap<String, String>,
-    /// Identifiant du livre → ses unités, avec leur plage.
-    plages: HashMap<String, Vec<(String, Plage)>>,
+    /// Identifiant du livre → ses unités, avec leur plage et leur nombre de
+    /// versets. Le compte sert à **vérifier** le calcul de l'indice interne.
+    plages: HashMap<String, Vec<(String, Plage, u32)>>,
 }
 
 impl Index {
     /// Construit la table depuis le corpus déjà assemblé.
     pub fn nouveau(corpora: &[crate::schema::Corpus]) -> Self {
         let mut livres = HashMap::new();
-        let mut plages: HashMap<String, Vec<(String, Plage)>> = HashMap::new();
+        let mut plages: HashMap<String, Vec<(String, Plage, u32)>> = HashMap::new();
 
         for corpus in corpora {
             for mode in &corpus.modes {
@@ -120,12 +129,20 @@ impl Index {
                     if !livre.french.is_empty() {
                         livres.insert(livre.french.clone(), livre.id.clone());
                     }
-                    let unites: Vec<(String, Plage)> = livre
+                    let unites: Vec<(String, Plage, u32)> = livre
                         .chapters
                         .iter()
                         .filter_map(|u| {
                             let r = u.subtitle.as_ref()?.reference.as_ref()?;
-                            Some((u.id.clone(), lire_plage(r)?))
+                            let versets = u
+                                .blocks
+                                .iter()
+                                .map(|b| match b {
+                                    Block::Verses { verses } => verses.len() as u32,
+                                    _ => 0,
+                                })
+                                .sum();
+                            Some((u.id.clone(), lire_plage(r)?, versets))
                         })
                         .collect();
                     plages.insert(livre.id.clone(), unites);
@@ -140,15 +157,15 @@ impl Index {
         let id = self.livres.get(livre)?;
         let v = verset.unwrap_or(1);
         let point = (chapitre, v);
-        let unite = self
+        let (unite, plage, compte) = self
             .plages
             .get(id)?
             .iter()
-            .find(|(_, p)| point >= p.debut && point <= p.fin)
-            .map(|(u, _)| u.clone())?;
+            .find(|(_, p, _)| point >= p.debut && point <= p.fin)?;
         Some(Cible {
             livre: id.clone(),
-            unite,
+            unite: unite.clone(),
+            verset: verset.and_then(|v| interne(plage, *compte, chapitre, v)),
         })
     }
 }
@@ -242,7 +259,13 @@ fn decouper(texte: &str, index: &Index, origine: &str, sortie: &mut Vec<Inline>)
             children: vec![Inline::Text {
                 v: entier.as_str().to_string(),
             }],
-            href: format!("{SITE}/fr/lire/{}/{}", cible.livre, cible.unite),
+            // `?v=` désigne le verset et `#v` l'ancre : le premier le met en
+            // évidence, le second y fait défiler. Les deux existaient déjà
+            // sur le site ; il n'y avait que personne pour les viser.
+            href: match cible.verset {
+                Some(v) => format!("{SITE}/fr/lire/{}/{}?v={v}#v{v}", cible.livre, cible.unite),
+                None => format!("{SITE}/fr/lire/{}/{}", cible.livre, cible.unite),
+            },
         });
         curseur = entier.end();
     }
@@ -275,8 +298,8 @@ mod tests {
     #[test]
     fn un_renvoi_tombe_dans_l_unite_qui_le_contient() {
         let plages = vec![
-            ("bereshit-8".to_string(), lire_plage("9:1-17").unwrap()),
-            ("bereshit-9".to_string(), lire_plage("9:18-29").unwrap()),
+            ("bereshit-8".to_string(), lire_plage("9:1-17").unwrap(), 17),
+            ("bereshit-9".to_string(), lire_plage("9:18-29").unwrap(), 12),
         ];
         let index = Index {
             livres: HashMap::from([("Bereshit".into(), "bereshit".into())]),
@@ -305,5 +328,84 @@ mod essai_de_reconnaissance {
         assert_eq!(c.get(1).unwrap().as_str(), "Bereshit");
         assert_eq!(c.get(2).unwrap().as_str(), "1");
         assert_eq!(c.get(3).unwrap().as_str(), "4");
+    }
+}
+
+/// L'indice interne d'un verset biblique dans son unité.
+///
+/// ## Pourquoi ce calcul refuse de conclure la moitié du temps
+///
+/// La numérotation ONT repart de 1 à chaque unité (§2.2). Convertir un renvoi
+/// biblique en indice interne demande donc de compter depuis le début de la
+/// plage — et ce compte n'est juste **que si l'unité contient exactement les
+/// versets que sa plage annonce**.
+///
+/// Or ce n'est pas toujours le cas : l'unité 2 de *Bereshit* annonce `2:4-25`,
+/// soit vingt-deux versets, et n'en porte que vingt et un — deux ont été
+/// réunis, parce que le texte hébreu les tient ensemble. Le calcul y donnerait
+/// un cran de décalage.
+///
+/// **La fonction vérifie donc son hypothèse avant de rendre un résultat**, et
+/// rend `None` dès qu'elle ne tient pas. Un renvoi mène alors à l'unité, sans
+/// viser de verset : mieux vaut arriver au bon endroit sans précision que
+/// pointer une ligne à côté avec assurance.
+fn interne(plage: &Plage, compte: u32, chapitre: u32, verset: u32) -> Option<u32> {
+    // Une plage qui enjambe deux chapitres demanderait de connaître la
+    // longueur du premier. On ne la devine pas.
+    if plage.debut.0 != plage.fin.0 {
+        return None;
+    }
+    if chapitre != plage.debut.0 {
+        return None;
+    }
+
+    let debut = plage.debut.1;
+    if verset < debut {
+        return None;
+    }
+
+    // Un chapitre entier : la plage ne borne pas la fin, seul le compte le
+    // fait. Sinon, la plage annonce un nombre de versets — et il doit tomber
+    // juste, sans quoi l'unité a réuni ou séparé quelque chose.
+    if plage.fin.1 != u32::MAX {
+        let annonces = plage.fin.1.checked_sub(debut)? + 1;
+        if annonces != compte {
+            return None;
+        }
+    }
+
+    let indice = verset - debut + 1;
+    (indice <= compte).then_some(indice)
+}
+
+#[cfg(test)]
+mod tests_du_verset {
+    use super::*;
+
+    fn plage(s: &str) -> Plage {
+        lire_plage(s).expect("une plage lisible")
+    }
+
+    /// Le cas courant : la plage annonce ce que l'unité contient.
+    #[test]
+    fn un_verset_se_situe_quand_le_compte_tombe_juste() {
+        assert_eq!(interne(&plage("9:1-17"), 17, 9, 5), Some(5));
+        assert_eq!(interne(&plage("9:18-29"), 12, 9, 20), Some(3));
+        assert_eq!(interne(&plage("3"), 24, 3, 7), Some(7));
+    }
+
+    /// **Le test qui compte.** L'unité 2 de *Bereshit* annonce `2:4-25` —
+    /// vingt-deux versets — et n'en porte que vingt et un : deux ont été
+    /// réunis. Le calcul donnerait un cran de décalage, donc il refuse.
+    #[test]
+    fn un_verset_ne_se_situe_pas_quand_l_unite_a_reuni() {
+        assert_eq!(interne(&plage("2:4-25"), 21, 2, 10), None);
+    }
+
+    /// Une plage qui enjambe deux chapitres demanderait la longueur du
+    /// premier. On ne la devine pas.
+    #[test]
+    fn un_verset_ne_se_situe_pas_a_cheval_sur_deux_chapitres() {
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 4), None);
     }
 }

@@ -276,7 +276,18 @@ pub struct Mode {
     /// Le pont de navigation — le mot que le lecteur cherche.
     ///
     /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
-    pub french: String,
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
     /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
     ///
     /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
@@ -311,7 +322,18 @@ pub struct Corpus {
     /// Le pont de navigation — le mot que le lecteur cherche.
     ///
     /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
-    pub french: String,
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
     /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
     ///
     /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
@@ -534,7 +556,18 @@ pub struct ModeOutline {
     /// Le pont de navigation — le mot que le lecteur cherche.
     ///
     /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
-    pub french: String,
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
     /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
     ///
     /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
@@ -559,7 +592,18 @@ pub struct CorpusOutline {
     /// Le pont de navigation — le mot que le lecteur cherche.
     ///
     /// Les intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
-    pub french: String,
+    ///
+    /// **Facultatif, et il le faut.** Le corpus publié atteint des liseuses
+    /// plus anciennes que lui *et* des liseuses plus récentes : une app
+    /// compilée aujourd'hui doit savoir lire le corpus d'hier, qui n'a pas
+    /// cette clé. Un champ obligatoire ferait lever le décodeur — et le
+    /// numéro de schéma ne protège pas ici, puisqu'il ne change pas.
+    ///
+    /// C'est la même leçon que `groups`, apprise deux fois : une clé **en
+    /// trop** est ignorée, une clé **manquante** sur un champ non optionnel
+    /// lève.
+    #[serde(default)]
+    pub french: Option<String>,
     /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
     ///
     /// Les intraduisibles y **restent en hébreu** : *Torah* devient « la
@@ -633,7 +677,7 @@ mod tests {
         let mode = Mode {
             id: "torah".into(),
             title: "Torah".into(),
-            french: "la Loi".into(),
+            french: Some("la Loi".into()),
             glose: Some("la Fondation".into()),
             order: 1,
             groups: Vec::new(),

@@ -335,7 +335,7 @@ fn assemble(
             Corpus {
                 id: entry.corpus.id.clone(),
                 title: display_name(&entry.corpus.id),
-                french: fr.to_string(),
+                french: (!fr.is_empty()).then(|| fr.to_string()),
                 glose: gl.map(str::to_string),
                 order: entry.corpus.order,
                 modes: Vec::new(),
@@ -347,7 +347,7 @@ fn assemble(
             corpus.modes.push(Mode {
                 id: entry.mode.id.clone(),
                 title: display_name(&entry.mode.id),
-                french: fr.to_string(),
+                french: (!fr.is_empty()).then(|| fr.to_string()),
                 glose: gl.map(str::to_string),
                 order: entry.mode.order,
                 // Remplis après coup, quand tous les livres du mode sont

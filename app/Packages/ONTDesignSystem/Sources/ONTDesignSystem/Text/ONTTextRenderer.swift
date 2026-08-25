@@ -265,8 +265,29 @@ public enum ONTTextRenderer {
                 }
                 output += nested
 
-            case .link(let children, _):
-                append(children, to: &output, type: type, inGloss: inGloss)
+            case .link(let children, let href):
+                // **L'adresse était jetée ici**, et les renvois n'étaient donc
+                // touchables nulle part. Une glose qui écrit « déjà posé en
+                // *Bereshit* 9:27 » désigne une unité que le lecteur ne peut
+                // pas trouver seul : la numérotation ONT repart de 1 à chaque
+                // unité, et 9:27 est le dixième verset de la neuvième.
+                //
+                // Le pipeline a fait le calcul et l'a mis dans le lien. Il
+                // suffit de le porter jusqu'à l'attribut, et `RootView` le
+                // rattrape déjà : `openURL` passe par le routeur, qui
+                // reconnaît le domaine du site et ouvre l'unité au verset —
+                // sans jamais sortir vers Safari.
+                var lie = AttributedString()
+                append(children, to: &lie, type: type, inGloss: inGloss)
+                if let url = URL(string: href) {
+                    lie.link = url
+                    // Le renvoi se distingue du corps sans crier : la couleur
+                    // de l'accentuation, pas l'or — l'or promet une fiche, et
+                    // un renvoi n'en est pas une.
+                    lie.foregroundColor = ONTColors.accentuation(type.theme)
+                    lie.underlineStyle = .single
+                }
+                output += lie
 
             case .lineBreak:
                 output += AttributedString("\n")
