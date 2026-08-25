@@ -230,7 +230,14 @@ struct BookView: View {
                 }
             }
 
-            Section("Unités") {
+            // **« Unités » est le mot du pipeline**, pas celui du lecteur.
+            //
+            // Il est juste — une unité ONT se ferme quand une fonction
+            // s'accomplit — mais il est interne, et il donnait un troisième nom
+            // à ce que les lignes en dessous appellent déjà « Chapitre 3 » ou
+            // « Parashah 3 ». Trois mots pour une chose, sur un écran dont tout
+            // le propos est de n'en enseigner qu'un.
+            Section(model.preferences.french ? "Chapitres" : "Parashiot") {
                 ForEach(outline.chapters) { chapter in
                     NavigationLink(
                         value: Router.Destination.chapter(book: outline.id, chapter: chapter.id)
@@ -317,7 +324,7 @@ struct ChapterLoader: View {
                 .id(chapter.id)
         } else {
             ContentUnavailableView(
-                "Unité introuvable",
+                "\(LibelleDUnite.nom(french: model.preferences.french).localizedCapitalized) introuvable",
                 systemImage: "questionmark.text.page",
                 description: Text("« \(chapterId) » n'est pas dans ce livre.")
             )

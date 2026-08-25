@@ -111,6 +111,33 @@ public enum LibelleDUnite {
         french ? "Chapitre \(n)" : "Parashah \(n)"
     }
 
+    /// Le nom de l'unité, seul — « chapitre » ou « parashah ».
+    ///
+    /// En minuscules : c'est un nom commun, et il paraît le plus souvent au
+    /// milieu d'une phrase. Les rares points d'appel qui ouvrent une ligne
+    /// avec — un intertitre de sommaire — le capitalisent eux-mêmes.
+    public static func nom(french: Bool) -> String {
+        french ? "chapitre" : "parashah"
+    }
+
+    /// Le pluriel — « chapitres » ou **« parashiot »**.
+    ///
+    /// Le pluriel de *parashah* n'est pas régulier : il ne prend pas de `s`
+    /// français mais la marque hébraïque `-ot`, et le vault le fixe ainsi au
+    /// §2.5. Écrire « parashahs » serait franciser un intraduisible, ce qui est
+    /// exactement ce que le réglage cherche à défaire.
+    public static func noms(french: Bool) -> String {
+        french ? "chapitres" : "parashiot"
+    }
+
+    /// « Tout le chapitre » / « Toute la parashah » — le nom **et son genre**.
+    ///
+    /// Le genre voyage avec le mot, sinon le point d'appel doit l'accorder
+    /// lui-même — et il l'oubliera le jour où le second registre s'ajoutera.
+    public static func toutLe(french: Bool) -> String {
+        french ? "Tout le chapitre" : "Toute la parashah"
+    }
+
     /// « Bereshit · Chapitre 7 » — le livre **et** le rang.
     ///
     /// Réservé aux écrans où rien d'autre ne dit dans quel livre on est :
@@ -166,14 +193,6 @@ public struct ChapterStub: Hashable, Sendable, Identifiable {
         return LibelleDUnite.rang(n, french: french)
     }
 
-    /// Le nom de l'unité **comme genre**, pour une phrase qui la désigne.
-    ///
-    /// « Tout le chapitre » / « Toute la parashah » : le mot change, et le
-    /// genre grammatical avec lui. Rendre le seul nom laisserait au point
-    /// d'appel le soin d'accorder, et il l'oublierait.
-    public static func nomDuGenre(french: Bool) -> (article: String, nom: String) {
-        french ? ("Tout le", "chapitre") : ("Toute la", "parashah")
-    }
 }
 
 /// Un livre — un des 70 slots de `corpus-order.md`.

@@ -403,10 +403,34 @@ struct RegistreDesUnitesTests {
     /// l'accorder lui-même — et il l'oubliera.
     @Test("le genre suit le mot")
     func genderTravelsWithTheWord() {
-        let fr = ChapterStub.nomDuGenre(french: true)
-        let glose = ChapterStub.nomDuGenre(french: false)
-        #expect("\(fr.article) \(fr.nom)" == "Tout le chapitre")
-        #expect("\(glose.article) \(glose.nom)" == "Toute la parashah")
+        #expect(LibelleDUnite.toutLe(french: true) == "Tout le chapitre")
+        #expect(LibelleDUnite.toutLe(french: false) == "Toute la parashah")
+    }
+
+    /// **Le pluriel de *parashah* n'est pas français.**
+    ///
+    /// Il prend la marque hébraïque `-ot`, que le §2.5 du vault fixe. Écrire
+    /// « parashahs » franciserait un intraduisible — exactement ce que le
+    /// réglage cherche à défaire. C'est le genre de détail qu'un point d'appel
+    /// pressé règle avec un `+ "s"`.
+    @Test("le pluriel garde la marque hébraïque")
+    func pluralKeepsTheHebrewMark() {
+        #expect(LibelleDUnite.noms(french: true) == "chapitres")
+        #expect(LibelleDUnite.noms(french: false) == "parashiot")
+        #expect(LibelleDUnite.nom(french: false) == "parashah")
+    }
+
+    /// Le livre **et** le rang, pour le seul écran qui n'a pas d'autre repère.
+    @Test("la pastille situe autant qu'elle nomme")
+    func thePillSituatesAndNames() {
+        #expect(
+            LibelleDUnite.situe(livre: "Bereshit", rang: 6, french: true)
+                == "Bereshit · Chapitre 6"
+        )
+        #expect(
+            LibelleDUnite.situe(livre: "Bereshit", rang: 6, french: false)
+                == "Bereshit · Parashah 6"
+        )
     }
 }
 

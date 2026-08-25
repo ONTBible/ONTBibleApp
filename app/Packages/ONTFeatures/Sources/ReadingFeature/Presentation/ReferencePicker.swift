@@ -249,8 +249,7 @@ public struct ReferencePicker: View {
     /// la même chose, au moment précis où le réglage cherche à n'en enseigner
     /// qu'un.
     private var toutLUnite: String {
-        let genre = ChapterStub.nomDuGenre(french: model.preferences.french)
-        return "\(genre.article) \(genre.nom)"
+        LibelleDUnite.toutLe(french: model.preferences.french)
     }
 
     private func aller(book: String, chapter: String, verse: Int?) {

@@ -117,7 +117,9 @@ public struct YouTab: View {
                 } footer: {
                     Text(
                         "La Bible ONT est une restitution en cours. Le corpus s'étend "
-                            + "à mesure que les unités sont verrouillées."
+                            + "à mesure que les "
+                            + LibelleDUnite.noms(french: reading.preferences.french)
+                            + " sont verrouillés."
                     )
                 }
                 .ontRow()
