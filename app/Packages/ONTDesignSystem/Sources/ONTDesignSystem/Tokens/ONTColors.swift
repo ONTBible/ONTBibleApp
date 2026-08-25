@@ -223,6 +223,23 @@ public enum ONTColors {
         background(theme)
     }
 
+    /// Ce qui se pose sur un aplat de marque quand on veut **l'or**, et non le
+    /// simple retournement du fond.
+    ///
+    /// L'or ne peut pas être demandé directement, parce que l'aplat de marque
+    /// **est déjà l'or** sur les thèmes sombres : `brandInk` rend `burgundy` en
+    /// clair et `gold` en sombre. Écrire `.foregroundStyle(gold)` sur un bouton
+    /// de connexion donnerait donc de l'or sur bordeaux en clair — ce qu'on
+    /// veut — et de l'or sur or en sombre, c'est-à-dire un bouton vide.
+    ///
+    /// La règle tient en une phrase : **l'or va sur le bordeaux, et rien ne va
+    /// sur l'or que le fond de la page**. En sombre, l'intention d'or est déjà
+    /// portée par la capsule elle-même ; ce qui s'y pose retombe donc sur
+    /// `onBrand`.
+    public static func onBrandAccent(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? onBrand(theme) : gold
+    }
+
     /// Une surface posée sur le fond : ligne de liste, carte, feuille.
     ///
     /// Sur parchemin, un blanc pur détonnerait — la surface est un parchemin

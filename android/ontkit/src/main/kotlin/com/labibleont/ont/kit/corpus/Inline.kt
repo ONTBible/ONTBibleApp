@@ -1,0 +1,124 @@
+package com.labibleont.ont.kit.corpus
+
+/**
+ * Un nœud du texte ONT.
+ *
+ * Le CLAUDE.md §2.1 pose trois niveaux, et tout l'enjeu de la liseuse est de ne
+ * jamais les aplatir :
+ *
+ * - **niveau 1** — le corps de la traduction : [Text], et [Term] pour les
+ *   intraduisibles qui restent en hébreu translittéré ;
+ * - **niveau 2** — [Gloss], la voix du projet, qui explicite ce que le lecteur
+ *   hébreu comprenait sans qu'on le lui dise ;
+ * - **niveau 3** — [Translit], la paire translittération + hébreu, et [Hebrew]
+ *   pour une séquence hébraïque isolée.
+ *
+ * Les garder distincts, c'est ce qui rend les trois interrupteurs de lecture
+ * gratuits : masquer un niveau, c'est ne pas émettre ses nœuds.
+ *
+ * ## Ce type ne sait pas lire du JSON
+ *
+ * Il n'a ni annotation de sérialisation ni constructeur depuis un décodeur.
+ * Côté Swift, `Inline` a longtemps porté son propre `init(from:)` — le domaine
+ * savait donc lire le JSON du pipeline, et un champ renommé dans le vault se
+ * propageait jusqu'au cœur de l'app. C'est la dépendance à l'envers.
+ *
+ * La forme du fichier vit dans `ontdata`, sous le nom `schema.Inline`, engendré
+ * depuis `schema.rs` à chaque build ; `SchemaMapping.kt` traduit vers ce
+ * type-ci. Le `when` de cette traduction est exhaustif, donc **un type de nœud
+ * ajouté au pipeline casse la compilation de l'app** au lieu de disparaître
+ * silencieusement du texte.
+ */
+public sealed interface Inline {
+
+    /** Le corps de la traduction. */
+    public data class Text(public val value: String) : Inline
+
+    /** Un intraduisible. [lemma] est la clé qui ouvre sa fiche de lexique. */
+    public data class Term(public val value: String, public val lemma: String) : Inline
+
+    /**
+     * `(*chasdo* / חַסְדּוֹ)`.
+     *
+     * Les deux parts sont séparées parce qu'elles ne se composent pas de la
+     * même façon : latine italique d'un côté, fonte hébraïque et direction RTL
+     * de l'autre.
+     */
+    public data class Translit(
+        public val translit: String,
+        public val hebrew: String,
+    ) : Inline
+
+    /** Une séquence en écriture hébraïque rencontrée hors d'un [Translit]. */
+    public data class Hebrew(public val value: String) : Inline
+
+    /** Niveau 2 — la voix du projet. */
+    public data class Gloss(public val children: kotlin.collections.List<Inline>) : Inline
+
+    /**
+     * Une **accentuation** — ni corps ordinaire, ni intraduisible.
+     *
+     * La troisième catégorie, née d'un défaut : des mots mis en gras pour
+     * insister se retrouvaient déclarés intraduisibles, donc affichés en or et
+     * touchables, ouvrant une fiche de lexique vide. L'intention était juste,
+     * il lui manquait sa marque.
+     *
+     * Elle porte sa propre couleur et **ne se touche pas** : elle n'a pas de
+     * fiche, et un mot qui répond au doigt sans rien avoir à dire est pire
+     * qu'un mot qui ne répond pas.
+     */
+    public data class Accentuation(public val children: kotlin.collections.List<Inline>) : Inline
+
+    public data class Emphasis(public val children: kotlin.collections.List<Inline>) : Inline
+
+    public data class Link(
+        public val children: kotlin.collections.List<Inline>,
+        public val href: String,
+    ) : Inline
+
+    /**
+     * Une coupure de ligne signifiante — le bloc de référence d'une feuille
+     * d'introduction empile ses champs ainsi.
+     */
+    public data object LineBreak : Inline
+}
+
+/**
+ * Le texte nu, pour un titre, un résumé ou une recherche.
+ *
+ * Par défaut ne rend que le corps de la traduction — c'est la voix du texte,
+ * sans l'appareil.
+ */
+public fun kotlin.collections.List<Inline>.plainText(
+    gloss: Boolean = false,
+    level3: Boolean = false,
+): String = buildString {
+    for (node in this@plainText) {
+        when (node) {
+            is Inline.Text -> append(node.value)
+            is Inline.Term -> append(node.value)
+            is Inline.Hebrew -> if (level3) append(node.value)
+            is Inline.Translit ->
+                if (level3) append("(${node.translit} / ${node.hebrew})")
+            is Inline.Gloss ->
+                if (gloss) append(node.children.plainText(gloss, level3))
+            is Inline.Emphasis -> append(node.children.plainText(gloss, level3))
+            is Inline.Accentuation -> append(node.children.plainText(gloss, level3))
+            is Inline.Link -> append(node.children.plainText(gloss, level3))
+            Inline.LineBreak -> append('\n')
+        }
+    }
+}
+
+/** Tous les intraduisibles de l'arbre, dans l'ordre du texte. */
+public val kotlin.collections.List<Inline>.lemmas: kotlin.collections.List<String>
+    get() = flatMap { node ->
+        when (node) {
+            is Inline.Term -> listOf(node.lemma)
+            is Inline.Gloss -> node.children.lemmas
+            is Inline.Emphasis -> node.children.lemmas
+            is Inline.Accentuation -> node.children.lemmas
+            is Inline.Link -> node.children.lemmas
+            else -> emptyList()
+        }
+    }

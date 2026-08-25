@@ -16,10 +16,54 @@ public final class FileReaderStore: HighlightRepository, PositionRepository, Pre
     private let url: URL
     private var state: State
 
+    /// Le contenu du fichier.
+    ///
+    /// **Aucune valeur par défaut sur ces propriétés, et c'est délibéré.**
+    ///
+    /// Swift ne les emploie pas au décodage : une propriété non optionnelle est
+    /// décodée avec `decode`, jamais avec `decodeIfPresent`, et sa valeur par
+    /// défaut n'est consultée à aucun moment. Un `= []` ici ne rend donc rien
+    /// tolérant — il en donne seulement l'air, ce qui est pire que rien.
+    ///
+    /// Les retirer met l'initialiseur mémberwise en position de garde : il
+    /// exige alors **tous** ses arguments, donc ajouter un champ à `State`
+    /// **casse la compilation** aux deux endroits qui le construisent, en
+    /// nommant le champ oublié. C'est la même idée que la déstructuration
+    /// exhaustive posée le même jour dans le site : rendre l'omission
+    /// impossible plutôt que la surveiller.
+    ///
+    /// L'enjeu n'est pas théorique. Le prochain champ ajouté ici est celui de
+    /// la synchronisation de compte ; sans cette garde, tout lecteur déjà
+    /// installé perdrait ses surlignages à la mise à jour, en silence.
     private struct State: Codable {
-        var highlights: [Highlight] = []
+        var highlights: [Highlight]
         var position: ReadingPosition?
-        var preferences: ReadingPreferences = .default
+        var preferences: ReadingPreferences
+
+        /// Le fichier qu'on écrit quand il n'y en avait pas.
+        static let vide = State(highlights: [], position: nil, preferences: .default)
+
+        /// Décodage tolérant, comme celui des feuilles qu'il contient.
+        ///
+        /// `Highlight` et `ReadingPreferences` décodent déjà chaque clé avec
+        /// `decodeIfPresent ?? défaut` — le conteneur, lui, ne le faisait pas.
+        /// Tolérant en dessous, fatal au-dessus : une seule clé manquante ici
+        /// levait, et le `try?` de l'appelant repartait d'un fichier vide.
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self.init(
+                highlights: try c.decodeIfPresent([Highlight].self, forKey: .highlights) ?? [],
+                position: try c.decodeIfPresent(ReadingPosition.self, forKey: .position),
+                preferences: try c.decodeIfPresent(ReadingPreferences.self, forKey: .preferences)
+                    ?? .default
+            )
+        }
+
+        init(highlights: [Highlight], position: ReadingPosition?, preferences: ReadingPreferences) {
+            self.highlights = highlights
+            self.position = position
+            self.preferences = preferences
+        }
     }
 
     /// Index par verset, pour que le rendu d'un chapitre ne balaie pas la
@@ -30,8 +74,32 @@ public final class FileReaderStore: HighlightRepository, PositionRepository, Pre
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         url = directory.appending(path: name)
 
-        state = (try? Data(contentsOf: url))
-            .flatMap { try? JSONDecoder().decode(State.self, from: $0) } ?? State()
+        let ecrit = try? Data(contentsOf: url)
+        if let ecrit {
+            do {
+                state = try JSONDecoder().decode(State.self, from: ecrit)
+            } catch {
+                // **Ne pas écraser ce qu'on n'a pas su lire.**
+                //
+                // Repartir d'un état vide est le bon comportement : mieux vaut
+                // une app qui s'ouvre vide qu'une app qui refuse de s'ouvrir.
+                // Mais la première écriture qui suit écraserait le fichier, et
+                // une lecture ratée deviendrait une perte définitive — un
+                // disque plein pendant l'écriture, une sauvegarde tronquée.
+                //
+                // On le met de côté d'abord. Trois lignes, et la récupération
+                // reste possible.
+                try? FileManager.default.moveItem(
+                    at: url,
+                    to: url.deletingPathExtension()
+                        .appendingPathExtension("illisible")
+                        .appendingPathExtension("json")
+                )
+                state = .vide
+            }
+        } else {
+            state = .vide
+        }
         purgerLesPierresTombales()
         reindex()
     }

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Le corpus se télécharge, et le compte se synchronise. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Depuis Android 13, notifier demande une permission à l'exécution. Elle
+      est unique pour l'app — mais les deux usages, verset du jour et parutions,
+      seront deux *canaux* distincts. Le lecteur coupe donc l'un sans l'autre
+      depuis les réglages système, ce qu'iOS ne sait pas faire.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".ONTApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ONT">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.ONT">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".widget.VersetDuJourWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_verset_du_jour" />
+        </receiver>
+    </application>
+</manifest>

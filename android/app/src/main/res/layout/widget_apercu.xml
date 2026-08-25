@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  L'aperçu montré dans le sélecteur de widgets.
+
+  Un gabarit statique et non le widget lui-même : le sélecteur ne peut pas
+  exécuter du Glance, qui a besoin d'un identifiant de widget que le système
+  n'attribue qu'à la pose. Sans ce fichier, l'aperçu se réduit à l'icône de
+  l'app — le lecteur ne voit pas ce qu'il s'apprête à poser, et un widget qu'on
+  ne reconnaît pas n'est pas choisi.
+
+  Les teintes sont celles du widget réel, à l'entier près : bordeaux de marque
+  en fond, or pour le renvoi, encre de la nuit pour le texte.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="#421B26"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bereshit 1:1"
+        android:textColor="#CDBE83"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/widget_apercu_texte"
+        android:textColor="#CFC5B9"
+        android:textSize="15sp"
+        android:maxLines="4"
+        android:ellipsize="end" />
+</LinearLayout>

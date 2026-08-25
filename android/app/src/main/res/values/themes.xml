@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Le thème de fenêtre, et lui seul. Tout le reste de l'apparence est en
+      Compose, dans `ontdesignsystem`.
+
+      `windowBackground` porte la nuit : c'est ce qu'on voit pendant les
+      quelques dizaines de millisecondes entre le lancement et la première
+      image composée. Laisser le blanc système ici produirait un éclair blanc
+      à chaque ouverture — le genre de détail qu'on ne voit qu'en le vivant.
+    -->
+    <style name="Theme.ONT" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/nuit</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

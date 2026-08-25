@@ -15,23 +15,10 @@ public struct DailyVerseSettings: View {
     /// l'autorisation puis programmer. Injecté pour que la vue ne connaisse
     /// pas `UserNotifications`, qui vit dans la cible d'app.
     private let onChange: (DailyVerseSchedule) async -> Bool
-    /// Ce que fait l'app quand le lecteur active les parutions. Rend `false`
-    /// si la notification est refusée — le réglage se remet alors seul en
-    /// position fermée, plutôt que d'annoncer un service qui ne marche pas.
-    ///
-    /// Injecté pour la même raison que `onChange` : la vue ne connaît ni
-    /// `UserNotifications` ni le réseau.
-    private let onParutions: (Bool) async -> Bool
-
     @State private var refuse = false
-    @AppStorage("push-distant-consenti") private var parutions = false
 
-    public init(
-        onChange: @escaping (DailyVerseSchedule) async -> Bool,
-        onParutions: @escaping (Bool) async -> Bool = { _ in true }
-    ) {
+    public init(onChange: @escaping (DailyVerseSchedule) async -> Bool) {
         self.onChange = onChange
-        self.onParutions = onParutions
     }
 
     public var body: some View {
@@ -75,63 +62,11 @@ public struct DailyVerseSettings: View {
             }
             .ontRow()
 
-            Section {
-                Toggle(
-                    "Être prévenu des parutions",
-                    isOn: Binding(
-                        get: { parutions },
-                        set: { actif in
-                            parutions = actif
-                            Task {
-                                let accorde = await onParutions(actif)
-                                // Refusé : le réglage revient de lui-même. Le
-                                // laisser ouvert annoncerait un service que
-                                // l'appareil ne rendra pas.
-                                if actif && !accorde {
-                                    parutions = false
-                                    refuse = true
-                                }
-                            }
-                        }
-                    ))
-            } header: {
-                Text("Parutions")
-            } footer: {
-                // Le consentement se donne en connaissance de cause, ou il ne
-                // vaut rien. On dit donc ce qui sort de l'appareil, ce qui
-                // n'en sort pas, et comment revenir en arrière — sans
-                // euphémisme et sans renvoyer à une page de conditions.
-                Text(
-                    "Un livre, un chapitre ou un terme du lexique qui paraît "
-                        + "vous est signalé aussitôt.\n\n"
-                        + "Ce réglage envoie à La Bible ONT un identifiant "
-                        + "d'appareil fourni par Apple. Il n'est rattaché à "
-                        + "aucun compte, et rien de ce que vous lisez n'est "
-                        + "transmis. Le couper l'efface de nos serveurs.\n\n"
-                        + "Sans lui, vous serez prévenu quand même — mais "
-                        + "seulement à l'ouverture de l'app, ou lorsque iOS "
-                        + "la réveille."
-                )
-            }
-            .ontRow()
-
             if refuse {
-                Section {
-                    Label {
-                        Text(
-                            "Les notifications sont refusées pour La Bible ONT. "
-                                + "Elles s'autorisent dans Réglages › Notifications."
-                        )
-                    } icon: {
-                        Image(systemName: "bell.slash")
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(theme.ink.opacity(0.7))
-                }
-                .ontRow()
+                RecoursNotificationsRefusees()
             }
         }
-        .navigationTitle("Rappel")
+        .navigationTitle("Verset du jour")
         .navigationBarTitleDisplayMode(.inline)
         .ontRow()
         .ontScreen()
