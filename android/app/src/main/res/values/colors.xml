@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- La nuit du site, sa variable CSS «color-nuit». Voir ONTColors. -->
+    <color name="nuit">#18090D</color>
+</resources>

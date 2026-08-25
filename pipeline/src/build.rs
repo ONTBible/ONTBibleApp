@@ -22,12 +22,13 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
-use crate::config::{display_name, out, vault, REFERENCE, SKELETON, TREES};
+use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
+use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
-    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Inline, Manifest, Mode, ModeOutline,
+    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
     Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
 };
 use crate::search::index_chapter;
@@ -316,6 +317,7 @@ fn assemble(
                 .as_ref()
                 .map(|s| s.french.clone())
                 .unwrap_or_else(|| entry.french.clone()),
+            glose: glose(&entry.id).map(str::to_string),
             hebrew: declared
                 .map(|d| d.hebrew.clone())
                 .or_else(|| from_subtitle.as_ref().map(|s| s.hebrew.clone())),
@@ -329,19 +331,29 @@ fn assemble(
 
         let corpus = corpora.entry(entry.corpus.id.clone()).or_insert_with(|| {
             ordre_corpus.push(entry.corpus.id.clone());
+            let (fr, gl) = section(&entry.corpus.id).unwrap_or(("", None));
             Corpus {
                 id: entry.corpus.id.clone(),
                 title: display_name(&entry.corpus.id),
+                french: (!fr.is_empty()).then(|| fr.to_string()),
+                glose: gl.map(str::to_string),
                 order: entry.corpus.order,
                 modes: Vec::new(),
             }
         });
 
         if !corpus.modes.iter().any(|m| m.id == entry.mode.id) {
+            let (fr, gl) = section(&entry.mode.id).unwrap_or(("", None));
             corpus.modes.push(Mode {
                 id: entry.mode.id.clone(),
                 title: display_name(&entry.mode.id),
+                french: (!fr.is_empty()).then(|| fr.to_string()),
+                glose: gl.map(str::to_string),
                 order: entry.mode.order,
+                // Remplis après coup, quand tous les livres du mode sont
+                // connus : l'ordre des conteneurs est celui de leurs livres,
+                // et on ne le devine pas depuis le premier venu.
+                groups: Vec::new(),
                 books: Vec::new(),
             });
         }
@@ -361,8 +373,42 @@ fn assemble(
     result.sort_by_key(|c| c.order);
     for corpus in &mut result {
         corpus.modes.sort_by_key(|m| m.order);
+        for mode in &mut corpus.modes {
+            mode.groups = groupes_du_mode(&mode.books);
+        }
     }
     result
+}
+
+/// Les conteneurs d'un mode, dans l'ordre où leurs livres paraissent.
+///
+/// L'ordre vient des **livres**, jamais d'une liste écrite à côté : c'est le
+/// corpus qui décide où tombe une coupure, et une liste recopiée finirait par
+/// diverger de lui sans que rien ne le dise.
+///
+/// Un conteneur rencontré mais non déclaré dans `GROUPES` est **ignoré en
+/// silence**, à dessein : le regroupement est un ornement de lecture, et une
+/// table des matières qui refuse de se rendre pour un identifiant inconnu
+/// coûterait plus au lecteur que le groupe ne lui apporte.
+fn groupes_du_mode(books: &[Book]) -> Vec<Group> {
+    let mut vus: Vec<&str> = Vec::new();
+    for id in books.iter().filter_map(|b| b.group_id.as_deref()) {
+        if !vus.contains(&id) {
+            vus.push(id);
+        }
+    }
+    vus.into_iter()
+        .filter_map(|id| {
+            let (french, glose, rupture) = groupe(id)?;
+            Some(Group {
+                id: id.to_string(),
+                title: display_name(id),
+                french: french.to_string(),
+                glose: glose.map(str::to_string),
+                rupture: rupture.map(str::to_string),
+            })
+        })
+        .collect()
 }
 
 struct Indexed {
@@ -502,6 +548,7 @@ fn outline(book: &Book) -> BookOutline {
         slot: book.slot,
         title: book.title.clone(),
         french: book.french.clone(),
+        glose: book.glose.clone(),
         hebrew: book.hebrew.clone(),
         group_id: book.group_id.clone(),
         empty: book.empty,
@@ -625,7 +672,28 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.dedup();
 
     let lu = read_chapters(&racine);
-    let corpora = assemble(&skeleton, &lu.chapters, &book_names);
+    let mut corpora = assemble(&skeleton, &lu.chapters, &book_names);
+
+    // **Les renvois se lient après l'assemblage, et il n'y a pas le choix.**
+    //
+    // Résoudre « Bereshit 9:5 » demande de savoir quelle unité couvre 9:1-17,
+    // donc de connaître **toutes** les plages du corpus. On ne peut pas le
+    // faire en lisant un chapitre : à ce moment-là, on ignore encore ce que
+    // contiennent les autres.
+    {
+        let index = renvois::Index::nouveau(&corpora);
+        for corpus in &mut corpora {
+            for mode in &mut corpus.modes {
+                for livre in &mut mode.books {
+                    for unite in &mut livre.chapters {
+                        let origine = unite.id.clone();
+                        renvois::lier(&mut unite.blocks, &index, &origine);
+                    }
+                }
+            }
+        }
+    }
+    let corpora = corpora;
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -650,6 +718,8 @@ pub fn build() -> Result<BuildResult, String> {
                 .map(|c| CorpusOutline {
                     id: c.id.clone(),
                     title: c.title.clone(),
+                    french: c.french.clone(),
+                    glose: c.glose.clone(),
                     order: c.order,
                     modes: c
                         .modes
@@ -657,7 +727,10 @@ pub fn build() -> Result<BuildResult, String> {
                         .map(|m| ModeOutline {
                             id: m.id.clone(),
                             title: m.title.clone(),
+                            french: m.french.clone(),
+                            glose: m.glose.clone(),
                             order: m.order,
+                            groups: m.groups.clone(),
                             books: m.books.iter().map(outline).collect(),
                         })
                         .collect(),
