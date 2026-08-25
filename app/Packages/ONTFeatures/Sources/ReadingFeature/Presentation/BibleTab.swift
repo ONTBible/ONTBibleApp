@@ -230,7 +230,14 @@ struct BookView: View {
                 }
             }
 
-            Section("Unités") {
+            // **« Unités » est le mot du pipeline**, pas celui du lecteur.
+            //
+            // Il est juste — une unité ONT se ferme quand une fonction
+            // s'accomplit — mais il est interne, et il donnait un troisième nom
+            // à ce que les lignes en dessous appellent déjà « Chapitre 3 » ou
+            // « Parashah 3 ». Trois mots pour une chose, sur un écran dont tout
+            // le propos est de n'en enseigner qu'un.
+            Section(model.preferences.french ? "Chapitres" : "Parashiot") {
                 ForEach(outline.chapters) { chapter in
                     NavigationLink(
                         value: Router.Destination.chapter(book: outline.id, chapter: chapter.id)
@@ -270,23 +277,9 @@ private struct ChapterRow: View {
     @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
 
-    /// Le libellé d'une unité, dans le registre choisi.
-    ///
-    /// Le titre d'une unité est « Bereshit 7 ». Le poser vingt fois dans la
-    /// page de *Bereshit* n'apprend rien et noie le seul chiffre utile — le
-    /// nom du livre est déjà dans la barre de navigation.
-    ///
-    /// La paire est instructive à elle seule : **« chapitre » est la division
-    /// de Stephen Langton**, XIIIᵉ siècle, que le §2.3 écarte comme
-    /// « administrative médiévale — souvent arbitraire » ; la **parashah** est
-    /// la division native de l'hébreu, attestée à Qumrân, et elle *ouvre* —
-    /// le scribe laisse le reste de la ligne blanc.
-    ///
-    /// Une introduction garde son titre : elle n'a pas de rang à afficher.
-    private var libelle: String {
-        guard stub.n > 0 else { return stub.title }
-        return model.preferences.french ? "Chapitre \(stub.n)" : "Parashah \(stub.n)"
-    }
+    /// Le libellé de l'unité, dans le registre choisi — le calcul vit dans
+    /// `ChapterStub` parce que le sélecteur de renvoi le fait aussi.
+    private var libelle: String { stub.label(french: model.preferences.french) }
 
     var body: some View {
         HStack {
@@ -331,7 +324,7 @@ struct ChapterLoader: View {
                 .id(chapter.id)
         } else {
             ContentUnavailableView(
-                "Unité introuvable",
+                "\(LibelleDUnite.nom(french: model.preferences.french).localizedCapitalized) introuvable",
                 systemImage: "questionmark.text.page",
                 description: Text("« \(chapterId) » n'est pas dans ce livre.")
             )
