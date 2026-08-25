@@ -186,7 +186,7 @@ public struct ReferencePicker: View {
                 Button {
                     aller(book: book, chapter: chapter, verse: nil)
                 } label: {
-                    Label("Toute l'unité", systemImage: "text.justify.left")
+                    Label(toutLUnite, systemImage: "text.justify.left")
                         .font(.callout.weight(.medium))
                         .foregroundStyle(theme.accent)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,9 +200,19 @@ public struct ReferencePicker: View {
                 .buttonStyle(.plain)
 
                 if let unite, unite.verseCount > 0 {
+                    // **Le verset où l'on est se marque, comme le livre et
+                    // l'unité aux deux étapes précédentes.**
+                    //
+                    // Il était câblé à `false` : les deux premières étapes
+                    // disaient où l'on est, la troisième ne le disait pas, et
+                    // le lecteur arrivait sur vingt et une cases identiques
+                    // sans savoir laquelle il venait de quitter. VoiceOver ne
+                    // l'annonçait pas non plus — `courant` porte aussi le trait
+                    // `.isSelected`.
+                    let courant = versetCourant(book: book, chapter: chapter)
                     LazyVGrid(columns: grille, spacing: spacing.s) {
                         ForEach(1...unite.verseCount, id: \.self) { n in
-                            Case(titre: "\(n)", courant: false, brouillon: false) {
+                            Case(titre: "\(n)", courant: n == courant, brouillon: false) {
                                 aller(book: book, chapter: chapter, verse: n)
                             }
                         }
@@ -211,9 +221,35 @@ public struct ReferencePicker: View {
             }
             .padding(spacing.m)
         }
-        .navigationTitle(unite?.title ?? chapter)
+        .navigationTitle(unite?.label(french: model.preferences.french) ?? chapter)
         .navigationBarTitleDisplayMode(.inline)
         .ontScreen()
+    }
+
+    /// Le verset que le lecteur quitte, s'il est dans l'unité qu'on regarde.
+    ///
+    /// La position mémorisée est **la sienne**, pas celle de l'unité affichée :
+    /// on ne la retient que si les deux coïncident. Sans ce garde-fou, ouvrir
+    /// une autre unité que celle qu'on lit allumerait une case au hasard —
+    /// « verset 12 » de *Bereshit* 2 parce qu'on en était au 12 de *Bereshit*
+    /// 18.
+    private func versetCourant(book: String, chapter: String) -> Int? {
+        guard let position = model.position,
+              position.bookId == book,
+              position.chapterId == chapter
+        else { return nil }
+        return position.verse
+    }
+
+    /// « Tout le chapitre » ou « Toute la parashah », selon le registre.
+    ///
+    /// Le libellé disait « Toute l'unité » — le mot du pipeline, juste et
+    /// interne. Le lecteur, lui, vient de toucher « Chapitre 2 » ou
+    /// « Parashah 2 » ; lui répondre « unité » introduit un troisième nom pour
+    /// la même chose, au moment précis où le réglage cherche à n'en enseigner
+    /// qu'un.
+    private var toutLUnite: String {
+        LibelleDUnite.toutLe(french: model.preferences.french)
     }
 
     private func aller(book: String, chapter: String, verse: Int?) {
