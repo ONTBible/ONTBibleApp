@@ -247,12 +247,12 @@ pub struct Book {
 ///
 /// Or l'une de ces coupures n'est pas un rangement. `corpus-order.md` la nomme
 /// **pivot herméneutique** : le *Ḥurban*, la destruction du Second Temple en
-/// 70. Avant, les lettres parlent du Temple au présent — *Igeret HaIvrim* est
+/// 70. Avant, les lettres parlent du Temple au présent — *Igeret ha-Ivrim* est
 /// « le dernier mot du *Bayit* vivant ». Après, il n'existe plus.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Group {
     pub id: String,
-    /// Le nom ONT — `Igerot lifnei haḤurban`.
+    /// Le nom ONT — `Igerot lifnei ha-Ḥurban`.
     pub title: String,
     /// Le pont de navigation, comme pour les livres.
     pub french: String,

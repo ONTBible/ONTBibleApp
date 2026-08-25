@@ -13,6 +13,7 @@ import SwiftUI
 public struct YouTab: View {
     @Environment(YouModel.self) private var model
     @Environment(AccountModel.self) private var account
+    @Environment(ReadingModel.self) private var reading
 
     /// Ce que fait l'app quand le rappel change. Injecté depuis la cible
     /// d'app : `UserNotifications` n'a rien à faire dans une feature.
@@ -28,7 +29,9 @@ public struct YouTab: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        @Bindable var reading = reading
+
+        return NavigationStack {
             List {
                 AccountSection()
 
@@ -63,6 +66,43 @@ public struct YouTab: View {
                 }
                 .ontRow()
 
+                // **Le registre ouvre la section du corpus, et ne s'y confond pas.**
+                //
+                // Il était rangé dans les réglages de lecture, entre la
+                // disposition des versets et la taille du texte. C'était le
+                // ranger avec la typographie : or il ne change pas la façon
+                // dont le texte se présente, il change **ce que les livres
+                // sont appelés** — donc le corpus lui-même, tel que le lecteur
+                // le rencontre.
+                //
+                // Sa propre carte, détachée des trois compteurs, parce que ce
+                // n'est pas une mesure : c'est le seul réglage de cet écran
+                // qui décide de ce qu'on lit plutôt que de son état.
+                Section {
+                    Toggle(isOn: $reading.preferences.french) {
+                        Label("Le français reçu", systemImage: "character.book.closed")
+                    }
+                } header: {
+                    Text("Le Corpus")
+                } footer: {
+                    Text(
+                        "Allumé, les livres portent le nom qu'on leur connaît — "
+                            + "« Apocalypse », « la Loi », « Chapitre 7 ». Éteint, ils "
+                            + "portent ce que leur nom hébreu veut dire : « le machazeh "
+                            + "de Yohanan », « la Fondation », « Parashah 7 ».\n\n"
+                            + "L'écart entre les deux n'est pas une nuance de traduction. "
+                            + "La torah est l'instruction qui vise ; le grec l'a rendue par "
+                            + "nomos, le code qui contraint, et le français en a hérité "
+                            + "« la Loi ».\n\n"
+                            + "Ce réglage est une béquille, et il est allumé pour qu'on "
+                            + "puisse marcher avant de savoir. En l'éteignant, des mots "
+                            + "apparaissent que vous n'avez peut-être jamais lus — parashah, "
+                            + "la division que le scribe hébreu traçait en laissant un blanc, "
+                            + "mille ans avant qu'on numérote des chapitres."
+                    )
+                }
+                .ontRow()
+
                 Section {
                     LabeledContent("Slots rédigés") {
                         Text("\(model.writtenBooks) / \(model.allBooks)")
@@ -74,8 +114,6 @@ public struct YouTab: View {
                     LabeledContent("Entrées de lexique") {
                         Text("\(model.glossaryCount)").monospacedDigit()
                     }
-                } header: {
-                    Text("Le corpus")
                 } footer: {
                     Text(
                         "La Bible ONT est une restitution en cours. Le corpus s'étend "

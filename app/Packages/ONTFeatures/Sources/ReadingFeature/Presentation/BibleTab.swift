@@ -390,11 +390,20 @@ private struct ConteneurLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let rupture = groupe.rupture {
-                // Le filet est en accentuation et non en or : l'or dit
-                // l'intraduisible partout ailleurs, et une règle horizontale
-                // n'en est pas un.
+                // **Le filet est en or, et c'est un revirement.**
+                //
+                // Il a d'abord été posé en accentuation, au motif que l'or dit
+                // l'intraduisible partout ailleurs et qu'une règle horizontale
+                // n'en est pas un. L'argument était juste sur le mot, faux sur
+                // la page : l'accentuation est une couleur *de texte*, et un
+                // filet bordeaux au milieu d'un sommaire se lit comme une
+                // alerte — quelque chose ne va pas —, alors qu'il annonce une
+                // charnière.
+                //
+                // L'or est la couleur de direction artistique du projet, celle
+                // des filets et des cadres. C'est ce que le lecteur y attend.
                 Rectangle()
-                    .fill(ONTColors.accentuation(theme.mode).opacity(0.5))
+                    .fill(ONTColors.accent(theme.mode).opacity(0.7))
                     .frame(height: 2)
                     .padding(.top, 8)
                 Text(rupture)
