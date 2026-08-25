@@ -128,7 +128,22 @@ targets:
         ITSAppUsesNonExemptEncryption: false
 
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0.3"
+
+        # La version publique — **à monter dès qu'Apple a approuvé la
+        # précédente**.
+        #
+        # Une version approuvée ferme son train de préversions : App Store
+        # Connect refuse alors tout nouveau build qui la porte encore, avec
+        # « Invalid Pre-Release Train … is closed for new build submissions ».
+        # La compilation réussit, l'archive se signe, et c'est le téléversement
+        # qui casse — donc l'échec arrive tard, une fois tout payé, et il se
+        # répète à chaque fusion vers `dev` tant que ce nombre n'a pas bougé.
+        # C'est ce qui a bloqué TestFlight du 24 au 25 août 2026 : 1.0.3 avait
+        # été approuvée, et cinq livraisons de suite sont mortes ici.
+        #
+        # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
+        # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
+        CFBundleShortVersionString: "1.0.4"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -231,7 +246,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.3"
+        CFBundleShortVersionString: "1.0.4"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
