@@ -219,6 +219,21 @@ et un oubli coûte une journée.
 
    Partir d'un dépôt à jour, toujours, et porter le changement dans chacun.
 
+7. **Une commande qui écrit sur le distant laisse l'arbre partagé périmé sur sa
+   propre branche.** `gh pr update-branch` fusionne la branche de base **dans le
+   dépôt distant** : l'arbre local ne l'apprend pas, et se retrouve en retard
+   sur la branche qu'il croit tenir. Un commit posé par-dessus écraserait la
+   fusion.
+
+   Ce qui le rend dangereux n'est pas l'écart mais le silence : **`git status`
+   répond « propre », et il dit vrai** — il compare l'arbre à l'index, pas à
+   `origin`. Rien dans sa sortie ne suggère d'aller regarder ailleurs.
+
+   Trouvé le 25 août par une session qui arrivait sur l'arbre et l'a contrôlé
+   avant d'y écrire. La parade : `git fetch` puis `git rev-list --left-right
+   --count origin/<branche>...HEAD` avant de toucher un arbre qu'on ne vient pas
+   de quitter — et `git pull --ff-only` après toute commande `gh` qui écrit.
+
 **Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
 les décisions : deux sessions qui refondent le même module chacune de leur côté
 produiront deux refontes, proprement isolées et incompatibles.
@@ -707,3 +722,96 @@ doit pas devenir une perte. Le fichier qu'on n'a pas su lire est mis de côté �
 `lecteur.illisible.json` — avant qu'on reparte à vide. Repartir vide est le bon
 comportement ; l'écraser ensuite transformait un incident de lecture en
 destruction définitive.
+
+### 25 août 2026 — iOS est en amont, Android en aval
+
+**Ce n'est pas une répartition de charge, c'est le sens du travail**, et il vaut
+d'être écrit parce que tout le reste en découle. Les mots de l'auteur :
+
+> « comme je suis un Apple user, je suis majoritairement en train d'examiner
+> l'app iOS ; j'ajoute sur iOS et après j'importe les changements sur Android. »
+
+Android **porte**, il ne conçoit pas. Une seule session y suffit, là où iOS en
+occupe plusieurs — et le portage à l'identique n'y est pas un cas particulier :
+c'est le mode normal de travail du dépôt.
+
+**Ce qui fait du portage un risque permanent, et non une corvée.** Recopier la
+justification avec le code est le **bon** geste : c'est ce qui garantit que le
+portage reproduit la *décision* et pas seulement l'*effet*. Le défaut naît de ce
+que la décision, elle, peut être révisée en amont sans que la copie l'apprenne
+— et un commentaire ne casse pas la compilation.
+
+C'est arrivé le jour même. Le filet du Ḥurban était en accentuation, avec un
+commentaire qui expliquait pourquoi l'or ne convenait pas. Android l'a recopié
+mot pour mot, comme il fallait. iOS a changé d'avis quelques heures plus tard :
+la copie est devenue fausse en silence, et sa justification recopiée continuait
+de plaider pour ce qu'on venait d'abandonner.
+
+**La parade n'est pas « ne recopiez pas les commentaires »** — ce serait le
+mauvais enseignement. C'est : *porter une décision, c'est aussi vérifier qu'elle
+tient encore en amont*. Et, côté amont : ce qu'on écrit en commentaire sur iOS
+est ce qu'Android héritera sans avoir le contexte de le contester. On écrit donc
+pour quelqu'un qui n'était pas là.
+
+### 25 août 2026 — le registre n'est pas une préférence, c'est l'exactitude
+
+Le réglage « Le français reçu » — *Chapitre 7* contre *Parashah 7* — a d'abord
+été présenté comme un confort de lecture, et l'auteur a failli le retirer du site
+pour cette raison. Il est revenu dessus avec l'argument juste :
+
+> « quand des parashah ne couvrent pas les mêmes chapitres que dans les
+> traductions habituelles, là c'est parashah qui est utilisé. »
+
+Quand l'unité recouvre *Bereshit* 7 **et** 8, l'appeler « Chapitre 7 » est
+**faux**. Ce n'est pas un chapitre. Le mot juste dépend donc de ce que l'unité
+*est*, pas seulement du registre où l'on veut lire — et le sous-titre de
+référence le dit déjà, « 7-8 » là où il dirait « 3 ».
+
+**Conséquence : le registre vaut sur les trois liseuses**, site compris. C'est
+même sur le site qu'il compte le plus, puisque c'est la porte d'entrée de
+quelqu'un qui arrive avec sa Bible et va comparer.
+
+**Un renseignement disponible et inemployé** : le corpus sait lesquelles
+coïncident. `reference` porte « 3 » d'un côté, « 7-8 » ou « 9:18-29 » de
+l'autre. Aucune des trois liseuses ne s'en sert. Le jour où la question revient
+— « pourquoi Chapitre 7 quand ça couvre 7 et 8 ? » —, la réponse est dans les
+données, pas à inventer.
+
+### 25 août 2026 — un calcul né dans une vue diverge, et les trois dépôts le montrent
+
+Le libellé d'une unité — « Chapitre 2 » ou « Parashah 2 » — était écrit **dans
+une vue**, en variable privée. Le compte, au moment où on l'a regardé :
+
+- **iOS** — présent au sommaire du livre, recopié nulle part, **manquant** au
+  sélecteur de renvoi (qui disait encore « Bereshit 2 ») et à la pastille de
+  l'écran de lecture ;
+- **Android** — **manquant partout**. Le sélecteur disait « Bereshit 6 » quels
+  que soient les réglages ;
+- **site** — présent au sommaire, manquant à la page de lecture et à la page de
+  passage, qui affichaient le nom ONT brut. Un lecteur touchait « Chapitre 2 »
+  et arrivait sur autre chose.
+
+**Deux liseuses écrites séparément ont produit la même dette au même endroit.**
+Ce n'est pas une coïncidence : le calcul est *né* dans une vue, et rien
+n'oblige un portage à corriger ce que la source n'a pas encore vu.
+
+Il vit maintenant dans le noyau des trois — `LibelleDUnite` côté iOS et Android,
+`nom_d_unite` côté site — et porte cinq formes, parce que l'app en a eu besoin
+de cinq : le rang, le rang situé (« Bereshit · Chapitre 6 », pour le seul écran
+qui n'a pas d'autre repère), le nom, le pluriel, et « Tout le / Toute la » avec
+son genre.
+
+**Deux détails qui piègent le point d'appel, et qui sont la raison d'être du
+helper :**
+
+- **le genre voyage avec le mot.** « Tout le chapitre » mais « Toute **la**
+  parashah ». Rendre le seul nom laisse l'accord à l'appelant, qui l'oubliera ;
+- **le pluriel de *parashah* n'est pas français** : **parashiot**, marque
+  hébraïque `-ot`, comme le §2.5 le fixe. « parashahs » franciserait un
+  intraduisible — l'inverse exact de ce que le réglage cherche à faire. C'est
+  le genre de détail qu'un appelant pressé règle avec un `+ "s"`.
+
+**Et « unité » n'est ni l'un ni l'autre des deux registres** : c'est le mot du
+pipeline. Juste, mais interne — et il donnait un **troisième** nom à la chose,
+en face du lecteur, à quatre endroits de l'app iOS. Il ne reste que dans les
+lignes de journal, où il est le bon.
