@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
@@ -48,7 +49,10 @@ public fun TermSheet(
     val theme = LocalReadingTheme.current
     val typo = ONTTypography(preferences.textSize.toFloat(), theme, preferences.bodyFont)
     val entree = model.entree(lemme)
-    var corpsSeulement by remember { mutableStateOf(true) }
+    // `rememberSaveable` et non `remember` : une rotation recrée l'activité,
+    // et le lecteur qui a déplié l'entrée pour lire au-delà du corps la
+    // retrouverait repliée sans avoir rien demandé.
+    var corpsSeulement by rememberSaveable { mutableStateOf(true) }
 
     Column(
         modifier = modifier
