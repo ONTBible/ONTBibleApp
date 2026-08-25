@@ -81,8 +81,23 @@ tasks.register<Sync>("copierLesDonnees") {
 // fichiers sans exécuter le build.
 android.sourceSets.getByName("main").assets.directories.add(assetsEngendres.path)
 
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
-    .configureEach { dependsOn("copierLesDonnees") }
+// Tout ce qui lit ce dossier doit attendre qu'il soit rempli — pas seulement
+// la fusion des assets.
+//
+// Le lint de `release` le lit aussi, et lui ne l'attendait pas : Gradle
+// refusait le build entier avec « uses this output without declaring an
+// explicit or implicit dependency ». Invisible en `debug`, où le lint fatal ne
+// tourne pas — c'est-à-dire invisible jusqu'au jour de la livraison.
+//
+// La condition liste des noms de tâches parce que l'API propre ne s'applique
+// pas ici : `addGeneratedSourceDirectory` veut un `Provider`, et la source doit
+// rester un `File` pour qu'Android Studio sache indexer sans lancer le build —
+// c'est la raison écrite juste au-dessus. Si une version d'AGP renomme ses
+// tâches, le symptôme sera le même message, et c'est cette ligne qu'il faudra
+// élargir.
+tasks.matching {
+    (it.name.startsWith("merge") && it.name.endsWith("Assets")) || it.name.contains("lint", ignoreCase = true)
+}.configureEach { dependsOn("copierLesDonnees") }
 
 dependencies {
     implementation(project(":ontkit"))
