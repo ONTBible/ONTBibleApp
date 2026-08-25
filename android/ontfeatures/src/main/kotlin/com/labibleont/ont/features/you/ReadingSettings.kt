@@ -135,47 +135,6 @@ public fun ReadingSettings(
 
             Spacer(Modifier.height(espace.xl))
 
-            ONTSectionHeader("Nom des livres")
-            ONTGroup {
-                ONTRow(
-                    titre = "Le français reçu",
-                    fin = {
-                        Switch(
-                            checked = preferences.french,
-                            onCheckedChange = { onChange(preferences.copy(french = it)) },
-                        )
-                    },
-                )
-            }
-            // Le texte d'iOS, mot pour mot. `Form` lui donne un bas de section ;
-            // Compose n'en a pas, donc il se pose sous le groupe — mais il ne
-            // se résume pas : c'est le seul endroit où le lecteur apprend
-            // pourquoi le réglage existe.
-            Text(
-                "Allumé, les livres portent le nom qu'on leur connaît — " +
-                    "« Apocalypse », « la Loi », « Chapitre 7 ». Éteint, ils " +
-                    "portent ce que leur nom hébreu veut dire : « le machazeh " +
-                    "de Yohanan », « la Fondation », « Parashah 7 ».\n\n" +
-                    "L'écart entre les deux n'est pas une nuance de traduction. " +
-                    "La torah est l'instruction qui vise ; le grec l'a rendue par " +
-                    "nomos, le code qui contraint, et le français en a hérité " +
-                    "« la Loi ».\n\n" +
-                    "Ce réglage est une béquille, et il est allumé pour qu'on " +
-                    "puisse marcher avant de savoir. En l'éteignant, des mots " +
-                    "apparaissent que vous n'avez peut-être jamais lus — parashah, " +
-                    "la division que le scribe hébreu traçait en laissant un blanc, " +
-                    "mille ans avant qu'on numérote des chapitres.",
-                color = ONTColors.inkSoft(theme),
-                fontSize = 13.sp,
-                modifier = Modifier.padding(
-                    start = espace.l,
-                    end = espace.l,
-                    top = espace.s,
-                ),
-            )
-
-            Spacer(Modifier.height(espace.xl))
-
             ONTSectionHeader("La peau")
             ONTGroup {
                 Column(modifier = Modifier.padding(espace.m)) {

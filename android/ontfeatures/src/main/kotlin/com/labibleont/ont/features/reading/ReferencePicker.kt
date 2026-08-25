@@ -132,6 +132,7 @@ public fun ReferencePicker(
 
         is Etape.Versets -> EtapeDesVersets(
             unite = model.esquisse(e.livre)?.chapters?.firstOrNull { it.id == e.unite },
+            francaisRecu = model.preferences.french,
             onRetour = { etape = Etape.Unites(e.livre) },
             onToutLUnite = { onAller(e.livre, e.unite, null) },
             onVerset = { n -> onAller(e.livre, e.unite, n) },
@@ -355,6 +356,7 @@ private fun Case(unite: ChapterStub, courant: Boolean, onClick: () -> Unit) {
 @Composable
 private fun EtapeDesVersets(
     unite: ChapterStub?,
+    francaisRecu: Boolean,
     onRetour: () -> Unit,
     onToutLUnite: () -> Unit,
     onVerset: (Int) -> Unit,
@@ -363,12 +365,17 @@ private fun EtapeDesVersets(
     val espace = ontSpacing
 
     Column(modifier = modifier.fillMaxWidth()) {
-        FilDAriane(unite?.title ?: "", onRetour = onRetour)
+        // **Le même mot que le sommaire.** Le fil d'Ariane disait le titre brut
+        // — « Bereshit 2 » — pendant que l'arborescence disait déjà
+        // « Parashah 2 ». Deux noms pour la même unité, à un écran d'écart.
+        FilDAriane(unite?.libelle(francaisRecu) ?: "", onRetour = onRetour)
 
         // La sortie courte, en premier : neuf fois sur dix on veut l'unité, pas
-        // un verset précis.
+        // un verset précis. Elle nomme l'unité dans le registre choisi plutôt
+        // que de la dire « unité » — le mot générique était le seul endroit de
+        // l'app où le lecteur ne lisait ni « chapitre » ni « parashah ».
         SortieCourte(
-            intitule = "Toute l'unité",
+            intitule = if (francaisRecu) "Tout le chapitre" else "Toute la parashah",
             icone = Icons.AutoMirrored.Filled.Notes,
             onClick = onToutLUnite,
             modifier = Modifier.padding(horizontal = espace.l),

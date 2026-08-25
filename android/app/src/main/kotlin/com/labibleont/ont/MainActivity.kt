@@ -484,6 +484,7 @@ private fun Racine(
 
                 else -> YouTab(
                     preferences = preferences,
+                    onPreferences = onPreferences,
                     slotsRediges = lecture.slotsRediges,
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,

@@ -78,7 +78,24 @@ public data class ChapterStub(
     public val status: Status,
     public val verseCount: Int,
     public val reference: String?,
-)
+) {
+    /**
+     * Le nom de l'unité dans le registre choisi.
+     *
+     * **Ici et pas dans un écran**, parce que c'est une règle de nommage du
+     * corpus et non une décision d'affichage : le sommaire, le sélecteur de
+     * renvoi et le titre de l'écran de lecture doivent dire le même mot. iOS l'a
+     * appris en le gardant privé à une seule vue — le sommaire disait déjà
+     * « Parashah 2 » pendant que le sélecteur disait encore « Bereshit 2 ».
+     *
+     * Une introduction garde son titre : elle n'a pas de rang à afficher.
+     */
+    public fun libelle(francaisRecu: Boolean): String = when {
+        n <= 0 -> title
+        francaisRecu -> "Chapitre $n"
+        else -> "Parashah $n"
+    }
+}
 
 /** Un livre — un des 70 slots de `corpus-order.md`. */
 public data class BookOutline(

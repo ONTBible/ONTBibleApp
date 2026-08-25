@@ -343,14 +343,22 @@ private fun EnteteDeConteneur(conteneur: Conteneur, francaisRecu: Boolean) {
             .padding(start = espace.xl, end = espace.l, top = espace.s, bottom = espace.s),
     ) {
         conteneur.rupture?.let { rupture ->
-            // Le filet est en accentuation et non en or : l'or dit
-            // l'intraduisible partout ailleurs, et une règle horizontale n'en
-            // est pas un.
+            // **Le filet est en or, et c'est un revirement.**
+            //
+            // Il a d'abord été posé en accentuation, au motif que l'or dit
+            // l'intraduisible partout ailleurs et qu'une règle horizontale n'en
+            // est pas un. L'argument était juste sur le mot, faux sur la page :
+            // l'accentuation est une couleur *de texte*, et un filet bordeaux au
+            // milieu d'un sommaire se lit comme une alerte — quelque chose ne va
+            // pas —, alors qu'il annonce une charnière.
+            //
+            // L'or est la couleur de direction artistique du projet, celle des
+            // filets et des cadres. C'est ce que le lecteur y attend.
             Spacer(
                 Modifier
                     .fillMaxWidth()
                     .height(2.dp)
-                    .background(ONTColors.accentuation(theme).copy(alpha = 0.5f)),
+                    .background(ONTColors.accent(theme).copy(alpha = 0.7f)),
             )
             Text(
                 rupture,

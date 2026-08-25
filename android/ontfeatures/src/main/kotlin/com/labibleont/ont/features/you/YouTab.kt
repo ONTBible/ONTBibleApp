@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.WbTwilight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -72,6 +73,7 @@ public enum class DestinationVous {
 @Composable
 public fun YouTab(
     preferences: ReadingPreferences,
+    onPreferences: (ReadingPreferences) -> Unit,
     slotsRediges: Int,
     slotsTotal: Int,
     versets: Int,
@@ -162,7 +164,50 @@ public fun YouTab(
 
             Spacer(Modifier.height(espace.xl))
 
-            ONTSectionHeader("Le corpus")
+            ONTSectionHeader("Le Corpus")
+            // **Le registre ouvre la section du corpus, et ne s'y confond pas.**
+            //
+            // Il était rangé dans les réglages de lecture, entre la disposition
+            // des versets et la taille du texte. C'était le ranger avec la
+            // typographie : or il ne change pas la façon dont le texte se
+            // présente, il change **ce que les livres sont appelés** — donc le
+            // corpus lui-même, tel que le lecteur le rencontre.
+            //
+            // Sa propre carte, détachée des deux compteurs, parce que ce n'est
+            // pas une mesure : c'est le seul réglage de cet écran qui décide de
+            // ce qu'on lit plutôt que de son état.
+            ONTGroup {
+                ONTRow(
+                    titre = "Le français reçu",
+                    fin = {
+                        Switch(
+                            checked = preferences.french,
+                            onCheckedChange = { onPreferences(preferences.copy(french = it)) },
+                        )
+                    },
+                )
+            }
+            Text(
+                "Allumé, les livres portent le nom qu'on leur connaît — " +
+                    "« Apocalypse », « la Loi », « Chapitre 7 ». Éteint, ils " +
+                    "portent ce que leur nom hébreu veut dire : « le machazeh " +
+                    "de Yohanan », « la Fondation », « Parashah 7 ».\n\n" +
+                    "L'écart entre les deux n'est pas une nuance de traduction. " +
+                    "La torah est l'instruction qui vise ; le grec l'a rendue par " +
+                    "nomos, le code qui contraint, et le français en a hérité " +
+                    "« la Loi ».\n\n" +
+                    "Ce réglage est une béquille, et il est allumé pour qu'on " +
+                    "puisse marcher avant de savoir. En l'éteignant, des mots " +
+                    "apparaissent que vous n'avez peut-être jamais lus — parashah, " +
+                    "la division que le scribe hébreu traçait en laissant un blanc, " +
+                    "mille ans avant qu'on numérote des chapitres.",
+                color = ONTColors.inkSoft(theme),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = espace.l, end = espace.l, top = espace.s),
+            )
+
+            Spacer(Modifier.height(espace.l))
+
             ONTGroup {
                 ONTRow(titre = "Slots rédigés", fin = { Valeur("$slotsRediges / $slotsTotal") })
                 ONTGroupDivider()
