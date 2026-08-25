@@ -37,6 +37,32 @@ public val LocalReadingTheme: ProvidableCompositionLocal<ReadingTheme> =
  * l'app aux teintes du fond d'écran du lecteur ; ces couleurs-ci viennent du
  * logo et de `main.css` du site, et les trois dépôts les partagent. Un lecteur
  * qui ouvre l'ONT doit y trouver l'ONT.
+ *
+ * ## Ce refus est daté, et la porte reste ouverte
+ *
+ * Gloire l'a tranché le 25 août 2026 : on garde le refus **pour l'instant**,
+ * et le lecteur pourra choisir plus tard. C'est le seul des chemins possibles
+ * qui soit réversible — rester au refus ne ferme rien, tandis qu'ouvrir puis
+ * refermer oblige à retrouver des ratios de contraste qu'on aura cessé de
+ * mesurer.
+ *
+ * Si ce choix est un jour offert, il ne portera **pas** sur la surface de
+ * lecture. Le parchemin et la nuit ne sont pas de la décoration : ce sont des
+ * conditions de lecture, dont les contrastes sont mesurés plus bas dans ce
+ * fichier. Une palette dérivée d'un fond d'écran est imprévisible par
+ * construction — elle annulerait ces mesures sans que rien ne le signale, et
+ * c'est un texte qu'on lit des heures.
+ *
+ * L'écriture ci-dessous s'y prête déjà : le schéma part de `darkColorScheme()`
+ * ou `lightColorScheme()` puis surcharge. Un jour, la base pourra venir de
+ * `dynamicColorScheme` sans que la liste des surcharges bouge — c'est
+ * exactement ce qu'il faudrait pour n'ouvrir que le mobilier.
+ *
+ * ## Ce que Material reçoit désormais en plus
+ *
+ * `typography` et `shapes`, qui manquaient. Sans elles, tout composant Material
+ * posé dans l'app repartait des valeurs de la bibliothèque — Roboto et les
+ * arrondis par défaut — pendant qu'un design system complet dormait à côté.
  */
 @Composable
 public fun ONTTheme(
@@ -114,6 +140,11 @@ public fun ONTTheme(
     )
 
     CompositionLocalProvider(LocalReadingTheme provides theme) {
-        MaterialTheme(colorScheme = schema, content = content)
+        MaterialTheme(
+            colorScheme = schema,
+            typography = ONTChromeTypography,
+            shapes = ONTShapes,
+            content = content,
+        )
     }
 }
