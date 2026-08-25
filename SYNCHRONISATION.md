@@ -198,6 +198,13 @@ et un oubli coûte une journée.
    `build/`, `.gradle/`. Compter une première compilation complète, et un
    `cargo clean` de plus en fin de chantier.
 
+5. **Un worktree retient sa branche, même fusionnée.** `git branch -d` refuse —
+   « cannot delete branch used by worktree » — et la suppression automatique
+   après fusion échoue de la même façon. Rencontré le 25 août, sur trois
+   branches à la fois. La parade tient en un geste : **démonter le worktree dès
+   que la branche est poussée**, sans attendre la fusion. Le travail vit alors
+   sur le distant, et il n'y a plus rien à retenir.
+
 **Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
 les décisions : deux sessions qui refondent le même module chacune de leur côté
 produiront deux refontes, proprement isolées et incompatibles.
