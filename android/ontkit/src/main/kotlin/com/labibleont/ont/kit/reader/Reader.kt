@@ -168,6 +168,28 @@ public data class ReadingPreferences(
      */
     public val continuous: Boolean = true,
     /**
+     * Nommer les livres et les sections dans le français reçu.
+     *
+     * **Vrai par défaut**, et c'est délibéré : un lecteur qui arrive doit
+     * pouvoir se repérer avec les mots qu'il connaît — « Apocalypse »,
+     * « la Loi », « Chapitre 7 ».
+     *
+     * À faux, il lit ce que le nom ONT veut dire : « le **machazeh** de
+     * Yohanan », « la Fondation », « **Parashah** 7 ». Les intraduisibles y
+     * restent en hébreu, là où le français les rend.
+     *
+     * **L'écart entre les deux est le projet lui-même** : la *torah*,
+     * l'instruction qui vise, est devenue *nomos*, le code qui contraint, puis
+     * « la Loi ». Le réglage laisse le lecteur passer d'un monde à l'autre au
+     * lieu de le lui raconter.
+     *
+     * La valeur par défaut au constructeur **est** la tolérance de relecture :
+     * kotlinx.serialization retombe dessus quand la clé manque. Un réglage
+     * enregistré avant l'arrivée de ce champ se relit donc sans erreur — c'est
+     * ce que fait le `decodeIfPresent` d'iOS, ici gratuitement.
+     */
+    public val french: Boolean = true,
+    /**
      * Le rappel quotidien.
      *
      * Ici plutôt que dans un second magasin, parce qu'il n'y a qu'un port de

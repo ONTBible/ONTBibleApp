@@ -137,8 +137,6 @@ public class MainActivity : ComponentActivity() {
         val lecteur = FileReaderStore(applicationContext)
 
         setContent {
-            var preferences by remember { mutableStateOf(lecteur.preferences) }
-
             val lecture: ReadingModel = viewModel(
                 key = "lecture",
                 factory = fabrique { ReadingModel(corpus, lecteur, lecteur, lecteur) },
@@ -156,6 +154,14 @@ public class MainActivity : ComponentActivity() {
                 factory = fabrique { SearchModel(index, glossaire) },
             )
 
+            // Une seule source de vérité pour les réglages : celle du modèle.
+            // Une copie locale ici avait paru inoffensive tant que la feuille
+            // de réglages était seule à écrire — mais deux états pour un même
+            // réglage finissent toujours par diverger, et c'est « Le français
+            // reçu » qui l'a montré : l'arborescence lisait l'un, la feuille
+            // écrivait l'autre.
+            val preferences = lecture.preferences
+
             ONTTheme(theme = preferences.theme) {
                 Racine(
                     lecture = lecture,
@@ -163,10 +169,7 @@ public class MainActivity : ComponentActivity() {
                     recherche = recherche,
                     qahal = qahal,
                     preferences = preferences,
-                    onPreferences = {
-                        lecteur.preferences = it
-                        preferences = it
-                    },
+                    onPreferences = { lecture.changerLesPreferences(it) },
                 )
             }
         }

@@ -67,3 +67,6 @@ app/Widget/Info.plist
 # divergeront.
 *.xcodeproj/
 DerivedData/
+
+# L'état de l'IDE Android Studio — propre à un poste, pas au projet.
+android/.idea/

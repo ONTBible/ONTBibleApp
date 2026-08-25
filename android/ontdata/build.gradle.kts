@@ -49,5 +49,8 @@ dependencies {
     implementation(libs.security.crypto)
 
     testImplementation(libs.junit)
+    // La réflexion sert à une seule chose ici : éprouver qu'aucun réglage
+    // du domaine ne manque au DTO écrit à la main. Test seul, pas l'app.
+    testImplementation(libs.kotlin.reflect)
     testImplementation(libs.kotlinx.coroutines.test)
 }

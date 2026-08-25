@@ -116,6 +116,31 @@ public data class Book(
 )
 
 /**
+ * Un conteneur de livres — les *Eduyot*, les *Trei Asar*, les deux *Igerot*.
+ *
+ * **Nommé en français, et pas `Group`** : Compose porte déjà un `Group` —
+ * `androidx.compose.ui.graphics.vector.Group` — et une vue qui importerait les
+ * deux deviendrait ambiguë. iOS a la même collision avec le `Group` de SwiftUI,
+ * et le site l'appelle déjà `Conteneur` : les trois parlent la même langue.
+ *
+ * Il existait dans les données sous forme d'un identifiant porté par chaque
+ * livre, et **aucune interface ne l'affichait**. Les vingt-et-une *Igerot* se
+ * lisaient comme une liste plate, alors que leur ordre porte un argument.
+ */
+public data class Conteneur(
+    public val id: String,
+    public val title: String,
+    public val french: String,
+    public val glose: String? = null,
+    /**
+     * La ligne de sens qui **précède** ce conteneur, quand la coupure est une
+     * rupture et non un rangement. Le *Ḥurban* est le seul à en porter une :
+     * une césure marquée partout ne marquerait plus rien.
+     */
+    public val rupture: String? = null,
+)
+
+/**
  * Un mode fonctionnel — Torah, Nevi'im, Ketouvim, Nistarot (§1).
  *
  * Ce ne sont pas des divisions canoniques mais des modes distincts d'engagement
@@ -125,7 +150,19 @@ public data class Book(
 public data class Mode(
     public val id: String,
     public val title: String,
+    /**
+     * Le pont de navigation — le mot que le lecteur cherche. Les
+     * intraduisibles y sont **rendus** : *Torah* devient « la Loi ».
+     */
+    public val french: String? = null,
+    /**
+     * Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont. Les
+     * intraduisibles y **restent en hébreu** : « la Fondation ».
+     */
+    public val glose: String? = null,
     public val order: Int,
+    /** Dans l'ordre où leurs livres paraissent. Vide pour la plupart. */
+    public val groups: kotlin.collections.List<Conteneur> = emptyList(),
     public val books: kotlin.collections.List<BookOutline>,
 )
 
@@ -133,6 +170,10 @@ public data class Mode(
 public data class Corpus(
     public val id: String,
     public val title: String,
+    /** Le pont de navigation — voir [Mode.french]. */
+    public val french: String? = null,
+    /** Ce que le nom ONT veut dire — voir [Mode.glose]. */
+    public val glose: String? = null,
     public val order: Int,
     public val modes: kotlin.collections.List<Mode>,
 )

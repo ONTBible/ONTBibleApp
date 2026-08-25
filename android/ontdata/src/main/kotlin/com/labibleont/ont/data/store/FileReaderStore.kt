@@ -251,7 +251,7 @@ private data class PositionFichier(
 )
 
 @Serializable
-private data class PreferencesFichier(
+internal data class PreferencesFichier(
     val showGloss: Boolean = true,
     val showLevel3: Boolean = true,
     val textSize: Double = 19.0,
@@ -259,6 +259,7 @@ private data class PreferencesFichier(
     val theme: String = "parchment",
     val bodyFont: String = "literata",
     val continuous: Boolean = true,
+    val french: Boolean = true,
     val dailyEnabled: Boolean = false,
     val dailyHour: Int = 7,
     val dailyMinute: Int = 30,
@@ -286,7 +287,7 @@ private fun Highlight.versFichier() = HighlightFichier(
     deleted = deleted,
 )
 
-private fun PreferencesFichier.versDomaine() = ReadingPreferences(
+internal fun PreferencesFichier.versDomaine() = ReadingPreferences(
     showGloss = showGloss,
     showLevel3 = showLevel3,
     textSize = textSize,
@@ -294,10 +295,11 @@ private fun PreferencesFichier.versDomaine() = ReadingPreferences(
     theme = ReadingTheme.depuis(theme),
     bodyFont = ReadingFont.depuis(bodyFont),
     continuous = continuous,
+    french = french,
     daily = DailyVerseSchedule.borne(dailyEnabled, dailyHour, dailyMinute),
 )
 
-private fun ReadingPreferences.versFichier() = PreferencesFichier(
+internal fun ReadingPreferences.versFichier() = PreferencesFichier(
     showGloss = showGloss,
     showLevel3 = showLevel3,
     textSize = textSize,
@@ -305,6 +307,7 @@ private fun ReadingPreferences.versFichier() = PreferencesFichier(
     theme = theme.cle,
     bodyFont = bodyFont.cle,
     continuous = continuous,
+    french = french,
     dailyEnabled = daily.enabled,
     dailyHour = daily.hour,
     dailyMinute = daily.minute,
