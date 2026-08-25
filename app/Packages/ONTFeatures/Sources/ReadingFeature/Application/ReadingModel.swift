@@ -236,5 +236,20 @@ public final class ReadingModel {
                 verse: verse
             )
         )
+        // **La révision doit bouger, sinon personne n'apprend que la position
+        // a changé.**
+        //
+        // `position` lit `revision` pour s'y abonner : c'est ce qui fait
+        // qu'`@Observable` la surveille, puisque la valeur vient d'un dépôt
+        // qu'il ne voit pas. Écrire sans toucher `revision`, c'est écrire dans
+        // le dépôt sans le dire — toute vue déjà à l'écran qui affiche la
+        // position garde l'ancienne, indéfiniment.
+        //
+        // Ça ne se voyait pas encore : les deux seules vues qui la lisent —
+        // l'écran d'accueil et le sélecteur de renvoi — sont construites à
+        // neuf au moment où on les ouvre, donc elles lisent la valeur fraîche
+        // par accident. Le sélecteur s'appuie désormais dessus pour marquer le
+        // verset courant, et il restera correct même s'il vient à s'observer.
+        revision += 1
     }
 }
