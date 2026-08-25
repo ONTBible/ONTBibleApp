@@ -69,6 +69,28 @@ struct ChapterView: View {
         self.decalage = decalage
     }
 
+    /// Ce que porte la pastille de renvoi — **le livre et le rang**.
+    ///
+    /// Elle est le seul repère de l'écran de lecture : il n'y a pas de barre de
+    /// navigation qui rappelle où l'on est, ni de sommaire au-dessus. Le rang
+    /// seul — « Chapitre 6 » — dirait donc *quelle* unité sans dire *de quoi*.
+    ///
+    /// Mais le rang suit le registre, et c'est ici que ça compte le plus : la
+    /// pastille est le seul endroit où le lecteur croise le mot **pendant**
+    /// qu'il lit. Le sommaire et le sélecteur se traversent ; celui-ci reste
+    /// sous les yeux.
+    ///
+    /// Une introduction garde son titre : elle n'a pas de rang à traduire.
+    private var pastille: String {
+        guard chapter.n > 0 else { return chapter.title }
+        let livre = model.outline(chapter.bookId)?.title ?? chapter.bookId
+        return LibelleDUnite.situe(
+            livre: livre,
+            rang: chapter.n,
+            french: model.preferences.french
+        )
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -243,7 +265,7 @@ struct ChapterView: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
-                        Text(chapter.title)
+                        Text(pastille)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
@@ -256,7 +278,7 @@ struct ChapterView: View {
                     .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Aller à un autre passage — actuellement \(chapter.title)")
+                .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
