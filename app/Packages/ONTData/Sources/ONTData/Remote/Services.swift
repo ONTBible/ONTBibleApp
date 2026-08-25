@@ -17,7 +17,7 @@ private struct SessionDTO: Decodable {
 /// le temps en millisecondes depuis l'epoch et porte une pierre tombale
 /// `deleted` que le stockage local n'a pas. Mélanger les deux ferait remonter
 /// des contraintes de transport jusque dans le domaine.
-private struct HighlightDTO: Codable {
+internal struct HighlightDTO: Codable {
     let id: String
     let bookId: String
     let chapterId: String
@@ -70,7 +70,7 @@ private struct HighlightDTO: Codable {
     }
 }
 
-private struct PositionDTO: Codable {
+internal struct PositionDTO: Codable {
     let bookId: String
     let chapterId: String
     let chapterTitle: String
@@ -96,10 +96,35 @@ private struct PositionDTO: Codable {
     }
 }
 
-private struct PullDTO: Decodable {
-    let highlights: [HighlightDTO]
+/// La réponse du serveur à un `GET /sync`.
+///
+/// ## Tout y est facultatif, et c'est délibéré
+///
+/// **L'app arrive structurellement avant le serveur.** Sa moitié voyage
+/// `dev → staging → main` ; le backend, lui, n'est déployé que par un push sur
+/// `main` — `deployer-backend.yml` ne se déclenche que là. Entre deux
+/// promotions, une app livrée aux testeurs interroge donc un serveur plus
+/// ancien qu'elle, et rien ne le lui dit : `/health` ne rend que `ok`.
+///
+/// Avec des champs obligatoires, une clé que ce serveur-là ne connaît pas
+/// encore fait **lever le décodage** — et l'échec est total *et muet* : le
+/// `catch` de `synchronise()` le range en remontée, l'interface ne montre rien,
+/// et le lecteur ne signalera jamais ce qu'il n'a pas vu. Toute la
+/// synchronisation cesse pour un champ.
+///
+/// C'est le défaut corrigé le 25 août sur le conteneur du fichier local,
+/// déplacé sur le réseau : on soigne le décodage de chaque élément et on oublie
+/// que l'objet qui les porte peut refuser de se décoder en entier.
+///
+/// **Rendre facultatif est sûr ici parce que le `pull` fusionne** — voir
+/// `AccountModel.merge`. Une liste absente veut dire « rien reçu », jamais
+/// « tout effacé ». Ça ne le serait pas sur une réponse qui remplace.
+internal struct PullDTO: Decodable {
+    let highlights: [HighlightDTO]?
     let position: PositionDTO?
-    let serverTime: Int64
+    /// L'horodatage du serveur. Déjà `Date?` dans le domaine : le DTO était
+    /// plus strict que ce qu'il alimente.
+    let serverTime: Int64?
 }
 
 private struct PushDTO: Encodable {
@@ -193,9 +218,9 @@ public struct HTTPSyncService: SyncService {
 
         let dto = try await client.send("GET", "sync", query: query, as: PullDTO.self)
         return SyncPayload(
-            highlights: dto.highlights.compactMap(\.domain),
+            highlights: dto.highlights?.compactMap(\.domain) ?? [],
             position: dto.position?.domain,
-            serverTime: Date(timeIntervalSince1970: Double(dto.serverTime) / 1000)
+            serverTime: dto.serverTime.map { Date(timeIntervalSince1970: Double($0) / 1000) }
         )
     }
 
