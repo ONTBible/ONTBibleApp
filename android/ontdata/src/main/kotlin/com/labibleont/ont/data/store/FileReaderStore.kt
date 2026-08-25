@@ -45,11 +45,20 @@ import kotlinx.serialization.json.Json
  * le lecteur verrait ses marques clignoter à chaque ouverture.
  */
 public class FileReaderStore(
-    context: Context,
-    nom: String = "lecteur.json",
+    private val fichier: File,
 ) : HighlightRepository, PositionRepository, PreferencesRepository {
 
-    private val fichier = File(context.filesDir, nom)
+    /**
+     * Le constructeur de l'app.
+     *
+     * La vraie dépendance de cet adaptateur est **un fichier**, pas un
+     * `Context` : le `Context` n'est que la façon dont Android le lui fournit.
+     * Prendre le fichier directement rend le magasin éprouvable sur la JVM —
+     * et c'est ce qui manquait le jour où « Le français reçu » s'est laissé
+     * basculer puis a disparu à la réouverture.
+     */
+    public constructor(context: Context, nom: String = "lecteur.json") :
+        this(File(context.filesDir, nom))
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var etat: Etat
 
