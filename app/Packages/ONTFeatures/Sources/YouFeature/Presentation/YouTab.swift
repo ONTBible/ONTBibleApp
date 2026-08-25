@@ -117,7 +117,9 @@ public struct YouTab: View {
                 } footer: {
                     Text(
                         "La Bible ONT est une restitution en cours. Le corpus s'étend "
-                            + "à mesure que les unités sont verrouillées."
+                            + "à mesure que les "
+                            + LibelleDUnite.noms(french: reading.preferences.french)
+                            + " sont verrouillés."
                     )
                 }
                 .ontRow()
@@ -196,8 +198,16 @@ private struct AccountSection: View {
                             // En la posant à la main, le fond et ce qui se pose
                             // dessus viennent de la même paire de rôles et ne
                             // peuvent plus se confondre.
+                            // Le texte et l'icône sont en **or** sur le
+                            // bordeaux, et non en encre claire : l'or est la
+                            // couleur de marque du projet, et ces trois
+                            // capsules sont le seul aplat de marque de l'app.
+                            //
+                            // `onBrandAccent` et non `gold` : sur les thèmes
+                            // sombres la capsule **est** l'or, et demander l'or
+                            // dessus donnerait un bouton vide.
                             Label("Continuer avec \(provider.label)", systemImage: icon(provider))
-                                .foregroundStyle(ONTColors.onBrand(theme.mode))
+                                .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, spacing.m)
                                 .background(
