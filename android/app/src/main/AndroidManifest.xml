@@ -12,12 +12,28 @@
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Le retour prédictif — l'aperçu de l'écran d'arrivée pendant qu'on tire
+      depuis le bord.
+
+      En `targetSdk 36` sur Android 16+, il est déjà actif sans ce drapeau : ce
+      qu'on gagne ici, ce sont Android 13, 14 et 15, c'est-à-dire la majorité
+      du parc. Le drapeau ne gouverne **que** l'animation — `OnBackPressedCallback`
+      est appelé quoi qu'il arrive, donc aucune logique de retour ne change.
+
+      Ce qui reste à faire et qui n'est pas ici : le `BackHandler` de
+      `MainActivity` est actif sur tout sous-écran, et un callback de priorité
+      normale empêche le système de jouer ses animations — il ne peut pas
+      animer une transition dont il ignore l'issue. Tant qu'il n'est pas rendu
+      plus étroit, ce drapeau ne se voit que là où l'app n'intercepte pas.
+    -->
     <application
         android:name=".ONTApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.ONT">
 
         <activity
