@@ -47,6 +47,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,6 +105,18 @@ private enum class Onglet(val titre: String) {
 }
 
 /**
+ * L'onglet se range par son **nom**, jamais par son rang.
+ *
+ * Un `ordinal` enregistré désignerait un autre onglet le jour où l'ordre
+ * changerait — et l'ordre est justement ce qu'on discute, puisqu'il suit
+ * aujourd'hui celui de la liseuse iOS. Un nom inconnu retombe sur Bible.
+ */
+private val OngletSaver: Saver<Onglet, Any> = Saver(
+    save = { it.name },
+    restore = { nom -> Onglet.entries.firstOrNull { it.name == nom } },
+)
+
+/**
  * Où l'on est, au-dessus des onglets.
  *
  * Une pile à un seul étage plutôt qu'un graphe de navigation : l'app n'a que
@@ -116,6 +131,56 @@ private sealed interface Ecran {
     data class Selecteur(val livre: String? = null) : Ecran
     data class Reglage(val ou: DestinationVous) : Ecran
 }
+
+/**
+ * De quoi faire survivre [Ecran] à une rotation et à la mort du processus.
+ *
+ * `rememberSaveable` passe par un `Bundle`, qui ne sait pas ranger une
+ * interface scellée. On dit donc comment : une étiquette, et l'argument quand
+ * il y en a un.
+ *
+ * ## Pourquoi la restauration ne lève jamais
+ *
+ * L'état rendu peut avoir été écrit par une **version antérieure de l'app** —
+ * le système garde le `Bundle` par-dessus une mise à jour. Une étiquette
+ * inconnue, ou un `DestinationVous` qui n'existe plus, ne doit donc pas faire
+ * planter au retour. `valueOf` aurait levé.
+ *
+ * On rend alors `null`, et non l'état de départ écrit à la main. Les deux
+ * donnent aujourd'hui le même écran, mais ils ne disent pas la même chose :
+ * `null` déclare « je n'ai pas su relire » et laisse la valeur initiale
+ * jouer, quelle qu'elle devienne. Écrire `Ecran.Onglets` ici, ce serait
+ * réaffirmer une valeur par défaut à un second endroit — et le jour où le
+ * premier changerait, celui-ci resterait en arrière sans que rien ne le
+ * signale.
+ *
+ * Un état restauré **faux** est pire qu'un état perdu : le lecteur ne peut
+ * pas savoir qu'il a été déplacé.
+ */
+private val EcranSaver: Saver<Ecran, Any> = listSaver(
+    save = { ecran ->
+        when (ecran) {
+            Ecran.Onglets -> listOf("onglets", null)
+            Ecran.Lecture -> listOf("lecture", null)
+            Ecran.Recherche -> listOf("recherche", null)
+            is Ecran.Selecteur -> listOf("selecteur", ecran.livre)
+            is Ecran.Reglage -> listOf("reglage", ecran.ou.name)
+        }
+    },
+    restore = { enregistre ->
+        val argument = enregistre.getOrNull(1)
+        when (enregistre.getOrNull(0)) {
+            "onglets" -> Ecran.Onglets
+            "lecture" -> Ecran.Lecture
+            "recherche" -> Ecran.Recherche
+            "selecteur" -> Ecran.Selecteur(argument)
+            "reglage" ->
+                DestinationVous.entries.firstOrNull { it.name == argument }
+                    ?.let { Ecran.Reglage(it) }
+            else -> null
+        }
+    },
+)
 
 /**
  * L'unique activité, et la racine de composition.
@@ -193,10 +258,26 @@ private fun Racine(
 ) {
     val theme = LocalReadingTheme.current
     val contexte = LocalContext.current
-    var onglet by remember { mutableStateOf(Onglet.BIBLE) }
-    var ecran: Ecran by remember { mutableStateOf(Ecran.Onglets) }
-    var terme: String? by remember { mutableStateOf(null) }
-    var reglagesOuverts by remember { mutableStateOf(false) }
+    // `rememberSaveable` et non `remember` : `configChanges` n'est pas déclaré,
+    // donc l'activité est recréée à chaque changement de configuration. Avec un
+    // simple `remember`, tourner le téléphone renvoyait le lecteur à l'onglet
+    // Bible, en haut de page, quel que soit l'endroit où il lisait.
+    //
+    // Et ça ne va pas s'arranger tout seul : en `targetSdk 36`, au-delà de
+    // 600 dp de large, les fenêtres se redimensionnent librement et chaque
+    // redimensionnement recrée l'activité. Ce qui ne se voyait qu'en tournant
+    // le téléphone deviendrait une perte ordinaire sur tablette.
+    //
+    // L'onglet se range par son nom plutôt que par son rang : un `ordinal`
+    // enregistré désignerait un autre onglet le jour où l'ordre changerait.
+    var onglet by rememberSaveable(stateSaver = OngletSaver) {
+        mutableStateOf(Onglet.BIBLE)
+    }
+    var ecran: Ecran by rememberSaveable(stateSaver = EcranSaver) {
+        mutableStateOf(Ecran.Onglets)
+    }
+    var terme: String? by rememberSaveable { mutableStateOf(null) }
+    var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
     val portee = rememberCoroutineScope()
 

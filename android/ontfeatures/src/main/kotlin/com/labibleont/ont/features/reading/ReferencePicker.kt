@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,7 +158,9 @@ private fun EtapeDesLivres(
 ) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
-    var recherche by remember { mutableStateOf("") }
+    // Le filtre survit à la rotation : le lecteur qui a tapé « berei » pour
+    // trouver son livre ne doit pas le retaper parce qu'il a tourné l'écran.
+    var recherche by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         ONTPage {
