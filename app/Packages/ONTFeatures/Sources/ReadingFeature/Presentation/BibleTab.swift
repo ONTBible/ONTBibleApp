@@ -99,6 +99,17 @@ public struct BibleTab: View {
                     BookView(bookId: id)
                 case .chapter(let book, let chapter):
                     ChapterLoader(bookId: book, chapterId: chapter)
+                case .verses(let book, let chapter):
+                    // **Le lecteur choisit où commencer avant d'ouvrir.**
+                    //
+                    // La sortie courte — « Tout le chapitre » — est en tête de
+                    // cet écran, donc lire de bout en bout coûte un geste de
+                    // plus qu'avant. C'est le prix demandé, et il achète la
+                    // chose que le sommaire ne savait pas faire : arriver à un
+                    // verset précis sans traverser la page pour le trouver.
+                    ChoixDuVerset(book: book, chapter: chapter) { verse in
+                        router.open(book: book, chapter: chapter, verse: verse)
+                    }
                 }
             }
         }
@@ -257,7 +268,7 @@ struct BookView: View {
                     // bouton de style ordinaire laisse la ligne entière capter
                     // le toucher, et le nombre ne répondrait jamais.
                     NavigationLink(
-                        value: Router.Destination.chapter(book: outline.id, chapter: chapter.id)
+                        value: Router.Destination.verses(book: outline.id, chapter: chapter.id)
                     ) {
                         ChapterRow(stub: chapter) {
                             versetsDe = VersetsAChoisir(book: outline.id, chapter: chapter.id)
