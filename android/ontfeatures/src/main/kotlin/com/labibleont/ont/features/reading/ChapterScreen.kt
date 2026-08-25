@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import com.labibleont.ont.kit.corpus.versetEnTete
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +69,15 @@ public fun ChapterScreen(
     onVerset: (Int) -> Unit = {},
     /** La couleur posée par le lecteur sur un verset, s'il y en a une. */
     marque: (Int) -> HighlightColor? = { null },
+    /**
+     * Où l'on en est **en lisant** — à l'ouverture, puis à chaque défilement.
+     *
+     * Distinct de [onVerset], qui dit ce que le lecteur *désigne*. La position
+     * ne se retenait qu'au tap : lire un chapitre d'un bout à l'autre sans rien
+     * toucher ne retenait rien, et la carte « Reprendre » ne pouvait
+     * quasiment jamais paraître.
+     */
+    onLire: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -77,8 +93,31 @@ public fun ChapterScreen(
     }
 
     val espace = com.labibleont.ont.designsystem.metrics.ontSpacing
+    val etat = rememberLazyListState()
+
+    // L'en-tête occupe l'item 0 ; les blocs suivent. On retranche donc un rang
+    // pour retomber sur l'index du bloc.
+    //
+    // **Ce que cette mesure vaut, et ce qu'elle ne vaut pas.** En mode blocs,
+    // chaque verset est un item : la position est exacte. En prose continue,
+    // `fusingConsecutiveVerses` fond tout un chapitre en **un seul** item, et le
+    // défilement ne peut donc pas distinguer les versets — la position retenue
+    // est le premier verset du bloc visible, c'est-à-dire le premier du chapitre.
+    //
+    // Le chapitre, lui, est juste dans les deux cas, et c'est l'essentiel de ce
+    // que « Reprendre » sert à retrouver. Affiner en prose demanderait de lire
+    // le `TextLayoutResult` du bloc fondu pour savoir quel verset touche le haut
+    // de la fenêtre — faisable, pas fait, et pas caché.
+    LaunchedEffect(etat, chapitre.id, blocs) {
+        snapshotFlow { etat.firstVisibleItemIndex }
+            .map { blocs.versetEnTete(it - 1) }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect(onLire)
+    }
 
     LazyColumn(
+        state = etat,
         // La mesure est bornée, et les marges suivent le curseur
         // d'accessibilité. Au-delà de cette largeur, l'œil ne retrouve plus le
         // début de la ligne suivante — ça vaut surtout sur tablette, où rien ne

@@ -229,17 +229,39 @@ public class ReadingModel(
      */
     public fun retenir(verset: Int) {
         val unite = chapitre ?: return
-        positionRepository.remember(
-            ReadingPosition(
-                bookId = unite.bookId,
-                chapterId = unite.id,
-                chapterTitle = unite.title,
-                verse = verset,
-            ),
+        val ou = ReadingPosition(
+            bookId = unite.bookId,
+            chapterId = unite.id,
+            chapterTitle = unite.title,
+            verse = verset,
         )
+        positionRepository.remember(ou)
+        // Écrire **et** publier, au même endroit. Le jumeau de ce défaut a été
+        // corrigé le 25 août sur `preferences` — et celui-ci est resté juste à
+        // côté, dans l'état exact qu'on venait de condamner.
+        position = ou
     }
 
-    public fun reprendre(): ReadingPosition? = positionRepository.position
+    /**
+     * Où l'on en est, **en état Compose**.
+     *
+     * Elle rendait `positionRepository.position` directement. Une vue déjà à
+     * l'écran qui l'affiche — la carte « Reprendre » du sommaire — gardait donc
+     * l'ancienne valeur indéfiniment.
+     *
+     * Ça ne se voyait pas : le sommaire se reconstruit en changeant d'onglet,
+     * donc il lisait la bonne valeur **par accident**. C'est ce qui rend la
+     * famille dangereuse — un défaut qu'aucun usage actuel ne révèle, et que le
+     * prochain arme.
+     */
+    public var position: ReadingPosition? by mutableStateOf(positionRepository.position)
+        private set
+
+    @Deprecated(
+        "Lire `position`, qui est un état Compose.",
+        ReplaceWith("position"),
+    )
+    public fun reprendre(): ReadingPosition? = position
 
     /**
      * L'**esquisse** d'un livre — son titre, ses unités, leurs numéros.

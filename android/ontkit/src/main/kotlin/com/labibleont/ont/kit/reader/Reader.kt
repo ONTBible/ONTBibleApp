@@ -70,6 +70,21 @@ public data class ReadingPosition(
 )
 
 /**
+ * Le verset à marquer dans une unité donnée — `null` si ce n'est pas celle
+ * qu'on lit.
+ *
+ * **La position mémorisée est celle du lecteur, pas celle de l'écran ouvert.**
+ * Sans ce test, ouvrir *Bereshit* 2 pendant qu'on lit *Bereshit* 18 allumerait
+ * le verset 12 au hasard — un repère faux est pire qu'aucun repère, parce qu'on
+ * s'y fie.
+ *
+ * Ici plutôt que dans le sélecteur : c'est une règle sur la position, et une
+ * règle dans une vue ne s'éprouve qu'en dessinant la vue.
+ */
+public fun ReadingPosition?.versetDans(chapterId: String): Int? =
+    this?.takeIf { it.chapterId == chapterId }?.verse
+
+/**
  * La fonte du corps.
  *
  * Un choix laissé au lecteur, pas arbitré une fois pour toutes : ce qui est

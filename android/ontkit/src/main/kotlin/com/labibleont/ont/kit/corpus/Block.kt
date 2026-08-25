@@ -90,3 +90,30 @@ public fun kotlin.collections.List<Block>.fusingConsecutiveVerses(): kotlin.coll
     vider()
     return resultat
 }
+
+/**
+ * Le verset en tête de ce qui est affiché, à partir du bloc visible en premier.
+ *
+ * ## Pourquoi cette règle vit ici
+ *
+ * Elle sert à **retenir où l'on en est**, et c'était le trou : Android
+ * n'enregistrait la position qu'au moment où le lecteur *tapait* un verset pour
+ * le sélectionner. Lire un chapitre d'un bout à l'autre sans rien toucher ne
+ * retenait rien — la carte « Reprendre » ne pouvait donc quasiment jamais
+ * paraître. iOS retient au défilement, à l'ouverture et au balayage ; le
+ * portage avait gardé le commentaire qui dit « ce fichier est touché à chaque
+ * défilement » sans jamais câbler le défilement.
+ *
+ * On repart du premier bloc visible et on descend jusqu'au premier qui porte
+ * des versets : un intertitre ou une note en haut de l'écran ne doit pas effacer
+ * la position, il doit laisser parler ce qui suit.
+ *
+ * Rend `null` quand plus rien ne porte de verset — la fin d'un chapitre qui
+ * s'achève sur une note. L'appelant garde alors la dernière position connue,
+ * plutôt que d'en inventer une.
+ */
+public fun kotlin.collections.List<Block>.versetEnTete(premierBlocVisible: Int): Int? =
+    drop(premierBlocVisible.coerceAtLeast(0))
+        .firstNotNullOfOrNull { bloc ->
+            (bloc as? Block.Verses)?.verses?.firstOrNull()?.n
+        }

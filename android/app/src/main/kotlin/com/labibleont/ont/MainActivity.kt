@@ -445,6 +445,7 @@ private fun Racine(
                                 lecture.retenir(n)
                             },
                             marque = { verset -> lecture.surlignage(verset)?.color },
+                            onLire = { n -> lecture.retenir(n) },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
@@ -462,7 +463,7 @@ private fun Racine(
 
                 onglet == Onglet.BIBLE -> BibleTab(
                     model = lecture,
-                    position = lecture.reprendre(),
+                    position = lecture.position,
                     onOuvrir = { livre, unite ->
                         if (unite == null) {
                             // Toucher un livre montre **ses unités**, il ne

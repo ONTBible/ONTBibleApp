@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,7 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.ChapterStub
+import com.labibleont.ont.kit.reader.versetDans
 import com.labibleont.ont.kit.corpus.Status
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.search.SearchEngine
@@ -133,6 +136,11 @@ public fun ReferencePicker(
         is Etape.Versets -> EtapeDesVersets(
             unite = model.esquisse(e.livre)?.chapters?.firstOrNull { it.id == e.unite },
             francaisRecu = model.preferences.french,
+            // **Seulement si c'est bien l'unité qu'on lit.** La position
+            // mémorisée est celle du *lecteur*, pas celle de l'écran ouvert :
+            // sans ce test, ouvrir Bereshit 2 pendant qu'on lit Bereshit 18
+            // allumerait le verset 12 au hasard.
+            versetCourant = model.position.versetDans(e.unite),
             onRetour = { etape = Etape.Unites(e.livre) },
             onToutLUnite = { onAller(e.livre, e.unite, null) },
             onVerset = { n -> onAller(e.livre, e.unite, n) },
@@ -357,6 +365,7 @@ private fun Case(unite: ChapterStub, courant: Boolean, onClick: () -> Unit) {
 private fun EtapeDesVersets(
     unite: ChapterStub?,
     francaisRecu: Boolean,
+    versetCourant: Int?,
     onRetour: () -> Unit,
     onToutLUnite: () -> Unit,
     onVerset: (Int) -> Unit,
@@ -394,24 +403,35 @@ private fun EtapeDesVersets(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(espace.l),
         ) {
             items((1..unite.verseCount).toList()) { n ->
-                CaseDeVerset(n = n, onClick = { onVerset(n) })
+                CaseDeVerset(n = n, courant = n == versetCourant, onClick = { onVerset(n) })
             }
         }
     }
 }
 
 @Composable
-private fun CaseDeVerset(n: Int, onClick: () -> Unit) {
+private fun CaseDeVerset(n: Int, courant: Boolean, onClick: () -> Unit) {
     val theme = LocalReadingTheme.current
     Box(
         modifier = Modifier
             .size(56.dp)
             .clip(RoundedCornerShape(ONTRadius.highlight * 2))
-            .background(ONTColors.surface(theme))
+            // La troisième étape ne marquait **jamais** où l'on était : vingt et
+            // une cases identiques, et rien pour le lorgnon d'accessibilité non
+            // plus. Les deux étapes d'avant le faisaient déjà.
+            .semantics { selected = courant }
+            .background(
+                if (courant) ONTColors.accent(theme).copy(alpha = 0.25f)
+                else ONTColors.surface(theme),
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text("$n", fontSize = 16.sp, color = ONTColors.ink(theme))
+        Text(
+            "$n",
+            fontSize = 16.sp,
+            color = if (courant) ONTColors.accent(theme) else ONTColors.ink(theme),
+        )
     }
 }
 
