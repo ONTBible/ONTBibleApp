@@ -223,4 +223,34 @@ class FermerEtRouvrirTest {
         assertEquals(false, relu.french)
         assertEquals(25.0, relu.textSize, 0.0)
     }
+
+    /**
+     * Un fichier illisible est **mis de côté**, pas écrasé.
+     *
+     * C'est la moitié du problème que la tolérance du conteneur ne règle pas :
+     * un JSON tronqué par une écriture interrompue, une sauvegarde abîmée. On
+     * repart à vide — c'est le bon comportement —, mais la première écriture qui
+     * suit détruirait ce qu'on n'a pas su lire.
+     *
+     * Un JSON tronqué garde presque toujours l'essentiel de ce qui était annoté.
+     */
+    @Test
+    fun `un fichier illisible est mis de côté au lieu d'être écrasé`() {
+        val tronque = """{"highlights":[{"id":"h1","note":"la première par"""
+        fichier.writeText(tronque)
+
+        val magasin = FileReaderStore(fichier)
+        assertEquals("on repart à vide, comme avant", 0, magasin.all().size)
+
+        // et l'écriture qui suit ne doit pas emporter l'original
+        magasin.preferences = magasin.preferences.copy(french = false)
+
+        val misDeCote = File(dossier, "lecteur.illisible.json")
+        assertTrue("le fichier illisible doit être conservé", misDeCote.exists())
+        assertEquals(
+            "et conservé tel quel, pour qu'on puisse en tirer quelque chose",
+            tronque,
+            misDeCote.readText(),
+        )
+    }
 }

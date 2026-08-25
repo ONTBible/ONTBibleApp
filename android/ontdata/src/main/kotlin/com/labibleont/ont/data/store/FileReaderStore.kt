@@ -74,9 +74,36 @@ public class FileReaderStore(
     init {
         etat = runCatching {
             if (fichier.exists()) json.decodeFromString<Etat>(fichier.readText()) else Etat()
-        }.getOrElse { Etat() }
+        }.getOrElse {
+            mettreDeCoteLIllisible()
+            Etat()
+        }
         purgerLesPierresTombales()
         reindexer()
+    }
+
+    /**
+     * Garder ce qu'on n'a pas su lire, au lieu de l'écraser.
+     *
+     * Repartir d'un état vide est le bon comportement : mieux vaut une app qui
+     * s'ouvre sans les annotations qu'une app qui refuse de s'ouvrir. Mais la
+     * première écriture qui suit réécrit le fichier par-dessus — et ce qui
+     * n'était qu'une **lecture ratée** devient alors une perte définitive.
+     *
+     * Le renommer coûte trois lignes et rend la récupération possible : un JSON
+     * tronqué par une écriture interrompue garde presque toujours l'essentiel de
+     * ce qu'un lecteur avait annoté.
+     *
+     * Ce n'est pas un changement de comportement, c'est un arrêt de destruction :
+     * l'app s'ouvre exactement comme avant. Le nom est fixe, comme sur iOS —
+     * deux corruptions successives écrasent donc le premier sauvetage, ce qui
+     * est le prix d'un dossier qui ne grossit pas indéfiniment.
+     */
+    private fun mettreDeCoteLIllisible() {
+        runCatching {
+            if (!fichier.exists()) return
+            fichier.renameTo(File(fichier.parentFile, "lecteur.illisible.json"))
+        }
     }
 
     // ── Surlignages ─────────────────────────────────────────────────────
