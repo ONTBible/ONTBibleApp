@@ -156,4 +156,16 @@ export TF_VAR_github_client_id="$GITHUB_CLIENT_ID"
 export TF_VAR_github_client_secret="$GITHUB_CLIENT_SECRET"
 
 terraform apply -auto-approve -no-color | tail -3
+
+# **Vérifier l'arrivée, pas seulement le départ.**
+#
+# Tout ce qui précède garde le *départ* : les chemins de clés sont contrôlés, la
+# précondition Terraform refuse un apply lancé sans `oauth.env`. Rien ne
+# regardait ce qui est **réellement en ligne** une fois l'apply rendu — et les
+# trois pannes de ce backend se ressemblent toutes : une variable partie vide,
+# aucune erreur, et la découverte des semaines plus tard.
+#
+# Le contrôle lit la configuration de la fonction déployée et rend 1 si une
+# variable nécessaire est vide. Il ne lit jamais une valeur.
+"$RACINE/scripts/eprouver-le-backend.sh"
 ok "déployé"
