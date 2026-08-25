@@ -171,4 +171,56 @@ class FermerEtRouvrirTest {
         assertEquals(false, relu.continuous)
         assertEquals(ReadingTheme.DARK, relu.theme)
     }
+
+    /**
+     * Le **conteneur** doit être tolérant, pas seulement ses feuilles.
+     *
+     * Le piège se cache un cran au-dessus de celui qu'on regarde d'habitude :
+     * on soigne le décodage de chaque réglage, et on oublie que l'objet qui les
+     * contient peut refuser de se décoder en entier. Une clé manquante à ce
+     * niveau-là ne coûte pas un réglage — elle coûte **tous les surlignages du
+     * lecteur**, en silence, à la première ouverture de la nouvelle version.
+     *
+     * Ici la tolérance vient des valeurs par défaut du constructeur d'`Etat` :
+     * kotlinx.serialization s'en sert quand la clé manque. Ce test est ce qui
+     * garantit qu'elles y restent — les retirer compile encore.
+     */
+    @Test
+    fun `un fichier sans la clé des réglages garde ses surlignages`() {
+        fichier.writeText(
+            """
+            {"highlights":[{"id":"h1","bookId":"bereshit","chapterId":"bereshit-1",
+              "verse":3,"color":"gold","note":"la première parole",
+              "updatedAt":1756108800123,"deleted":false}],"position":null}
+            """.trimIndent(),
+        )
+
+        val magasin = FileReaderStore(fichier)
+        assertEquals(
+            "la clé absente ne doit pas emporter les annotations",
+            "la première parole",
+            magasin.highlight("bereshit-1", 3)?.note,
+        )
+        assertEquals("et les réglages prennent leur défaut", true, magasin.preferences.french)
+    }
+
+    /**
+     * Une clé **inconnue** est ignorée, pas fatale.
+     *
+     * C'est le fichier écrit par une version plus récente : celui de qui
+     * rétrograde, ou restaure une sauvegarde faite depuis un autre appareil.
+     */
+    @Test
+    fun `une clé inconnue ne fait rien perdre`() {
+        fichier.writeText(
+            """
+            {"highlights":[],"position":null,"venuDuFutur":{"quoi":"on ne sait pas"},
+             "preferences":{"french":false,"textSize":25.0,"ceciNonPlus":7}}
+            """.trimIndent(),
+        )
+
+        val relu = FileReaderStore(fichier).preferences
+        assertEquals(false, relu.french)
+        assertEquals(25.0, relu.textSize, 0.0)
+    }
 }
