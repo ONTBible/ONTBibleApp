@@ -585,3 +585,84 @@ réellement publié, plus ancien que le code, peut révéler le manque.
 Le corpus atteint des liseuses plus anciennes **et** plus récentes que lui.
 Cela vaut aussi dans l'autre sens : un champ retiré casse les liseuses qui
 l'attendent. Ajouter est sûr, retirer ne l'est pas.
+
+### 25 août 2026 — rendre un champ facultatif est une rupture chez le voisin
+
+**Source : le pipeline. Victime : le site.**
+
+L'entrée précédente pose la règle — tout champ ajouté au corpus est facultatif.
+Elle est juste, et l'appliquer a cassé `main` du site le jour même.
+
+`CorpusOutline.french` et `ModeOutline.french` sont passés de `String` à
+`Option<String>` dans `pipeline/src/schema.rs`. Le site **partage cette
+structure** — il dépend du pipeline comme caisse, pas seulement de sa sortie.
+Deux `error[E0308]`, et le dépôt voisin ne compilait plus.
+
+**Ce qu'il faut retenir : la règle protège le décodeur, pas le compilateur.**
+Rendre un champ facultatif est sûr *pour les liseuses installées*, qui liront
+un corpus sans la clé. C'est une **rupture** pour tout consommateur qui partage
+le type, parce qu'il doit maintenant décider quoi faire de l'absence. Les deux
+sont vrais en même temps, et le second ne se voit pas depuis le dépôt qui écrit
+le schéma.
+
+**Elle a été fusionnée verte, puis cassée après coup**, par un changement du
+voisin. Rien ne l'a signalé. Le seul témoin a été, par hasard, la CI d'une PR
+qui ne touchait qu'un `.md`.
+
+**Et l'immobilisation dépassait la compilation.** Le déploiement du site
+republie `ontbible.com/corpus/`, que `CorpusUpdater` tire dans les apps déjà
+installées. Un `main` qui ne compile pas tient donc **tout le corpus** hors de
+portée des lecteurs — les deux registres, `Chapitre`/`Parashah`, les conteneurs
+du Ḥurban —, alors que le code est fusionné et testé. Un site cassé n'est pas
+qu'un site cassé.
+
+La parade est un `schedule` côté site, qui recompile `main` contre le pipeline
+de `dev` et ouvre une issue nommant le commit pris. Elle **détecte** la dérive ;
+elle ne l'empêche pas — le site suit un pipeline mouvant parce que c'est voulu.
+
+### 25 août 2026 — une version approuvée ferme son train de préversions
+
+**Source : App Store Connect. Conséquence : la liseuse iOS, et un jour Android.**
+
+Six livraisons de suite ont échoué au téléversement, toutes sur la même phrase :
+*Invalid Pre-Release Train. The train version '1.0.3' is closed for new build
+submissions.* 1.0.3 avait été approuvée par Apple, et une version approuvée
+**ferme son train** : tout build qui la porte encore est refusé.
+
+**L'échec arrive tard, et c'est ce qui le rend coûteux.** La compilation
+réussit, l'archive se signe, et ça casse à la toute fin, une fois les minutes
+payées. Il se répète à chaque fusion vers `dev` tant que le nombre n'a pas
+bougé — et pendant deux jours, tout le travail fusionné n'a atteint aucun
+appareil.
+
+**La règle : monter `CFBundleShortVersionString` dès qu'Apple a approuvé la
+précédente**, sans attendre que la livraison suivante casse. Le numéro de build,
+lui, n'a pas ce problème : il est daté, il croît tout seul.
+
+### 25 août 2026 — un contrôle compare enfin les quatre exemplaires de ce fichier
+
+**Source : l'incident de la veille. Vaut pour les trois dépôts et la racine.**
+
+Ce fichier se déclare identique partout où il se trouve. Rien ne le vérifiait.
+`ONTBibleTranslation/scripts/concorder-la-synchronisation.py` le fait, depuis
+n'importe où sous `~/ONTBible/`, et rend `1` quand un exemplaire s'écarte.
+
+Trois choix, chacun payé par une erreur réelle :
+
+- **il balaie plutôt qu'il ne liste.** Une liste de chemins manque les
+  worktrees — et une première version a annoncé « les trois dépôts concordent »
+  au moment où les pièges qu'on documentait n'existaient que là. Le balayage est
+  **exhaustif** parce qu'un worktree monté hors de `~/ONTBible/` ne compile pas :
+  le site dépend du pipeline par un chemin relatif ;
+- **la racine ne vote jamais.** Un décompte majoritaire naïf prend racine + un
+  dépôt en retard contre deux dépôts à jour, et désigne le contenu périmé comme
+  référence. C'est arrivé ;
+- **l'octet décide, les titres expliquent.** Les titres seuls laissent passer
+  deux exemplaires aux mêmes sections et au texte différent.
+
+Les worktrees figurent au tableau mais ne votent pas : ils partagent le `.git`
+de leur arbre principal, donc la même autorité. Le tableau dit ce que **voit**
+chaque session ; le vote dit ce que **porte** chaque dépôt.
+
+Enfin, `--aligner-la-racine <DÉPÔT>` écrit la racine depuis un dépôt nommé. La
+direction est dans la commande, elle ne se devine plus.
