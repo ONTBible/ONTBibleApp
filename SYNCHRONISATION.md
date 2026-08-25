@@ -815,3 +815,77 @@ helper :**
 pipeline. Juste, mais interne — et il donnait un **troisième** nom à la chose,
 en face du lecteur, à quatre endroits de l'app iOS. Il ne reste que dans les
 lignes de journal, où il est le bon.
+
+### 25 août 2026 — un outil qui déclare un système cassé peut s'être trompé de geste
+
+Un modèle de langage interrogé sur `ontbible.com` a répondu qu'il n'arrivait pas
+à en récupérer le texte : « Le moteur ne l'indexe pas, **et le site ne s'ouvre
+pas correctement depuis mon outil** ». La seconde moitié est fausse, et c'est
+elle qui envoyait chercher un défaut.
+
+Mesuré avant d'y croire : `robots.txt` autorise tout, chaque page porte
+`index, follow`, Googlebot, ChatGPT-User, curl et une requête sans agent
+reçoivent tous 200 et **le même octet**, le texte est en clair dans le HTML —
+27 302 caractères lisibles — et une récupération directe rend les cinq premiers
+versets de *Bereshit*, intégralement.
+
+L'outil avait **cherché**, pas **ouvert**. Il a rapporté l'échec du premier geste
+comme une panne du second. La cause réelle n'était pas dans le système : le
+domaine était en ligne depuis dix jours sans avoir été soumis à aucun index.
+
+**La règle** : quand un outil déclare qu'une de nos pièces est cassée, mesurer la
+pièce elle-même avant de la réparer. Le verdict d'un outil porte sur ce qu'il a
+tenté, qui n'est pas toujours ce qu'il croit avoir tenté.
+
+C'est la sœur d'une règle déjà écrite ici — **suspecter la mesure avant la
+donnée** — et l'inverse du piège de `apercu.py` au §7 bis du site, où c'était
+l'instrument qui montrait un défaut inexistant. Ici l'instrument annonçait la
+panne au lieu de la montrer ; dans les deux cas, ce qu'on allait corriger était
+intact.
+
+#### La parade, et elle coûte une ligne
+
+**Un instrument se valide sur un cas dont on connaît la réponse, jamais sur
+celui qu'on étudie.**
+
+Elle vient de la session Android, le même jour, sur trois instruments qui lui
+ont menti coup sur coup : `git grep -E '\bmotif\b'` rendant **0** au lieu de 2
+— `\b` n'existe pas en ERE POSIX, le moteur ne l'applique pas *et ne signale
+rien* ; le `grep` de cette machine qui n'est pas GNU mais **`ugrep`**, muet sur
+un motif finissant par une parenthèse ; `gradlew test` annonçant « BUILD
+SUCCESSFUL in 739ms » **sans exécuter un seul test**, servi par son cache.
+
+Le motif commun avec le verdict de ChatGPT est plus profond que la coïncidence :
+**le format de sortie survit à l'absence de mesure.** Un `0` bien aligné, un
+« BUILD SUCCESSFUL », un « je ne peux pas ouvrir le site » — les trois ont
+l'apparence d'un résultat, et rien dans leur forme ne dit qu'il n'y en a pas eu.
+
+C'est ce qui rend la relecture inopérante : un zéro ne donne **aucun
+appariement à regarder**, donc relire les lignes ne peut rien attraper là où il
+n'y a rien à lire. Seul un témoin dont on connaît d'avance la réponse distingue
+« rien trouvé » de « rien cherché ».
+
+#### Et elle innocente aussi souvent qu'elle accuse
+
+La forme séduisante de cette leçon est « les outils mentent ». Elle est fausse,
+et il faut l'écrire ici parce qu'elle se retient mieux que la vraie.
+
+Le jour même, `concorder-la-synchronisation.py` a annoncé le site à 709 lignes
+quand son disque en portait 763. L'écart était réel, l'accusation était prête —
+et l'instrument avait raison : sa colonne d'empreinte donne ce qui **fait foi**,
+c'est-à-dire l'état publié, et il signalait `disque ≠ origin/main` sur la même
+ligne. L'entrée manquante vivait sur une branche, donc n'était pas publiée, donc
+était à bon droit hors du compte.
+
+La règle a mordu **dans l'autre sens** : on a validé l'instrument sur un cas dont
+on connaissait la réponse, et c'est la lecture qui a cédé. Un instrument juste
+qu'on n'a pas lu jusqu'au bout se présente exactement comme un instrument
+fautif — et le réécrire aurait cassé la garde qui protège ce fichier-ci.
+
+Ce qu'on éprouve n'est donc pas la sincérité de l'outil, c'est **l'appariement
+entre ce qu'il mesure et ce qu'on lui demande**. Il tombe des deux côtés.
+
+Ce que le site en a tiré : `/llms.txt`, qui pose le cadre de lecture ONT à la
+racine plutôt que dans une page qu'il faut avoir trouvée. Il n'indexe rien — les
+soumissions à Bing et Google restent le seul geste qui fasse entrer un site dans
+un index, et elles appartiennent à Gloire.
