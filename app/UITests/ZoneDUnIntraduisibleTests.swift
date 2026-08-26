@@ -247,44 +247,46 @@ final class ZoneDUnIntraduisibleTests: XCTestCase {
     /// pas** — il désigne le verset. Le lecteur ne voit donc pas « rien ne s'est
     /// passé », il voit « autre chose s'est passé », et il croit avoir mal visé.
     func testBalayerLaHauteurDeLaBande() {
-        app.open(URL(string: "ont://read/bereshit/bereshit-1")!)
-        _ = app.wait(for: .runningForeground, timeout: 5)
-        sleep(3)
-
-        let mots = motsDores(dans: XCUIScreen.main.screenshot().image)
-        guard let mot = mots.first else {
-            XCTFail("Aucun mot doré trouvé.")
-            return
-        }
-
         let fenetre = app.windows.firstMatch
-        let x = mot.cadre.midX
-        var releve = """
-
-        ══════ BALAYAGE VERTICAL ══════
-        mot : \(mot.cadre.width) × \(mot.cadre.height) pt, encre à y ∈ [\(mot.cadre.minY), \(mot.cadre.maxY)]
-        x fixé au milieu : \(x)
-
-        """
-
         var ouvertes: [CGFloat] = []
-        for dy in stride(from: -18.0, through: 18.0, by: 3.0) {
+        var encre = CGRect.zero
+        var releve = "\n══════ BALAYAGE VERTICAL ══════\n"
+
+        // **Un état neuf à chaque appui.** La première version enchaînait les
+        // appuis sur la même page, en refermant la fiche par un balayage vers le
+        // bas — qui fait aussi défiler le texte. Chaque appui suivant visait donc
+        // une position périmée, et deux exécutions de la même configuration ont
+        // rendu 27 pt puis 36 pt. On rouvre le chapitre et on relocalise le mot
+        // avant chaque appui : c'est plus lent, et c'est reproductible.
+        for dy in stride(from: -30.0, through: 30.0, by: 3.0) {
+            app.open(URL(string: "ont://read/bereshit/bereshit-1")!)
+            _ = app.wait(for: .runningForeground, timeout: 5)
+            sleep(2)
+
+            guard let mot = motsDores(dans: XCUIScreen.main.screenshot().image).first else {
+                releve += String(format: "  dy %+6.1f  →  mot introuvable\n", dy)
+                continue
+            }
+            encre = mot.cadre
             let y = mot.cadre.midY + dy
             fenetre.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: x, dy: y))
+                .withOffset(CGVector(dx: mot.cadre.midX, dy: y))
                 .tap()
             sleep(1)
+
             let ouverte = app.staticTexts["אֱלֹהִים"].exists
-            if ouverte { ouvertes.append(y) }
+            if ouverte { ouvertes.append(dy) }
             releve += String(format: "  dy %+6.1f  (y = %6.1f)  →  %@\n",
                              dy, y, (ouverte ? "FICHE" : "—") as NSString)
-            if ouverte { app.swipeDown(velocity: .fast); sleep(1) }
         }
 
+        releve += "\n  encre : \(encre.width) × \(encre.height) pt\n"
         if let bas = ouvertes.first, let haut = ouvertes.last {
-            releve += "\n  bande active : \(haut - bas + 3) pt (de y=\(bas) à y=\(haut))\n"
+            releve += "  bande active : \(haut - bas + 3) pt  (dy de \(bas) à \(haut))\n"
+            print("RESULTAT_BANDE \(bas) \(haut) \(encre.height)")
         } else {
-            releve += "\n  aucune ouverture — le mot n'a pas été atteint\n"
+            releve += "  aucune ouverture\n"
+            print("RESULTAT_BANDE 0 0 \(encre.height)")
         }
         joindre(releve, "balayage-vertical")
     }
