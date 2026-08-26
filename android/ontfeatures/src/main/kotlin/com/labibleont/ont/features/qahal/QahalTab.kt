@@ -38,6 +38,7 @@ import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.Verse
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import androidx.compose.foundation.layout.width
+import com.labibleont.ont.designsystem.typography.ONTProse
 
 /**
  * **Qahal** (קָהָל) — l'assemblée. La part communautaire.
@@ -156,7 +157,7 @@ private fun CarteDuVersetDuJour(
 
         Text(
             texte,
-            style = androidx.compose.ui.text.TextStyle(lineHeight = 1.5.em),
+            style = ONTProse.francaise.copy(lineHeight = 1.5.em),
         )
         Spacer(Modifier.height(18.dp))
 

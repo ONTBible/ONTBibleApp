@@ -35,6 +35,7 @@ import com.labibleont.ont.kit.corpus.fusingConsecutiveVerses
 import com.labibleont.ont.kit.reader.HighlightColor
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.designsystem.typography.interligne
+import com.labibleont.ont.designsystem.typography.ONTProse
 
 /**
  * La lecture d'une unité.
@@ -178,7 +179,7 @@ private fun BlocDeTexte(
                     showGloss = preferences.showGloss,
                     showLevel3 = preferences.showLevel3,
                 ),
-                style = androidx.compose.ui.text.TextStyle(
+                style = ONTProse.francaise.copy(
                     lineHeight = interligne,
                     color = ONTColors.brandInk(theme),
                     fontFamily = ONTFonts.display,
@@ -236,7 +237,7 @@ private fun BlocDeTexte(
 
                 Text(
                     texte,
-                    style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                    style = ONTProse.francaise.copy(lineHeight = interligne),
                     onTextLayout = { mise = it },
                     modifier = Modifier.soulignerEnPointille(
                         layout = { mise },
@@ -258,7 +259,7 @@ private fun BlocDeTexte(
                     )
                     Text(
                         texte,
-                        style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                        style = ONTProse.francaise.copy(lineHeight = interligne),
                         onTextLayout = { mise = it },
                         modifier = Modifier
                             // `Modifier.alpha` et non une couleur : il efface
@@ -289,7 +290,7 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
             ),
-            style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+            style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(vertical = 6.dp),
         )
 
@@ -300,7 +301,7 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
             ),
-            style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+            style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
         )
 
@@ -318,7 +319,7 @@ private fun BlocDeTexte(
                             ),
                         )
                     },
-                    style = androidx.compose.ui.text.TextStyle(lineHeight = interligne),
+                    style = ONTProse.francaise.copy(lineHeight = interligne),
                     modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
                 )
             }
