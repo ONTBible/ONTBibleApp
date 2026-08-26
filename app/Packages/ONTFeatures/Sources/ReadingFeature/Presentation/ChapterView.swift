@@ -252,6 +252,19 @@ struct ChapterView: View {
         // en grande partie cette animation elle-même. Assez court pour suivre
         // le doigt, assez long pour qu'on voie d'où la barre vient.
         .animation(.snappy(duration: 0.14), value: selection.isEmpty)
+        // Entrer en sélection et en sortir se sentent.
+        //
+        // On désigne un verset **en regardant le texte**, pas la barre qui
+        // monte du bas de l'écran. Sans retour tactile, le seul signe que le
+        // mode a changé est hors du regard — et il l'est d'autant plus quand
+        // le corps est réglé grand et que la barre sort du champ.
+        //
+        // `selection.isEmpty` bascule aux deux bords du mode et **pas** à
+        // chaque verset ajouté : c'est la frontière qu'on marque, pas le
+        // décompte. Android disait déjà `ToggleOn` / `ToggleOff` ici ; c'est
+        // la session Android qui a relevé qu'iOS ne disait rien, et l'écart
+        // se referme du côté qui manquait.
+        .sensoryFeedback(.selection, trigger: selection.isEmpty)
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
