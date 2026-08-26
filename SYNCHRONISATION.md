@@ -1168,3 +1168,33 @@ d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
 rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
 inventer une meilleure formulation reviendrait à créer un second dialecte pour
 la même idée.
+
+### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
+
+Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte
+« Actes des Apôtres » comme pont français et « les gevurot de YHWH par ses
+neviim » comme glose. Le site les affiche tous les deux depuis toujours,
+`sommaire.rs` choisissant selon « Le français reçu ». L'app iOS, elle, affichait
+le français **quel que soit le réglage** : `BookOutline` ne déclarait pas le
+champ, donc la traduction du schéma le jetait sans que rien ne s'en aperçoive.
+L'auteur l'a vu en mettant les deux écrans côte à côte.
+
+**Ce que ça dit des trois dépôts.** Un champ que le pipeline écrit et qu'une
+liseuse ne déclare pas ne casse **rien** : le domaine compile, l'écran s'affiche,
+le lecteur voit simplement l'autre nom. C'est l'inverse exact d'un changement de
+schéma, qui casse iOS et Android tout de suite parce qu'ils sont engendrés — ici
+la perte est silencieuse des deux côtés à la fois.
+
+- **site** — rien à porter, *constaté* : `sommaire.rs:75-86` traite déjà les
+  livres comme les sections. C'est lui qui faisait foi ;
+- **Android** — `BookOutline` de `ontkit` porte la même omission, je l'avais
+  porté ainsi. Signalé à la session Android dans la même heure ;
+- **vault** — rien : la donnée était juste, c'est la lecture qui manquait.
+
+**Et le motif, une fois de plus.** La règle du choix — français si le reçu est
+allumé, glose sinon, rien quand la ligne se redoublerait — tenait en trois
+lignes et était **recopiée dans une vue**. Elle était donc appliquée dans la
+liste de la Bible et **absente** du sélecteur de référence, qui affichait le
+français en toutes circonstances. Une règle recopiée est une règle qu'un écran
+finit par ne pas appliquer. Elle vit maintenant dans le noyau — `Registre.second`
+côté iOS, à côté de `LibelleDUnite`, qui est arrivé là par le même chemin.
