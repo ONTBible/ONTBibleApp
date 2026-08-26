@@ -89,6 +89,18 @@ public data class BookOutline(
     public val title: String,
     /** Le nom français, repère pour le lecteur occidental. */
     public val french: String,
+    /**
+     * Le nom du livre **dans le registre de l'ONT** — « les gevurot de YHWH
+     * par ses neviim » pour ce que le français reçu appelle « Actes des
+     * Apôtres ».
+     *
+     * Il manquait au domaine alors que le corpus le porte sur vingt-quatre
+     * livres et que le site l'affiche depuis toujours. Le mapping le jetait
+     * donc, et l'app rendait le français quel que soit le registre : un lecteur
+     * qui l'avait éteint voyait quand même « Actes des Apôtres » là où
+     * ontbible.com disait autre chose.
+     */
+    public val glose: String?,
     public val hebrew: String?,
     public val groupId: String?,
     /** Vrai tant qu'aucun texte n'a été rédigé pour ce slot. */
