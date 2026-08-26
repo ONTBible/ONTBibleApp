@@ -34,6 +34,7 @@ import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.fusingConsecutiveVerses
 import com.labibleont.ont.kit.reader.HighlightColor
 import com.labibleont.ont.kit.reader.ReadingPreferences
+import com.labibleont.ont.designsystem.typography.interligne
 
 /**
  * La lecture d'une unité.
@@ -167,7 +168,7 @@ private fun BlocDeTexte(
     // L'interligne est un multiple de la taille du corps, comme sur iOS : un
     // interligne en points absolus ne suivrait pas le curseur d'accessibilité,
     // et le texte se resserrerait à mesure qu'on l'agrandit.
-    val interligne = (1f + preferences.lineSpacing.toFloat()).em
+    val interligne = interligne(preferences.lineSpacing).em
 
     when (bloc) {
         is Block.Heading -> Column(Modifier.padding(top = 22.dp, bottom = 8.dp)) {
@@ -187,7 +188,14 @@ private fun BlocDeTexte(
         }
 
         is Block.Verses -> Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            // L'écart entre deux versets suit le corps **et** le réglage
+            // d'interligne, comme sur iOS — `scaledTextSize × lineSpacing`.
+            // Figé à 10 dp, il se refermait à mesure qu'on grossissait le
+            // texte : à 34 pt, iOS respire de 17 points là où Android en
+            // gardait 10, et les versets finissaient par se toucher.
+            verticalArrangement = Arrangement.spacedBy(
+                (preferences.textSize * preferences.lineSpacing).dp,
+            ),
             modifier = Modifier.padding(vertical = 4.dp),
         ) {
             // En prose continue, le bloc réuni ne contient qu'un enchaînement :
