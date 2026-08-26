@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
@@ -52,6 +54,25 @@ public fun SelectionBar(
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
+    val haptique = LocalHapticFeedback.current
+
+    // Poser une couleur et l'effacer sont les deux sens d'une même bascule, et
+    // le système a exactement ces deux vibrations-là. On ne les invente donc
+    // pas : `ToggleOn` et `ToggleOff` se ressemblent assez pour qu'on sache
+    // qu'il s'agit du même geste, et diffèrent assez pour qu'on sache dans
+    // quel sens il vient d'aller — sans regarder.
+    //
+    // Un seul événement par intention : le verset qu'on désigne en vibre déjà
+    // à l'appui long, et redoubler ici ferait de la pose d'un surlignage un
+    // geste plus bruyant que ce qu'il est.
+    val poser = { couleur: HighlightColor ->
+        haptique.performHapticFeedback(HapticFeedbackType.ToggleOn)
+        onCouleur(couleur)
+    }
+    val effacer = {
+        haptique.performHapticFeedback(HapticFeedbackType.ToggleOff)
+        onEffacer()
+    }
 
     Column(
         modifier = modifier
@@ -96,7 +117,7 @@ public fun SelectionBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             for (couleur in HighlightColor.entries) {
-                Pastille(couleur = couleur, onClick = { onCouleur(couleur) })
+                Pastille(couleur = couleur, onClick = { poser(couleur) })
             }
 
             // « Effacer » n'apparaît que s'il y a quelque chose à effacer :
@@ -107,7 +128,7 @@ public fun SelectionBar(
                     color = ONTColors.inkSoft(theme),
                     fontSize = 14.sp,
                     modifier = Modifier
-                        .clickable(onClick = onEffacer)
+                        .clickable(onClick = effacer)
                         .padding(horizontal = 6.dp, vertical = 4.dp),
                 )
             }

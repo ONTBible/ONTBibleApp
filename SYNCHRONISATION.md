@@ -1120,6 +1120,210 @@ veille — `dev` n'autorisant que le squash pendant que `staging` exigeait
 `strict`, la fusion devenait structurellement impossible, pas seulement
 difficile.
 
+### 26 août 2026 — le rattrapage d'Android sur iOS, et ce qu'il a appris
+
+Vingt-quatre commits pour ramener la liseuse Android au niveau de l'iOS. Ce
+qu'il faut en retenir tient en trois points, et aucun n'est propre à Android.
+
+**Un portage ne se vérifie pas fichier par fichier.** Le premier audit
+comparait des **noms de fichiers** entre deux arbres — et les deux n'étaient pas
+sur la même branche : l'écran d'ouverture n'existait pas sur celle qu'on
+interrogeait. Il n'aurait de toute façon rien vu de l'essentiel : l'accentuation
+peinte puis repeinte, l'hébreu absent du sous-titre, le filet du Ḥurban rendu en
+gris. **Les fichiers existaient des deux côtés ; seuls leurs rendus
+divergeaient.** Un audit utile compare ce qui s'affiche, pas ce qui s'appelle.
+
+**Une même donnée peut plaire à une plateforme et tuer l'autre.**
+`SearchHit.id` vaut `unité-verset-niveau` et n'est pas unique. SwiftUI tolère
+les identifiants doublés — il avertit, et réutilise parfois la mauvaise vue.
+Compose lève : chercher « alliance » fermait l'app. Même domaine, même donnée,
+même requête ; une plateforme plante là où l'autre murmure. **Un défaut
+silencieux d'un côté n'est pas un défaut absent.**
+
+**Ce que la plateforme donne gratuitement à l'une, l'autre doit l'écrire.** Le
+même réglage d'interligne rendait 1,735 sur iOS et 1,500 sur Android :
+`SwiftUI.lineSpacing` **ajoute** des points à l'interligne de la fonte, Compose
+`lineHeight` **fixe** la hauteur et l'efface. Les deux courbes se croisent. De
+même, une rotation ne reconstruit pas la vue racine d'iOS mais recrée l'activité
+Android — l'ouverture y rejouait cinq secondes et demie à chaque quart de tour.
+**Porter du code, c'est porter ce que le code ne dit pas.**
+
+**Ce que ce travail change pour les voisins.**
+
+Pour le **site** : `/{langue}/lire/{livre}/{unité}?v=…` n'est plus une route de
+page, c'est un **contrat que deux apps lisent**. Le changer sans prévenir casse
+les liens partagés sur les deux plateformes. Et l'App Link Android exige
+`/.well-known/assetlinks.json` servi sans redirection — posé côté site, avec
+l'empreinte de la clé de téléversement. Une seconde empreinte s'y **ajoutera**
+après le premier envoi à Play, celle avec laquelle Google resigne : la
+remplacer ferait cesser d'être reconnues toutes les installations de test.
+
+Pour le **vault** : les décisions terminologiques du pied d'unité portent des
+astérisques littérales — `*Elohim` — que les deux liseuses affichent, parce
+qu'elles emploient le même chemin de composition. C'est au pipeline de dire si
+ces marques doivent survivre jusqu'à l'écran.
+
+**Et une règle nouvelle, posée par Gloire ce jour :** les initiatives viennent
+d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
+rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
+inventer une meilleure formulation reviendrait à créer un second dialecte pour
+la même idée.
+
+#### Trois manières de plus pour un instrument de rendre un relevé faux
+
+L'entrée « trois manières pour un instrument de rendre un relevé faux », plus
+haut, en compte trois. La journée en a produit deux autres, et elles ne se
+recouvrent avec aucune des précédentes.
+
+**La quatrième porte sur la cadence.** Une sonde par capture d'écran a mesuré
+douze à vingt secondes pour une animation d'ouverture qui dure 5,515. L'horloge
+d'échantillonnage était plus lente que le phénomène échantillonné. Ce qui la
+rend redoutable, c'est que le résultat avait *la forme d'un blocage* : une suite
+de « toujours l'ouverture » ressemble trait pour trait à une ouverture qui ne
+finit pas. L'instrument mesurait la bonne chose, correctement, et trop lentement
+pour qu'elle existe — aucune relecture de la sonde ne l'aurait montré. Il a
+fallu une seconde mesure d'une autre nature, un journal horodaté.
+
+**La cinquième porte sur le chemin entre le rapport et la décision.** Un script
+de résolution de conflit a émis un `AssertionError` parfaitement exact, et un
+`git commit` a suivi dans la même commande, parce qu'il était après un `&&` sur
+une *autre* commande. Des marqueurs `<<<<<<<` sont partis dans le journal, et le
+build a rendu `BUILD SUCCESSFUL` par-dessus — un Markdown avec des marqueurs de
+conflit compile parfaitement.
+
+C'est la seule des cinq où aucune amélioration de l'instrument n'aurait aidé :
+il avait raison, et il parlait dans le vide. **Le contrôle porte sur le fichier,
+jamais sur le rapport de l'outil qui vient de le toucher.**
+
+Et le lendemain de cette erreur, la même heure en a produit le versant
+symétrique : accuser l'outil de concordance d'avoir écrit dans un arbre de
+travail, alors que sa seule écriture vise le dossier parent et qu'elle est
+doublement gardée. La ligne venait d'une session, qui l'avait déposée dans tous
+les exemplaires sans prévenir. Le raisonnement était cohérent et faux, et agir
+dessus aurait fait tomber une garde ajoutée la veille.
+
+Il est plus facile de soupçonner l'outil qui balaie que la session qui écrit :
+l'un est visible dans les commandes qu'on tape, l'autre non. **Ce qu'on éprouve
+n'est jamais la sincérité de l'outil, c'est l'appariement entre ce qu'il mesure
+et ce qu'on lui demande — et il tombe des deux côtés.**
+
+**La sixième porte sur le témoin lui-même**, et c'est la seule où le protocole
+était bien construit.
+
+Vérification du suivi de lecture sur l'APK de production : « avant défilement,
+aucun fichier » — juste, la garde tenait. Puis « après défilement, aucun
+fichier » — et la conclusion, fausse : R8 aurait emporté quelque chose.
+
+En réalité **`run-as` refuse tout paquet non débogable**. Il rendait vide dans
+les deux cas, quel que soit l'état de l'app. Le témoin avait été lu, il avait
+répondu juste — mais un témoin qui attend « rien » ne peut pas distinguer un
+instrument muet d'un instrument correct. **Un contrôle négatif ne contrôle rien
+quand la panne produit un négatif.**
+
+Ce qui en sort de pratique : un témoin doit attendre quelque chose de
+**positif**. Lire un fichier dont on sait qu'il existe avant de conclure d'un
+fichier absent. Et quand un doute subsiste, mesurer par un instrument qui ne
+partage pas le mode de panne du premier — ici l'interface, qui ne passe pas par
+`run-as`, et qui a rendu « Reprendre — Bereshit 1:13 ».
+
+#### Ce que le glissement a appris sur le portage d'une sensation
+
+iOS accroche ses trois retours haptiques à des **états** — `trigger: courant.id`
+pour celui du milieu, celui qui dit que l'unité a changé pour de bon. Android
+appelle `aller()`, qui lance une coroutine et rend la main avant que l'unité
+soit là. Porter le retour sur l'appel plutôt que sur l'état l'aurait fait vibrer
+avant l'événement, et aussi quand rien n'arrive.
+
+La leçon dépasse l'haptique : **ce qui se porte d'une plateforme à l'autre, ce
+n'est pas le geste d'iOS, c'est ce qu'il observe.** Un port qui recopie l'appel
+au lieu de l'état a l'air fidèle et ne l'est pas.
+
+Une divergence a été remontée à iOS comme la règle l'exige : Android vibrait à
+l'ouverture et à la fermeture de la barre de sélection, iOS non. **iOS a tranché
+en s'alignant** — `.sensoryFeedback(.selection, trigger: selection.isEmpty)`.
+
+Le motif de la décision vaut d'être gardé, parce qu'il montre à quoi sert la
+règle. iOS n'a pas ratifié une liberté prise par Android : il a constaté qu'il
+lui manquait quelque chose, et c'est le relevé d'Android qui le lui a montré. On
+désigne un verset en regardant le texte, pas la barre qui monte du bas de
+l'écran — sans retour tactile, le seul signe que le mode a changé est hors du
+regard. Et l'argument redouble ici, où le corps est réglé grand : la barre sort
+d'autant plus du champ.
+
+Le déclencheur est `selection.isEmpty` et non `selection` : la frontière du
+mode, pas le décompte. Sur `selection`, il vibrerait à chaque doigt posé.
+
+**La règle n'empêche donc pas Android de trouver — elle l'empêche de décider.**
+C'est une distinction utile : un portage regarde deux fois le même produit, et
+le second regard voit ce que le premier avait laissé passer.
+
+#### Le suivi de lecture, qui n'existait pas sur Android
+
+Le second regard a servi une deuxième fois, et sur plus gros. iOS porte un
+`SuiviDeLecture` : il retient le verset le plus haut visible **quand le
+défilement s'arrête**, et seulement si le lecteur a fait défiler quelque chose.
+
+Android ne retenait la position qu'au **toucher** d'un verset — c'est-à-dire en
+le sélectionnant. Qui lisait en faisant défiler, sans jamais rien désigner, ne
+déplaçait jamais sa reprise : la carte « Reprendre » pointait le dernier verset
+touché, parfois d'une tout autre séance. Le défaut ne se voit pas en lisant le
+code, parce que la position *existait* et *se sauvegardait* ; c'est son
+déclencheur qui était faux. Il ne s'est vu qu'en comparant les deux écrans de
+lecture ligne à ligne.
+
+Un premier correctif retenait le premier verset du **bloc** en tête d'écran,
+puisque le bloc est l'élément de liste, et l'inscrivait ici comme une différence
+assumée avec iOS. **C'était une erreur, et iOS l'a signalée.**
+
+Le suivi au bloc *est* le défaut qu'iOS avait déjà réparé : en prose continue un
+bloc est une section entière dans un seul `Text`, et « Reprendre » ramenait au
+début de la section au lieu de l'endroit qu'on lisait. Tant que les blocs
+valaient un verset, ça ne se voyait pas ; la fusion l'a révélé.
+
+La leçon vaut au-delà du cas : **inscrire un écart comme une décision le referme
+pour des années.** Quelqu'un le relira comme un choix motivé et ne le rouvrira
+pas. Un écart qu'on n'a pas encore comblé s'écrit comme un écart.
+
+Il est comblé. Le suivi est au verset des deux côtés — et Android le fait avec
+plus d'exactitude qu'iOS, non par mérite mais par ce que la plateforme donne :
+iOS estime la part de hauteur de chaque verset au prorata des signes affichés,
+faute de pouvoir demander sa mise en page au moteur de texte ; Compose la rend
+dans `TextLayoutResult`, et on lit donc les bornes réelles.
+
+La garde d'ouverture est reproduite telle quelle : ouvrir une unité, la lire
+sans bouger et la quitter ne déplace pas la reprise. C'est ce qui permet à une
+restauration de survivre à une visite.
+
+Deux pièges de plateforme, trouvés en mesurant et non en relisant :
+
+`boundsInRoot()` **rogne** aux limites visibles. Un bloc à moitié sorti par le
+haut se déclarait donc au bord de la fenêtre, tous ses versets paraissaient
+visibles, et le plus petit numéro gagnait — c'est-à-dire celui qu'on venait de
+quitter. C'est `positionInRoot()` qu'il faut.
+
+La sortie du champ n'est pas un événement, c'est une **absence** d'événements :
+`onGloballyPositioned` cesse simplement de parler. Les bornes se figeaient donc
+dans la fenêtre et le verset 1 gagnait pour toujours. iOS n'a pas ce problème,
+sa sonde signale l'entrée *et* la sortie. Ici il faut prendre la sortie là où
+elle se manifeste — la mise au rebut du composable.
+
+**Un écart reste ouvert, et il est écrit comme tel.** Android calcule où finit le
+numéro de verset dans le texte réuni pour savoir où commencer le pointillé ; iOS
+monte le numéro dans un `Text` séparé, si bien qu'il n'y a aucun offset à
+calculer. Les deux marchent, mais seule la seconde ne *peut pas* se tromper —
+et c'est justement un offset mal calculé qui a fait démarrer le pointillé dix
+signes trop loin pendant des semaines.
+
+iOS n'avait pas séparé le numéro pour cette raison : c'était le décroché du
+pointillé sous l'exposant, et la robustesse est venue en prime. C'est le sens
+habituel de ces choses. **Un défaut qu'on rend impossible vaut mieux qu'un défaut
+qu'on calcule bien**, et le jour où la composition d'Android sera rouverte, c'est
+la forme à viser.
+
+Éprouvé sur l'appareil, pas seulement compilé : aucun `lecteur.json` après
+l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
+« Reprendre » qui l'affiche.
+
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
 Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte

@@ -182,6 +182,7 @@ internal fun DtoBookOutline.versDomaine(): BookOutline = BookOutline(
     slot = slot,
     title = title,
     french = french,
+    glose = glose,
     hebrew = hebrew,
     groupId = groupId,
     empty = empty,

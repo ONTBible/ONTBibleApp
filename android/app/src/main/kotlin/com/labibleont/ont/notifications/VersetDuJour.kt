@@ -27,6 +27,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
+import android.net.Uri
+import com.labibleont.ont.kit.reader.LienProfond
 
 /**
  * Le verset du jour, posé par l'appareil.
@@ -67,8 +69,18 @@ public class VersetDuJourWorker(
         val ouvrir = PendingIntent.getActivity(
             applicationContext,
             0,
-            Intent(applicationContext, MainActivity::class.java)
-                .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            // La notification porte un verset : la toucher doit y mener.
+            // Sans l'adresse, elle rendait la main à l'app telle qu'on l'avait
+            // laissée — on lisait un verset dans le volet et on ne le
+            // retrouvait pas dans l'app.
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse(
+                    LienProfond.ecrire(verset.bookId, verset.chapterId, setOf(verset.verse)),
+                ),
+                applicationContext,
+                MainActivity::class.java,
+            ).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 

@@ -46,6 +46,7 @@ import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Mode
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPosition
+import com.labibleont.ont.kit.corpus.Registre
 
 /**
  * L'onglet Bible — l'arborescence du corpus.
@@ -92,7 +93,7 @@ public fun BibleTab(
                 // Le second nom, dans le registre choisi. Rien ne s'affiche
                 // quand il n'y a rien à dire — une section dont la glose
                 // redirait le pont n'en porte pas.
-                registre(corpus.french, corpus.glose, model.preferences.french)?.let {
+                Registre.second(corpus.french, corpus.glose, model.preferences.french)?.let {
                     Text(
                         it,
                         fontSize = 12.sp,
@@ -195,7 +196,7 @@ private fun SectionDeMode(
                     fontSize = 18.sp,
                     color = ONTColors.ink(theme),
                 )
-                registre(mode.french, mode.glose, francaisRecu)?.let {
+                Registre.second(mode.french, mode.glose, francaisRecu)?.let {
                     Text(it, fontSize = 12.sp, color = ONTColors.inkSoft(theme))
                 }
             }
@@ -220,7 +221,11 @@ private fun SectionDeMode(
                         is Element.Entete ->
                             EnteteDeConteneur(element.conteneur, francaisRecu)
                         is Element.Livre ->
-                            LigneDeLivre(livre = element.livre, onOuvrir = onOuvrir)
+                            LigneDeLivre(
+                        livre = element.livre,
+                        francaisRecu = francaisRecu,
+                        onOuvrir = onOuvrir,
+                    )
                     }
                 }
             }
@@ -237,7 +242,11 @@ private fun SectionDeMode(
  * lecteur occidental, pas le nom de l'ouvrage.
  */
 @Composable
-private fun LigneDeLivre(livre: BookOutline, onOuvrir: (String, String?) -> Unit) {
+private fun LigneDeLivre(
+    livre: BookOutline,
+    francaisRecu: Boolean,
+    onOuvrir: (String, String?) -> Unit,
+) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
     val lisible = !livre.empty
@@ -267,7 +276,15 @@ private fun LigneDeLivre(livre: BookOutline, onOuvrir: (String, String?) -> Unit
                 // l'architecture, il ne doit pas être un fantôme.
                 color = if (lisible) ONTColors.ink(theme) else ONTColors.inkSoft(theme),
             )
-            Text(livre.french, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            // Le second nom du livre suit le registre, comme partout ailleurs
+            // dans cette liste. Il ne le suivait **pas** : la ligne affichait le
+            // français en dur, si bien qu'un lecteur ayant éteint le français
+            // reçu voyait « Actes des Apôtres » là où le site dit « les gevurot
+            // de YHWH par ses neviim ». Le corpus porte la glose sur
+            // vingt-quatre livres ; l'app la jetait.
+            Registre.second(livre.french, livre.glose, francaisRecu)?.let {
+                Text(it, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            }
         }
         Text(
             if (lisible) "${livre.verseCount} v." else "à venir",
@@ -279,16 +296,6 @@ private fun LigneDeLivre(livre: BookOutline, onOuvrir: (String, String?) -> Unit
 
 // --- Les conteneurs, et la fracture du Ḥurban ---
 
-/**
- * Choisit le second nom dans le registre voulu.
- *
- * Rend `null` plutôt qu'une chaîne vide : l'appelant n'affiche alors rien du
- * tout, au lieu de réserver une ligne blanche sous le titre.
- */
-private fun registre(francais: String?, glose: String?, francaisRecu: Boolean): String? {
-    val choisi = if (francaisRecu) francais else (glose ?: francais)
-    return choisi?.takeIf { it.isNotEmpty() }
-}
 
 /** Ce que la liste d'un mode pose l'un après l'autre. */
 private sealed interface Element {
@@ -361,7 +368,7 @@ private fun EnteteDeConteneur(conteneur: Conteneur, francaisRecu: Boolean) {
             )
         }
         SectionCaption(conteneur.title)
-        registre(conteneur.french, conteneur.glose, francaisRecu)?.let {
+        Registre.second(conteneur.french, conteneur.glose, francaisRecu)?.let {
             Text(it, fontSize = 11.sp, color = ONTColors.inkSoft(theme))
         }
     }
