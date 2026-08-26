@@ -1169,7 +1169,7 @@ rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
 inventer une meilleure formulation reviendrait à créer un second dialecte pour
 la même idée.
 
-#### Deux manières de plus pour un instrument de rendre un relevé faux
+#### Trois manières de plus pour un instrument de rendre un relevé faux
 
 L'entrée « trois manières pour un instrument de rendre un relevé faux », plus
 haut, en compte trois. La journée en a produit deux autres, et elles ne se
@@ -1206,6 +1206,25 @@ Il est plus facile de soupçonner l'outil qui balaie que la session qui écrit :
 l'un est visible dans les commandes qu'on tape, l'autre non. **Ce qu'on éprouve
 n'est jamais la sincérité de l'outil, c'est l'appariement entre ce qu'il mesure
 et ce qu'on lui demande — et il tombe des deux côtés.**
+
+**La sixième porte sur le témoin lui-même**, et c'est la seule où le protocole
+était bien construit.
+
+Vérification du suivi de lecture sur l'APK de production : « avant défilement,
+aucun fichier » — juste, la garde tenait. Puis « après défilement, aucun
+fichier » — et la conclusion, fausse : R8 aurait emporté quelque chose.
+
+En réalité **`run-as` refuse tout paquet non débogable**. Il rendait vide dans
+les deux cas, quel que soit l'état de l'app. Le témoin avait été lu, il avait
+répondu juste — mais un témoin qui attend « rien » ne peut pas distinguer un
+instrument muet d'un instrument correct. **Un contrôle négatif ne contrôle rien
+quand la panne produit un négatif.**
+
+Ce qui en sort de pratique : un témoin doit attendre quelque chose de
+**positif**. Lire un fichier dont on sait qu'il existe avant de conclure d'un
+fichier absent. Et quand un doute subsiste, mesurer par un instrument qui ne
+partage pas le mode de panne du premier — ici l'interface, qui ne passe pas par
+`run-as`, et qui a rendu « Reprendre — Bereshit 1:13 ».
 
 #### Ce que le glissement a appris sur le portage d'une sensation
 
