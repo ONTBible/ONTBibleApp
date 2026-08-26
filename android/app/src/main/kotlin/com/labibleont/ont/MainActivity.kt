@@ -447,13 +447,43 @@ private fun Racine(
                                 )
                             },
                             label = { Text(o.titre) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = ONTColors.onBrand(theme),
-                                selectedTextColor = ONTColors.brandInk(theme),
-                                indicatorColor = ONTColors.brandInk(theme),
-                                unselectedIconColor = ONTColors.inkSoft(theme),
-                                unselectedTextColor = ONTColors.inkSoft(theme),
-                            ),
+                            // ## La capsule de l'onglet actif n'est pas la même
+                            // selon la clarté du fond, et c'est mesuré.
+                            //
+                            // Sur fond clair, le bordeaux plein faisait un bloc
+                            // sombre là où l'œil Android attend un halo. Une
+                            // capsule teintée est ce que Material fait lui-même :
+                            // son indicateur de référence est à **1,23** de
+                            // contraste contre sa barre ; l'or à 28 % en donne
+                            // **1,34**. On est donc au-dessus de la norme, pas en
+                            // dessous — et la sélection ne repose de toute façon
+                            // pas sur la seule capsule : l'icône et le libellé
+                            // changent de couleur avec elle.
+                            //
+                            // Sur fond sombre, la même recette s'effondre, pour
+                            // une raison qu'on ne voit qu'en mesurant : l'icône et
+                            // la capsule y sont **la même couleur**, l'or. Diluer
+                            // la capsule rapproche les deux jusqu'à 4,45, et la
+                            // renforcer les rapproche davantage. La capsule pleine
+                            // s'impose donc là — icône en couleur de page sur l'or
+                            // franc : 9,83 pour l'icône, 8,46 pour la capsule.
+                            colors = if (theme.isDark) {
+                                NavigationBarItemDefaults.colors(
+                                    selectedIconColor = ONTColors.onBrand(theme),
+                                    selectedTextColor = ONTColors.brandInk(theme),
+                                    indicatorColor = ONTColors.brandInk(theme),
+                                    unselectedIconColor = ONTColors.inkSoft(theme),
+                                    unselectedTextColor = ONTColors.inkSoft(theme),
+                                )
+                            } else {
+                                NavigationBarItemDefaults.colors(
+                                    selectedIconColor = ONTColors.brandInk(theme),
+                                    selectedTextColor = ONTColors.brandInk(theme),
+                                    indicatorColor = ONTColors.accent(theme).copy(alpha = 0.28f),
+                                    unselectedIconColor = ONTColors.inkSoft(theme),
+                                    unselectedTextColor = ONTColors.inkSoft(theme),
+                                )
+                            },
                         )
                     }
                 }
