@@ -1238,6 +1238,37 @@ mode, pas le décompte. Sur `selection`, il vibrerait à chaque doigt posé.
 C'est une distinction utile : un portage regarde deux fois le même produit, et
 le second regard voit ce que le premier avait laissé passer.
 
+#### Le suivi de lecture, qui n'existait pas sur Android
+
+Le second regard a servi une deuxième fois, et sur plus gros. iOS porte un
+`SuiviDeLecture` : il retient le verset le plus haut visible **quand le
+défilement s'arrête**, et seulement si le lecteur a fait défiler quelque chose.
+
+Android ne retenait la position qu'au **toucher** d'un verset — c'est-à-dire en
+le sélectionnant. Qui lisait en faisant défiler, sans jamais rien désigner, ne
+déplaçait jamais sa reprise : la carte « Reprendre » pointait le dernier verset
+touché, parfois d'une tout autre séance. Le défaut ne se voit pas en lisant le
+code, parce que la position *existait* et *se sauvegardait* ; c'est son
+déclencheur qui était faux. Il ne s'est vu qu'en comparant les deux écrans de
+lecture ligne à ligne.
+
+Deux différences assumées avec iOS, écrites ici pour qu'on ne les prenne pas
+plus tard pour des oublis :
+
+Le suivi est au **bloc** et non au verset, parce que c'est le bloc qui est un
+élément de liste. En lecture continue, les versets consécutifs sont fusionnés en
+un seul `Text` et leur visibilité individuelle n'existe pas à ce niveau. On
+retient le premier verset du bloc en tête d'écran — au plus quelques versets
+au-dessus de la ligne lue, jamais en dessous.
+
+La garde d'ouverture est reproduite telle quelle : ouvrir une unité, la lire
+sans bouger et la quitter ne déplace pas la reprise. C'est ce qui permet à une
+restauration de survivre à une visite.
+
+Éprouvé sur l'appareil, pas seulement compilé : aucun `lecteur.json` après
+l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
+« Reprendre » qui l'affiche.
+
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
 Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte

@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -82,6 +84,13 @@ public fun ChapterScreen(
     onVerset: (Int) -> Unit = {},
     /** La couleur posée par le lecteur sur un verset, s'il y en a une. */
     marque: (Int) -> HighlightColor? = { null },
+    /**
+     * Le verset en tête d'écran quand le défilement s'arrête.
+     *
+     * Appelé pour la reprise, jamais pendant le geste : on retient où le
+     * lecteur *s'est posé*, pas tout ce qu'il a survolé en chemin.
+     */
+    onPositionLue: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -97,8 +106,49 @@ public fun ChapterScreen(
     }
 
     val espace = com.labibleont.ont.designsystem.metrics.ontSpacing
+    val etatListe = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // ## Le suivi de lecture
+    //
+    // iOS retient le verset le plus haut visible **quand le défilement
+    // s'arrête**, et seulement si le lecteur a fait défiler quelque chose.
+    // Ouvrir une unité, la lire sans bouger et la quitter ne déplace donc pas
+    // la reprise : elle reste là où la restauration l'avait posée.
+    //
+    // Android ne retenait la position qu'au **toucher** d'un verset — c'est-à-
+    // dire en le sélectionnant. Qui lit en faisant défiler, sans jamais rien
+    // désigner, ne déplaçait jamais sa reprise : la carte « Reprendre » de
+    // l'onglet Bible pointait le dernier verset touché, parfois d'une tout
+    // autre séance.
+    //
+    // Une différence assumée avec iOS : là-bas le suivi est au verset, ici il
+    // est au **bloc**, parce que c'est le bloc qui est un élément de liste. En
+    // lecture continue les versets consécutifs sont fusionnés en un seul
+    // `Text`, et leur visibilité individuelle n'existe pas à ce niveau. On
+    // retient donc le premier verset du bloc en tête d'écran — au plus quelques
+    // versets au-dessus de la ligne réellement lue, jamais en dessous.
+    val premierVersetDuBloc = remember(blocs) {
+        blocs.map { bloc -> (bloc as? Block.Verses)?.verses?.firstOrNull()?.n }
+    }
+    var aDefile by remember(chapitre.id) { mutableStateOf(false) }
+    LaunchedEffect(etatListe, chapitre.id) {
+        snapshotFlow { etatListe.isScrollInProgress }.collect { enCours ->
+            if (enCours) {
+                aDefile = true
+                return@collect
+            }
+            if (!aDefile) return@collect
+            // L'en-tête occupe l'indice 0 ; les blocs commencent à 1.
+            etatListe.layoutInfo.visibleItemsInfo
+                .asSequence()
+                .mapNotNull { premierVersetDuBloc.getOrNull(it.index - 1) }
+                .firstOrNull()
+                ?.let(onPositionLue)
+        }
+    }
 
     LazyColumn(
+        state = etatListe,
         // La mesure est bornée, et les marges suivent le curseur
         // d'accessibilité. Au-delà de cette largeur, l'œil ne retrouve plus le
         // début de la ligne suivante — ça vaut surtout sur tablette, où rien ne

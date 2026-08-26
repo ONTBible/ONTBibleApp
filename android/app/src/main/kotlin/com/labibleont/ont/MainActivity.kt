@@ -688,6 +688,7 @@ private fun Racine(
                                 lecture.basculer(n)
                                 lecture.retenir(n)
                             },
+                            onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
                             onTerme = { lemme ->
                                 lexique.charger()
