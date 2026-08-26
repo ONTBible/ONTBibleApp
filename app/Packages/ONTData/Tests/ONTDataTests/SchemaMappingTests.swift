@@ -155,4 +155,25 @@ struct SchemaMappingTests {
         #expect(stub.verseCount == 31)
         #expect(stub.status == .locked)
     }
+
+    /// Un champ que le pipeline écrit et que la traduction laisse tomber ne
+    /// casse **rien** : le domaine compile, l'écran s'affiche, et le lecteur
+    /// voit simplement l'autre nom. C'est le défaut le plus silencieux de
+    /// cette couche, et le seul que le compilateur ne verra jamais.
+    ///
+    /// La glose des livres a vécu ainsi : écrite au corpus, publiée par le
+    /// site, jetée ici. Le lecteur qui éteignait « Le français reçu » lisait
+    /// encore « Actes des Apôtres ».
+    @Test("la glose d'un livre traverse la traduction")
+    func laGloseDunLivreArrive() throws {
+        let dto = try JSONDecoder().decode(
+            ONTSchema.BookOutline.self,
+            from: Data(
+                #"{"id":"gevurot-ha-neviim","slot":48,"title":"Gevurot ha-Neviim","french":"Actes des Apôtres","glose":"les gevurot de YHWH par ses neviim","empty":false,"chapters":[]}"#
+                    .utf8)
+        )
+        let livre = BookOutline(dto)
+        #expect(livre.french == "Actes des Apôtres")
+        #expect(livre.glose == "les gevurot de YHWH par ses neviim")
+    }
 }
