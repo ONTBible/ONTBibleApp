@@ -1252,18 +1252,41 @@ code, parce que la position *existait* et *se sauvegardait* ; c'est son
 déclencheur qui était faux. Il ne s'est vu qu'en comparant les deux écrans de
 lecture ligne à ligne.
 
-Deux différences assumées avec iOS, écrites ici pour qu'on ne les prenne pas
-plus tard pour des oublis :
+Un premier correctif retenait le premier verset du **bloc** en tête d'écran,
+puisque le bloc est l'élément de liste, et l'inscrivait ici comme une différence
+assumée avec iOS. **C'était une erreur, et iOS l'a signalée.**
 
-Le suivi est au **bloc** et non au verset, parce que c'est le bloc qui est un
-élément de liste. En lecture continue, les versets consécutifs sont fusionnés en
-un seul `Text` et leur visibilité individuelle n'existe pas à ce niveau. On
-retient le premier verset du bloc en tête d'écran — au plus quelques versets
-au-dessus de la ligne lue, jamais en dessous.
+Le suivi au bloc *est* le défaut qu'iOS avait déjà réparé : en prose continue un
+bloc est une section entière dans un seul `Text`, et « Reprendre » ramenait au
+début de la section au lieu de l'endroit qu'on lisait. Tant que les blocs
+valaient un verset, ça ne se voyait pas ; la fusion l'a révélé.
+
+La leçon vaut au-delà du cas : **inscrire un écart comme une décision le referme
+pour des années.** Quelqu'un le relira comme un choix motivé et ne le rouvrira
+pas. Un écart qu'on n'a pas encore comblé s'écrit comme un écart.
+
+Il est comblé. Le suivi est au verset des deux côtés — et Android le fait avec
+plus d'exactitude qu'iOS, non par mérite mais par ce que la plateforme donne :
+iOS estime la part de hauteur de chaque verset au prorata des signes affichés,
+faute de pouvoir demander sa mise en page au moteur de texte ; Compose la rend
+dans `TextLayoutResult`, et on lit donc les bornes réelles.
 
 La garde d'ouverture est reproduite telle quelle : ouvrir une unité, la lire
 sans bouger et la quitter ne déplace pas la reprise. C'est ce qui permet à une
 restauration de survivre à une visite.
+
+Deux pièges de plateforme, trouvés en mesurant et non en relisant :
+
+`boundsInRoot()` **rogne** aux limites visibles. Un bloc à moitié sorti par le
+haut se déclarait donc au bord de la fenêtre, tous ses versets paraissaient
+visibles, et le plus petit numéro gagnait — c'est-à-dire celui qu'on venait de
+quitter. C'est `positionInRoot()` qu'il faut.
+
+La sortie du champ n'est pas un événement, c'est une **absence** d'événements :
+`onGloballyPositioned` cesse simplement de parler. Les bornes se figeaient donc
+dans la fenêtre et le verset 1 gagnait pour toujours. iOS n'a pas ce problème,
+sa sonde signale l'entrée *et* la sortie. Ici il faut prendre la sortie là où
+elle se manifeste — la mise au rebut du composable.
 
 Éprouvé sur l'appareil, pas seulement compilé : aucun `lecteur.json` après
 l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte

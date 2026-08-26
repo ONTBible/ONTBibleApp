@@ -7,8 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -111,39 +115,18 @@ public fun ChapterScreen(
     // ## Le suivi de lecture
     //
     // iOS retient le verset le plus haut visible **quand le défilement
-    // s'arrête**, et seulement si le lecteur a fait défiler quelque chose.
-    // Ouvrir une unité, la lire sans bouger et la quitter ne déplace donc pas
-    // la reprise : elle reste là où la restauration l'avait posée.
-    //
-    // Android ne retenait la position qu'au **toucher** d'un verset — c'est-à-
-    // dire en le sélectionnant. Qui lit en faisant défiler, sans jamais rien
-    // désigner, ne déplaçait jamais sa reprise : la carte « Reprendre » de
-    // l'onglet Bible pointait le dernier verset touché, parfois d'une tout
-    // autre séance.
-    //
-    // Une différence assumée avec iOS : là-bas le suivi est au verset, ici il
-    // est au **bloc**, parce que c'est le bloc qui est un élément de liste. En
-    // lecture continue les versets consécutifs sont fusionnés en un seul
-    // `Text`, et leur visibilité individuelle n'existe pas à ce niveau. On
-    // retient donc le premier verset du bloc en tête d'écran — au plus quelques
-    // versets au-dessus de la ligne réellement lue, jamais en dessous.
-    val premierVersetDuBloc = remember(blocs) {
-        blocs.map { bloc -> (bloc as? Block.Verses)?.verses?.firstOrNull()?.n }
-    }
-    var aDefile by remember(chapitre.id) { mutableStateOf(false) }
+    // s'arrête**, et seulement si le lecteur a fait défiler quelque chose. Le
+    // détail du procédé et ce qu'il répare sont dans `SuiviDeLecture`.
+    val suivi = remember(chapitre.id) { SuiviDeLecture() }
+    var fenetre by remember { mutableStateOf(0f to 0f) }
+
     LaunchedEffect(etatListe, chapitre.id) {
         snapshotFlow { etatListe.isScrollInProgress }.collect { enCours ->
             if (enCours) {
-                aDefile = true
+                suivi.defile()
                 return@collect
             }
-            if (!aDefile) return@collect
-            // L'en-tête occupe l'indice 0 ; les blocs commencent à 1.
-            etatListe.layoutInfo.visibleItemsInfo
-                .asSequence()
-                .mapNotNull { premierVersetDuBloc.getOrNull(it.index - 1) }
-                .firstOrNull()
-                ?.let(onPositionLue)
+            suivi.aRetenir(fenetre.first, fenetre.second)?.let(onPositionLue)
         }
     }
 
@@ -155,7 +138,13 @@ public fun ChapterScreen(
         // limiterait sinon.
         modifier = modifier
             .fillMaxWidth()
-            .widthIn(max = com.labibleont.ont.designsystem.metrics.ONTLayout.readingWidth),
+            .widthIn(max = com.labibleont.ont.designsystem.metrics.ONTLayout.readingWidth)
+            // La fenêtre de lecture, en coordonnées de la racine — c'est à elle
+            // que les bornes des versets sont comparées.
+            .onGloballyPositioned { cadre ->
+                val boite = cadre.boundsInRoot()
+                fenetre = boite.top to boite.bottom
+            },
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             start = espace.page,
             end = espace.page,
@@ -174,6 +163,7 @@ public fun ChapterScreen(
                 selection = selection,
                 onVerset = onVerset,
                 marque = marque,
+                suivi = suivi,
             )
         }
 
@@ -282,6 +272,8 @@ private fun BlocDeTexte(
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
     marque: (Int) -> HighlightColor? = { null },
+    /** Où chaque verset se trouve à l'écran, pour la reprise de lecture. */
+    suivi: SuiviDeLecture? = null,
 ) {
     val theme = LocalReadingTheme.current
     // L'interligne est un multiple de la taille du corps, comme sur iOS : un
@@ -323,11 +315,43 @@ private fun BlocDeTexte(
             // on le compose d'un seul tenant pour que les lignes se lient.
             val pointille = ONTColors.accent(theme).copy(alpha = 0.8f)
 
+            // Quand la liste met ce bloc au rebut, ses versets quittent l'écran
+            // sans que rien ne le dise : `onGloballyPositioned` cesse simplement
+            // de parler. On le dit ici, sinon leurs bornes restent figées dans
+            // la fenêtre et le premier verset gagne pour toujours.
+            if (suivi != null) {
+                DisposableEffect(bloc) {
+                    onDispose { suivi.oublier(bloc.verses.map { it.n }) }
+                }
+            }
+
             if (preferences.continuous) {
                 // Un seul texte pour que les lignes se lient. La désignation et
                 // le surlignage y passent par des fragments — voir le rendu.
                 var mise by remember { mutableStateOf<TextLayoutResult?>(null) }
                 val plages = remember(bloc, selection, preferences) { mutableMapOf<Int, IntRange>() }
+                // Où commence chaque verset dans le texte réuni. C'est ce qui
+                // permet de lire ses bornes **réelles** dans la mise en page,
+                // là où iOS doit les estimer au prorata des signes affichés.
+                val ancres = remember(bloc, preferences) { mutableMapOf<Int, Int>() }
+                var hautDuTexte by remember { mutableStateOf(0f) }
+
+                LaunchedEffect(mise, hautDuTexte, suivi) {
+                    val pose = mise ?: return@LaunchedEffect
+                    val ou = suivi ?: return@LaunchedEffect
+                    val dernier = pose.layoutInput.text.length - 1
+                    for ((verset, offset) in ancres) {
+                        val premiere = pose.getLineForOffset(offset.coerceAtMost(dernier))
+                        val derniere = pose.getLineForOffset(
+                            (plages[verset]?.last ?: offset).coerceIn(0, dernier),
+                        )
+                        ou.situer(
+                            verset,
+                            hautDuTexte + pose.getLineTop(premiere),
+                            hautDuTexte + pose.getLineBottom(derniere),
+                        )
+                    }
+                }
 
                 val texte = androidx.compose.ui.text.buildAnnotatedString {
                     for (verset in bloc.verses) {
@@ -347,7 +371,10 @@ private fun BlocDeTexte(
                         // Le corps commence après le numéro : celui-ci est en
                         // exposant, et un pointillé qui le rejoindrait ferait
                         // un décroché à chaque début de verset.
-                        plages[verset.n] = (debut + "${'$'}{verset.n} ".length) until length
+                        plages[verset.n] = (debut + "${verset.n} ".length) until length
+                        // L'ancre vise le **numéro**, pas le corps : c'est là
+                        // que le verset commence à l'œil.
+                        ancres[verset.n] = debut
                         // Une espace pleine entre deux versets, jamais un
                         // retour à la ligne : c'est toute la différence entre
                         // les deux modes.
@@ -359,7 +386,15 @@ private fun BlocDeTexte(
                     texte,
                     style = ONTProse.francaise.copy(lineHeight = interligne),
                     onTextLayout = { mise = it },
-                    modifier = Modifier.soulignerEnPointille(
+                    modifier = Modifier
+                        // `positionInRoot` et non `boundsInRoot` : le second
+                        // **rogne** aux limites visibles, si bien qu'un bloc à
+                        // moitié sorti par le haut se déclare au bord de la
+                        // fenêtre. Tous ses versets paraissaient alors visibles,
+                        // et le plus petit numéro gagnait — c'est-à-dire celui
+                        // qu'on venait justement de quitter.
+                        .onGloballyPositioned { hautDuTexte = it.positionInRoot().y }
+                        .soulignerEnPointille(
                         layout = { mise },
                         plages = { selection.mapNotNull { plages[it] } },
                         couleur = pointille,
@@ -382,6 +417,11 @@ private fun BlocDeTexte(
                         style = ONTProse.francaise.copy(lineHeight = interligne),
                         onTextLayout = { mise = it },
                         modifier = Modifier
+                            .onGloballyPositioned { cadre ->
+                                // Non rogné — voir la note du mode continu.
+                                val haut = cadre.positionInRoot().y
+                                suivi?.situer(verset.n, haut, haut + cadre.size.height)
+                            }
                             // `Modifier.alpha` et non une couleur : il efface
                             // le verset **entier**, l'or des intraduisibles et
                             // l'encre douce des gloses comprises.
@@ -390,7 +430,7 @@ private fun BlocDeTexte(
                                 layout = { mise },
                                 plages = {
                                     if (designe) {
-                                        listOf("${'$'}{verset.n} ".length until texte.text.length)
+                                        listOf("${verset.n} ".length until texte.text.length)
                                     } else {
                                         emptyList()
                                     }
