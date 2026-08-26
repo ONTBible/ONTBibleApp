@@ -42,6 +42,18 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.withStyle
+import com.labibleont.ont.designsystem.surfaces.GoldRule
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import com.labibleont.ont.designsystem.surfaces.SectionCaption
+import com.labibleont.ont.designsystem.metrics.ontSpacing
+import com.labibleont.ont.kit.corpus.Footer
+import com.labibleont.ont.kit.corpus.Inline
 
 /**
  * La lecture d'une unité.
@@ -113,6 +125,10 @@ public fun ChapterScreen(
                 onVerset = onVerset,
                 marque = marque,
             )
+        }
+
+        chapitre.footer?.let { pied ->
+            item { PiedDUnite(pied, typo, preferences) }
         }
     }
 }
@@ -399,8 +415,17 @@ private fun BlocDeTexte(
             }
         }
 
-        Block.Rule -> HorizontalDivider(
-            color = ONTColors.separator(theme),
+        // Le filet du Ḥurban — **en or**, pas en séparateur gris.
+        //
+        // Ce n'est pas un trait de mise en page : c'est une césure du texte,
+        // qui marque une rupture dans le corpus. Le rendre en gris comme les
+        // séparateurs d'interface le faisait passer pour du mobilier.
+        //
+        // `GoldRule` existait dans le design system depuis le début — il ne
+        // servait qu'au catalogue. Le filet le plus discuté du projet était
+        // dessiné, disponible, et jamais posé là où il compte.
+        Block.Rule -> GoldRule(
+            opacite = 0.6f,
             modifier = Modifier.padding(vertical = 18.dp),
         )
     }
@@ -417,3 +442,88 @@ private fun fondDe(couleur: HighlightColor?): androidx.compose.ui.graphics.Color
     couleur?.let {
         ONTColors.highlight(it).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
     }
+
+/**
+ * Le pied d'unité — version, verrouillage, décisions terminologiques.
+ *
+ * ## Ce qu'il porte, et pourquoi ce n'est pas du mobilier
+ *
+ * Les décisions terminologiques sont du **texte éditorial** : elles disent
+ * pourquoi tel mot a été rendu ainsi et pas autrement. Un lecteur qui bute sur
+ * un choix de traduction y trouve sa raison. Les taire — ce que faisait
+ * Android — revient à publier la traduction sans ses attendus.
+ *
+ * Le filet d'or les annonce, comme sur iOS : ce qui suit n'appartient plus au
+ * corpus.
+ */
+@Composable
+private fun PiedDUnite(pied: Footer, typo: ONTTypography, preferences: ReadingPreferences) {
+    val theme = LocalReadingTheme.current
+    val espace = ontSpacing
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = espace.m),
+        verticalArrangement = Arrangement.spacedBy(espace.m),
+    ) {
+        GoldRule()
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(espace.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (pied.locked) Icons.Filled.Lock else Icons.Filled.Edit,
+                contentDescription = null,
+                tint = ONTColors.accent(theme),
+                modifier = Modifier.size(espace(14)),
+            )
+            Text(
+                buildString {
+                    append(if (pied.locked) "Verrouillée" else "À valider")
+                    pied.version?.let { append(" · Version ").append(it) }
+                },
+                fontSize = 12.sp,
+                color = ONTColors.accent(theme),
+            )
+        }
+
+        if (pied.notes.isNotEmpty()) {
+            SectionCaption("Décisions terminologiques")
+            pied.notes.forEach { note ->
+                Text(
+                    ONTTextRenderer.compose(
+                        aplatir(note),
+                        typo,
+                        showGloss = preferences.showGloss,
+                        showLevel3 = preferences.showLevel3,
+                    ),
+                    style = ONTProse.francaise.copy(
+                        fontSize = (typo.size * 0.82f).sp,
+                        color = ONTColors.inkSoft(theme),
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Les nœuds d'un bloc de note, à plat.
+ *
+ * Une note est un bloc comme un autre, mais elle se rend d'une traite : ni
+ * titre, ni puces, ni tableau. On en tire donc le texte, et le reste tombe.
+ */
+private fun aplatir(bloc: Block): List<Inline> = when (bloc) {
+    is Block.Paragraph -> bloc.nodes
+    is Block.Heading -> bloc.nodes
+    is Block.Quote -> bloc.nodes
+    // Un retour à la ligne **entre** les entrées, jamais après la dernière.
+    //
+    // `flatten()` seul les collait bout à bout : « laissé en hébreu*Ruach »
+    // au lieu de deux décisions distinctes. Une liste de décisions
+    // terminologiques lue d'un seul tenant ne se lit pas — c'est précisément
+    // ce qui la rend consultable qui disparaissait.
+    is Block.List -> bloc.items.flatMapIndexed { i, item ->
+        if (i == 0) item else listOf(Inline.LineBreak) + item
+    }
+    else -> emptyList()
+}
