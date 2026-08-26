@@ -52,7 +52,21 @@ struct ONTApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            // L'ouverture par-dessus l'app, et **seulement au démarrage à
+            // froid**.
+            //
+            // Rien n'est enregistré pour l'obtenir : la scène n'est construite
+            // qu'une fois par lancement de processus. Revenir de l'arrière-plan
+            // ne la reconstruit pas, donc l'animation ne rejoue pas. C'est
+            // exactement le comportement demandé — « seulement quand l'app a
+            // été nettoyée de la RAM » —, et le système le donne sans qu'on
+            // ait à le tenir.
+            //
+            // Un drapeau persistant aurait au contraire menti : il aurait
+            // compté les *ouvertures*, pas les *lancements*.
+            AvecOuverture(theme: composition.reading.preferences.theme) {
+                RootView()
+            }
                 .environment(composition.router)
                 .environment(composition.reading)
                 .environment(composition.lexicon)

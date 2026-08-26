@@ -148,7 +148,22 @@ targets:
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
         # moderne, pleine dalle.
-        UILaunchScreen: {}
+        # **La nuit, et non le noir du système.**
+        #
+        # Le dictionnaire vide déclarait une scène de lancement moderne, pleine
+        # dalle — nécessaire, sinon iOS letterboxe l'app —, mais il laissait le
+        # fond au système : noir franc en apparence sombre.
+        #
+        # Or l'app met deux secondes et demie à charger son corpus, et le
+        # lecteur regardait ce noir avant que l'ouverture ne commence. Le
+        # raccorder à la nuit de l'ouverture fait de cette attente le début du
+        # mouvement plutôt qu'une salle vide qui le précède.
+        #
+        # `NuitDeLOuverture` est un peu plus sombre que ``ONTColors/nuit`` :
+        # c'est la teinte du **bord** du dégradé, celle qui touche les bords de
+        # l'écran, donc celle qui doit se raccorder sans couture.
+        UILaunchScreen:
+          UIColorName: NuitDeLOuverture
         # L'iPhone n'a pas d'upside-down, et c'est l'usage : personne ne tient
         # un téléphone à l'envers, et le laisser tourner ferait basculer la
         # page pour rien.
