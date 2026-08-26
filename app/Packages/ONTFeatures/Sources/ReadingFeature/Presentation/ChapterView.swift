@@ -271,6 +271,23 @@ struct ChapterView: View {
                         Image(systemName: "chevron.down")
                             .font(.system(size: echelle(10), weight: .bold))
                     }
+                    // **Sans ça, la pastille se vide.**
+                    //
+                    // Elle partage la place de tête avec le bouton de retour
+                    // du système, et iOS lui accorde ce qui reste. Quand le
+                    // libellé s'est allongé — « Bereshit 1 » devenu « Bereshit
+                    // · Chapitre 1 », deux fois plus long —, ce reste est
+                    // tombé à zéro : `lineLimit(1)` a tronqué le texte à
+                    // **rien**, et il ne restait qu'une capsule avec un
+                    // chevron. Le lecteur y voyait la disparition du
+                    // sélecteur, pas un texte tronqué.
+                    //
+                    // `fixedSize` dit à la mise en page que ce texte ne se
+                    // comprime pas. C'est ce que voulait déjà `lineLimit(1)`,
+                    // qui ne dit que « une seule ligne » — pas « garde ta
+                    // largeur ». Deux réglages voisins, un seul répond à la
+                    // question posée.
+                    .fixedSize(horizontal: true, vertical: false)
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)

@@ -22,16 +22,35 @@ public struct ReferencePicker: View {
     var echelle = ONTScaled()
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
-    private let current: Chapter
-
-    public init(current: Chapter) {
-        self.current = current
-    }
+    ///
+    /// **Facultative**, parce qu'on entre ici par deux portes. Depuis la
+    /// lecture, il y a une unité courante et le sélecteur la marque. Depuis le
+    /// sommaire d'un livre, il n'y en a pas : on n'a rien ouvert, on choisit.
+    private let current: Chapter?
 
     /// L'étape en cours. Un chemin, pas des onglets : on avance et on revient.
     private enum Etape: Hashable {
         case unites(book: String)
         case versets(book: String, chapter: String)
+    }
+
+    /// Où la feuille s'ouvre.
+    private let depart: Etape?
+
+    public init(current: Chapter) {
+        self.current = current
+        self.depart = nil
+    }
+
+    /// Le sélecteur ouvert **directement sur les versets** d'une unité.
+    ///
+    /// C'est la porte du sommaire : le lecteur y a déjà choisi son livre et son
+    /// unité, la seule chose qui lui reste à dire est *où commencer*. Le faire
+    /// repasser par les deux étapes précédentes serait lui redemander ce qu'il
+    /// vient de répondre.
+    public init(book: String, chapter: String) {
+        self.current = nil
+        self.depart = .versets(book: book, chapter: chapter)
     }
 
     @State private var chemin: [Etape] = []
@@ -59,7 +78,7 @@ public struct ReferencePicker: View {
         .onAppear {
             // On ouvre sur le livre courant : le lecteur cherche presque
             // toujours à côté de là où il est.
-            chemin = [.unites(book: current.bookId)]
+            chemin = depart.map { [$0] } ?? [.unites(book: current?.bookId ?? "")]
         }
     }
 
@@ -79,7 +98,7 @@ public struct ReferencePicker: View {
                             Button {
                                 chemin = [.unites(book: livre.id)]
                             } label: {
-                                LivreLigne(livre: livre, courant: livre.id == current.bookId)
+                                LivreLigne(livre: livre, courant: livre.id == current?.bookId)
                                     // Même défaut que « Reprendre » : le vide à
                                     // droite du titre ne répondait pas.
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,7 +175,7 @@ public struct ReferencePicker: View {
                         ForEach(livre.chapters) { unite in
                             Case(
                                 titre: "\(unite.n)",
-                                courant: unite.id == current.id,
+                                courant: unite.id == current?.id,
                                 brouillon: unite.status == .brouillon
                             ) {
                                 chemin.append(.versets(book: bookId, chapter: unite.id))
@@ -178,42 +197,93 @@ public struct ReferencePicker: View {
 
     @ViewBuilder
     private func versets(book: String, chapter: String) -> some View {
+        ChoixDuVerset(book: book, chapter: chapter) { verse in
+            aller(book: book, chapter: chapter, verse: verse)
+        }
+    }
+
+    private func aller(book: String, chapter: String, verse: Int?) {
+        router.open(book: book, chapter: chapter, verse: verse)
+        dismiss()
+    }
+
+    /// Le minimum suit le curseur, comme la case qu'il accueille — sinon des
+    /// chiffres devenus plus larges débordent d'une colonne restée à 54. La
+    /// grille étant `.adaptive`, monter le minimum ne casse rien : elle pose
+    /// simplement moins de colonnes.
+    private var grille: [GridItem] {
+        [GridItem(.adaptive(minimum: echelle(54)), spacing: spacing.s)]
+    }
+}
+
+/// La grille des versets d'une unité, avec la sortie courte en tête.
+///
+/// **Autonome, parce qu'on y arrive par deux chemins.** Depuis le sélecteur de
+/// renvoi, c'est la troisième étape d'une feuille. Depuis le sommaire d'un
+/// livre, c'est un écran poussé : le lecteur y a déjà choisi son unité, et la
+/// seule chose qui lui reste à dire est *où commencer*.
+///
+/// Les deux montrent la même chose et mènent au même endroit — d'où une vue et
+/// non deux, sans quoi l'une des deux aurait vieilli sans l'autre. C'est le
+/// défaut qu'on a payé trois fois aujourd'hui avec le libellé d'unité.
+public struct ChoixDuVerset: View {
+    @Environment(ReadingModel.self) private var model
+    @Environment(\.ontTheme) private var theme
+
+    var spacing = ONTSpacing()
+    var echelle = ONTScaled()
+
+    let book: String
+    let chapter: String
+
+    /// Ce qu'on fait du choix — `nil` pour l'unité entière.
+    ///
+    /// Passé du dehors plutôt que décidé ici : la feuille se referme après
+    /// avoir navigué, l'écran poussé ne le peut pas. La vue montre ; elle ne
+    /// décide pas de ce que la navigation devient.
+    let choisir: (Int?) -> Void
+
+    public init(book: String, chapter: String, choisir: @escaping (Int?) -> Void) {
+        self.book = book
+        self.chapter = chapter
+        self.choisir = choisir
+    }
+
+    public var body: some View {
         let unite = model.outline(book)?.chapters.first { $0.id == chapter }
         ScrollView {
             VStack(alignment: .leading, spacing: spacing.m) {
                 // La sortie courte, en premier : neuf fois sur dix on veut
                 // l'unité, pas un verset précis.
-                Button {
-                    aller(book: book, chapter: chapter, verse: nil)
-                } label: {
-                    Label(toutLUnite, systemImage: "text.justify.left")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(theme.accent)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(spacing.m)
-                        .background(
-                            RoundedRectangle(cornerRadius: ONTRadius.card)
-                                .fill(theme.accent.opacity(0.10))
-                        )
-                        .contentShape(.rect)
+                Button { choisir(nil) } label: {
+                    Label(
+                        LibelleDUnite.toutLe(french: model.preferences.french),
+                        systemImage: "text.justify.left"
+                    )
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(theme.accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(spacing.m)
+                    .background(
+                        RoundedRectangle(cornerRadius: ONTRadius.card)
+                            .fill(theme.accent.opacity(0.10))
+                    )
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
 
                 if let unite, unite.verseCount > 0 {
-                    // **Le verset où l'on est se marque, comme le livre et
-                    // l'unité aux deux étapes précédentes.**
+                    // **Le verset où l'on est se marque.**
                     //
-                    // Il était câblé à `false` : les deux premières étapes
-                    // disaient où l'on est, la troisième ne le disait pas, et
-                    // le lecteur arrivait sur vingt et une cases identiques
-                    // sans savoir laquelle il venait de quitter. VoiceOver ne
-                    // l'annonçait pas non plus — `courant` porte aussi le trait
-                    // `.isSelected`.
-                    let courant = versetCourant(book: book, chapter: chapter)
+                    // Il était câblé à `false` : le lecteur arrivait sur vingt
+                    // et une cases identiques sans savoir laquelle il venait de
+                    // quitter. VoiceOver ne l'annonçait pas non plus — `courant`
+                    // porte aussi le trait `.isSelected`.
+                    let courant = versetCourant
                     LazyVGrid(columns: grille, spacing: spacing.s) {
                         ForEach(1...unite.verseCount, id: \.self) { n in
                             Case(titre: "\(n)", courant: n == courant, brouillon: false) {
-                                aller(book: book, chapter: chapter, verse: n)
+                                choisir(n)
                             }
                         }
                     }
@@ -233,7 +303,7 @@ public struct ReferencePicker: View {
     /// une autre unité que celle qu'on lit allumerait une case au hasard —
     /// « verset 12 » de *Bereshit* 2 parce qu'on en était au 12 de *Bereshit*
     /// 18.
-    private func versetCourant(book: String, chapter: String) -> Int? {
+    private var versetCourant: Int? {
         guard let position = model.position,
               position.bookId == book,
               position.chapterId == chapter
@@ -241,26 +311,6 @@ public struct ReferencePicker: View {
         return position.verse
     }
 
-    /// « Tout le chapitre » ou « Toute la parashah », selon le registre.
-    ///
-    /// Le libellé disait « Toute l'unité » — le mot du pipeline, juste et
-    /// interne. Le lecteur, lui, vient de toucher « Chapitre 2 » ou
-    /// « Parashah 2 » ; lui répondre « unité » introduit un troisième nom pour
-    /// la même chose, au moment précis où le réglage cherche à n'en enseigner
-    /// qu'un.
-    private var toutLUnite: String {
-        LibelleDUnite.toutLe(french: model.preferences.french)
-    }
-
-    private func aller(book: String, chapter: String, verse: Int?) {
-        router.open(book: book, chapter: chapter, verse: verse)
-        dismiss()
-    }
-
-    /// Le minimum suit le curseur, comme la case qu'il accueille — sinon des
-    /// chiffres devenus plus larges débordent d'une colonne restée à 54. La
-    /// grille étant `.adaptive`, monter le minimum ne casse rien : elle pose
-    /// simplement moins de colonnes.
     private var grille: [GridItem] {
         [GridItem(.adaptive(minimum: echelle(54)), spacing: spacing.s)]
     }
