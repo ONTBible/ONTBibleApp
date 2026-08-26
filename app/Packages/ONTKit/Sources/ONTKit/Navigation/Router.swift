@@ -60,6 +60,8 @@ public final class Router {
     public enum Destination: Hashable, Sendable {
         case book(String)
         case chapter(book: String, chapter: String)
+        /// Le choix du verset avant d'ouvrir — l'étape que le sommaire offre.
+        case verses(book: String, chapter: String)
     }
 
     /// L'app rouvre là où on l'a laissée — sur la lecture au premier lancement.
