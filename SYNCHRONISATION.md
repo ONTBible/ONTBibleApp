@@ -1075,3 +1075,47 @@ mesure** ; la seconde, de **valider le détecteur sur un cas dont on connaît la
 réponse** ; la troisième, de **choisir le cas mesuré plutôt que de prendre le
 premier venu** — le premier élément d'une liste est presque toujours en bordure
 de quelque chose.
+
+### 26 août 2026 — `main` se déployait sans qu'aucun contrôle soit exigé
+
+Les cinq rulesets du projet portaient `pull_request`, `required_signatures`,
+`deletion` et `non_fast_forward` — mais **aucun n'exigeait que la CI ait
+répondu**. Une PR pouvait donc être fusionnée le contrôle rouge, et `main` se
+déploie seule en production.
+
+Ce n'était pas théorique. Une session a armé la fusion automatique d'une PR du
+site avant que `Éprouver` ne rende son verdict ; il a échoué ; le défaut est
+parti en ligne. Avec un `MERGED` parfaitement bien formé sur une PR au contrôle
+rouge.
+
+C'est le motif de la journée sous sa forme la plus coûteuse, et sous une
+**troisième variante**. Ailleurs, l'instrument mesurait autre chose que la
+question posée ; ici, le `MERGED` ne mentait pas — il rapportait fidèlement une
+fusion qui avait bien eu lieu. Ce qu'il ne disait pas, parce que rien ne le lui
+demandait, c'est qu'**aucun contrôle n'y était exigé**. Un verdict exact sur une
+question qu'on n'avait pas posée. Ailleurs ça coûte des heures ; ici ça met un
+défaut devant des lecteurs.
+
+État vérifié depuis l'API après correction — les cinq portent désormais un
+contrôle exigé, et les quatre autres règles sont intactes :
+
+    site/main            eprouver
+    vault/main           eprouver
+    app/main             tests, Chaîne de promotion
+    app/dev              tests
+    app/staging          tests, Chaîne de promotion
+
+**« Tous les dépôts portent le même ruleset » cesse d'être littéral ici**, et
+c'est la nuance à retenir : le *contexte* exigé est le **nom réel du job** de
+chaque dépôt — `eprouver` chez le site et le vault, `tests` chez l'app. Un nom
+deviné n'aurait pas protégé : il aurait bloqué **toutes** les PR, en attendant
+un contrôle qui ne vient jamais. La règle est la même partout ; son paramètre ne
+peut pas l'être.
+
+`strict_required_status_checks_policy` reste à **`false`** partout, et
+délibérément. À `true`, chaque fusion périme toutes les autres PR, qui doivent
+rebaser avant de pouvoir passer : à cinq sessions, c'est une file d'attente
+permanente. C'est la contradiction exacte qui a bloqué `dev → staging` la
+veille — `dev` n'autorisant que le squash pendant que `staging` exigeait
+`strict`, la fusion devenait structurellement impossible, pas seulement
+difficile.
