@@ -1008,6 +1008,27 @@ La bande est celle de la **ligne**, donc elle suit les réglages du lecteur —
 42 pt à interligne maximal, 48 pt à corps 28. Les deux curseurs déjà offerts
 l'épaississent, aucun réglage raisonnable n'atteint 44.
 
+**La cible rétrécit avec le corps du texte**, et linéairement — mesuré sur un
+mot entouré de texte des deux côtés, interligne au défaut :
+
+    corps   encre    bande qui répond
+      11    8,3 pt      18 pt
+      15   10,3 pt      24 pt
+      19   12,7 pt      30 pt      ← le défaut
+      24   19,0 pt      42 pt
+      28   21,7 pt      48 pt
+
+Le rapport tient autour de 1,7 fois le corps. **Seuls les deux plus grands
+réglages approchent les 44 pt de la HIG** ; le réglage par défaut en offre 30,
+et le plus petit 18 — moins de la moitié.
+
+Conséquence qui oriente le correctif : le défaut n'est pas le même pour tous
+les lecteurs. Il s'aggrave pour qui lit petit et s'efface pour qui lit grand.
+Ce n'est donc pas quelques points à gagner partout, c'est un **plancher** à
+poser — que la zone ne descende jamais sous un seuil, quel que soit le corps
+choisi.
+
+
 **Ce qui rend le défaut sensible tient à la prose.** En lecture continue, le
 verset entier porte lui aussi un lien. Manquer la bande du mot ne fait donc pas
 « rien » : ça **désigne le verset**, des deux côtés. Le lecteur ne voit pas un
