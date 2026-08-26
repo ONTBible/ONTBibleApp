@@ -59,7 +59,19 @@ import com.labibleont.ont.designsystem.theme.LocalReadingTheme
  */
 @Composable
 internal fun AvecOuverture(contenu: @Composable () -> Unit) {
-    var ouverte by remember { mutableStateOf(true) }
+    // ## Une fois par **lancement**, pas une fois par composition
+    //
+    // `remember` seul rejouait l'ouverture à chaque rotation : une rotation
+    // recrée l'activité, pas le processus. Cinq secondes et demie de montagne
+    // à chaque fois qu'on tourne le téléphone.
+    //
+    // Un drapeau statique survit à l'activité et meurt avec le processus,
+    // ce qui est exactement la portée voulue : revenir de l'arrière-plan ne
+    // rejoue rien, une app tuée puis rouverte rejoue. iOS l'obtient
+    // gratuitement — sa vue racine n'est pas reconstruite au changement
+    // d'orientation — et c'est le genre d'écart qu'un portage ne voit pas.
+    var ouverte by remember { mutableStateOf(!ouvertureJouee) }
+    LaunchedEffect(Unit) { ouvertureJouee = true }
     val contexte = LocalContext.current
 
     // L'équivalent Android du « réduire le mouvement » d'iOS. Le lecteur qui
@@ -146,3 +158,13 @@ internal fun AvecOuverture(contenu: @Composable () -> Unit) {
         ouverte = false
     }
 }
+
+/**
+ * Vrai dès que l'ouverture a joué dans ce processus.
+ *
+ * Volontairement hors de toute composition et de tout `ViewModel` : c'est la
+ * seule portée qui corresponde à « une fois par lancement ». Un `ViewModel`
+ * survivrait à la rotation mais aussi à trop de choses ; un `rememberSaveable`
+ * survivrait à la mort du processus, et l'ouverture ne rejouerait plus jamais.
+ */
+private var ouvertureJouee = false

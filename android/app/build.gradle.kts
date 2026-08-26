@@ -160,6 +160,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.activity.compose)
     implementation(libs.navigation.compose)
+    implementation(libs.compose.material3.navigation.suite)
     implementation(libs.compose.material.icons)
 
     // Le verset du jour sur l'écran d'accueil, et le réveil qui le pose.

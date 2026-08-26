@@ -105,6 +105,15 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.labibleont.ont.features.reading.GlissementDUnite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItemColors
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import com.labibleont.ont.kit.reader.ReadingTheme
 
 /** Les quatre onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
@@ -430,6 +439,54 @@ private fun Racine(
         Ecran.Onglets -> null
     }
 
+    // ## La barre devient un rail quand l'écran s'élargit
+    //
+    // C'est le comportement d'iOS, qui pose `.tabViewStyle(.sidebarAdaptable)`
+    // et voit sa barre d'onglets se muer en barre latérale sur iPad. Android
+    // n'avait **rien** : la barre du bas restait la barre du bas, y compris sur
+    // une tablette ou une fenêtre redimensionnée, où elle mange de la hauteur
+    // pour rien alors que la largeur abonde.
+    //
+    // `NavigationSuiteScaffold` décide seul selon la largeur de fenêtre — et
+    // c'est bien la **fenêtre**, pas l'écran : sous `targetSdk 36`, au-delà de
+    // 600 dp, le lecteur redimensionne librement, et une mesure prise sur
+    // l'écran mentirait à chaque poignée déplacée.
+    //
+    // `None` hors des onglets : en lecture ou dans un sélecteur, il n'y a pas
+    // de destination à proposer, et un rail vide sur le côté d'un chapitre
+    // n'est qu'une bande perdue.
+    val couleursDeSuite = suiteCouleurs(theme)
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            if (ecran == Ecran.Onglets) {
+                for (o in Onglet.entries) {
+                    item(
+                        selected = onglet == o,
+                        onClick = { onglet = o },
+                        icon = {
+                            Icon(
+                                when (o) {
+                                    Onglet.QAHAL -> Icons.Filled.Groups
+                                    Onglet.BIBLE -> Icons.AutoMirrored.Filled.MenuBook
+                                    Onglet.LEXIQUE -> Icons.Filled.Translate
+                                    Onglet.VOUS -> Icons.Filled.Person
+                                },
+                                contentDescription = o.titre,
+                            )
+                        },
+                        label = { Text(o.titre) },
+                        colors = couleursDeSuite,
+                    )
+                }
+            }
+        },
+        layoutType = if (ecran == Ecran.Onglets) {
+            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        } else {
+            NavigationSuiteType.None
+        },
+        containerColor = ONTColors.background(theme),
+    ) {
     Scaffold(
         // Transparent : le fond et son grain sont posés par `ontScreen`, en un
         // seul endroit, pour qu'ils ne puissent ni manquer ni se doubler.
@@ -539,64 +596,6 @@ private fun Racine(
                     },
                     onFermer = lecture::deselectionner,
                 )
-            } else if (ecran == Ecran.Onglets) {
-                NavigationBar(containerColor = ONTColors.surface(theme)) {
-                    for (o in Onglet.entries) {
-                        NavigationBarItem(
-                            selected = onglet == o,
-                            onClick = { onglet = o },
-                            icon = {
-                                Icon(
-                                    when (o) {
-                                        Onglet.QAHAL -> Icons.Filled.Groups
-                                        Onglet.BIBLE -> Icons.AutoMirrored.Filled.MenuBook
-                                        Onglet.LEXIQUE -> Icons.Filled.Translate
-                                        Onglet.VOUS -> Icons.Filled.Person
-                                    },
-                                    contentDescription = o.titre,
-                                )
-                            },
-                            label = { Text(o.titre) },
-                            // ## La capsule de l'onglet actif n'est pas la même
-                            // selon la clarté du fond, et c'est mesuré.
-                            //
-                            // Sur fond clair, le bordeaux plein faisait un bloc
-                            // sombre là où l'œil Android attend un halo. Une
-                            // capsule teintée est ce que Material fait lui-même :
-                            // son indicateur de référence est à **1,23** de
-                            // contraste contre sa barre ; l'or à 28 % en donne
-                            // **1,34**. On est donc au-dessus de la norme, pas en
-                            // dessous — et la sélection ne repose de toute façon
-                            // pas sur la seule capsule : l'icône et le libellé
-                            // changent de couleur avec elle.
-                            //
-                            // Sur fond sombre, la même recette s'effondre, pour
-                            // une raison qu'on ne voit qu'en mesurant : l'icône et
-                            // la capsule y sont **la même couleur**, l'or. Diluer
-                            // la capsule rapproche les deux jusqu'à 4,45, et la
-                            // renforcer les rapproche davantage. La capsule pleine
-                            // s'impose donc là — icône en couleur de page sur l'or
-                            // franc : 9,83 pour l'icône, 8,46 pour la capsule.
-                            colors = if (theme.isDark) {
-                                NavigationBarItemDefaults.colors(
-                                    selectedIconColor = ONTColors.onBrand(theme),
-                                    selectedTextColor = ONTColors.brandInk(theme),
-                                    indicatorColor = ONTColors.brandInk(theme),
-                                    unselectedIconColor = ONTColors.inkSoft(theme),
-                                    unselectedTextColor = ONTColors.inkSoft(theme),
-                                )
-                            } else {
-                                NavigationBarItemDefaults.colors(
-                                    selectedIconColor = ONTColors.brandInk(theme),
-                                    selectedTextColor = ONTColors.brandInk(theme),
-                                    indicatorColor = ONTColors.accent(theme).copy(alpha = 0.28f),
-                                    unselectedIconColor = ONTColors.inkSoft(theme),
-                                    unselectedTextColor = ONTColors.inkSoft(theme),
-                                )
-                            },
-                        )
-                    }
-                }
             }
         },
     ) { marges ->
@@ -746,6 +745,7 @@ private fun Racine(
             }
         }
     }
+    }
 
     if (reglagesOuverts) {
         ModalBottomSheet(
@@ -807,6 +807,51 @@ private fun partager(contexte: android.content.Context, texte: String) {
                 putExtra(Intent.EXTRA_TEXT, texte)
             },
             null,
+        ),
+    )
+}
+
+/**
+ * Les couleurs des entrées de navigation, quelle que soit la forme.
+ *
+ * `NavigationSuiteScaffold` rend une barre, un rail ou un tiroir selon la
+ * largeur, et chacun a son propre jeu de couleurs. Les poser une fois ici
+ * garantit que le rail d'une tablette ressemble à la barre d'un téléphone —
+ * sans quoi la même app aurait deux peaux selon l'appareil.
+ *
+ * La capsule reste teintée sur fond clair et pleine sur fond sombre, pour la
+ * raison mesurée ailleurs : sur la nuit, l'icône et la capsule sont la même
+ * couleur, et aucune opacité ne les distingue toutes les deux.
+ */
+@Composable
+private fun suiteCouleurs(theme: ReadingTheme): NavigationSuiteItemColors {
+    val capsule = if (theme.isDark) {
+        ONTColors.brandInk(theme)
+    } else {
+        ONTColors.accent(theme).copy(alpha = 0.28f)
+    }
+    val icone = if (theme.isDark) ONTColors.onBrand(theme) else ONTColors.brandInk(theme)
+    return NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            indicatorColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            indicatorColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
+        ),
+        navigationDrawerItemColors = NavigationDrawerItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            selectedContainerColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
         ),
     )
 }
