@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>body { margin: 0; background: #0b0b0b; } a { color: #cdbe83; } a:hover { color: #e8dcae; }</style>
+<script>window.OM_SCENES = '[{"name":"Attente","dur":1.1,"desc":"Le logomark repose dans la pénombre, à peine visible"},{"name":"Balayage","dur":2.8,"desc":"Une lueur traverse la montagne de gauche à droite et déborde de la silhouette"},{"name":"Repos","dur":1.6,"desc":"La lumière quitte le cadre, le logomark garde une rémanence chaude qui retombe"}]';</script>
+<script>window.OM_PLAYBACK = '{"mode":"loop"}';</script>
+</helmet>
+<x-import component-from-global-scope="LogomarkSweep" from="./animations-v3.jsx ./logomark-sweep.jsx" hint-size="100%,100%"></x-import>
+</x-dc>
+</body>
+</html>

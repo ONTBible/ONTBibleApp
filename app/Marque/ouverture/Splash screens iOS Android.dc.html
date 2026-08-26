@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+body { margin: 0; background: #f4f3ef; }
+a { color: #8a7a3f; } a:hover { color: #6d6031; }
+@keyframes sweepX {
+  0%   { background-position: 108% 0; opacity: 0; }
+  10%  { opacity: 1; }
+  52%  { background-position: -8% 0; opacity: 1; }
+  60%  { opacity: 0; }
+  100% { background-position: -8% 0; opacity: 0; }
+}
+@keyframes emberIn { 0%,52% { opacity: .32; } 70% { opacity: .62; } 100% { opacity: .32; } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:80px;background:#f4f3ef;font-family:'DM Sans',system-ui,sans-serif;color:#1b1a17;display:flex;flex-direction:column;gap:72px">
+
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:720px">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8a8579">Handoff — splash</div>
+    <h1 style="margin:0;font-size:40px;font-weight:500;letter-spacing:-.02em;line-height:1.1">Splash statique, puis animation dans la première vue</h1>
+    <p style="margin:0;font-size:17px;line-height:1.55;color:#4b4841;text-wrap:pretty">Le splash natif ne joue pas l'animation. Il affiche la première frame, fond identique, logo à la même position et à la même taille. L'animation démarre ensuite dans la première vue de l'app, sans coupure visible.</p>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:56px">
+
+    <div style="display:flex;align-items:flex-start;gap:40px">
+      <div style="width:150px;padding-top:8px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:20px;font-weight:500">iOS</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:#8a8579">LaunchScreen<br />.storyboard</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">01 — LAUNCH SCREEN (STATIQUE)</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="true" hint-size="402px,874px">
+          <div style="position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(120% 100% at 50% 52%, #16150f 0%, #0b0b0b 70%)">
+            <div style="position:relative;width:240px;aspect-ratio:502/249">
+              <div style="position:absolute;inset:0;background:#3a3527;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;background:#cdbe83;opacity:.32;mix-blend-mode:screen;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+            </div>
+          </div>
+        </x-import>
+        <div style="font-size:14px;line-height:1.5;color:#4b4841;max-width:402px">Image fixe, 3 densités (@1x @2x @3x). Aucune animation possible ici.</div>
+      </div>
+
+      <div style="padding-top:120px;font-size:28px;color:#c2bcab">→</div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">02 — PREMIÈRE VUE (ANIMÉE)</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="true" hint-size="402px,874px">
+          <div style="position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(120% 100% at 50% 52%, #16150f 0%, #0b0b0b 70%)">
+            <div style="position:relative;width:240px;aspect-ratio:502/249;isolation:isolate">
+              <div style="position:absolute;inset:0;background:#3a3527;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;background:#cdbe83;mix-blend-mode:screen;animation:emberIn 5.5s ease-in-out infinite;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;mix-blend-mode:screen;pointer-events:none;filter:drop-shadow(0 0 6px rgba(255,240,200,1)) drop-shadow(0 0 16px rgba(255,240,200,.95)) drop-shadow(0 0 38px rgba(255,240,200,.8)) drop-shadow(0 0 76px rgba(255,240,200,.55))">
+                <div style="position:absolute;inset:0;background-image:linear-gradient(100deg, rgba(205,190,131,0) 32%, rgba(233,214,141,.95) 44%, #fffaf0 50%, rgba(233,214,141,.95) 56%, rgba(205,190,131,0) 68%);background-size:220% 100%;background-repeat:no-repeat;animation:sweepX 5.5s cubic-bezier(.45,.05,.55,.95) infinite;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              </div>
+            </div>
+          </div>
+        </x-import>
+        <div style="font-size:14px;line-height:1.5;color:#4b4841;max-width:402px">Vidéo ou vue native. Même fond, même position : la transition est invisible.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:40px">
+      <div style="width:150px;padding-top:8px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:20px;font-weight:500">Android</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;color:#8a8579">SplashScreen API<br />(12+)</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">01 — SPLASH SYSTÈME</div>
+        <x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="true" hint-size="412px,892px">
+          <div style="position:absolute;inset:0;display:grid;place-items:center;background:#0b0b0b">
+            <div style="position:relative;width:216px;aspect-ratio:502/249">
+              <div style="position:absolute;inset:0;background:#3a3527;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;background:#cdbe83;opacity:.32;mix-blend-mode:screen;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+            </div>
+          </div>
+        </x-import>
+        <div style="font-size:14px;line-height:1.5;color:#4b4841;max-width:412px">Canvas 288&nbsp;dp, logo sur environ 2/3. <code style="font-family:'JetBrains Mono',monospace;font-size:13px">windowSplashScreenBackground</code> = #0b0b0b.</div>
+      </div>
+
+      <div style="padding-top:120px;font-size:28px;color:#c2bcab">→</div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">02 — PREMIÈRE VUE (ANIMÉE)</div>
+        <x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="true" hint-size="412px,892px">
+          <div style="position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(120% 100% at 50% 52%, #16150f 0%, #0b0b0b 70%)">
+            <div style="position:relative;width:216px;aspect-ratio:502/249;isolation:isolate">
+              <div style="position:absolute;inset:0;background:#3a3527;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;background:#cdbe83;mix-blend-mode:screen;animation:emberIn 5.5s ease-in-out infinite;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              <div style="position:absolute;inset:0;mix-blend-mode:screen;pointer-events:none;filter:drop-shadow(0 0 6px rgba(255,240,200,1)) drop-shadow(0 0 16px rgba(255,240,200,.95)) drop-shadow(0 0 38px rgba(255,240,200,.8)) drop-shadow(0 0 76px rgba(255,240,200,.55))">
+                <div style="position:absolute;inset:0;background-image:linear-gradient(100deg, rgba(205,190,131,0) 32%, rgba(233,214,141,.95) 44%, #fffaf0 50%, rgba(233,214,141,.95) 56%, rgba(205,190,131,0) 68%);background-size:220% 100%;background-repeat:no-repeat;animation:sweepX 5.5s cubic-bezier(.45,.05,.55,.95) infinite;-webkit-mask:url(./uploads/logomark.svg) center/contain no-repeat;mask:url(./uploads/logomark.svg) center/contain no-repeat"></div>
+              </div>
+            </div>
+          </div>
+        </x-import>
+        <div style="font-size:14px;line-height:1.5;color:#4b4841;max-width:412px">Un <code style="font-family:'JetBrains Mono',monospace;font-size:13px">AnimatedVectorDrawable</code> ne rendra ni le flou ni le blend mode : jouer l'animation ici, pas dans le splash.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 260px));gap:32px;padding-top:16px;border-top:1px solid #ddd9cd">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">FOND</div>
+      <div style="font-size:15px;line-height:1.55;color:#4b4841">#0b0b0b déclaré dans les deux configs, sinon un flash blanc apparaît au lancement.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">DURÉE</div>
+      <div style="font-size:15px;line-height:1.55;color:#4b4841">Splash aussi court que possible. Le balayage dure 2,8&nbsp;s et ne doit pas bloquer l'accès à l'app.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.06em;color:#8a8579">LIVRABLES</div>
+      <div style="font-size:15px;line-height:1.55;color:#4b4841">PNG statiques @1x @2x @3x et 288&nbsp;dp, plus la vidéo de l'animation exportée depuis la timeline.</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
