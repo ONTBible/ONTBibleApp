@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.Properties
+
 // La racine de composition — le seul module qui connaît tout le monde.
 //
 // C'est ici, et nulle part ailleurs, qu'une implémentation se branche sur un
@@ -8,6 +11,33 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+/**
+ * La signature de téléversement.
+ *
+ * ## Le magasin n'est jamais dans le dépôt
+ *
+ * Il vit hors de l'arbre — `~/ONTBible/.cles/` sur la machine de l'auteur, un
+ * secret GitHub en intégration. Committer une clé de signature, c'est la
+ * publier : un dépôt privé se rend public, un fork se crée, un historique se
+ * récupère. Elle ne se retire pas d'un historique git.
+ *
+ * ## Deux sources, dans cet ordre
+ *
+ * Les variables d'environnement d'abord — c'est ce que la CI fournit —, puis
+ * `cle.properties` à la racine du module Android, pour la machine de l'auteur.
+ * Aucune des deux : la configuration reste nulle et `assembleRelease` produit
+ * un paquet non signé, ce qui est le comportement voulu pour qui clone le
+ * dépôt sans avoir la clé.
+ */
+val proprietesDeCle = rootProject.file("cle.properties").let { f ->
+    if (f.exists()) Properties().apply { f.inputStream().use { load(it) } } else null
+}
+
+fun secret(nomEnv: String, nomProp: String): String? =
+    System.getenv(nomEnv) ?: proprietesDeCle?.getProperty(nomProp)
+
+val magasinDeCles: File? = secret("ANDROID_KEYSTORE_PATH", "magasin")?.let(::File)?.takeIf { it.exists() }
 
 android {
     namespace = "com.labibleont.ont"
@@ -30,8 +60,29 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("televersement") {
+            // Renseignée seulement si la clé est là. Sinon Gradle garderait une
+            // configuration vide et échouerait à la signature plutôt qu'au
+            // moment clair où l'on constate qu'il n'y a pas de clé.
+            magasinDeCles?.let { fichier ->
+                storeFile = fichier
+                storePassword = secret("ANDROID_KEYSTORE_PASSWORD", "motDePasseDuMagasin")
+                keyAlias = secret("ANDROID_KEY_ALIAS", "alias")
+                keyPassword = secret("ANDROID_KEY_PASSWORD", "motDePasseDeLaCle")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Nulle quand la clé est absente : le paquet sort non signé, et on
+            // le voit au téléversement plutôt qu'au build.
+            signingConfig = if (magasinDeCles != null) {
+                signingConfigs.getByName("televersement")
+            } else {
+                null
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

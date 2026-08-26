@@ -10,3 +10,6 @@ build/
 captures/
 ontdesignsystem/src/main/res/font/
 android/captures/
+
+# La clé de téléversement Play. Jamais dans le dépôt — voir app/build.gradle.kts.
+cle.properties
