@@ -1353,3 +1353,49 @@ liste de la Bible et **absente** du sélecteur de référence, qui affichait le
 français en toutes circonstances. Une règle recopiée est une règle qu'un écran
 finit par ne pas appliquer. Elle vit maintenant dans le noyau — `Registre.second`
 côté iOS, à côté de `LibelleDUnite`, qui est arrivé là par le même chemin.
+
+### 26 août 2026 — le site consomme le backend de l'app, et ce que ça engage
+
+Le site a ouvert un compte, et ce n'est pas une fonctionnalité de plus : il
+**dépend désormais du backend de l'app**, là où il ne dépendait que de `dist/`.
+Trois choses en découlent, et aucune ne se voit depuis un seul dépôt.
+
+**`/auth/{fournisseur}`, `/auth/refresh` et `/sync` sont maintenant appelés par
+deux clients.** Le backend les servait à l'app iOS ; le site les appelle
+aujourd'hui, et Android les appellera. Un changement de forme dans l'une de ces
+réponses casse une plateforme qui n'est pas celle qu'on regarde en le faisant.
+
+Le partage des noms JSON est le point le plus fragile : le backend écrit en
+`snake_case` **littéral**, sans aucun `rename`. Un `#[serde(rename_all)]` ajouté
+là-bas paraîtrait innocent et ferait échouer la désérialisation ici, sans
+message utile — le site verrait une réponse vide et l'appellerait « pas de
+compte ».
+
+**Les cinq couleurs de surlignage sont une liste que personne ne valide.**
+`Highlight.color` est une chaîne libre côté backend : c'est **au client** de
+tenir `gold`, `olive`, `sky`, `rose`, `violet`. Deux clients qui divergeraient
+afficheraient deux couleurs pour la même marque, et rien ne le signalerait.
+L'app le prévoit déjà — « une couleur inconnue vient d'une version plus récente,
+et on préfère ignorer la ligne plutôt que de faire échouer toute la
+synchronisation » — et le site fait de même.
+
+**Une seconde adresse de retour OAuth existe.** `https://ontbible.com/fr/compte/retour`,
+distincte de celle de l'app, qui rebondit vers `ont://`. Elle doit être déclarée
+chez chaque fournisseur, et le README du backend l'avait prévu : « [le Services
+ID Apple] ne redeviendra nécessaire que le jour où une version web signera des
+comptes ». C'est ce jour-là. GitHub, lui, n'accepte qu'une adresse par
+application : il en faudra une seconde.
+
+**Ce qui reste vrai des deux côtés, et qu'on ne relâche pas.** La
+synchronisation est **facultative** : le site et l'app se lisent entièrement sans
+compte. Le backend en donne la raison, et elle vaut ici mot pour mot : « les
+surlignages et les notes d'un lecteur de Bible, rattachés à une identité,
+révèlent des convictions religieuses — article 9 du RGPD ». Un client qui
+exigerait un compte pour lire ferait de cette lecture une donnée.
+
+**Et un piège du contrat, qu'aucune signature ne montre.** Le backend apparie
+les surlignages par `(chapter_id, verse)` et non par `id`. Deux couleurs ne
+coexistent donc pas sur un même verset, et un identifiant neuf sur un verset
+déjà marqué **écrase** au lieu d'ajouter. Un client qui apparierait par `id`
+croirait avoir deux marques là où le serveur n'en garde qu'une — et l'écart ne
+se verrait qu'après un aller-retour.
