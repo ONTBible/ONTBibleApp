@@ -290,4 +290,44 @@ final class ZoneDUnIntraduisibleTests: XCTestCase {
         }
         joindre(releve, "balayage-vertical")
     }
+
+    // MARK: - Ce que fait un appui manqué
+
+    /// Rater la bande du mot : est-ce que **rien** ne se passe, ou est-ce que
+    /// **le verset est désigné** ?
+    ///
+    /// La distinction décide du correctif. Si rater ne fait rien, le lecteur
+    /// retouche et le défaut n'est qu'une gêne de précision. Si rater **désigne
+    /// le verset**, alors il ne voit pas « raté » mais « autre chose s'est
+    /// passé » — un état visible qu'il faut refermer —, et il en conclut qu'il a
+    /// mal visé. C'est alors le presque-raté qu'il faut rattraper, pas la bande
+    /// qu'il faut agrandir.
+    ///
+    /// Le marqueur d'une sélection est le bouton « Désélectionner » de la carte.
+    func testCeQueFaitUnAppuiManque() {
+        let fenetre = app.windows.firstMatch
+        var releve = "\n══════ CE QUE FAIT CHAQUE APPUI ══════\n"
+
+        for dy in stride(from: -33.0, through: 33.0, by: 3.0) {
+            app.open(URL(string: "ont://read/bereshit/bereshit-1")!)
+            _ = app.wait(for: .runningForeground, timeout: 5)
+            sleep(2)
+
+            guard let mot = motsDores(dans: XCUIScreen.main.screenshot().image).first else {
+                releve += String(format: "  dy %+6.1f  →  mot introuvable\n", dy)
+                continue
+            }
+            fenetre.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: mot.cadre.midX, dy: mot.cadre.midY + dy))
+                .tap()
+            sleep(1)
+
+            let fiche = app.staticTexts["אֱלֹהִים"].exists
+            let verset = app.buttons["Désélectionner"].exists
+            let quoi = fiche ? "FICHE" : (verset ? "VERSET DÉSIGNÉ" : "rien")
+            releve += String(format: "  dy %+6.1f  →  %@\n", dy, quoi as NSString)
+        }
+
+        joindre(releve, "appuis-manques")
+    }
 }
