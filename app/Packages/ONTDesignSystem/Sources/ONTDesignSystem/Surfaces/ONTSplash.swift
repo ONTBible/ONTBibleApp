@@ -218,12 +218,12 @@ public struct ONTSplash: View {
             //
             // Le bord est la nuit mêlée de noir plutôt qu'un noir franc : c'est
             // ce qui garde le bordeaux perceptible au lieu de le remplacer.
-            colors: [ONTColors.nuit, ONTColors.nuit.mix(with: .black, by: 0.55)],
+            colors: [ONTColors.nuit, Teintes.nuitProfonde],
             center: UnitPoint(x: 0.5, y: 0.55),
             startRadius: 0,
             endRadius: 620
         )
-        .background(ONTColors.nuit.mix(with: .black, by: 0.55))
+        .background(Teintes.nuitProfonde)
         .ignoresSafeArea()
     }
 
@@ -320,6 +320,13 @@ private enum Teintes {
     static let trainee = Color(red: 1, green: 0.965, blue: 0.847)
     /// Son cœur — `#fffdf5`.
     static let traineeCoeur = Color(red: 1, green: 0.992, blue: 0.961)
+    /// La nuit du projet, assombrie — le bord du dégradé.
+    ///
+    /// ``ONTColors/nuit`` (#18090D) ramenée à 45 % de sa clarté, écrite plutôt
+    /// que calculée : `Color.mix(with:by:)` n'existe qu'à partir de macOS 15,
+    /// et le paquet déclare macOS 14. La compilation pour iOS ne le montrait
+    /// pas — seule celle du paquet, qui vise aussi le Mac, faisait rougir.
+    static let nuitProfonde = Color(red: 0.042, green: 0.016, blue: 0.023)
     /// La lueur — `rgba(255,240,200,·)`.
     static let lueur = Color(red: 1, green: 0.941, blue: 0.784)
 }

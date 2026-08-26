@@ -454,6 +454,9 @@ struct ChapterView: View {
             Text(chapter.title)
                 .font(theme.type.display.font)
                 .foregroundStyle(theme.type.display.color)
+                // Le titre de l'unité : le premier repère du rotor, et celui
+                // qui ramène en haut d'un chapitre parcouru au doigt.
+                .accessibilityAddTraits(.isHeader)
 
             if let subtitle = chapter.subtitle {
                 HStack(spacing: spacing.s) {
@@ -511,8 +514,11 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
-                .lineSpacing(theme.lineSpacing)
+            Text(
+                ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected)
+                    .cesuree(theme.preferences.hyphenation)
+            )
+            .lineSpacing(theme.lineSpacing)
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
@@ -1259,6 +1265,11 @@ private struct BlockView: View {
         case .heading(_, let nodes):
             Text(ONTTextRenderer.compose(nodes, theme: theme))
                 .font(theme.type.heading.font)
+                // Les intertitres du corps — « Noach trouve grâce », « les fils
+                // d'Elohim et les Nephilim ». Ce sont eux qui font d'un chapitre
+                // une suite de scènes plutôt qu'un mur, et c'est par eux qu'on
+                // navigue quand on ne voit pas la page.
+                .accessibilityAddTraits(.isHeader)
                 .foregroundStyle(theme.type.heading.color)
                 .padding(.top, spacing.s)
 
@@ -1487,6 +1498,7 @@ public struct ReadingSettingsSheet: View {
         Form {
                 Section {
                     Toggle("Versets à la suite", isOn: $model.preferences.continuous)
+                    Toggle("Couper les mots", isOn: $model.preferences.hyphenation)
                 } header: {
                     Text("Disposition")
                 } footer: {
@@ -1494,6 +1506,15 @@ public struct ReadingSettingsSheet: View {
                         "À la suite, les versets coulent en prose et leurs numéros "
                             + "passent en exposant — c'est la lecture suivie. En blocs, "
                             + "chaque verset se tient seul : c'est le mode d'étude."
+                            + "\n\nCouper les mots resserre la justification et "
+                            + "supprime les lézardes blanches d'une colonne étroite. "
+                            + "Éteint par défaut : la césure hache les mots, et qui "
+                            + "grossit le texte pour le voir se retrouve avec plus de "
+                            + "coupures, pas moins.\n\nAllumée, elle coupe **en "
+                            + "français** — les motifs de coupure sont propres à "
+                            + "chaque langue, et sans le déclarer un téléphone réglé "
+                            + "en anglais couperait « pro-blème » au lieu de "
+                            + "« pro-blè-me »."
                     )
                 }
                 .ontRow()
