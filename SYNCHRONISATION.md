@@ -1219,10 +1219,24 @@ La leçon dépasse l'haptique : **ce qui se porte d'une plateforme à l'autre, c
 n'est pas le geste d'iOS, c'est ce qu'il observe.** Un port qui recopie l'appel
 au lieu de l'état a l'air fidèle et ne l'est pas.
 
-Reste une divergence non tranchée, remontée à iOS comme la règle l'exige :
-Android vibre à l'ouverture et à la fermeture de la barre de sélection, iOS non.
-Le choix appartient à iOS — s'aligner ou faire retirer les deux —, et il n'est
-pas pris ici.
+Une divergence a été remontée à iOS comme la règle l'exige : Android vibrait à
+l'ouverture et à la fermeture de la barre de sélection, iOS non. **iOS a tranché
+en s'alignant** — `.sensoryFeedback(.selection, trigger: selection.isEmpty)`.
+
+Le motif de la décision vaut d'être gardé, parce qu'il montre à quoi sert la
+règle. iOS n'a pas ratifié une liberté prise par Android : il a constaté qu'il
+lui manquait quelque chose, et c'est le relevé d'Android qui le lui a montré. On
+désigne un verset en regardant le texte, pas la barre qui monte du bas de
+l'écran — sans retour tactile, le seul signe que le mode a changé est hors du
+regard. Et l'argument redouble ici, où le corps est réglé grand : la barre sort
+d'autant plus du champ.
+
+Le déclencheur est `selection.isEmpty` et non `selection` : la frontière du
+mode, pas le décompte. Sur `selection`, il vibrerait à chaque doigt posé.
+
+**La règle n'empêche donc pas Android de trouver — elle l'empêche de décider.**
+C'est une distinction utile : un portage regarde deux fois le même produit, et
+le second regard voit ce que le premier avait laissé passer.
 
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
