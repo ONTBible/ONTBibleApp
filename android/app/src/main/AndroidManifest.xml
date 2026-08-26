@@ -36,14 +36,54 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.ONT">
 
+        <!--
+          `singleTask` : sans lui, une notification touchée alors que l'app est
+          déjà ouverte empilerait une seconde activité au lieu de rendre la
+          main à celle qui existe. `onNewIntent` ne serait jamais appelé, et le
+          lien ne marcherait qu'à froid.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.ONT">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Le lien **public**, celui qui circule réellement.
+
+              Un `ont://` collé dans une conversation n'est pas cliquable et ne
+              mène nulle part pour qui n'a pas l'app. Ce qu'on partage est une
+              adresse web, que le site sait servir de son côté — donc le lecteur
+              sans l'app lit quand même, et celui qui l'a est amené dedans.
+
+              `autoVerify` demande à Android de vérifier
+              `https://ontbible.com/.well-known/assetlinks.json` à
+              l'installation. Tant que ce fichier n'est pas servi, le lien
+              ouvrira le sélecteur d'app au lieu d'aller droit à l'ONT — pas de
+              régression, seulement une étape de moins qu'espéré.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="ontbible.com" />
+                <data android:scheme="https" android:host="www.ontbible.com" />
+            </intent-filter>
+
+            <!--
+              Le schéma interne — widget, notification, fiche de lexique. Il ne
+              sort pas de l'appareil et n'a donc rien à vérifier.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ont" />
             </intent-filter>
         </activity>
 

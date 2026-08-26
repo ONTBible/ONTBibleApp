@@ -95,6 +95,13 @@ import com.labibleont.ont.kit.corpus.plainText
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.compose.runtime.collectAsState
+import com.labibleont.ont.kit.reader.LienProfond
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Les quatre onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
@@ -191,9 +198,39 @@ private val EcranSaver: Saver<Ecran, Any> = listSaver(
  */
 public class MainActivity : ComponentActivity() {
 
+    /**
+     * L'adresse qu'on nous demande d'ouvrir, s'il y en a une.
+     *
+     * ## Pourquoi un flux et pas une lecture de `intent` dans la composition
+     *
+     * Une `Intent` peut arriver alors que l'activité **existe déjà** — c'est
+     * même le cas courant : la notification du verset du jour ou le widget
+     * réveillent une app déjà lancée. `onCreate` ne s'exécute alors pas, et un
+     * lien lu là ne marcherait qu'à froid. D'où `onNewIntent`, et un flux que
+     * la composition observe au lieu d'un champ qu'elle relirait sans savoir
+     * qu'il a changé.
+     *
+     * `null` après consommation : sans ça, revenir sur l'app rejouerait le
+     * dernier lien et arracherait le lecteur à sa page.
+     */
+    private val adresseRecue = MutableStateFlow<String?>(null)
+
+    /**
+     * L'app était déjà là, et on lui demande d'ouvrir autre chose.
+     *
+     * `super` d'abord : sans lui, `getIntent()` continue de rendre l'ancienne
+     * et le lien suivant rouvrirait le précédent.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        adresseRecue.value = intent.dataString
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        adresseRecue.value = intent?.dataString
 
         val corpus = AssetCorpusRepository(applicationContext)
         val glossaire = AssetGlossaryRepository(applicationContext)
@@ -202,6 +239,7 @@ public class MainActivity : ComponentActivity() {
         val lecteur = FileReaderStore(applicationContext)
 
         setContent {
+            val adresse by adresseRecue.collectAsState()
             val lecture: ReadingModel = viewModel(
                 key = "lecture",
                 factory = fabrique { ReadingModel(corpus, lecteur, lecteur, lecteur) },
@@ -235,6 +273,8 @@ public class MainActivity : ComponentActivity() {
                     qahal = qahal,
                     preferences = preferences,
                     onPreferences = { lecture.changerLesPreferences(it) },
+                    adresse = adresse,
+                    onAdresseSuivie = { adresseRecue.value = null },
                 )
             }
         }
@@ -249,6 +289,8 @@ public class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Racine(
+    adresse: String?,
+    onAdresseSuivie: () -> Unit,
     lecture: ReadingModel,
     lexique: LexiconModel,
     recherche: SearchModel,
@@ -282,6 +324,68 @@ private fun Racine(
     val portee = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
+
+    // ## Suivre une adresse reçue
+    //
+    // Elle vient d'une notification, d'un widget, ou d'une conversation. On la
+    // consomme une fois — `onAdresseSuivie` la remet à null — sinon revenir sur
+    // l'app rejouerait le dernier lien et arracherait le lecteur à sa page.
+    //
+    // La sélection est posée après `ouvrir`, jamais avant : `ouvrir` charge
+    // l'unité et remet la sélection à zéro. L'ordre inverse désignait des
+    // versets puis les oubliait aussitôt.
+    LaunchedEffect(adresse) {
+        val lien = adresse?.let { LienProfond.lire(it) } ?: return@LaunchedEffect
+        when (lien) {
+            is LienProfond.Lecture -> {
+                onglet = Onglet.BIBLE
+                ecran = Ecran.Onglets
+            }
+            is LienProfond.Livre -> {
+                onglet = Onglet.BIBLE
+                ecran = Ecran.Onglets
+                lecture.ouvrir(lien.livreId)
+            }
+            is LienProfond.Unite -> {
+                onglet = Onglet.BIBLE
+                lecture.ouvrir(lien.livreId, lien.uniteId)
+                ecran = Ecran.Lecture
+
+                // ## Les versets demandés sont bornés à ceux qui existent
+                //
+                // Une adresse vient du dehors : elle peut avoir été retapée,
+                // tronquée, ou bricolée. Sans cette borne, `?v=999` désignait
+                // un verset absent — et la position de lecture retenue s'en
+                // trouvait empoisonnée : la carte « Reprendre » aurait affiché
+                // un renvoi qui n'existe pas, et le lancement suivant aurait
+                // visé le vide.
+                //
+                // Le défaut a été trouvé côté iOS, à la faveur d'une question
+                // qu'on s'est posée en accordant le format. Il ne se voit pas
+                // dans le cas nominal — c'est exactement ce qu'un portage
+                // recopie sans le remarquer.
+                if (lien.versets.isNotEmpty()) {
+                    // `ouvrir` charge dans une coroutine : lire `chapitre` tout
+                    // de suite rendrait celui d'avant, ou `null`. On attend que
+                    // l'unité demandée soit là — avec une borne de temps, faute
+                    // de quoi un identifiant inconnu suspendrait l'effet pour
+                    // toujours et la sélection ne viendrait jamais.
+                    val arrivee = withTimeoutOrNull(5_000) {
+                        snapshotFlow { lecture.chapitre }
+                            .filterNotNull()
+                            .first { it.id == lien.uniteId }
+                    }
+                    val reels = arrivee?.verses?.map { it.n }?.toSet().orEmpty()
+                    val retenus = lien.versets.filter { it in reels }
+                    if (retenus.isNotEmpty()) {
+                        lecture.deselectionner()
+                        retenus.forEach { lecture.basculer(it) }
+                    }
+                }
+            }
+        }
+        onAdresseSuivie()
+    }
     LaunchedEffect(onglet) {
         if (onglet == Onglet.LEXIQUE) lexique.charger()
         if (onglet == Onglet.QAHAL) qahal.choisir()
