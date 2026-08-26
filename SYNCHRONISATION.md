@@ -1169,6 +1169,61 @@ rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
 inventer une meilleure formulation reviendrait à créer un second dialecte pour
 la même idée.
 
+#### Deux manières de plus pour un instrument de rendre un relevé faux
+
+L'entrée « trois manières pour un instrument de rendre un relevé faux », plus
+haut, en compte trois. La journée en a produit deux autres, et elles ne se
+recouvrent avec aucune des précédentes.
+
+**La quatrième porte sur la cadence.** Une sonde par capture d'écran a mesuré
+douze à vingt secondes pour une animation d'ouverture qui dure 5,515. L'horloge
+d'échantillonnage était plus lente que le phénomène échantillonné. Ce qui la
+rend redoutable, c'est que le résultat avait *la forme d'un blocage* : une suite
+de « toujours l'ouverture » ressemble trait pour trait à une ouverture qui ne
+finit pas. L'instrument mesurait la bonne chose, correctement, et trop lentement
+pour qu'elle existe — aucune relecture de la sonde ne l'aurait montré. Il a
+fallu une seconde mesure d'une autre nature, un journal horodaté.
+
+**La cinquième porte sur le chemin entre le rapport et la décision.** Un script
+de résolution de conflit a émis un `AssertionError` parfaitement exact, et un
+`git commit` a suivi dans la même commande, parce qu'il était après un `&&` sur
+une *autre* commande. Des marqueurs `<<<<<<<` sont partis dans le journal, et le
+build a rendu `BUILD SUCCESSFUL` par-dessus — un Markdown avec des marqueurs de
+conflit compile parfaitement.
+
+C'est la seule des cinq où aucune amélioration de l'instrument n'aurait aidé :
+il avait raison, et il parlait dans le vide. **Le contrôle porte sur le fichier,
+jamais sur le rapport de l'outil qui vient de le toucher.**
+
+Et le lendemain de cette erreur, la même heure en a produit le versant
+symétrique : accuser l'outil de concordance d'avoir écrit dans un arbre de
+travail, alors que sa seule écriture vise le dossier parent et qu'elle est
+doublement gardée. La ligne venait d'une session, qui l'avait déposée dans tous
+les exemplaires sans prévenir. Le raisonnement était cohérent et faux, et agir
+dessus aurait fait tomber une garde ajoutée la veille.
+
+Il est plus facile de soupçonner l'outil qui balaie que la session qui écrit :
+l'un est visible dans les commandes qu'on tape, l'autre non. **Ce qu'on éprouve
+n'est jamais la sincérité de l'outil, c'est l'appariement entre ce qu'il mesure
+et ce qu'on lui demande — et il tombe des deux côtés.**
+
+#### Ce que le glissement a appris sur le portage d'une sensation
+
+iOS accroche ses trois retours haptiques à des **états** — `trigger: courant.id`
+pour celui du milieu, celui qui dit que l'unité a changé pour de bon. Android
+appelle `aller()`, qui lance une coroutine et rend la main avant que l'unité
+soit là. Porter le retour sur l'appel plutôt que sur l'état l'aurait fait vibrer
+avant l'événement, et aussi quand rien n'arrive.
+
+La leçon dépasse l'haptique : **ce qui se porte d'une plateforme à l'autre, ce
+n'est pas le geste d'iOS, c'est ce qu'il observe.** Un port qui recopie l'appel
+au lieu de l'état a l'air fidèle et ne l'est pas.
+
+Reste une divergence non tranchée, remontée à iOS comme la règle l'exige :
+Android vibre à l'ouverture et à la fermeture de la barre de sélection, iOS non.
+Le choix appartient à iOS — s'aligner ou faire retirer les deux —, et il n'est
+pas pris ici.
+
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
 Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte
