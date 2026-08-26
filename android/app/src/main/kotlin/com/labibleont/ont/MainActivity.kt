@@ -102,6 +102,9 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.labibleont.ont.features.reading.GlissementDUnite
 
 /** Les quatre onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
@@ -300,6 +303,7 @@ private fun Racine(
 ) {
     val theme = LocalReadingTheme.current
     val contexte = LocalContext.current
+    val haptique = LocalHapticFeedback.current
     // `rememberSaveable` et non `remember` : `configChanges` n'est pas déclaré,
     // donc l'activité est recréée à chaque changement de configuration. Avec un
     // simple `remember`, tourner le téléphone renvoyait le lecteur à l'onglet
@@ -651,11 +655,34 @@ private fun Racine(
                         )
                     } else {
                         @Suppress("UNUSED_EXPRESSION") lecture.revisionDesMarques
+                        GlissementDUnite(
+                            peutAllerAvant = lecture.precedente() != null,
+                            peutAllerApres = lecture.suivante() != null,
+                            onAvant = { lecture.precedente()?.let { lecture.aller(it) } },
+                            onApres = { lecture.suivante()?.let { lecture.aller(it) } },
+                        ) {
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
                             selection = lecture.selection,
                             onVerset = { n ->
+                                // Désigner un verset entre en mode sélection,
+                                // ou l'étend. Deux vibrations distinctes : le
+                                // système réserve `LongPress` à l'entrée dans un
+                                // mode, et `TextHandleMove` au déplacement d'une
+                                // poignée de sélection de texte — ce qu'étendre
+                                // la sélection est exactement.
+                                //
+                                // Les distinguer permet de savoir, sans
+                                // regarder, si l'on vient d'ouvrir la barre ou
+                                // d'ajouter un verset de plus.
+                                haptique.performHapticFeedback(
+                                    if (lecture.selection.isEmpty()) {
+                                        HapticFeedbackType.LongPress
+                                    } else {
+                                        HapticFeedbackType.TextHandleMove
+                                    },
+                                )
                                 lecture.basculer(n)
                                 lecture.retenir(n)
                             },
@@ -665,6 +692,7 @@ private fun Racine(
                                 terme = lemme
                             },
                         )
+                        }
                     }
                 }
 
