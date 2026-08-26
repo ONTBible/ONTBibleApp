@@ -1120,7 +1120,6 @@ veille — `dev` n'autorisant que le squash pendant que `staging` exigeait
 `strict`, la fusion devenait structurellement impossible, pas seulement
 difficile.
 
-<<<<<<< HEAD
 ### 26 août 2026 — le rattrapage d'Android sur iOS, et ce qu'il a appris
 
 Vingt-quatre commits pour ramener la liseuse Android au niveau de l'iOS. Ce
@@ -1170,8 +1169,6 @@ rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
 inventer une meilleure formulation reviendrait à créer un second dialecte pour
 la même idée.
 
-=======
->>>>>>> origin/dev
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
 Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte
