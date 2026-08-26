@@ -72,7 +72,25 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="ontbible.com" />
-                <data android:scheme="https" android:host="www.ontbible.com" />
+                <!--
+                  `www` n'est **pas** déclaré, et c'est délibéré.
+
+                  Il redirige en 301 vers l'apex, et Android refuse une
+                  redirection sur `/.well-known/assetlinks.json` : l'hôte ne
+                  serait jamais accordé. Le laisser ici ne le rendrait pas
+                  fonctionnel — ça mettrait la vérification en échec.
+
+                  Et l'échec ne resterait pas local à cet hôte. Avant Android
+                  12, la vérification est **tout ou rien** : un seul hôte qui
+                  échoue emporte le filtre entier, donc `ontbible.com` cesserait
+                  d'être accordé lui aussi. `minSdk` valant 26, cette moitié du
+                  parc est concernée.
+
+                  Le site ne fabrique jamais de lien en `www` — le seul cas est
+                  quelqu'un qui le tape à la main, et Chrome suit alors la
+                  redirection et affiche la page. Dégradé pour un cas qui
+                  n'arrive pas, contre cassé pour tous les autres.
+                -->
             </intent-filter>
 
             <!--
