@@ -33,6 +33,18 @@ final class RegistreDesLivresTests: XCTestCase {
         )
         sections.element(boundBy: 1).tap()
         Thread.sleep(forTimeInterval: 2)
+        // La section se déplie sur place, et la ligne naît sous la barre
+        // d'onglets. `XCUIElement` la trouve quand même — mais la capture, non.
+        app.swipeUp()
+        Thread.sleep(forTimeInterval: 1.5)
+
+        // La liste telle qu'elle s'affiche, versée au relevé. Un test qui dit
+        // « passé » sans montrer ce qu'il a vu demande qu'on le croie ; celui-ci
+        // laisse la preuve derrière lui.
+        let vue = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        vue.name = "la-liste-en-glose"
+        vue.lifetime = .keepAlways
+        add(vue)
 
         XCTAssertTrue(
             app.staticTexts[glose].waitForExistence(timeout: 5),
