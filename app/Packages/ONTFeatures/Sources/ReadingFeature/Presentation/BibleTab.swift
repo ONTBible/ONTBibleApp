@@ -99,6 +99,17 @@ public struct BibleTab: View {
                     BookView(bookId: id)
                 case .chapter(let book, let chapter):
                     ChapterLoader(bookId: book, chapterId: chapter)
+                case .verses(let book, let chapter):
+                    // **Le lecteur choisit où commencer avant d'ouvrir.**
+                    //
+                    // La sortie courte — « Tout le chapitre » — est en tête de
+                    // cet écran, donc lire de bout en bout coûte un geste de
+                    // plus qu'avant. C'est le prix demandé, et il achète la
+                    // chose que le sommaire ne savait pas faire : arriver à un
+                    // verset précis sans traverser la page pour le trouver.
+                    ChoixDuVerset(book: book, chapter: chapter) { verse in
+                        router.open(book: book, chapter: chapter, verse: verse)
+                    }
                 }
             }
         }
@@ -204,6 +215,9 @@ struct BookView: View {
     @Environment(ReadingModel.self) private var model
     let bookId: String
 
+    /// L'unité dont on choisit le verset, quand on a touché son nombre.
+    @State private var versetsDe: VersetsAChoisir?
+
     var body: some View {
         if let outline = model.outline(bookId) {
             list(outline)
@@ -239,10 +253,26 @@ struct BookView: View {
             // le propos est de n'en enseigner qu'un.
             Section(model.preferences.french ? "Chapitres" : "Parashiot") {
                 ForEach(outline.chapters) { chapter in
+                    // **Deux gestes, deux intentions.**
+                    //
+                    // Toucher la ligne ouvre l'unité — c'est ce qu'on veut neuf
+                    // fois sur dix, et ça doit rester d'un seul doigt. Toucher
+                    // le **nombre de versets** ouvre la grille et mène au
+                    // verset choisi.
+                    //
+                    // Le nombre porte déjà ce sens : il dit combien il y en a.
+                    // En faire la porte de « lequel » n'ajoute pas un objet à
+                    // la ligne — il donne un office à celui qui y était.
+                    //
+                    // `.borderless` n'est pas cosmétique : dans une liste, un
+                    // bouton de style ordinaire laisse la ligne entière capter
+                    // le toucher, et le nombre ne répondrait jamais.
                     NavigationLink(
-                        value: Router.Destination.chapter(book: outline.id, chapter: chapter.id)
+                        value: Router.Destination.verses(book: outline.id, chapter: chapter.id)
                     ) {
-                        ChapterRow(stub: chapter)
+                        ChapterRow(stub: chapter) {
+                            versetsDe = VersetsAChoisir(book: outline.id, chapter: chapter.id)
+                        }
                     }
                     .ontRow()
                 }
@@ -257,6 +287,14 @@ struct BookView: View {
         // redire ce qu'on sait déjà. Le lecteur d'iOS 18 perd une redite,
         // pas un renseignement.
         .modifier(SousTitreDeBarre(texte: outline.french))
+        // La grille des versets, ouverte **directement** — le lecteur vient de
+        // choisir son livre et son unité dans la page qui est dessous ; les
+        // deux premières étapes du sélecteur lui redemanderaient ce qu'il
+        // vient de dire.
+        .sheet(item: $versetsDe) { cible in
+            ReferencePicker(book: cible.book, chapter: cible.chapter)
+                .ontTheme(from: model.preferences)
+        }
     }
 }
 
@@ -277,9 +315,16 @@ private struct ChapterRow: View {
     @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
 
+    /// Ce que fait le nombre de versets quand on le touche.
+    let choisirUnVerset: () -> Void
+
     /// Le libellé de l'unité, dans le registre choisi — le calcul vit dans
     /// `ChapterStub` parce que le sélecteur de renvoi le fait aussi.
     private var libelle: String { stub.label(french: model.preferences.french) }
+
+    private var nom: String {
+        LibelleDUnite.nom(french: model.preferences.french)
+    }
 
     var body: some View {
         HStack {
@@ -295,11 +340,40 @@ private struct ChapterRow: View {
                 // Le lecteur doit le savoir avant de citer.
                 StatusPill("brouillon")
             }
-            Text("\(stub.verseCount)")
-                .font(.caption.monospacedDigit())
+            // Le nombre de versets **devient une porte**.
+            //
+            // Il disait déjà « combien » ; il dit maintenant aussi « lequel ».
+            // C'est le seul endroit de la ligne où un second geste ne coûte
+            // aucun objet de plus — et le seul dont le sens y menait déjà.
+            //
+            // `.borderless` est ce qui le rend touchable : dans une liste, un
+            // bouton de style ordinaire laisse la ligne capter tout le
+            // toucher, et le nombre ne répondrait jamais.
+            Button(action: choisirUnVerset) {
+                HStack(spacing: 3) {
+                    Text("\(stub.verseCount)").font(.caption.monospacedDigit())
+                    Image(systemName: "list.number").font(.caption2)
+                }
                 .foregroundStyle(.secondary)
+                .padding(.vertical, 6)
+                .padding(.leading, 8)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Choisir un verset — \(stub.verseCount) dans ce \(nom)")
         }
     }
+}
+
+/// L'unité dont on est en train de choisir le verset.
+///
+/// Un type à part plutôt qu'un booléen et deux chaînes : la feuille n'a de sens
+/// que si les trois sont là ensemble, et `Identifiable` fait que SwiftUI la
+/// repose quand on change d'unité sans la refermer.
+private struct VersetsAChoisir: Identifiable {
+    let book: String
+    let chapter: String
+    var id: String { "\(book)/\(chapter)" }
 }
 
 /// Charge le livre à la demande, puis affiche l'unité voulue.

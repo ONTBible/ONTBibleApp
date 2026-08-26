@@ -20,6 +20,8 @@ public struct BookTab: View {
         self.bookId = bookId
     }
 
+    @Environment(Router.self) private var router
+
     @State private var path: [Router.Destination] = []
 
     public var body: some View {
@@ -31,6 +33,10 @@ public struct BookTab: View {
                         BookView(bookId: id)
                     case .chapter(let book, let chapter):
                         ChapterLoader(bookId: book, chapterId: chapter)
+                    case .verses(let book, let chapter):
+                        ChoixDuVerset(book: book, chapter: chapter) { verse in
+                            router.open(book: book, chapter: chapter, verse: verse)
+                        }
                     }
                 }
         }
