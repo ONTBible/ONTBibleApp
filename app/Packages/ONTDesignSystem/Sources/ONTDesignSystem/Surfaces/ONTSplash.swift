@@ -112,7 +112,17 @@ public struct ONTSplash: View {
             // page web où il est le sujet — ici il est une marque, et une marque
             // se pose. Le rapetisser laisse aussi la lueur déborder dans du
             // vide plutôt que de buter sur les bords.
-            let largeurDuLogo = min(largeur * 0.36, 250)
+            //
+            // **Le plafond ne mord que sur tablette.** Sur un téléphone, 36 %
+            // de 393 pt font 141 pt — la borne ne sert jamais, et le cadrage
+            // validé là-bas ne dépend donc que du pourcentage.
+            //
+            // Sur iPad elle décide de tout. J'avais raisonné qu'une marque à
+            // 24 % de la dalle « paraissait perdue » et je l'ai agrandie : à
+            // l'œil c'était déjà trop. Une grande dalle ne demande pas une
+            // grande marque — elle demande **plus de vide autour**, et c'est
+            // ce vide qui la pose.
+            let largeurDuLogo = min(largeur * 0.36, 225)
             let hauteurDuLogo = largeurDuLogo * 249 / 502
 
             // **Un seul point d'ancrage, dont tout le reste dépend.**
