@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +72,7 @@ import kotlinx.coroutines.launch
 public fun GlissementDUnite(
     peutAllerAvant: Boolean,
     peutAllerApres: Boolean,
+    uniteCourante: String?,
     onAvant: () -> Unit,
     onApres: () -> Unit,
     modifier: Modifier = Modifier,
@@ -86,6 +88,25 @@ public fun GlissementDUnite(
     val creux = remember { Animatable(0f) }
     var arme by remember { mutableStateOf(false) }
     var sensArme by remember { mutableFloatStateOf(0f) }
+
+    // Le deuxième des trois retours d'iOS : l'unité a changé pour de bon.
+    //
+    // iOS l'accroche à `trigger: courant.id` — un changement d'**état**, pas le
+    // retour de l'appel. La distinction n'est pas théorique ici : `onAvant` et
+    // `onApres` appellent `lecture.aller()`, qui lance une coroutine et rend la
+    // main tout de suite. Vibrer à leur retour dirait « c'est arrivé » avant que
+    // ce soit arrivé — et se tromperait complètement quand rien n'arrive.
+    //
+    // On saute la première composition : à l'ouverture de la liseuse, l'unité
+    // n'a pas changé, elle est simplement là. `trigger:` de SwiftUI a la même
+    // règle, et c'est pour la même raison.
+    var uniteVue by remember { mutableStateOf(uniteCourante) }
+    LaunchedEffect(uniteCourante) {
+        if (uniteCourante != uniteVue) {
+            uniteVue = uniteCourante
+            haptique.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+    }
 
     val creuxMax = with(densite) { CREUX_MAX.dp.toPx() }
     val depassementMax = with(densite) { DEPASSEMENT_MAX.dp.toPx() }

@@ -659,6 +659,7 @@ private fun Racine(
                         GlissementDUnite(
                             peutAllerAvant = lecture.precedente() != null,
                             peutAllerApres = lecture.suivante() != null,
+                            uniteCourante = chapitre.id,
                             onAvant = { lecture.precedente()?.let { lecture.aller(it) } },
                             onApres = { lecture.suivante()?.let { lecture.aller(it) } },
                         ) {
