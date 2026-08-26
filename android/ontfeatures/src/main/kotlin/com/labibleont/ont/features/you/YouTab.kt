@@ -169,6 +169,27 @@ public fun YouTab(
                 ONTRow(titre = "Versets", fin = { Valeur("$versets") })
             }
 
+            // ## Les crédits, que l'app taisait
+            //
+            // C'est le seul écran où le crédit paraît, donc le seul endroit où
+            // la confusion des noms se verrait : **Gloire Bikouta** en public,
+            // jamais « Sha'eliel », qui est le nom interne au vault.
+            //
+            // Et les deux licences de fontes ne sont pas une politesse : Ezra
+            // SIL et Frank Ruhl Libre sont sous OFL, qui **exige** que la
+            // mention accompagne la distribution. Une app qui les embarque sans
+            // les créditer est en défaut, et le défaut voyage avec chaque
+            // installation.
+            Spacer(Modifier.height(espace.xl))
+            ONTSectionHeader("Crédits")
+            ONTGroup {
+                ONTRow(titre = "Traduction", fin = { Valeur("Gloire Bikouta") })
+                ONTGroupDivider()
+                ONTRow(titre = "Hébreu", fin = { Valeur("Ezra SIL — SIL Open Font License") })
+                ONTGroupDivider()
+                ONTRow(titre = "Titres", fin = { Valeur("Frank Ruhl Libre — OFL") })
+            }
+
             if (enDeveloppement) {
                 Spacer(Modifier.height(espace.xl))
                 ONTSectionHeader("Développement")
