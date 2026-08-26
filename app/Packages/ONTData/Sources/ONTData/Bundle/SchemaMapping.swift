@@ -164,6 +164,7 @@ extension BookOutline {
             slot: dto.slot,
             title: dto.title,
             french: dto.french,
+            glose: dto.glose,
             hebrew: dto.hebrew,
             groupId: dto.groupId,
             empty: dto.empty,
