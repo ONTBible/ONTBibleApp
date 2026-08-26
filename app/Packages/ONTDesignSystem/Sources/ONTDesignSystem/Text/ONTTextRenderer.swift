@@ -142,6 +142,21 @@ public enum ONTTextRenderer {
         return sortie
     }
 
+    /// Le corps d'un verset en prose continue, tel qu'il est réellement rendu.
+    ///
+    /// Ouvert aux épreuves parce que c'est **la seule** représentation où l'on
+    /// peut vérifier ce que porte chaque caractère : `flowingText` rend un
+    /// `Text`, qui ne s'inspecte pas. Un défaut de zone tactile ne se voit ni à
+    /// la compilation ni dans le rendu — seulement ici.
+    public static func corpsEnProse(_ verse: Verse, theme: ONTTheme) -> AttributedString {
+        var corps = compose(verse.nodes, theme: theme)
+        corps += run(" ", theme.type.corpus)
+        if let cible = verseURL(verse.n) {
+            poserLeLien(cible, sur: &corps)
+        }
+        return corps
+    }
+
     /// Pose un lien partout où il n'y en a pas déjà.
     ///
     /// Les plages sont relevées **avant** d'écrire. Poser un lien fusionne des
