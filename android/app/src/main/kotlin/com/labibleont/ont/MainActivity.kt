@@ -269,6 +269,7 @@ public class MainActivity : ComponentActivity() {
             val preferences = lecture.preferences
 
             ONTTheme(theme = preferences.theme) {
+                AvecOuverture {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
@@ -279,6 +280,7 @@ public class MainActivity : ComponentActivity() {
                     adresse = adresse,
                     onAdresseSuivie = { adresseRecue.value = null },
                 )
+                }
             }
         }
     }
