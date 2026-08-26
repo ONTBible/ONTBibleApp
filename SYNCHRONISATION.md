@@ -1288,6 +1288,19 @@ dans la fenêtre et le verset 1 gagnait pour toujours. iOS n'a pas ce problème,
 sa sonde signale l'entrée *et* la sortie. Ici il faut prendre la sortie là où
 elle se manifeste — la mise au rebut du composable.
 
+**Un écart reste ouvert, et il est écrit comme tel.** Android calcule où finit le
+numéro de verset dans le texte réuni pour savoir où commencer le pointillé ; iOS
+monte le numéro dans un `Text` séparé, si bien qu'il n'y a aucun offset à
+calculer. Les deux marchent, mais seule la seconde ne *peut pas* se tromper —
+et c'est justement un offset mal calculé qui a fait démarrer le pointillé dix
+signes trop loin pendant des semaines.
+
+iOS n'avait pas séparé le numéro pour cette raison : c'était le décroché du
+pointillé sous l'exposant, et la robustesse est venue en prime. C'est le sens
+habituel de ces choses. **Un défaut qu'on rend impossible vaut mieux qu'un défaut
+qu'on calcule bien**, et le jour où la composition d'Android sera rouverte, c'est
+la forme à viser.
+
 Éprouvé sur l'appareil, pas seulement compilé : aucun `lecteur.json` après
 l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
 « Reprendre » qui l'affiche.
