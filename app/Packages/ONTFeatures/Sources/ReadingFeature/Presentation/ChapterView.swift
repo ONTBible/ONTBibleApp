@@ -362,8 +362,23 @@ struct ChapterView: View {
             autoShare = true
         }
 
-        let vise = router.pendingVerse
+        // **Borné aux versets qui existent.**
+        //
+        // Rien ne le vérifiait, et un lien vers `?v=999` s'enregistrait tel
+        // quel : « Reprendre » affichait alors « Bereshit 1:999 », et le
+        // lancement suivant visait un verset absent. Un lien bricolé — ou un
+        // lien vers une unité qui a raccourci depuis — empoisonnait l'état
+        // persistant du lecteur.
+        //
+        // Le défilement, lui, ne s'en plaignait pas : viser une ancre inconnue
+        // est une non-opération silencieuse. Le comportement souhaitable
+        // arrivait donc par tolérance du moteur, et le défaut se logeait juste
+        // à côté, dans ce qu'on **retient**.
+        let demande = router.pendingVerse
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
+        let vise = demande.flatMap { n in
+            chapter.verses.contains(where: { $0.n == n }) ? n : nil
+        }
         router.pendingVerse = nil
 
         suivi.recommence()
