@@ -322,12 +322,63 @@ final class ZoneDUnIntraduisibleTests: XCTestCase {
                 .tap()
             sleep(1)
 
-            let fiche = app.staticTexts["אֱלֹהִים"].exists
+            let fiche = app.buttons["Fermer"].exists
             let verset = app.buttons["Désélectionner"].exists
             let quoi = fiche ? "FICHE" : (verset ? "VERSET DÉSIGNÉ" : "rien")
             releve += String(format: "  dy %+6.1f  →  %@\n", dy, quoi as NSString)
         }
 
         joindre(releve, "appuis-manques")
+    }
+
+    // MARK: - Le même relevé, sur un mot en plein texte
+
+    /// Le relevé précédent portait sur « Elohim », **premier mot doré de la
+    /// page** — donc situé sur la première ligne du verset 1, sous un titre.
+    /// L'espace vide relevé au-dessus de lui pourrait n'être que ce titre, et
+    /// ne rien dire du cas général.
+    ///
+    /// On refait donc la même mesure sur un mot **entouré de texte des deux
+    /// côtés** : le mot doré le plus bas de la page, qui a forcément des lignes
+    /// au-dessus de lui. Si l'espace libre disparaît, la place à ramasser
+    /// n'existe pas et le correctif doit être cherché ailleurs.
+    func testCeQueFaitUnAppuiManqueEnPleinTexte() {
+        let fenetre = app.windows.firstMatch
+        var releve = "\n══════ APPUIS AUTOUR D'UN MOT EN PLEIN TEXTE ══════\n"
+
+        for dy in stride(from: -33.0, through: 33.0, by: 3.0) {
+            app.open(URL(string: "ont://read/bereshit/bereshit-1")!)
+            _ = app.wait(for: .runningForeground, timeout: 5)
+            sleep(2)
+
+            // Le plus bas des mots dorés assez larges pour être un vrai mot :
+            // il a nécessairement du texte au-dessus de lui.
+            let candidats = motsDores(dans: XCUIScreen.main.screenshot().image)
+                .filter { $0.cadre.width > 30 }
+                .sorted { $0.cadre.minY > $1.cadre.minY }
+            guard let mot = candidats.first else {
+                releve += String(format: "  dy %+6.1f  →  aucun mot\n", dy)
+                continue
+            }
+            if dy == -33.0 {
+                releve += "  mot choisi : \(mot.cadre.width) × \(mot.cadre.height) à y=\(mot.cadre.minY)\n"
+            }
+            fenetre.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: mot.cadre.midX, dy: mot.cadre.midY + dy))
+                .tap()
+            sleep(1)
+
+            // Le bouton « Fermer » de la barre de la fiche : présent quel que
+            // soit le terme, là où chercher l'hébreu ou le mot « occurrence »
+            // ne vaut que pour certains. Le premier détecteur employé ici
+            // cherchait « occurrence » et a rendu « rien » sur toute la bande —
+            // un faux négatif qui avait exactement la forme d'un résultat.
+            let fiche = app.buttons["Fermer"].exists
+            let verset = app.buttons["Désélectionner"].exists
+            let quoi = fiche ? "FICHE" : (verset ? "VERSET DÉSIGNÉ" : "rien")
+            releve += String(format: "  dy %+6.1f  →  %@\n", dy, quoi as NSString)
+        }
+
+        joindre(releve, "appuis-en-plein-texte")
     }
 }
