@@ -36,6 +36,8 @@ import com.labibleont.ont.kit.reader.HighlightColor
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.designsystem.typography.interligne
 import com.labibleont.ont.designsystem.typography.ONTProse
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 
 /**
  * La lecture d'une unité.
@@ -138,7 +140,14 @@ private fun EnTete(chapitre: Chapter, typo: ONTTypography) {
             fontSize = (typo.size * 1.7f).sp,
             color = ONTColors.inkStrong(theme),
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+            // ## Annoncé comme un titre, pas comme du texte
+            //
+            // TalkBack propose de sauter d'en-tête en en-tête. Sans cette
+            // marque, un lecteur non-voyant traverse un chapitre entier
+            // linéairement — quatre cents versets pour atteindre l'intertitre
+            // suivant. Le geste existe dans le système ; il faut seulement lui
+            // dire où sont les têtes.
+            modifier = Modifier.fillMaxWidth().semantics { heading() },
         )
         chapitre.subtitle?.let { sous ->
             Spacer(Modifier.height(6.dp))
@@ -172,7 +181,9 @@ private fun BlocDeTexte(
     val interligne = interligne(preferences.lineSpacing).em
 
     when (bloc) {
-        is Block.Heading -> Column(Modifier.padding(top = 22.dp, bottom = 8.dp)) {
+        is Block.Heading -> Column(
+            Modifier.padding(top = 22.dp, bottom = 8.dp).semantics { heading() },
+        ) {
             Text(
                 ONTTextRenderer.compose(
                     bloc.nodes, typo,
