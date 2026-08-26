@@ -38,6 +38,10 @@ import com.labibleont.ont.designsystem.typography.interligne
 import com.labibleont.ont.designsystem.typography.ONTProse
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.withStyle
 
 /**
  * La lecture d'une unité.
@@ -151,10 +155,49 @@ private fun EnTete(chapitre: Chapter, typo: ONTTypography) {
         )
         chapitre.subtitle?.let { sous ->
             Spacer(Modifier.height(6.dp))
+            // ## Le pont de navigation, dans ses trois écritures
+            //
+            // Le nom français, le nom hébreu, et le renvoi biblique — jamais la
+            // désignation principale, qui est le titre juste au-dessus.
+            //
+            // L'hébreu était **absent** côté Android : le sous-titre ne
+            // joignait que le français et le renvoi. Or c'est le seul endroit
+            // de l'écran où le nom hébreu de l'unité paraît, et le laisser
+            // tomber revenait à publier une liseuse de l'ONT qui tait l'hébreu
+            // de son titre.
+            //
+            // Trois écritures, trois fontes : l'italique dit que le français
+            // est une glose du nom, Ezra SIL porte le niqqud à sa place — une
+            // fonte système le décrocherait de sa consonne —, et les chiffres à
+            // chasse fixe alignent le renvoi.
             Text(
-                listOfNotNull(sous.french, sous.reference).joinToString(" "),
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                        append(sous.french)
+                    }
+                    if (sous.hebrew.isNotBlank()) {
+                        append(" ")
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = ONTFonts.hebrew,
+                                fontSize = (typo.size * 0.8f * ONTFonts.HEBREW_SCALE).sp,
+                            ),
+                        ) { append(sous.hebrew) }
+                    }
+                    sous.reference?.let {
+                        append(" ")
+                        withStyle(
+                            SpanStyle(
+                                fontFeatureSettings = "tnum",
+                            ),
+                        ) { append(it) }
+                    }
+                },
                 fontSize = (typo.size * 0.8f).sp,
-                color = ONTColors.inkSoft(theme),
+                // La même encre que sur iOS : l'encre du corps à 60 %, et non
+                // le jeton d'encre douce. Les deux se ressemblent sur le
+                // parchemin et divergent sur la nuit.
+                color = ONTColors.ink(theme).copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

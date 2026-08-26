@@ -15,6 +15,7 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTTypography
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.corpus.Verse
+import androidx.compose.ui.graphics.Color
 
 /**
  * Le rendu du texte ONT — les trois niveaux en typographie.
@@ -212,11 +213,41 @@ public object ONTTextRenderer {
         typo: ONTTypography,
         inGloss: Boolean,
         onTerme: ((String) -> Unit)?,
+        /**
+         * La teinte d'une accentuation englobante, s'il y en a une.
+         *
+         * ## Pourquoi elle descend au lieu d'être posée au-dessus
+         *
+         * `withStyle` empile : le style du parent est **sous** celui des
+         * enfants, et un enfant qui fixe sa propre couleur l'écrase. Or
+         * `Inline.Text` pose `corpus`, qui fixe l'encre — donc une accentuation
+         * peinte au niveau du parent était repeinte en noir par son propre
+         * contenu, aussitôt.
+         *
+         * Le symptôme trompait : l'italique d'une emphase **survivait**, parce
+         * que `corpus` ne touche pas au style de fonte. On voyait donc une
+         * mise en forme fonctionner et l'autre non, au même endroit, ce qui ne
+         * ressemblait pas à un défaut d'empilement.
+         *
+         * iOS n'a pas ce problème parce qu'il **repeint après coup** : il
+         * compose les enfants, puis parcourt les plages obtenues et leur impose
+         * la couleur. Compose ne construit pas ainsi ; la teinte doit donc
+         * voyager vers le bas.
+         */
+        accentuation: Color? = null,
     ) {
         for (node in nodes) {
             when (node) {
-                is Inline.Text ->
-                    withStyle(if (inGloss) typo.gloss else typo.corpus) { append(node.value) }
+                is Inline.Text -> {
+                    val base = if (inGloss) typo.gloss else typo.corpus
+                    withStyle(
+                        if (accentuation == null) {
+                            base
+                        } else {
+                            base.copy(color = accentuation, fontWeight = FontWeight.SemiBold)
+                        },
+                    ) { append(node.value) }
+                }
 
                 is Inline.Term -> {
                     // Dans une glose, l'intraduisible garde sa couleur d'or mais
@@ -269,7 +300,7 @@ public object ONTTextRenderer {
 
                 is Inline.Gloss -> {
                     withStyle(typo.apparatus) { append("[") }
-                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme)
+                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, accentuation = accentuation)
                     withStyle(typo.apparatus) { append("]") }
                 }
 
@@ -281,23 +312,22 @@ public object ONTTextRenderer {
                     // La couleur et la graisse se posent **par-dessus** les
                     // styles des enfants, sans les écraser : une accentuation
                     // peut contenir de l'hébreu, dont la fonte doit survivre.
-                    withStyle(
-                        SpanStyle(
-                            color = ONTColors.accentuation(typo.theme),
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                    ) {
-                        ajouter(node.children, typo, inGloss, onTerme)
-                    }
+                    ajouter(
+                        node.children,
+                        typo,
+                        inGloss,
+                        onTerme,
+                        accentuation = ONTColors.accentuation(typo.theme),
+                    )
 
                 is Inline.Emphasis ->
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                        ajouter(node.children, typo, inGloss, onTerme)
+                        ajouter(node.children, typo, inGloss, onTerme, accentuation)
                     }
 
                 // Le lien du vault ne mène nulle part dans la liseuse : on en
                 // garde le texte, pas la cible.
-                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme)
+                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, accentuation)
 
                 Inline.LineBreak -> append("\n")
             }
