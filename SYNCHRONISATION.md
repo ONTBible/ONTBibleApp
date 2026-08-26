@@ -982,3 +982,96 @@ attendu d'être rencontré pour se voir.
 
 **Ce que les trois dépôts doivent en retenir :** reconstruire le corpus après
 toute décision de balisage, et **lire la sortie**, pas seulement le résumé.
+
+### 26 août 2026 — la zone qui répond au doigt n'est pas le mot qu'on voit
+
+Un lecteur signalait devoir **viser** pour ouvrir la fiche d'un intraduisible :
+souvent, disait-il, seule la première lettre répondait. La composition était la
+suspecte évidente — et elle est innocente. Une épreuve qui relève, caractère par
+caractère, ce que porte la chaîne composée le montre : les six lettres
+d'« Elohim » portent bien le lien de leur fiche, le lien du verset ne déborde
+d'aucun caractère, et il n'y a pas de zone morte.
+
+**Ce que le doigt touche n'est pas ce que la chaîne porte.** La plage est une
+propriété du texte ; la zone tactile est une propriété de la **mise en page**,
+calculée après composition des lignes. Les deux ne coïncident pas, et aucune
+épreuve portant sur les caractères ne peut voir la seconde.
+
+Mesuré sur *Bereshit* 1 en prose continue, réglages par défaut (corps 19,
+interligne 0,5) :
+
+    encre du mot                    15,3 pt de haut
+    bande qui répond au doigt       30 à 36 pt
+    minimum recommandé (HIG)        44 pt
+
+La bande est celle de la **ligne**, donc elle suit les réglages du lecteur —
+42 pt à interligne maximal, 48 pt à corps 28. Les deux curseurs déjà offerts
+l'épaississent, aucun réglage raisonnable n'atteint 44.
+
+**La cible rétrécit avec le corps du texte**, et linéairement — mesuré sur un
+mot entouré de texte des deux côtés, interligne au défaut :
+
+    corps   encre    bande qui répond
+      11    8,3 pt      18 pt
+      15   10,3 pt      24 pt
+      19   12,7 pt      30 pt      ← le défaut
+      24   19,0 pt      42 pt
+      28   21,7 pt      48 pt
+
+Le rapport tient autour de 1,7 fois le corps. **Seuls les deux plus grands
+réglages approchent les 44 pt de la HIG** ; le réglage par défaut en offre 30,
+et le plus petit 18 — moins de la moitié.
+
+Conséquence qui oriente le correctif : le défaut n'est pas le même pour tous
+les lecteurs. Il s'aggrave pour qui lit petit et s'efface pour qui lit grand.
+Ce n'est donc pas quelques points à gagner partout, c'est un **plancher** à
+poser — que la zone ne descende jamais sous un seuil, quel que soit le corps
+choisi.
+
+
+**Ce qui rend le défaut sensible tient à la prose.** En lecture continue, le
+verset entier porte lui aussi un lien. Manquer la bande du mot ne fait donc pas
+« rien » : ça **désigne le verset**, des deux côtés. Le lecteur ne voit pas un
+raté, il voit un autre événement — une carte qu'il doit refermer — et il en
+conclut qu'il a mal visé. C'est le presque-raté qu'il faudrait rattraper, non la
+bande qu'il faudrait agrandir : chaque point autour du mot appartient déjà au
+verset, et le lui prendre demande un arbitrage.
+
+Le constat vaut sur les deux liseuses. Android mesure 35 à 42 dp pour 48 exigés
+par Material, par balayage d'appuis sur un Pixel. Même grandeur, même écart,
+deux mécanismes indépendants — et une exemption commune : les cibles en ligne
+dans une phrase échappent à la règle de taille minimale, précisément parce qu'on
+ne peut pas les agrandir sans aérer le texte d'un tiers.
+
+Travail rangé sans correctif : le relevé et son instrument sont acquis.
+
+### 26 août 2026 — trois manières pour un instrument de rendre un relevé faux
+
+La journée en avait donné le motif — *le format de sortie survit à l'absence de
+mesure*. L'enquête ci-dessus l'a fait rendre trois fois, sous trois formes
+distinctes, et c'est la distinction qui est utile.
+
+**Un instrument non reproductible.** Le premier balayage refermait la fiche par
+un glissement vers le bas entre deux appuis — geste qui fait aussi **défiler la
+page**. Chaque appui suivant visait le mot là où il n'était plus. Le relevé
+sortait aligné, croissant, vraisemblable. Deux exécutions de la même
+configuration ont rendu 27 pt puis 36 pt, et c'est **la répétition seule** qui
+l'a montré : relire le code ne l'aurait pas donné.
+
+**Un détecteur qui ne détecte pas.** Le relevé cherchait la fiche par le mot
+« occurrence », que toutes les fiches n'affichent pas. Il a rendu « rien » sur
+toute la bande — un faux négatif ayant exactement la forme d'un résultat. Le
+marqueur est maintenant le bouton « Fermer » de la barre, présent quel que soit
+le terme.
+
+**Un cas particulier pris pour le cas général.** La mesure portait sur le
+**premier** mot doré de la page, donc posé sous un titre. L'espace vide relevé
+au-dessus de lui était ce titre. On en avait tiré qu'il y avait de la place
+libre à ramasser, et donc un correctif sans arbitrage : il n'existe pas. Sur un
+mot entouré de texte des deux côtés, le relevé est symétrique.
+
+Les trois parades ne sont pas la même. La première demande de **refaire la
+mesure** ; la seconde, de **valider le détecteur sur un cas dont on connaît la
+réponse** ; la troisième, de **choisir le cas mesuré plutôt que de prendre le
+premier venu** — le premier élément d'une liste est presque toujours en bordure
+de quelque chose.
