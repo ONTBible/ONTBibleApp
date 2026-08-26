@@ -132,10 +132,13 @@ public struct ONTSplash: View {
             // chaque retouche de cadrage, et la lumière filait à côté du sommet
             // qu'elle est censée quitter.
             //
-            // Un peu au-dessus du milieu — le centre optique, pas le centre
-            // géométrique : une marque posée exactement au milieu paraît
-            // toujours tomber.
-            let centreDuLogo = CGPoint(x: largeur / 2, y: cadre.size.height * 0.455)
+            // Au centre, franchement. J'avais remonté la marque au « centre
+            // optique » — une marque posée au milieu paraîtrait tomber —, et
+            // l'auteur a tranché l'inverse à l'écran. La règle est vraie en
+            // général et fausse ici : l'ouverture n'a rien d'autre à l'écran
+            // qui puisse servir de contrepoids, donc rien qui fasse paraître le
+            // milieu trop bas.
+            let centreDuLogo = CGPoint(x: largeur / 2, y: cadre.size.height / 2)
 
             // La traînée sort de la crête, à 46 % de la hauteur du logomark —
             // la valeur du dessin, rapportée à sa boîte et non à l'écran.
