@@ -71,6 +71,22 @@ public enum DailySelection {
     /// Et c'est toujours une fonction pure de la date : ni état, ni tirage,
     /// ni serveur. L'app, le widget et la notification s'accordent sans se
     /// parler.
+    ///
+    /// ## Ce que « pure de la date » coûte, et qui n'est pas un défaut
+    ///
+    /// Deux appareils du même lecteur montrent deux versets différents si
+    /// **leurs horloges ne disent pas le même jour** — et rien ne le signale,
+    /// puisque chacun calcule juste à partir de ce qu'il croit être la date.
+    ///
+    /// Ça s'est vu le 27 août 2026 : le Galaxy S20+ de l'auteur était resté en
+    /// **2025**, et son verset différait de celui de l'émulateur. Une année
+    /// d'écart déplace la position dans le vivier, ni plus ni moins.
+    ///
+    /// **Il n'y a rien à corriger ici.** Une app qui doit marcher sans réseau
+    /// n'a pas d'autre source de date que l'appareil, et aller la demander à un
+    /// serveur détruirait précisément ce qui fait tenir l'accord entre le
+    /// widget, la notification et l'app. C'est noté pour qu'un écart entre deux
+    /// appareils fasse regarder l'heure avant de faire chercher un défaut.
     public static func index(for date: Date, count: Int, calendar: Calendar = .current) -> Int {
         guard count > 1 else { return 0 }
 

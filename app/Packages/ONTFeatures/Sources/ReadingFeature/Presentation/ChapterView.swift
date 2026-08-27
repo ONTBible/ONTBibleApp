@@ -252,19 +252,44 @@ struct ChapterView: View {
         // en grande partie cette animation elle-même. Assez court pour suivre
         // le doigt, assez long pour qu'on voie d'où la barre vient.
         .animation(.snappy(duration: 0.14), value: selection.isEmpty)
-        // Entrer en sélection et en sortir se sentent.
+        // **Chaque verset se sent, et les trois moments ne se ressemblent pas.**
         //
-        // On désigne un verset **en regardant le texte**, pas la barre qui
-        // monte du bas de l'écran. Sans retour tactile, le seul signe que le
-        // mode a changé est hors du regard — et il l'est d'autant plus quand
-        // le corps est réglé grand et que la barre sort du champ.
+        // On désigne un verset en regardant le texte, pas la barre qui monte du
+        // bas de l'écran. Sans retour tactile, le seul signe que quelque chose
+        // a changé est hors du regard — et il l'est d'autant plus quand le
+        // corps est réglé grand et que la barre sort du champ.
         //
-        // `selection.isEmpty` bascule aux deux bords du mode et **pas** à
-        // chaque verset ajouté : c'est la frontière qu'on marque, pas le
-        // décompte. Android disait déjà `ToggleOn` / `ToggleOff` ici ; c'est
-        // la session Android qui a relevé qu'iOS ne disait rien, et l'écart
-        // se referme du côté qui manquait.
-        .sensoryFeedback(.selection, trigger: selection.isEmpty)
+        // Le déclencheur est le **`Set` lui-même** et non son `isEmpty`. Un
+        // booléen ne bascule qu'aux frontières du mode : ajouter un deuxième,
+        // un troisième verset ne le changeait pas, donc rien ne se sentait
+        // au-delà du premier. C'est l'écart que l'auteur a senti sur Android
+        // avant de le demander ici.
+        //
+        // Trois sensations, pour savoir **sans regarder** ce qu'on vient de
+        // faire :
+        //
+        // * **on entre** — un choc net, medium. C'est un mode qui s'ouvre, et
+        //   c'est le seul des trois moments qui change ce que l'écran fait ;
+        // * **on ajoute ou on retire** — `.selection`, le retour qu'iOS réserve
+        //   au déplacement d'une poignée de sélection de texte. Étendre une
+        //   sélection est exactement ça ;
+        // * **on sort** — un choc léger, plus discret que l'entrée. La
+        //   dissymétrie est voulue : entrer demande de l'attention, sortir
+        //   rend la page.
+        //
+        // Android en a deux là où nous en avons trois — `LongPress` puis
+        // `TextHandleMove`, sa sortie se confondant avec un retrait. C'est un
+        // écart connu et assumé, pas un oubli.
+        .sensoryFeedback(trigger: selection) { avant, apres in
+            switch (avant.isEmpty, apres.isEmpty) {
+            case (true, false): .impact(weight: .medium, intensity: 0.5)
+            case (false, true): .impact(weight: .light, intensity: 0.35)
+            // Le `Set` a changé sans franchir de frontière : un verset de plus
+            // ou de moins. Et s'il n'a pas changé du tout, SwiftUI ne nous
+            // appelle pas — le déclencheur est `Equatable`.
+            default: .selection
+            }
+        }
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
