@@ -354,6 +354,12 @@ impl IntoResponse for ApiError {
             // aveu que « diffusion non configurée » plus haut, et il vaut pour
             // la même raison — celui qui exploite doit pouvoir distinguer un
             // secret manquant d'un code périmé.
+            // 413 et non 500 : c'est la charge du client qui est en cause, et
+            // il doit réduire son image plutôt que réessayer.
+            Self::Domain(DomainError::PortraitTropGrand) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "le portrait dépasse la taille admise",
+            ),
             Self::Domain(DomainError::ProviderNotConfigured) => {
                 (StatusCode::SERVICE_UNAVAILABLE, "fournisseur non configuré")
             }

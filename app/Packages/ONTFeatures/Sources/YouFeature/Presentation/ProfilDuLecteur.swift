@@ -105,6 +105,8 @@ struct EditeurDuProfil: View {
 
     @State private var choix: PhotosPickerItem?
     @State private var chargeLaPhoto = false
+    @State private var parcourtLesFichiers = false
+    @State private var refus: String?
 
     /// La limite de la bio.
     ///
@@ -122,12 +124,26 @@ struct EditeurDuProfil: View {
                     VStack(spacing: 10) {
                         Portrait(
                             profil: account.profil, octets: account.portrait(), taille: 96)
-                        PhotosPicker(selection: $choix, matching: .images) {
-                            if chargeLaPhoto {
-                                ProgressView()
-                            } else {
-                                Text(account.profil.portrait == nil ? "Ajouter une photo" : "Changer")
-                                    .font(.footnote)
+                        if chargeLaPhoto {
+                            ProgressView()
+                        } else {
+                            // **Deux origines, et l'une ne remplace pas
+                            // l'autre.** La photothèque tient les photos ; un
+                            // portrait dessiné, reçu par message ou rangé dans
+                            // iCloud Drive n'y est pas, et rien ne l'y fera
+                            // entrer. Le lecteur qui l'a sous la main n'aurait
+                            // eu aucun chemin.
+                            HStack(spacing: 18) {
+                                PhotosPicker(selection: $choix, matching: .images) {
+                                    Label("Photothèque", systemImage: "photo.on.rectangle")
+                                        .font(.footnote)
+                                }
+                                Button {
+                                    parcourtLesFichiers = true
+                                } label: {
+                                    Label("Fichiers", systemImage: "folder")
+                                        .font(.footnote)
+                                }
                             }
                         }
                         if account.profil.portrait != nil {
@@ -135,6 +151,12 @@ struct EditeurDuProfil: View {
                                 account.profil.portrait = nil
                             }
                             .font(.footnote)
+                        }
+                        if let refus {
+                            Text(refus)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
                         }
                     }
                     Spacer()
@@ -238,31 +260,93 @@ struct EditeurDuProfil: View {
         .navigationBarTitleDisplayMode(.inline)
         .ontScreen()
         .task(id: choix) { await recevoirLaPhoto() }
+        .fileImporter(
+            isPresented: $parcourtLesFichiers,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false
+        ) { resultat in
+            recevoirLeFichier(resultat)
+        }
+    }
+
+    /// Un fichier choisi dans **Fichiers** — iCloud Drive, Téléchargements, un
+    /// dossier d'app tierce.
+    ///
+    /// `startAccessingSecurityScopedResource` n'est pas une formalité : hors du
+    /// bac à sable, l'URL rendue par le sélecteur ne s'ouvre pas sans elle, et
+    /// l'échec est un simple `nil` qu'on prendrait pour un fichier illisible.
+    private func recevoirLeFichier(_ resultat: Result<[URL], Error>) {
+        refus = nil
+        guard case .success(let urls) = resultat, let url = urls.first else { return }
+
+        let ouvert = url.startAccessingSecurityScopedResource()
+        defer { if ouvert { url.stopAccessingSecurityScopedResource() } }
+
+        guard let brut = try? Data(contentsOf: url), let image = UIImage(data: brut) else {
+            refus = "Ce fichier n'est pas une image lisible."
+            return
+        }
+        poser(image)
     }
 
     private func recevoirLaPhoto() async {
         guard let choix else { return }
+        refus = nil
         chargeLaPhoto = true
         defer { chargeLaPhoto = false }
 
         guard let brut = try? await choix.loadTransferable(type: Data.self),
             let image = UIImage(data: brut)
         else { return }
+        poser(image)
+    }
+
+    private func poser(_ image: UIImage) {
 
         // **On réduit avant d'écrire.** Une photo d'appareil moderne fait
         // plusieurs mégaoctets ; on en affiche un rond de 96 points. Garder
         // l'original coûterait le stockage du lecteur pour un détail que
-        // personne ne verra jamais — et l'enverrait tel quel le jour où le
-        // profil se synchronisera.
+        // personne ne verra jamais — et le ferait monter tel quel à la
+        // synchronisation.
         guard let reduite = image.reduite(a: 512),
-            let jpeg = reduite.jpegData(compressionQuality: 0.85)
-        else { return }
+            let jpeg = reduite.sousLaBorne(ONTPortrait.borne)
+        else {
+            refus = "Cette image n'a pas pu être préparée."
+            return
+        }
 
         account.poserLePortrait(jpeg)
     }
 }
 
+/// Ce que le serveur admet pour un portrait.
+enum ONTPortrait {
+    /// La borne en octets **avant** encodage.
+    ///
+    /// Le serveur admet 150 Kio de base64, et le base64 enfle d'un tiers : on
+    /// s'arrête donc à 110 Kio de JPEG. Écrire la borne du serveur ici sans
+    /// compter cette inflation ferait refuser des images qui paraissent tenir.
+    static let borne = 100 * 1024
+}
+
 extension UIImage {
+    /// Encode en JPEG sous une borne, en baissant la qualité s'il le faut.
+    ///
+    /// On ne réduit **pas** les dimensions une seconde fois : elles ont déjà
+    /// été choisies pour l'affichage, et les rogner encore rendrait le portrait
+    /// flou sur les écrans à trois points par pixel. C'est la qualité qui cède,
+    /// parce qu'un portrait de 96 points la pardonne.
+    func sousLaBorne(_ borne: Int) -> Data? {
+        for qualite in stride(from: 0.85, through: 0.35, by: -0.1) {
+            guard let donnees = jpegData(compressionQuality: qualite) else { continue }
+            if donnees.count <= borne { return donnees }
+        }
+        // Une image qui résiste à 0,35 est pathologique — un bruit de fond
+        // photographique, que le JPEG ne sait pas compresser. On la réduit
+        // alors vraiment, plutôt que de la refuser.
+        return reduite(a: 256)?.jpegData(compressionQuality: 0.6)
+    }
+
     /// Réduit l'image pour que son plus grand côté tienne dans `cote`.
     ///
     /// Rend `self` quand elle est déjà assez petite : réencoder une image qui

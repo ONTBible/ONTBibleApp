@@ -129,6 +129,13 @@ pub enum DomainError {
     SessionInvalid,
     #[error("erreur de stockage")]
     Storage,
+    /// Le portrait dépasse ce qu'un élément peut porter.
+    ///
+    /// Distincte de `Storage` : celle-ci dit au client que **son envoi** est en
+    /// cause, et qu'il doit réduire l'image au lieu de réessayer. Une erreur de
+    /// stockage l'inviterait à recommencer à l'identique, indéfiniment.
+    #[error("le portrait dépasse la taille admise")]
+    PortraitTropGrand,
     /// Une panne de la chaîne de notification — clé illisible, signature
     /// impossible, charge non sérialisable.
     ///

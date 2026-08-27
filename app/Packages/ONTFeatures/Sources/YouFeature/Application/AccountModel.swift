@@ -44,6 +44,28 @@ public final class AccountModel {
         didSet { profils.profil = profil }
     }
 
+    /// Adopte le profil du serveur s'il est plus récent que le nôtre.
+    ///
+    /// **Le portrait est écrit avant le profil**, jamais l'inverse : le profil
+    /// ne porte que le *nom* du fichier, et l'enregistrer avant que le fichier
+    /// existe laisserait, entre les deux écritures, un profil qui pointe vers
+    /// rien. C'est court, mais c'est exactement l'instant où l'app peut être
+    /// tuée par le système.
+    private func fusionnerLeProfil(_ recu: ProfilEnVol?) {
+        guard let recu, recu.updatedAt > profil.updatedAt else { return }
+
+        var nomDuFichier = profil.portrait
+        if let octets = recu.portrait {
+            nomDuFichier = try? profils.enregistrerLePortrait(octets)
+        } else {
+            // Le serveur n'a pas de portrait **et** il est plus récent : il a
+            // donc été retiré ailleurs. Le garder ici ferait revivre une photo
+            // que le lecteur croit supprimée.
+            nomDuFichier = nil
+        }
+        profil = recu.versLeProfil(portrait: nomDuFichier)
+    }
+
     /// Les octets du portrait, relus du disque.
     ///
     /// Une fonction et non une propriété : c'est une lecture de fichier, et une
@@ -174,7 +196,15 @@ public final class AccountModel {
             try await sync.push(
                 // `allForSync` et non `all` : le second masque les pierres
                 // tombales, et un envoi sans elles perdrait les suppressions.
-                SyncPayload(highlights: highlights.allForSync(), position: positions.position)
+                SyncPayload(
+                    highlights: highlights.allForSync(),
+                    position: positions.position,
+                    // **Le profil ne monte que s'il porte quelque chose.**
+                    // Envoyer un profil vide écraserait celui d'un autre
+                    // appareil si son horodatage était plus récent — et il le
+                    // serait, puisqu'un profil vide vient d'être créé.
+                    profil: profil.estVide ? nil : ProfilEnVol(profil, portrait: profils.portrait())
+                )
             )
             lastSync = Date()
         } catch AccountError.unauthorized {
@@ -194,6 +224,8 @@ public final class AccountModel {
     }
 
     private func merge(_ remote: SyncPayload) {
+        fusionnerLeProfil(remote.profil)
+
         // La comparaison se fait sur **toutes** les lignes, pierres tombales
         // comprises : `highlight(chapterId:verse:)` ne rend que le vivant, donc
         // une suppression locale y paraîtrait comme une absence, et le serveur

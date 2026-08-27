@@ -39,16 +39,24 @@ public struct Profil: Codable, Hashable, Sendable {
     /// centaines de kilo-octets, relu et réécrit à chaque changement de
     /// réglage. Le portrait vit à côté ; ceci n'en garde que l'adresse.
     public var portrait: String?
+    /// Quand il a changé pour la dernière fois.
+    ///
+    /// **C'est ce qui arbitre entre deux appareils** — dernier écrit gagné,
+    /// la même règle que les surlignages. Sans lui, un appareil resté
+    /// longtemps hors ligne réimposerait au retour un nom qu'on a changé
+    /// ailleurs entre-temps.
+    public var updatedAt: Date
 
     public init(
         nomDUsage: String = "", prenom: String = "", nom: String = "", bio: String = "",
-        portrait: String? = nil
+        portrait: String? = nil, updatedAt: Date = Date()
     ) {
         self.nomDUsage = nomDUsage
         self.prenom = prenom
         self.nom = nom
         self.bio = bio
         self.portrait = portrait
+        self.updatedAt = updatedAt
     }
 
     /// Le nom tel qu'on l'affiche, ou `nil` quand il n'y en a pas.
@@ -98,5 +106,9 @@ public struct Profil: Codable, Hashable, Sendable {
         nom = try c.decodeIfPresent(String.self, forKey: .nom) ?? ""
         bio = try c.decodeIfPresent(String.self, forKey: .bio) ?? ""
         portrait = try c.decodeIfPresent(String.self, forKey: .portrait)
+        // `.distantPast` et non `Date()` pour un fichier écrit avant ce champ :
+        // un profil sans horodatage doit **perdre** contre n'importe quel autre,
+        // et non gagner parce qu'on vient de le lire.
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .distantPast
     }
 }
