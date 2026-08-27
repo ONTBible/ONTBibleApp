@@ -91,10 +91,9 @@ impl IdentityProvider for HttpIdentityProvider {
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
         match provider {
-            Provider::Github => self.github(origine, code, redirect_uri, verifier).await,
-            // Google ne distingue pas : son client est de type « application
-            // web » et sert les deux origines. Une adresse de retour de plus
-            // dans sa console suffit — rien à choisir ici.
+            // GitHub non plus ne distingue pas : une même application porte
+            // plusieurs adresses de retour.
+            Provider::Github => self.github(code, redirect_uri, verifier).await,
             Provider::Google => self.google(code, redirect_uri, verifier).await,
             Provider::Apple => self.apple(origine, code, redirect_uri).await,
         }
@@ -127,19 +126,20 @@ impl HttpIdentityProvider {
 
     async fn github(
         &self,
-        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        // Deux **applications** distinctes, pas deux identifiants de la même :
-        // le portail de GitHub n'admet qu'une adresse de retour par
-        // application, et celle de l'app la prend.
-        let credentials = match origine {
-            Origine::App => self.config.github.as_ref(),
-            Origine::Webapp => self.config.github_web.as_ref(),
-        }
-        .ok_or(DomainError::ProviderNotConfigured)?;
+        // **Une seule application pour les deux origines.** GitHub accepte
+        // plusieurs adresses de retour par application — le champ est au
+        // pluriel, avec un « Add more » —, donc l'app et le site partagent
+        // identifiant et secret. Il rejoint Google sur ce point ; Apple reste
+        // seul à exiger une identité par origine.
+        let credentials = self
+            .config
+            .github
+            .as_ref()
+            .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -377,7 +377,6 @@ mod tests {
             apple: None,
             google: None,
             github: None,
-            github_web: None,
             apns: None,
             secret_diffusion: None,
         }
@@ -434,7 +433,7 @@ mod tests {
                 private_key: String::new(),
             }),
             github: Some(crate::infrastructure::config::OAuthCredentials {
-                client_id: "app".into(),
+                client_id: "une-seule-application".into(),
                 client_secret: "secret".into(),
             }),
             ..sans_identifiants()
@@ -453,7 +452,7 @@ mod tests {
     async fn le_site_se_dit_non_configure_tant_que_ses_identites_manquent() {
         let providers = HttpIdentityProvider::new(seulement_l_app());
 
-        for fournisseur in [Provider::Apple, Provider::Github] {
+        for fournisseur in [Provider::Apple] {
             let erreur = providers
                 .exchange(
                     fournisseur,

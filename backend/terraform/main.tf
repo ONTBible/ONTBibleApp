@@ -132,14 +132,18 @@ variable "github_client_secret" {
   default   = ""
 }
 
-# Les identités du **site**, en plus de celles de l'app.
+# L'identité du **site** chez Apple.
 #
 # Un code d'autorisation venu d'un navigateur n'a pas été accordé à la même
 # identité qu'un code venu de l'interface système : Apple veut son Services ID
-# là où l'app présente son App ID, et GitHub exige une **seconde application**,
-# son portail n'admettant qu'une adresse de retour par application.
+# là où l'app présente son App ID, et les échanger rend `invalid_grant` dans
+# les deux sens.
 #
-# **Elles n'entrent pas dans la précondition ci-dessus**, et c'est voulu : leur
+# **Apple est seul dans ce cas.** Google sert les deux origines avec le même
+# client ; GitHub aussi, une même application pouvant porter plusieurs adresses
+# de retour.
+#
+# **Elle n'entre pas dans la précondition ci-dessus**, et c'est voulu : son
 # absence est un état légitime — celui où le site n'est pas encore branché — et
 # le backend la rapporte alors en « fournisseur non configuré », jamais en
 # refus. Les trois identifiants de l'app, eux, ne peuvent manquer pour aucune
@@ -147,15 +151,6 @@ variable "github_client_secret" {
 variable "apple_services_id" {
   type    = string
   default = ""
-}
-variable "github_web_client_id" {
-  type    = string
-  default = ""
-}
-variable "github_web_client_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
 }
 
 # Le DSN Sentry n'est pas un secret : il n'autorise qu'à *écrire* des
@@ -355,8 +350,6 @@ resource "aws_lambda_function" "api" {
       GITHUB_CLIENT_ID         = var.github_client_id
       GITHUB_CLIENT_SECRET     = var.github_client_secret
       APPLE_SERVICES_ID        = var.apple_services_id
-      GITHUB_WEB_CLIENT_ID     = var.github_web_client_id
-      GITHUB_WEB_CLIENT_SECRET = var.github_web_client_secret
       APNS_TEAM_ID             = var.apns_team_id
       APNS_KEY_ID              = var.apns_key_id
       APNS_PRIVATE_KEY         = var.apns_private_key

@@ -127,35 +127,27 @@ Puis **Generate a new client secret**.
 
 ---
 
-## 3 bis. GitHub, **une seconde fois**, pour le site
+## 3 bis. GitHub, pour le site — **une adresse de plus, pas une application**
 
-**Ce n'est pas un second identifiant, c'est une seconde application.** Le
-portail de GitHub n'admet qu'**une seule** adresse de retour par application,
-et celle ci-dessus est prise par l'app. Il n'y a pas de champ à ajouter : il
-faut recommencer.
+Le champ du portail s'appelle « Authorization callback **URLs** », au pluriel,
+et porte un bouton **Add more**. Une même application sert donc les deux
+origines, avec **le même `client_id` et le même secret**.
 
-C'est ce qui rend GitHub plus cher qu'Apple, qui se contente d'un Services ID
-sous la même clé de signature — et que Google, qui ne demande rien du tout.
+Sur l'application `La Bible ONT`, **Edit** → *Add more* :
 
-Même chemin, **New OAuth App** encore une fois :
+    https://ontbible.com/fr/compte/retour
 
-| Champ | Valeur |
-|---|---|
-| Application name | La Bible ONT — site |
-| Homepage URL | `https://ontbible.com` |
-| Authorization callback URL | `https://ontbible.com/fr/compte/retour` |
+puis **Update application**. Rien d'autre ne bouge : ni variable, ni code.
 
-Puis **Generate a new client secret**.
-
-| Variable | Où |
-|---|---|
-| `GITHUB_WEB_CLIENT_ID` | Lambda **et** le site |
-| `GITHUB_WEB_CLIENT_SECRET` | Lambda **seulement** |
-
-**Aucune API ne crée une OAuth App.** GitHub n'expose pas d'endpoint pour ça —
-seules les *GitHub Apps* ont un flux par manifeste, et il passe de toute façon
-par un formulaire. Ces trois minutes de navigateur ne sont donc pas
-automatisables, et c'est la seule étape qui ne l'est pas.
+> **Ce README a dit le contraire, et c'était faux.** Il annonçait une seconde
+> application, un second identifiant et un second secret, au motif que GitHub
+> n'admettrait qu'une adresse de retour. C'était vrai autrefois ; le portail ne
+> l'est plus, et c'est l'auteur qui l'a vu en ouvrant la page.
+>
+> GitHub avertit en revanche de ne **pas** compter sur la tolérance des
+> sous-chemins de la première adresse : *« please register multiple URLs rather
+> than rely on legacy support for subdirectories »*. On enregistre donc chaque
+> adresse en entier.
 
 ## 3 ter. Apple, le Services ID
 

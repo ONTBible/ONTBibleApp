@@ -45,8 +45,6 @@ pub struct Config {
     pub apple: Option<AppleCredentials>,
     pub google: Option<OAuthCredentials>,
     pub github: Option<OAuthCredentials>,
-    /// La seconde application GitHub, celle du site.
-    pub github_web: Option<OAuthCredentials>,
     /// De quoi signer les notifications. `None` désactive la diffusion sans
     /// empêcher le reste : lire ne dépend pas de savoir notifier.
     pub apns: Option<ApnsCredentials>,
@@ -147,11 +145,6 @@ impl Config {
             apple,
             google: pair("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
             github: pair("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
-            // Une **seconde application** GitHub, pas un second identifiant :
-            // le portail n'admet qu'une adresse de retour par application, et
-            // celle de l'app la prend. D'où un secret de plus, là où Apple
-            // n'avait besoin que d'un identifiant.
-            github_web: pair("GITHUB_WEB_CLIENT_ID", "GITHUB_WEB_CLIENT_SECRET"),
             apns,
             secret_diffusion: var("SECRET_DIFFUSION"),
         })
