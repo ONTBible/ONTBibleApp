@@ -30,7 +30,7 @@ use serde::Deserialize;
 use time::{Duration, OffsetDateTime};
 
 use crate::domain::ports::IdentityProvider;
-use crate::domain::{DomainError, ExternalIdentity, Provider};
+use crate::domain::{DomainError, ExternalIdentity, Origine, Provider};
 
 use super::config::Config;
 
@@ -85,15 +85,18 @@ impl IdentityProvider for HttpIdentityProvider {
     async fn exchange(
         &self,
         provider: Provider,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
         match provider {
-            Provider::Github => self.github(code, redirect_uri, verifier).await,
+            Provider::Github => self.github(origine, code, redirect_uri, verifier).await,
+            // Google ne distingue pas : son client est de type « application
+            // web » et sert les deux origines. Une adresse de retour de plus
+            // dans sa console suffit — rien à choisir ici.
             Provider::Google => self.google(code, redirect_uri, verifier).await,
-            // Apple n'a ni redirection ni PKCE en flux natif.
-            Provider::Apple => self.apple(code).await,
+            Provider::Apple => self.apple(origine, code, redirect_uri).await,
         }
     }
 }
@@ -124,15 +127,19 @@ impl HttpIdentityProvider {
 
     async fn github(
         &self,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        let credentials = self
-            .config
-            .github
-            .as_ref()
-            .ok_or(DomainError::ProviderNotConfigured)?;
+        // Deux **applications** distinctes, pas deux identifiants de la même :
+        // le portail de GitHub n'admet qu'une adresse de retour par
+        // application, et celle de l'app la prend.
+        let credentials = match origine {
+            Origine::App => self.config.github.as_ref(),
+            Origine::Webapp => self.config.github_web.as_ref(),
+        }
+        .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -215,24 +222,50 @@ impl HttpIdentityProvider {
         })
     }
 
-    async fn apple(&self, code: &str) -> Result<ExternalIdentity, DomainError> {
+    async fn apple(
+        &self,
+        origine: Origine,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<ExternalIdentity, DomainError> {
         let credentials = self
             .config
             .apple
             .as_ref()
             .ok_or(DomainError::ProviderNotConfigured)?;
-        let secret = apple_client_secret(credentials, OffsetDateTime::now_utc())?;
+
+        // **L'identité présentée doit être celle à qui l'autorisation a été
+        // accordée.** L'App ID pour un code venu de l'interface système, le
+        // Services ID pour un code venu d'un navigateur. Les échanger rend
+        // `invalid_grant` dans les deux sens.
+        //
+        // Un Services ID absent se **dit** : sans ça, le site recevrait un
+        // refus d'Apple pour une clé qu'on n'a simplement pas encore créée, et
+        // chercherait la faute chez lui.
+        let identite = match origine {
+            Origine::App => credentials.client_id.as_str(),
+            Origine::Webapp => credentials
+                .services_id
+                .as_deref()
+                .ok_or(DomainError::ProviderNotConfigured)?,
+        };
+        let secret = apple_client_secret(credentials, identite, OffsetDateTime::now_utc())?;
+
+        let mut form: Vec<(&str, &str)> = vec![
+            ("client_id", identite),
+            ("client_secret", secret.as_str()),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+        ];
+        // Et `redirect_uri` suit le même partage : le flux natif n'a jamais
+        // redirigé, donc l'envoyer serait mentir ; le flux navigateur l'exige,
+        // et Apple le compare à ce qui est déclaré sous le Services ID.
+        if origine == Origine::Webapp {
+            form.push(("redirect_uri", redirect_uri));
+        }
 
         let id_token = self
-            .post_token(
-                "https://appleid.apple.com/auth/token",
-                &[
-                    ("client_id", credentials.client_id.as_str()),
-                    ("client_secret", secret.as_str()),
-                    ("code", code),
-                    ("grant_type", "authorization_code"),
-                ],
-            )
+            .post_token("https://appleid.apple.com/auth/token", &form)
             .await?
             .id_token
             .ok_or(DomainError::ProviderRejected)?;
@@ -258,10 +291,12 @@ impl HttpIdentityProvider {
 /// faut le fabriquer, et il expire. Six mois est le maximum autorisé ; on
 /// prend une heure, puisqu'on le régénère à chaque échange de toute façon.
 ///
-/// Le `sub` porte l'identifiant de l'app — la même valeur que `client_id`,
-/// sans quoi Apple rejette l'échange.
+/// Le `sub` porte **la même identité que le `client_id` de l'échange** — App
+/// ID ou Services ID selon l'origine du code —, sans quoi Apple rejette. D'où
+/// le paramètre : la clé `.p8` sert aux deux flux, l'identité non.
 fn apple_client_secret(
     credentials: &super::config::AppleCredentials,
+    identite: &str,
     now: OffsetDateTime,
 ) -> Result<String, DomainError> {
     #[derive(serde::Serialize)]
@@ -286,7 +321,7 @@ fn apple_client_secret(
             iat: now.unix_timestamp(),
             exp: (now + Duration::hours(1)).unix_timestamp(),
             aud: "https://appleid.apple.com",
-            sub: &credentials.client_id,
+            sub: identite,
         },
         &key,
     )
@@ -342,6 +377,7 @@ mod tests {
             apple: None,
             google: None,
             github: None,
+            github_web: None,
             apns: None,
             secret_diffusion: None,
         }
@@ -362,14 +398,76 @@ mod tests {
         let providers = HttpIdentityProvider::new(sans_identifiants());
 
         for fournisseur in [Provider::Github, Provider::Google, Provider::Apple] {
+            for origine in [Origine::App, Origine::Webapp] {
+                let erreur = providers
+                    .exchange(
+                        fournisseur,
+                        origine,
+                        "un-code",
+                        "https://ontbible.com/cb",
+                        None,
+                    )
+                    .await
+                    .expect_err("sans identifiants, l'échange ne peut pas aboutir");
+
+                assert!(
+                    matches!(erreur, DomainError::ProviderNotConfigured),
+                    "{fournisseur:?} en {} devrait se dire non configuré, et non refuser : {erreur:?}",
+                    origine.as_str(),
+                );
+            }
+        }
+    }
+
+    /// Un déploiement où l'app est branchée et le site pas encore.
+    ///
+    /// C'est l'état réel du 27 août 2026, et c'est celui qui pouvait le plus
+    /// tromper : les identifiants **existent**, ils sont simplement ceux d'une
+    /// autre identité.
+    fn seulement_l_app() -> Config {
+        Config {
+            apple: Some(crate::infrastructure::config::AppleCredentials {
+                client_id: "com.labibleont.ONT".into(),
+                services_id: None,
+                team_id: "EQUIPE".into(),
+                key_id: "CLE".into(),
+                private_key: String::new(),
+            }),
+            github: Some(crate::infrastructure::config::OAuthCredentials {
+                client_id: "app".into(),
+                client_secret: "secret".into(),
+            }),
+            ..sans_identifiants()
+        }
+    }
+
+    /// **Configuré pour l'app ne veut pas dire configuré pour le site.**
+    ///
+    /// Sans ce partage, le site présenterait l'App ID d'Apple ou l'application
+    /// GitHub de l'app, et recevrait un `invalid_grant` — une erreur de
+    /// fournisseur pour une clé qu'on n'a simplement pas encore créée. Il
+    /// chercherait la faute chez lui, et elle serait chez nous.
+    ///
+    /// Le réseau n'est pas atteint : la vérification précède l'appel.
+    #[tokio::test]
+    async fn le_site_se_dit_non_configure_tant_que_ses_identites_manquent() {
+        let providers = HttpIdentityProvider::new(seulement_l_app());
+
+        for fournisseur in [Provider::Apple, Provider::Github] {
             let erreur = providers
-                .exchange(fournisseur, "un-code", "https://ontbible.com/cb", None)
+                .exchange(
+                    fournisseur,
+                    Origine::Webapp,
+                    "un-code",
+                    "https://ontbible.com/fr/compte/retour",
+                    None,
+                )
                 .await
-                .expect_err("sans identifiants, l'échange ne peut pas aboutir");
+                .expect_err("le site n'a pas encore d'identité chez ce fournisseur");
 
             assert!(
                 matches!(erreur, DomainError::ProviderNotConfigured),
-                "{fournisseur:?} devrait se dire non configuré, et non refuser : {erreur:?}",
+                "{fournisseur:?} devrait dire au site qu'il n'est pas configuré : {erreur:?}",
             );
         }
     }

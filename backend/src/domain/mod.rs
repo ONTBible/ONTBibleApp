@@ -7,6 +7,50 @@ pub mod token;
 
 use serde::{Deserialize, Serialize};
 
+/// D'où vient le code d'autorisation : de l'app ou d'un navigateur.
+///
+/// **Ce n'est pas une préférence, c'est une identité différente chez le
+/// fournisseur.** Un code obtenu par `ASAuthorizationController` a été accordé
+/// à l'**App ID** ; un code obtenu dans un navigateur l'a été au **Services
+/// ID**. Présenter l'un pour l'autre à l'échange rend `invalid_grant` — Apple
+/// le dit noir sur blanc, et l'inverse est vrai aussi.
+///
+/// GitHub pousse plus loin : son portail n'admet qu'une seule adresse de
+/// retour par application, prise par l'app. Le site exige donc une **seconde
+/// application**, donc un second identifiant *et* un second secret.
+///
+/// Google seul ignore la distinction : son client est de type « application
+/// web » et sert les deux, une adresse de retour de plus suffisant. C'est
+/// pourquoi il a été branché en premier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Origine {
+    /// L'app iOS ou Android, par l'interface système du fournisseur.
+    ///
+    /// **C'est le défaut, et ça n'est pas arbitraire** : les versions de l'app
+    /// déjà installées n'envoient pas ce champ et ne le pourront jamais
+    /// rétroactivement. Un défaut qui vaudrait `Web` les casserait toutes le
+    /// jour du déploiement.
+    #[default]
+    App,
+    /// `ontbible.com`, par redirection de navigateur.
+    ///
+    /// **Le mot est `webapp`, pas `web`**, et c'est le choix de l'auteur : le
+    /// dépôt s'appelle `ONTBibleWebapp` et le Services ID d'Apple
+    /// `com.labibleont.ont.webapp`. Un troisième mot pour la même chose aurait
+    /// fait chercher lequel des trois fait foi.
+    Webapp,
+}
+
+impl Origine {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::App => "app",
+            Self::Webapp => "webapp",
+        }
+    }
+}
+
 /// Les fournisseurs d'identité acceptés.
 ///
 /// « Sign in with Apple » figure en premier parce que la revue App Store
@@ -93,4 +137,46 @@ pub enum DomainError {
     /// agrément perdu ; le texte, lui, est arrivé.
     #[error("la notification n'a pas pu partir : {0}")]
     Notification(String),
+}
+
+#[cfg(test)]
+mod origine {
+    use super::Origine;
+
+    /// **Le mot sur le fil est un contrat entre trois dépôts.**
+    ///
+    /// Le site envoie `"webapp"` ; le backend doit le reconnaître, et ne doit
+    /// pas reconnaître autre chose à sa place. Renommer la variante Rust est
+    /// sans danger — renommer ce que `serde` lit rompt la connexion de tous
+    /// les lecteurs du site, et rien dans le compilateur ne le dirait.
+    ///
+    /// `web` a failli être ce mot. Il a été écarté parce que le dépôt
+    /// s'appelle `ONTBibleWebapp` et le Services ID `com.labibleont.ont.webapp`.
+    #[test]
+    fn les_mots_du_fil_ne_bougent_pas() {
+        let lu = |json: &str| serde_json::from_str::<Origine>(json).ok();
+
+        assert_eq!(lu("\"app\""), Some(Origine::App));
+        assert_eq!(lu("\"webapp\""), Some(Origine::Webapp));
+        assert_eq!(Origine::App.as_str(), "app");
+        assert_eq!(Origine::Webapp.as_str(), "webapp");
+
+        // Ce qui n'est **pas** le mot ne passe pas — un `web` toléré en
+        // silence laisserait les deux orthographes vivre côte à côte, et
+        // personne ne saurait plus laquelle fait foi.
+        assert_eq!(lu("\"web\""), None);
+        assert_eq!(lu("\"ios\""), None);
+    }
+
+    /// L'absence vaut `app`, et c'est ce qui protège les versions installées.
+    #[test]
+    fn l_absence_vaut_l_app() {
+        #[derive(serde::Deserialize)]
+        struct Corps {
+            #[serde(default)]
+            origine: Origine,
+        }
+        let corps: Corps = serde_json::from_str("{}").unwrap();
+        assert_eq!(corps.origine, Origine::App);
+    }
 }
