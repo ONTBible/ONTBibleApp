@@ -299,7 +299,38 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
         }
 
         // 3. L'intraduisible — `** … **`
-        if c == b'*' && bytes.get(i + 1) == Some(&b'*') {
+        //
+        // **Sauf sur `***`**, où la première astérisque ouvre une italique et
+        // les deux suivantes un intraduisible. Sans cette garde, la branche
+        // prenait les deux premières pour l'ouverture du gras et rendait un
+        // terme littéralement nommé « *Elohim » : le mot d'or portait
+        // l'astérisque, et celle de fermeture de l'italique restait orpheline
+        // en texte nu. Vingt-six mots de *Bereshit* étaient dans ce cas.
+        //
+        // La ligne du vault est pourtant du markdown valide :
+        //
+        //     - ***Elohim** / אֱלֹהִים — laissé en hébreu*
+        //
+        // On ne saute la branche que si l'italique se referme réellement —
+        // sinon un `***` non apparié doit retomber en texte comme le reste,
+        // et non ouvrir une italique qui mangerait la fin de la ligne.
+        let triple = bytes.get(i + 2) == Some(&b'*') && bytes.get(i + 3) != Some(&b'*');
+        let italique_avant_gras = c == b'*'
+            && triple
+            && find_em_end(bytes, i + 1).is_some();
+
+        // Un `***` dont l'italique ne se referme jamais : la première
+        // astérisque est orpheline. Elle redevient du texte — comme tout
+        // marqueur non apparié — au lieu d'être avalée par le gras qui suit,
+        // qui la ferait entrer dans le **nom** du terme. `lint_markers` la
+        // signalera par ailleurs comme italique non refermée.
+        if c == b'*' && triple && !italique_avant_gras {
+            buffer.push('*');
+            i += 1;
+            continue;
+        }
+
+        if c == b'*' && bytes.get(i + 1) == Some(&b'*') && !italique_avant_gras {
             if let Some(rel) = src[i + 2..].find("**") {
                 let end = i + 2 + rel;
                 if end > i + 2 {
@@ -776,5 +807,59 @@ mod tests {
             panic!("ce doit être une accentuation")
         };
         assert!(types(children).contains(&"term"));
+    }
+
+    /// Une italique ouverte juste avant un intraduisible — `***Elohim**`.
+    ///
+    /// C'est la forme du pied d'unité, où chaque décision terminologique est en
+    /// italique et commence par le terme :
+    ///
+    ///     - ***Elohim** / אֱלֹהִים — laissé en hébreu*
+    ///
+    /// Le tokeniseur y prenait les deux premières astérisques pour l'ouverture
+    /// du gras et rendait `Term { v: "*Elohim" }` : le mot d'or portait
+    /// l'astérisque **dans son propre texte**, et celle qui refermait
+    /// l'italique restait en texte nu. Vingt-six mots de *Bereshit* étaient
+    /// dans ce cas, affichés en or et touchables sous le nom `*Elohim`.
+    ///
+    /// Le lemme, lui, était juste — la fiche s'ouvrait. Le lien était bon,
+    /// l'affichage était faux.
+    #[test]
+    fn italique_ouverte_juste_avant_un_intraduisible() {
+        let out = parse_inline("***Elohim** / hebreu — laissé en hébreu*");
+        assert_eq!(types(&out), vec!["em"]);
+
+        let Inline::Em { children } = &out[0] else {
+            panic!("attendu une italique, obtenu {:?}", out[0]);
+        };
+        assert_eq!(types(children), vec!["term", "text"]);
+
+        let Inline::Term { v, lemma } = &children[0] else {
+            panic!("attendu un intraduisible");
+        };
+        // Le point de l'épreuve : **pas** « *Elohim ».
+        assert_eq!(v, "Elohim");
+        assert_eq!(lemma, "elohim");
+    }
+
+    /// Un `***` qui ne referme jamais son italique reste du texte.
+    ///
+    /// La garde ne doit pas ouvrir une italique qui mangerait la fin de la
+    /// ligne : le tokeniseur ne se plaint jamais, il retombe en texte lisible.
+    #[test]
+    fn triple_asterisque_non_appariee_retombe_en_texte() {
+        let out = parse_inline("***Elohim** et la suite");
+        assert_eq!(types(&out), vec!["text", "term", "text"]);
+        let Inline::Term { v, .. } = &out[1] else {
+            panic!("attendu un intraduisible");
+        };
+        assert_eq!(v, "Elohim");
+    }
+
+    /// Le cas ordinaire n'a pas bougé : `**terme**` seul reste un terme.
+    #[test]
+    fn le_gras_simple_reste_un_intraduisible() {
+        let out = parse_inline("Quand **Elohim** orchestra");
+        assert_eq!(types(&out), vec!["text", "term", "text"]);
     }
 }
