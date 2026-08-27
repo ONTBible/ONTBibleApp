@@ -132,7 +132,7 @@ impl HttpIdentityProvider {
             .config
             .github
             .as_ref()
-            .ok_or(DomainError::ProviderRejected)?;
+            .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -178,7 +178,7 @@ impl HttpIdentityProvider {
             .config
             .google
             .as_ref()
-            .ok_or(DomainError::ProviderRejected)?;
+            .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -220,7 +220,7 @@ impl HttpIdentityProvider {
             .config
             .apple
             .as_ref()
-            .ok_or(DomainError::ProviderRejected)?;
+            .ok_or(DomainError::ProviderNotConfigured)?;
         let secret = apple_client_secret(credentials, OffsetDateTime::now_utc())?;
 
         let id_token = self
@@ -331,5 +331,46 @@ mod tests {
     #[test]
     fn un_jeton_malforme_est_rejete() {
         assert!(decode_jwt_claims::<AppleClaims>("pas-un-jwt").is_err());
+    }
+
+    /// Un déploiement nu : ni Apple, ni Google, ni GitHub.
+    fn sans_identifiants() -> Config {
+        Config {
+            table: "ont".into(),
+            jwt_secret: "secret-d-epreuve".into(),
+            sentry_dsn: String::new(),
+            apple: None,
+            google: None,
+            github: None,
+            apns: None,
+            secret_diffusion: None,
+        }
+    }
+
+    /// **Un identifiant absent n'est pas un refus.**
+    ///
+    /// Il était rapporté comme `ProviderRejected`, c'est-à-dire comme le
+    /// résultat d'un échange qui n'a jamais eu lieu — et le client recevait 401
+    /// « connexion refusée ». Celui qui exploite ne pouvait donc pas distinguer
+    /// « j'ai oublié le secret » de « ce code a expiré », et le lecteur lisait
+    /// qu'on l'avait refusé alors qu'on n'avait interrogé personne.
+    ///
+    /// Le réseau n'est jamais atteint : la vérification précède l'appel, donc ce
+    /// test ne sort pas de la machine.
+    #[tokio::test]
+    async fn un_fournisseur_sans_identifiants_se_dit_non_configure() {
+        let providers = HttpIdentityProvider::new(sans_identifiants());
+
+        for fournisseur in [Provider::Github, Provider::Google, Provider::Apple] {
+            let erreur = providers
+                .exchange(fournisseur, "un-code", "https://ontbible.com/cb", None)
+                .await
+                .expect_err("sans identifiants, l'échange ne peut pas aboutir");
+
+            assert!(
+                matches!(erreur, DomainError::ProviderNotConfigured),
+                "{fournisseur:?} devrait se dire non configuré, et non refuser : {erreur:?}",
+            );
+        }
     }
 }

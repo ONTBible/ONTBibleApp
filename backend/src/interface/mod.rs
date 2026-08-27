@@ -337,6 +337,13 @@ impl IntoResponse for ApiError {
             Self::Domain(DomainError::ProviderRejected) => {
                 (StatusCode::UNAUTHORIZED, "connexion refusée")
             }
+            // 503 et non 401 : rien n'a refusé quoi que ce soit. C'est le même
+            // aveu que « diffusion non configurée » plus haut, et il vaut pour
+            // la même raison — celui qui exploite doit pouvoir distinguer un
+            // secret manquant d'un code périmé.
+            Self::Domain(DomainError::ProviderNotConfigured) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "fournisseur non configuré")
+            }
             Self::Domain(DomainError::SessionInvalid) => {
                 (StatusCode::UNAUTHORIZED, "session expirée")
             }
