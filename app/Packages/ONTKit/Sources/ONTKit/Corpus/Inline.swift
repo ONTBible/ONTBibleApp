@@ -60,7 +60,65 @@ public extension [Inline] {
     ///
     /// Par défaut ne rend que le corps de la traduction — c'est la voix du
     /// texte, sans l'appareil.
+    /// **Ce qui est omis laisse ses espaces derrière lui**, et il faut les
+    /// reprendre. « Quand ⟦hébreu⟧ commença » devient « Quand  commença » avec
+    /// deux espaces : le nœud disparaît, pas les espaces qui l'entouraient. En
+    /// lecture ça ne se voit pas — le nœud est rendu ; ici, si.
+    ///
+    /// Le repli est fait à la fin plutôt qu'à chaque nœud : un nœud ne sait pas
+    /// ce qui le suit, et deux `.text` légitimement séparés d'un espace se
+    /// jugent l'un par rapport à l'autre, jamais isolément.
     func plainText(gloss: Bool = false, level3: Bool = false) -> String {
+        Self.replier(brut(gloss: gloss, level3: level3))
+    }
+
+    /// Replie les espaces surnuméraires, sans toucher aux retours à la ligne.
+    ///
+    /// Un retour à la ligne est une décision de mise en page du traducteur —
+    /// la seconde ligne d'un parallélisme, l'ouverture d'un discours. Le fondre
+    /// dans un espace effacerait ce que le texte dit de sa propre forme.
+    private static let sansEspaceDevant: Set<Character> = [".", ",", ")", "]", "…"]
+
+    private static func replier(_ texte: String) -> String {
+        var sortie = ""
+        sortie.reserveCapacity(texte.count)
+        var espaceEnAttente = false
+
+        for caractere in texte {
+            switch caractere {
+            case " ", "\t":
+                // Retenue, pas écrite : c'est ce qui suit qui décide si elle
+                // sert d'espace ou si elle se perd contre un retour à la ligne.
+                espaceEnAttente = !sortie.isEmpty
+            case "\n":
+                espaceEnAttente = false
+                while sortie.last == " " { sortie.removeLast() }
+                sortie.append(caractere)
+            default:
+                // **Ce qui ne prend jamais d'espace devant, en français.**
+                //
+                // Le point et la virgule, la parenthèse et le crochet
+                // fermants, les points de suspension. Le point-virgule, les
+                // deux-points, le point d'exclamation, l'interrogation et le
+                // chevron fermant en prennent un, eux — c'est la règle
+                // française, et le corpus l'applique déjà.
+                //
+                // La règle vaut quelle que soit l'origine de l'espace : une
+                // omission en laisse, mais un espace avant un point serait faux
+                // même écrit à la main.
+                if espaceEnAttente, sortie.last != "\n",
+                    !Self.sansEspaceDevant.contains(caractere)
+                {
+                    sortie.append(" ")
+                }
+                espaceEnAttente = false
+                sortie.append(caractere)
+            }
+        }
+        return sortie
+    }
+
+    private func brut(gloss: Bool, level3: Bool) -> String {
         reduce(into: "") { output, node in
             switch node {
             case .text(let value):
@@ -72,9 +130,9 @@ public extension [Inline] {
             case .translit(let translit, let hebrew):
                 if level3 { output += "(\(translit) / \(hebrew))" }
             case .gloss(let children):
-                if gloss { output += children.plainText(gloss: gloss, level3: level3) }
+                if gloss { output += children.brut(gloss: gloss, level3: level3) }
             case .emphasis(let children), .accentuation(let children), .link(let children, _):
-                output += children.plainText(gloss: gloss, level3: level3)
+                output += children.brut(gloss: gloss, level3: level3)
             case .lineBreak:
                 output += "\n"
             }
