@@ -62,9 +62,13 @@ donc l'identité selon l'origine du code (voir la section suivante).
 ### Deux origines, deux identités
 
 Le corps de `POST /auth/{fournisseur}` porte un champ `origine` : `"app"` ou
-`"web"`. **Absent vaut `"app"`** — les versions déjà installées ne l'envoient
-pas et ne le pourront jamais rétroactivement ; un défaut à `"web"` les casserait
+`"webapp"`. **Absent vaut `"app"`** — les versions déjà installées ne l'envoient
+pas et ne le pourront jamais rétroactivement ; un défaut à `"webapp"` les casserait
 toutes le jour du déploiement.
+
+**`webapp` et non `web`** : le dépôt s'appelle `ONTBibleWebapp` et le Services
+ID `com.labibleont.ont.webapp`. Un nom qui traverse trois dépôts vaut mieux
+unique — un troisième mot pour la même chose ferait chercher lequel fait foi.
 
 | fournisseur | app | site | ce que ça coûte |
 |---|---|---|---|

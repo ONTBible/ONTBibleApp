@@ -233,12 +233,15 @@ struct SignInBody {
     /// le flux natif n'en a pas besoin.
     #[serde(default)]
     code_verifier: Option<String>,
-    /// D'où vient le code : `"app"` ou `"web"`.
+    /// D'où vient le code : `"app"` ou `"webapp"`.
     ///
     /// **Absent vaut `app`**, et ce n'est pas une commodité : les versions
     /// déjà installées ne l'envoient pas et ne le pourront jamais
     /// rétroactivement. Un défaut à `web` les casserait toutes le jour du
     /// déploiement. Le site, lui, est mis à jour d'un coup et peut l'envoyer.
+    ///
+    /// `webapp` et non `web` : c'est déjà le nom du dépôt et celui du Services
+    /// ID d'Apple, et un nom qui traverse trois dépôts vaut mieux unique.
     #[serde(default)]
     origine: Origine,
 }

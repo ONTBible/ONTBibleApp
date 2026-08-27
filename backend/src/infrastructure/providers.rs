@@ -137,7 +137,7 @@ impl HttpIdentityProvider {
         // application, et celle de l'app la prend.
         let credentials = match origine {
             Origine::App => self.config.github.as_ref(),
-            Origine::Web => self.config.github_web.as_ref(),
+            Origine::Webapp => self.config.github_web.as_ref(),
         }
         .ok_or(DomainError::ProviderNotConfigured)?;
 
@@ -244,7 +244,7 @@ impl HttpIdentityProvider {
         // chercherait la faute chez lui.
         let identite = match origine {
             Origine::App => credentials.client_id.as_str(),
-            Origine::Web => credentials
+            Origine::Webapp => credentials
                 .services_id
                 .as_deref()
                 .ok_or(DomainError::ProviderNotConfigured)?,
@@ -260,7 +260,7 @@ impl HttpIdentityProvider {
         // Et `redirect_uri` suit le même partage : le flux natif n'a jamais
         // redirigé, donc l'envoyer serait mentir ; le flux navigateur l'exige,
         // et Apple le compare à ce qui est déclaré sous le Services ID.
-        if origine == Origine::Web {
+        if origine == Origine::Webapp {
             form.push(("redirect_uri", redirect_uri));
         }
 
@@ -398,7 +398,7 @@ mod tests {
         let providers = HttpIdentityProvider::new(sans_identifiants());
 
         for fournisseur in [Provider::Github, Provider::Google, Provider::Apple] {
-            for origine in [Origine::App, Origine::Web] {
+            for origine in [Origine::App, Origine::Webapp] {
                 let erreur = providers
                     .exchange(
                         fournisseur,
@@ -457,7 +457,7 @@ mod tests {
             let erreur = providers
                 .exchange(
                     fournisseur,
-                    Origine::Web,
+                    Origine::Webapp,
                     "un-code",
                     "https://ontbible.com/fr/compte/retour",
                     None,
