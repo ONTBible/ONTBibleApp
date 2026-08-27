@@ -27,12 +27,34 @@ public final class AccountModel {
     private let store: any SessionStore
     private let highlights: any HighlightRepository
     private let positions: any PositionRepository
+    private let profils: any ProfilRepository
     private let flow: SignInFlow
     private let reporter: any Reporter
 
     public private(set) var state: State = .signedOut
     public private(set) var lastSync: Date?
     public private(set) var syncing = false
+
+    /// Ce que le lecteur dit de lui — privé aujourd'hui, profil du Qahal
+    /// demain.
+    ///
+    /// Doublé en mémoire pour que SwiftUI voie le changement, comme les
+    /// réglages de lecture : le dépôt persiste, cette propriété notifie.
+    public var profil: Profil {
+        didSet { profils.profil = profil }
+    }
+
+    /// Les octets du portrait, relus du disque.
+    ///
+    /// Une fonction et non une propriété : c'est une lecture de fichier, et une
+    /// propriété laisserait croire qu'elle ne coûte rien.
+    public func portrait() -> Data? { profils.portrait() }
+
+    /// Enregistre un portrait et l'attache au profil.
+    public func poserLePortrait(_ donnees: Data) {
+        guard let nom = try? profils.enregistrerLePortrait(donnees) else { return }
+        profil.portrait = nom
+    }
 
     /// Le consentement à la synchronisation, distinct du fait d'avoir un compte.
     public var consent: Bool {
@@ -49,6 +71,7 @@ public final class AccountModel {
         store: any SessionStore,
         highlights: any HighlightRepository,
         positions: any PositionRepository,
+        profils: any ProfilRepository,
         flow: SignInFlow,
         reporter: any Reporter = SilentReporter()
     ) {
@@ -57,8 +80,10 @@ public final class AccountModel {
         self.store = store
         self.highlights = highlights
         self.positions = positions
+        self.profils = profils
         self.flow = flow
         self.reporter = reporter
+        profil = profils.profil
         state = store.session == nil ? .signedOut : .signedIn
     }
 
@@ -113,6 +138,15 @@ public final class AccountModel {
             try await sync.erase()
             store.session = nil
             store.consent = .none
+            // **Le profil part avec le compte.** Il n'a de sens qu'attaché à
+            // lui — c'est ce qui deviendra visible au Qahal —, et le garder
+            // après un effacement laisserait sur l'appareil un portrait et un
+            // nom que le lecteur croit avoir supprimés.
+            //
+            // Une simple déconnexion, elle, le laisse : on se reconnecte, et
+            // ressaisir son nom à chaque fois n'aurait aucun sens.
+            profils.oublier()
+            profil = Profil()
             state = .signedOut
         } catch {
             state = .failed(error.localizedDescription)
