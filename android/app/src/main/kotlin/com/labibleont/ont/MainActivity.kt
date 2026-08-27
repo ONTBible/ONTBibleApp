@@ -660,6 +660,10 @@ private fun Racine(
                             peutAllerAvant = lecture.precedente() != null,
                             peutAllerApres = lecture.suivante() != null,
                             uniteCourante = chapitre.id,
+                            // Le numéro montré dans le creux, comme sur iOS :
+                            // il dit **où l'on va** avant d'y aller.
+                            numeroAvant = lecture.precedente()?.n,
+                            numeroApres = lecture.suivante()?.n,
                             onAvant = { lecture.precedente()?.let { lecture.aller(it) } },
                             onApres = { lecture.suivante()?.let { lecture.aller(it) } },
                         ) {
