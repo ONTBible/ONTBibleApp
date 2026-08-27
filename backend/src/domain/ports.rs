@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use super::diffusion::{Annonce, Appareil};
 use super::sync::{Highlight, Position};
 use super::token::UserId;
-use super::{DomainError, ExternalIdentity, Provider};
+use super::{DomainError, ExternalIdentity, Origine, Provider};
 
 /// Échange un code d'autorisation contre une identité.
 ///
@@ -21,6 +21,7 @@ pub trait IdentityProvider: Send + Sync {
     async fn exchange(
         &self,
         provider: Provider,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,

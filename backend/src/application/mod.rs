@@ -9,7 +9,7 @@ use crate::domain::ports::{
 };
 use crate::domain::sync::{resolve, PullResponse, PushRequest};
 use crate::domain::token::{RefreshToken, TokenIssuer, UserId, REFRESH_TTL};
-use crate::domain::{DomainError, Provider};
+use crate::domain::{DomainError, Origine, Provider};
 
 /// Ce qu'une connexion réussie rend au client.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -49,13 +49,14 @@ impl App {
     pub async fn sign_in(
         &self,
         provider: Provider,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<Session, DomainError> {
         let identity = self
             .identity
-            .exchange(provider, code, redirect_uri, verifier)
+            .exchange(provider, origine, code, redirect_uri, verifier)
             .await?;
 
         let (user, created) = match self.users.find_by_identity(&identity).await? {

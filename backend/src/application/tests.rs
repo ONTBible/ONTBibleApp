@@ -25,6 +25,7 @@ impl IdentityProvider for FakeProvider {
     async fn exchange(
         &self,
         _provider: Provider,
+        _origine: Origine,
         _code: &str,
         _redirect_uri: &str,
         _verifier: Option<&str>,
@@ -203,7 +204,7 @@ async fn une_premiere_connexion_cree_le_compte() {
     let (app, _, _) = app(true);
 
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -216,11 +217,11 @@ async fn une_seconde_connexion_retrouve_le_meme_compte() {
     let (app, _, _) = app(true);
 
     let first = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
     let second = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -237,7 +238,7 @@ async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
     let (app, users, _) = app(false);
 
     assert!(app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .is_err());
     assert!(users.identities.lock().unwrap().is_empty());
@@ -251,7 +252,7 @@ async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
 async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
     let (app, _, _) = app(true);
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -265,7 +266,7 @@ async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
 async fn un_jeton_de_rafraichissement_ne_sert_qu_une_fois() {
     let (app, _, _) = app(true);
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 

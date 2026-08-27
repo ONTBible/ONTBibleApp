@@ -7,6 +7,45 @@ pub mod token;
 
 use serde::{Deserialize, Serialize};
 
+/// D'où vient le code d'autorisation : de l'app ou d'un navigateur.
+///
+/// **Ce n'est pas une préférence, c'est une identité différente chez le
+/// fournisseur.** Un code obtenu par `ASAuthorizationController` a été accordé
+/// à l'**App ID** ; un code obtenu dans un navigateur l'a été au **Services
+/// ID**. Présenter l'un pour l'autre à l'échange rend `invalid_grant` — Apple
+/// le dit noir sur blanc, et l'inverse est vrai aussi.
+///
+/// GitHub pousse plus loin : son portail n'admet qu'une seule adresse de
+/// retour par application, prise par l'app. Le site exige donc une **seconde
+/// application**, donc un second identifiant *et* un second secret.
+///
+/// Google seul ignore la distinction : son client est de type « application
+/// web » et sert les deux, une adresse de retour de plus suffisant. C'est
+/// pourquoi il a été branché en premier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Origine {
+    /// L'app iOS ou Android, par l'interface système du fournisseur.
+    ///
+    /// **C'est le défaut, et ça n'est pas arbitraire** : les versions de l'app
+    /// déjà installées n'envoient pas ce champ et ne le pourront jamais
+    /// rétroactivement. Un défaut qui vaudrait `Web` les casserait toutes le
+    /// jour du déploiement.
+    #[default]
+    App,
+    /// `ontbible.com`, par redirection de navigateur.
+    Web,
+}
+
+impl Origine {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::App => "app",
+            Self::Web => "web",
+        }
+    }
+}
+
 /// Les fournisseurs d'identité acceptés.
 ///
 /// « Sign in with Apple » figure en premier parce que la revue App Store
