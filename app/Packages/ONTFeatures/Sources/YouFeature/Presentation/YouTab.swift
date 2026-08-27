@@ -28,6 +28,11 @@ public struct YouTab: View {
         self.onParutions = onParutions
     }
 
+    /// Ce qui est **montrable** : les pierres tombales n'en sont pas.
+    private var nombreDeSurlignages: Int {
+        reading.surlignagesParLivre().reduce(0) { $0 + $1.surlignages.count }
+    }
+
     public var body: some View {
         @Bindable var reading = reading
 
@@ -62,6 +67,20 @@ public struct YouTab: View {
                         ReadingSettingsSheet()
                     } label: {
                         Label("Réglages de lecture", systemImage: "textformat.size")
+                    }
+                    // **Ce que le lecteur a marqué lui appartient**, et c'était
+                    // jusqu'ici la seule chose de l'app qu'il ne pouvait pas
+                    // revoir : les surlignages n'existaient que là où ils
+                    // avaient été posés, un verset à la fois, dans un chapitre
+                    // qu'il fallait retrouver de mémoire.
+                    NavigationLink {
+                        MesSurlignages()
+                    } label: {
+                        LabeledContent {
+                            Text("\(nombreDeSurlignages)").monospacedDigit()
+                        } label: {
+                            Label("Surlignages", systemImage: "highlighter")
+                        }
                     }
                 }
                 .ontRow()
