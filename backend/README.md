@@ -84,11 +84,19 @@ même clé de signature.
 **Et c'est pourquoi Google a été branché en premier** : il ne distingue rien,
 son client étant déjà de type « Application Web ». Aucun dépôt à toucher.
 
-Les variables à poser dans la Lambda, en plus de celles de l'app :
+Les variables à poser, en plus de celles de l'app. **Elles vivent dans
+`terraform/main.tf`**, pas dans une commande : l'environnement de la Lambda est
+décrit là, et un `aws lambda update-function-configuration` serait effacé au
+prochain `apply`.
 
     APPLE_SERVICES_ID          com.labibleont.ont.webapp
-    GITHUB_WEB_CLIENT_ID       (seconde application GitHub)
+    GITHUB_WEB_CLIENT_ID       (seconde application GitHub — à créer)
     GITHUB_WEB_CLIENT_SECRET   (son secret)
+
+Elles se posent dans `oauth.env`, que `scripts/deployer-backend.sh` source. La
+marche à suivre des portails est dans `../docs/comptes-oauth.md`, §3 bis et
+§3 ter — **la création de la seconde application GitHub est la seule étape que
+rien n'automatise**, GitHub n'exposant aucune API pour créer une OAuth App.
 
 **Une identité manquante se dit.** Sans elle, la route rend
 `ProviderNotConfigured` — 503, « fournisseur non configuré » — et non un refus.

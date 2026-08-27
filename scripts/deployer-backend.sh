@@ -154,6 +154,12 @@ export TF_VAR_apns_sandbox_private_key="$([ -n "${APNS_SANDBOX_KEY_PATH:-}" ] &&
 export TF_VAR_secret_diffusion="${SECRET_DIFFUSION:-}"
 export TF_VAR_github_client_id="$GITHUB_CLIENT_ID"
 export TF_VAR_github_client_secret="$GITHUB_CLIENT_SECRET"
+# Les identités du site. Facultatives — tant qu'elles manquent, le backend dit
+# « fournisseur non configuré » au lieu de présenter la mauvaise identité et de
+# recevoir un `invalid_grant` qu'on chercherait chez le site.
+export TF_VAR_apple_services_id="${APPLE_SERVICES_ID:-}"
+export TF_VAR_github_web_client_id="${GITHUB_WEB_CLIENT_ID:-}"
+export TF_VAR_github_web_client_secret="${GITHUB_WEB_CLIENT_SECRET:-}"
 
 terraform apply -auto-approve -no-color | tail -3
 
