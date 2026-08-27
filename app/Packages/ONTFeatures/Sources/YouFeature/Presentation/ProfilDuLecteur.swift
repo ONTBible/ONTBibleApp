@@ -37,6 +37,15 @@ struct EnTeteDuProfil: View {
                             .foregroundStyle(theme.accent)
                     }
 
+                    // L'arobase sous le nom, en accent : c'est un identifiant,
+                    // pas une description, et rien d'autre sur cet écran n'en
+                    // est un.
+                    if let arobase = account.profil.arobase {
+                        Text(arobase)
+                            .font(.subheadline)
+                            .foregroundStyle(theme.accent)
+                    }
+
                     let bio = account.profil.bio.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !bio.isEmpty {
                         Text(bio)
@@ -134,17 +143,62 @@ struct EditeurDuProfil: View {
             }
             .ontRow()
 
+            Section {
+                HStack(spacing: 2) {
+                    // **L'arobase est dessinée, pas tapée.** Elle appartient à
+                    // l'affichage et non à la donnée : la laisser dans le champ
+                    // ferait qu'un jour quelqu'un enregistrerait `@@gloiiire_`.
+                    Text("@")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    TextField("nomdusage", text: $account.profil.nomDUsage)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("profil.nomDUsage")
+                        .accessibilityLabel("Nom d'usage")
+                        .onChange(of: account.profil.nomDUsage) { _, saisie in
+                            // **Replié à la frappe, pas à la validation.**
+                            // Refuser après coup un nom qu'on vient de taper en
+                            // entier oblige à tout reprendre ; l'écarter au
+                            // moment où il s'écrit fait sentir la règle sans
+                            // jamais l'énoncer.
+                            let replie = NomDUsage.replier(saisie)
+                            if replie != saisie { account.profil.nomDUsage = replie }
+                        }
+                }
+            } header: {
+                Text("Nom d'usage")
+            } footer: {
+                // Le reproche ne paraît que s'il y a quelque chose à reprocher,
+                // et il nomme ce qui manque — jamais la règle entière.
+                if let reproche = NomDUsage.reproche(account.profil.nomDUsage) {
+                    Text(reproche).foregroundStyle(.red)
+                } else {
+                    Text("Ce par quoi les autres lecteurs vous nommeront, au Qahal.")
+                }
+            }
+            .ontRow()
+
             Section("Nom") {
+                // **Un identifiant stable, et non l'invite.**
+                //
+                // L'invite disparaît dès que le champ est rempli : un relevé
+                // qui la cherche trouve le champ vide et le perd rempli. C'est
+                // ce qui a fait échouer le test d'interface, et ça vaudrait
+                // pour n'importe quel outil d'automatisation.
                 TextField("Prénom", text: $account.profil.prenom)
                     .textContentType(.givenName)
+                    .accessibilityIdentifier("profil.prenom")
                 TextField("Nom", text: $account.profil.nom)
                     .textContentType(.familyName)
+                    .accessibilityIdentifier("profil.nom")
             }
             .ontRow()
 
             Section {
                 TextField("Quelques mots sur vous", text: $account.profil.bio, axis: .vertical)
                     .lineLimit(3...6)
+                    .accessibilityIdentifier("profil.bio")
                     .onChange(of: account.profil.bio) { _, nouvelle in
                         // La borne est appliquée à la frappe et non au
                         // départ : un texte qu'on tape et qui disparaît en

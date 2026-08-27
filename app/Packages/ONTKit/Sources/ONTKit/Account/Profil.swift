@@ -22,6 +22,12 @@ import Foundation
 /// données que rien ne justifie — c'est la même règle qui interdit au serveur
 /// de garder le texte des surlignages.
 public struct Profil: Codable, Hashable, Sendable {
+    /// Le nom d'usage, sans son `@` — `gloiiire_`.
+    ///
+    /// **Le seul champ du profil qui soit un identifiant** : les autres
+    /// décrivent, celui-ci désigne. C'est par lui qu'un lecteur en nommera un
+    /// autre le jour où le Qahal ouvrira. Ses règles vivent dans `NomDUsage`.
+    public var nomDUsage: String
     public var prenom: String
     public var nom: String
     /// Quelques lignes, libres.
@@ -34,7 +40,11 @@ public struct Profil: Codable, Hashable, Sendable {
     /// réglage. Le portrait vit à côté ; ceci n'en garde que l'adresse.
     public var portrait: String?
 
-    public init(prenom: String = "", nom: String = "", bio: String = "", portrait: String? = nil) {
+    public init(
+        nomDUsage: String = "", prenom: String = "", nom: String = "", bio: String = "",
+        portrait: String? = nil
+    ) {
+        self.nomDUsage = nomDUsage
         self.prenom = prenom
         self.nom = nom
         self.bio = bio
@@ -64,8 +74,15 @@ public struct Profil: Codable, Hashable, Sendable {
     }
 
     /// Vrai quand rien n'a été rempli.
+    /// Le nom d'usage tel qu'on l'affiche, `@` compris — ou `nil` s'il n'y en a
+    /// pas. **Le `@` appartient à l'affichage, jamais à la donnée** : le garder
+    /// dans le champ ferait qu'un jour quelqu'un stockerait `@@gloiiire_`.
+    public var arobase: String? {
+        nomDUsage.isEmpty ? nil : "@\(nomDUsage)"
+    }
+
     public var estVide: Bool {
-        nomAffiche == nil && bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        nomDUsage.isEmpty && nomAffiche == nil && bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && portrait == nil
     }
 
@@ -76,6 +93,7 @@ public struct Profil: Codable, Hashable, Sendable {
     /// lecteur — surlignages compris — au premier lancement suivant.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        nomDUsage = try c.decodeIfPresent(String.self, forKey: .nomDUsage) ?? ""
         prenom = try c.decodeIfPresent(String.self, forKey: .prenom) ?? ""
         nom = try c.decodeIfPresent(String.self, forKey: .nom) ?? ""
         bio = try c.decodeIfPresent(String.self, forKey: .bio) ?? ""

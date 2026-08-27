@@ -13,6 +13,11 @@ final class ProfilTests: XCTestCase {
     }
 
     /// Vide un champ, quel que soit ce qu'il portait.
+    ///
+    /// **On le désigne par son identifiant, jamais par son invite** : l'invite
+    /// s'efface dès qu'il y a du texte, donc un relevé qui la cherche trouve le
+    /// champ vide et le perd rempli. C'est ce qui a fait échouer ce test au
+    /// second passage, alors qu'il avait passé au premier.
     private func vider(_ champ: XCUIElement) {
         champ.tap()
         guard let texte = champ.value as? String, !texte.isEmpty else { return }
@@ -38,14 +43,20 @@ final class ProfilTests: XCTestCase {
         // s'ajoute à ce que les essais précédents avaient laissé, et on relève
         // « GloireGloireGloire ». Un instrument qui accumule ne mesure pas deux
         // fois la même chose.
-        vider(app.textFields["Prénom"])
+        // Le nom d'usage se replie **à la frappe** : on tape ce qu'un lecteur
+        // taperait vraiment — avec son arobase d'habitude et une majuscule — et
+        // on vérifie ce qui reste.
+        vider(app.textFields["profil.nomDUsage"])
+        app.typeText("@Gloiiire_")
+
+        vider(app.textFields["profil.prenom"])
         app.typeText("Gloire")
-        vider(app.textFields["Nom"])
+        vider(app.textFields["profil.nom"])
         app.typeText("Bikouta")
         // Un `TextField(axis: .vertical)` reste un **champ de texte** pour
         // l'accessibilité, jamais une `TextView` : il grandit, il ne change pas
         // de nature.
-        vider(app.textFields["Quelques mots sur vous"])
+        vider(app.textFields["profil.bio"])
         app.typeText("Traducteur de l'ONT")
         Thread.sleep(forTimeInterval: 1)
 
@@ -59,9 +70,25 @@ final class ProfilTests: XCTestCase {
         vue.lifetime = .keepAlways
         add(vue)
 
+        // **On éprouve l'invariant, pas la fidélité du clavier.**
+        //
+        // Attendre « 19 / 280 » pour « Traducteur de l'ONT » a relevé « 27 » :
+        // la saisie automatique d'iOS complète et corrige, et ce que le champ
+        // porte n'est pas toujours ce qu'on a tapé. Le test mesurait donc le
+        // clavier du simulateur au lieu du lien entre le champ et son
+        // décompte — et il aurait rougi un jour pour un réglage de saisie.
+        let ecrit = (app.textFields["profil.bio"].value as? String) ?? ""
         XCTAssertTrue(
-            app.staticTexts["19 / 280"].waitForExistence(timeout: 3),
-            "le décompte de la bio ne suit pas la frappe — à l'écran : "
+            app.staticTexts["\(ecrit.count) / 280"].waitForExistence(timeout: 3),
+            "le décompte ne suit pas ce que le champ porte (\(ecrit.count) signes) "
+                + "— à l'écran : "
                 + "\(Array(app.staticTexts.allElementsBoundByIndex.map(\.label).prefix(20)))")
+
+        // Et le nom, lui, se relit tel qu'on l'a posé.
+        XCTAssertEqual(
+            app.textFields["profil.nomDUsage"].value as? String, "gloiiire_",
+            "le nom d'usage ne s'est pas replié à la frappe")
+        XCTAssertEqual(app.textFields["profil.prenom"].value as? String, "Gloire")
+        XCTAssertEqual(app.textFields["profil.nom"].value as? String, "Bikouta")
     }
 }
