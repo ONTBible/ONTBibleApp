@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -147,8 +148,27 @@ public fun GlissementDUnite(
                     val x = depart.position.x
                     if (x < bordSysteme || x > size.width - bordSysteme) return@awaitEachGesture
 
+                    // ## Ne prendre le geste qu'une fois la direction connue
+                    //
+                    // `horizontalDrag` ne guette aucun seuil : il happe le
+                    // premier mouvement venu, quel qu'il soit. Comme la suite
+                    // le consomme, un doigt qui montait pour faire défiler la
+                    // page était happé par le glissement de parashah et la
+                    // liste ne recevait plus rien — on ne pouvait plus lire.
+                    //
+                    // SwiftUI arbitre seul entre deux gestes concurrents.
+                    // Compose ne le fait pas : il faut attendre le seuil
+                    // **horizontal**, et rendre la main si le doigt part
+                    // ailleurs. `awaitHorizontalTouchSlopOrCancellation` rend
+                    // `null` quand le geste est annulé — parce que le doigt
+                    // s'est levé, ou parce que le défilement a gagné.
                     var cumul = 0f
-                    horizontalDrag(depart.id) { evenement ->
+                    val franchi = awaitHorizontalTouchSlopOrCancellation(depart.id) { evenement, depuis ->
+                        cumul += depuis
+                        evenement.consume()
+                    } ?: return@awaitEachGesture
+
+                    horizontalDrag(franchi.id) { evenement ->
                         cumul += evenement.positionChange().x
                         val sens = sign(cumul)
                         val ecart = abs(cumul)
