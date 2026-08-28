@@ -54,7 +54,21 @@ android {
         minSdk = 26
         targetSdk = 36
 
-        versionCode = 1
+        // ## Le numéro de version ne redescend jamais
+        //
+        // Play refuse un `versionCode` déjà téléversé, **définitivement** — y
+        // compris celui d'une release de test supprimée. Le 1 a été consommé
+        // le 27 août 2026 par la première release de test interne ; il est
+        // brûlé pour toujours.
+        //
+        // À monter donc avant chaque téléversement, sans quoi la livraison
+        // échoue sur « Version code 1 has already been used » — un message
+        // qu'on cherche du côté de l'authentification quand on ne connaît pas
+        // la règle.
+        //
+        // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
+        // ne l'oblige à suivre le compteur.
+        versionCode = 2
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
