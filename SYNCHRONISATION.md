@@ -1395,6 +1395,57 @@ mesure la chose qu'on nomme.** Quand une correction sans rapport déplace une
 mesure qu'elle ne devait pas toucher, ce n'est pas du bruit — c'est que la
 mesure portait sur autre chose.
 
+#### La publication sur Play, et deux manières pour un cache de mentir
+
+L'app est en test interne sur le Play Store, installée depuis le Store et
+signée par Google. La chaîne complète a été éprouvée bout en bout : un lien
+`ontbible.com` ouvre l'app, affiche l'unité, et désigne les versets demandés.
+
+Deux défauts sont tombés en chemin, et aucun n'était dans notre code.
+
+**L'empreinte recopiée depuis la mauvaise source.** La page de signature de la
+Play Console affiche désormais **deux** certificats côte à côte — la clé
+classique et une clé post-quantique — avec deux boutons au libellé identique.
+C'est le second qui a été copié, et la valeur est partie au site.
+
+Rien n'aurait cassé : `assetlinks.json` aurait été servi, bien formé, avec une
+empreinte inutile, et les liens auraient continué de partir au navigateur sans
+qu'aucun message ne dise pourquoi.
+
+Ce qui l'a rattrapée, c'est d'avoir tiré l'APK du téléphone et recalculé le
+condensat — `apksigner --print-certs` sur l'objet réel plutôt que sur ce qu'une
+console en dit. **Onzième forme : la source faisait autorité et n'était pas la
+mesure.** La console n'a pas menti ; elle affichait deux valeurs, et rien dans
+la page ne dit laquelle Android va lire.
+
+La règle qui en sort vaut au-delà du cas : **quand une valeur décrit un objet
+qu'on peut interroger, on interroge l'objet.**
+
+**Puis le cache de Google, qui rend deux réponses contradictoires.** Le site
+déployé servait bien les deux empreintes, et la vérification échouait toujours.
+L'API publique de Google — `digitalassetlinks.googleapis.com` — n'en voyait
+qu'une : son infrastructure avait mis le fichier en cache avant le déploiement.
+
+Le champ `maxAge` de la réponse donne la durée de vie restante, et sert de
+signal : une valeur qui **remonte** signifie que Google est allé relire. Elle
+est passée de 37 minutes à une heure pleine, la seconde empreinte est apparue,
+et la vérification a rendu `verified`.
+
+Mais huit appels d'affilée depuis la même machine ont ensuite rendu quatre fois
+l'ancien contenu et quatre fois le nouveau. **Douzième forme : un même système
+rend deux réponses contradictoires au même instant**, chacune cohérente en
+elle-même, et l'on tombe sur l'une ou l'autre au hasard.
+
+Elle est la plus retorse de la série parce qu'elle prend à contre-pied tout ce
+qui précède. Les onze premières se corrigent en mesurant ; celle-ci punit qui
+mesure **une seule fois** — un appel rend une réponse complète, plausible, sans
+erreur. Rien n'invite à en faire un second quand le premier répond ce qu'on
+espérait, et c'est exactement à ce moment-là qu'il le faut.
+
+Conséquence pratique, écrite pour le jour où un testeur le signale : pendant la
+propagation, deux appareils peuvent obtenir des résultats opposés avec un
+fichier irréprochable. Ce n'est pas une régression, et ça se règle seul.
+
 #### Ce que le téléphone a confirmé par ailleurs
 
 Démarrage à froid en **196 ms**. Ouverture animée mesurée au film à **5,8 s**
