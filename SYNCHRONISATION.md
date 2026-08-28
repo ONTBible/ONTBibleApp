@@ -1324,6 +1324,87 @@ la forme à viser.
 l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
 « Reprendre » qui l'affiche.
 
+### 28 août 2026 — la liseuse Android sur un vrai téléphone, et ce qu'il a montré
+
+Un Galaxy S20+ sous Android 13, branché pour la première fois. Trois défauts
+sont tombés en une heure qu'aucun émulateur n'avait signalés en deux jours.
+
+#### Le glissement mangeait le défilement
+
+« Je n'arrive plus à scroller, tous les mouvements sont attrapés par le swipe. »
+
+`horizontalDrag` de Compose ne guette **aucun seuil**. Appelé juste après
+`awaitFirstDown`, il happe le premier mouvement venu, quelle qu'en soit la
+direction — et comme la suite le consomme, un doigt qui montait pour lire était
+pris par le glissement de parashah.
+
+Ce que le portage avait laissé passer : **SwiftUI arbitre seul entre deux gestes
+concurrents.** `.simultaneousGesture` laisse le défilement et le glissement se
+disputer le doigt, et le système tranche. Compose ne fait rien de tel.
+
+C'est la même leçon que le suivi de lecture, sous une autre forme : ce qui se
+porte d'une plateforme à l'autre n'est pas le geste, c'est **ce dont il dépend**.
+iOS dépendait ici d'un arbitrage que le système lui rendait gratuitement, et qui
+n'existe pas en face. Un port qui recopie le geste sans le voir a l'air fidèle
+et ne l'est pas.
+
+#### Le défilement à 61 ms par image, et trois hypothèses fausses
+
+Mesuré à `dumpsys gfxinfo` : **85 % d'images en retard, 61 ms par image**, pour
+16 ms de budget à 60 Hz.
+
+J'ai soupçonné le suivi de lecture, qui écrit un état à chaque image — débranché,
+c'était pire. Puis `LineBreak.Paragraph`, la stratégie de haute qualité d'Android
+sur des sections immenses — aucun écart. Deux intuitions raisonnables et fausses,
+qui auraient chacune coûté un correctif inutile.
+
+Ce qui a tranché : `framestats`, qui horodate chaque étape d'une image. Mesure et
+placement **0,1 ms**, GPU 8 ms, **enregistrement des commandes de dessin 23 ms**.
+Tout était là, et aucune des trois intuitions ne l'aurait montré.
+
+La cause : le pointillé de sélection lisait la mise en page **dans la phase de
+dessin**, s'y abonnait, et `onTextLayout` la réécrivait à chaque passe. Chaque
+image, le dessin s'invalidait et réenregistrait les glyphes d'un texte haut de
+plusieurs écrans — **même sans aucune sélection**, où il n'avait rien à dessiner.
+
+Trois corrections, chacune mesurée : le texte mémorisé au lieu d'être rebâti à
+chaque recomposition, le modificateur recevant des valeurs plutôt que des
+lambdas, et le pointillé posé sur un `Canvas` **frère** du texte, avec son propre
+nœud de dessin. 61 ms → 16 ms.
+
+#### Une neuvième forme : le relevé optimiste sans qu'on le sache
+
+Les six premières portent sur un instrument qui se trompe, se tait, ou détruit ce
+qu'il mesure. La septième porte sur deux référentiels divergents, la huitième sur
+des mesures qui s'accumulent. Celle-ci est d'un genre de plus.
+
+Après le correctif du geste, le même protocole a rendu **754 images là où il en
+rendait 320**, et 10 ms au lieu de 16. Rétrospectivement, mes mesures de
+fluidité étaient prises sur un défilement **à moitié volé** : plus de la moitié
+du mouvement partait au glissement, et ce que j'appelais « le défilement » était
+en partie l'animation du feuillet.
+
+Le rapport 61 → 16 reste juste, parce que les deux états partageaient le même
+défaut. Mais **le nombre absolu ne mesurait pas ce que son nom disait.** Un
+instrument juste, un protocole stable, un écart réel — et une grandeur mal
+nommée. Il n'y avait aucun moyen de s'en apercevoir avant de corriger autre
+chose.
+
+La règle qui en sort : **un chiffre stable et reproductible ne garantit pas qu'on
+mesure la chose qu'on nomme.** Quand une correction sans rapport déplace une
+mesure qu'elle ne devait pas toucher, ce n'est pas du bruit — c'est que la
+mesure portait sur autre chose.
+
+#### Ce que le téléphone a confirmé par ailleurs
+
+Démarrage à froid en **196 ms**. Ouverture animée mesurée au film à **5,8 s**
+contre 5,5 s de construction. Aucun plantage sur l'APK de production avec R8.
+
+Et un faux défaut qui vaut d'être connu : le verset du jour différait entre le
+téléphone et l'émulateur. **L'horloge du Samsung était restée en 2025.** Rien à
+corriger — une app qui doit marcher sans réseau n'a pas d'autre source de date
+que l'appareil.
+
 ### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
 
 Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte
