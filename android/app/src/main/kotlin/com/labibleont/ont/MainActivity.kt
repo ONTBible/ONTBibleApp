@@ -660,6 +660,10 @@ private fun Racine(
                             peutAllerAvant = lecture.precedente() != null,
                             peutAllerApres = lecture.suivante() != null,
                             uniteCourante = chapitre.id,
+                            // Le numéro montré dans le creux, comme sur iOS :
+                            // il dit **où l'on va** avant d'y aller.
+                            numeroAvant = lecture.precedente()?.n,
+                            numeroApres = lecture.suivante()?.n,
                             onAvant = { lecture.precedente()?.let { lecture.aller(it) } },
                             onApres = { lecture.suivante()?.let { lecture.aller(it) } },
                         ) {
@@ -668,21 +672,30 @@ private fun Racine(
                             preferences = preferences,
                             selection = lecture.selection,
                             onVerset = { n ->
-                                // Désigner un verset entre en mode sélection,
-                                // ou l'étend. Deux vibrations distinctes : le
-                                // système réserve `LongPress` à l'entrée dans un
-                                // mode, et `TextHandleMove` au déplacement d'une
-                                // poignée de sélection de texte — ce qu'étendre
-                                // la sélection est exactement.
+                                // Désigner un verset ouvre le mode sélection,
+                                // l'étend, ou le referme. **Trois** sensations
+                                // distinctes, pas deux : le système réserve
+                                // `LongPress` à l'entrée dans un mode,
+                                // `TextHandleMove` au déplacement d'une poignée
+                                // de sélection de texte — ce qu'étendre la
+                                // sélection est exactement —, et `ToggleOff` à
+                                // ce qu'on éteint.
                                 //
-                                // Les distinguer permet de savoir, sans
-                                // regarder, si l'on vient d'ouvrir la barre ou
-                                // d'ajouter un verset de plus.
+                                // La troisième vient d'iOS, qui l'a posée avant
+                                // nous et pour une raison qui vaut ici :
+                                // **entrer dans un mode demande de l'attention,
+                                // en sortir rend la page.** Tant que fermer et
+                                // retirer un verset se sentaient pareil, c'était
+                                // le seul geste qu'on ne pouvait pas distinguer
+                                // sans regarder — or savoir sans regarder est
+                                // tout l'objet de ces vibrations.
+                                val dernier =
+                                    lecture.selection.size == 1 && n in lecture.selection
                                 haptique.performHapticFeedback(
-                                    if (lecture.selection.isEmpty()) {
-                                        HapticFeedbackType.LongPress
-                                    } else {
-                                        HapticFeedbackType.TextHandleMove
+                                    when {
+                                        lecture.selection.isEmpty() -> HapticFeedbackType.LongPress
+                                        dernier -> HapticFeedbackType.ToggleOff
+                                        else -> HapticFeedbackType.TextHandleMove
                                     },
                                 )
                                 lecture.basculer(n)

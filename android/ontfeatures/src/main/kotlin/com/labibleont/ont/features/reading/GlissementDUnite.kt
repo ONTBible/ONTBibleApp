@@ -5,7 +5,17 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -73,6 +83,10 @@ public fun GlissementDUnite(
     peutAllerAvant: Boolean,
     peutAllerApres: Boolean,
     uniteCourante: String?,
+    /** Le numéro de l'unité d'avant — montré dans le creux, comme sur iOS. */
+    numeroAvant: Int? = null,
+    /** Celui de l'unité d'après. */
+    numeroApres: Int? = null,
     onAvant: () -> Unit,
     onApres: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,8 +148,27 @@ public fun GlissementDUnite(
                     val x = depart.position.x
                     if (x < bordSysteme || x > size.width - bordSysteme) return@awaitEachGesture
 
+                    // ## Ne prendre le geste qu'une fois la direction connue
+                    //
+                    // `horizontalDrag` ne guette aucun seuil : il happe le
+                    // premier mouvement venu, quel qu'il soit. Comme la suite
+                    // le consomme, un doigt qui montait pour faire défiler la
+                    // page était happé par le glissement de parashah et la
+                    // liste ne recevait plus rien — on ne pouvait plus lire.
+                    //
+                    // SwiftUI arbitre seul entre deux gestes concurrents.
+                    // Compose ne le fait pas : il faut attendre le seuil
+                    // **horizontal**, et rendre la main si le doigt part
+                    // ailleurs. `awaitHorizontalTouchSlopOrCancellation` rend
+                    // `null` quand le geste est annulé — parce que le doigt
+                    // s'est levé, ou parce que le défilement a gagné.
                     var cumul = 0f
-                    horizontalDrag(depart.id) { evenement ->
+                    val franchi = awaitHorizontalTouchSlopOrCancellation(depart.id) { evenement, depuis ->
+                        cumul += depuis
+                        evenement.consume()
+                    } ?: return@awaitEachGesture
+
+                    horizontalDrag(franchi.id) { evenement ->
                         cumul += evenement.positionChange().x
                         val sens = sign(cumul)
                         val ecart = abs(cumul)
@@ -194,12 +227,25 @@ public fun GlissementDUnite(
                 }
             },
     ) {
+        // ## L'assombrissement, et pourquoi il **saute**
+        //
+        // iOS l'appelle la densité. Elle croît avec le geste — plus on tire,
+        // plus le dessous s'assombrit — puis saute à un quand le plafond est
+        // atteint. Ce saut n'est pas un ornement : c'est le signal, et le
+        // retour haptique tombe au même instant. L'œil et le doigt apprennent
+        // donc la même chose en même temps.
+        //
+        // Android faisait varier l'ombre avec le creux, sans le saut : le
+        // franchissement se sentait mais ne se voyait pas.
+        val avancement = if (seuil > 0f) min(abs(glisse.value) / seuil, 1f) else 0f
+        val noirceur = if (arme) 1f else 0.28f + 0.44f * avancement
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 // Ce que la page découvre en se creusant : le dessous, dans
                 // l'ombre. Le croquis n'a pas de zone vide.
-                .background(ONTColors.nuit.copy(alpha = 0.10f * min(creux.value / creuxMax, 1f))),
+                .background(ONTColors.nuit.copy(alpha = 0.10f * noirceur)),
         )
         Box(
             modifier = Modifier
@@ -208,6 +254,51 @@ public fun GlissementDUnite(
                 .background(ONTColors.background(com.labibleont.ont.designsystem.theme.LocalReadingTheme.current)),
         ) {
             contenu()
+        }
+
+        // ## Le numéro, dans le ventre
+        //
+        // À la hauteur où la page cède. C'est ce qui dit **où l'on va** avant
+        // d'y aller : sans lui, le geste promet un ailleurs sans le nommer.
+        //
+        // Ses teintes suivent la noirceur — l'encre du thème sur un
+        // soulèvement clair, du blanc sur un soulèvement noir, et tout
+        // l'entre-deux. Le lecteur ne voit pas un changement de couleur, il
+        // voit un numéro qui reste lisible au moment où il compte le plus :
+        // quand le geste est armé, et que le dessous est presque noir.
+        val numero = if (glisse.value < 0f) numeroApres else numeroAvant
+        if (creux.value > 1f && numero != null) {
+            val encre = ONTColors.ink(com.labibleont.ont.designsystem.theme.LocalReadingTheme.current)
+            val teinte = androidx.compose.ui.graphics.lerp(encre, Color.White, noirceur)
+            val sens = if (glisse.value < 0f) -1f else 1f
+            val x = (if (sens < 0f) taille.width.toFloat() else 0f) + sens * creux.value * 0.5f
+            Box(
+                modifier = Modifier
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            x.roundToInt(),
+                            (taille.height * CENTRE_DU_VENTRE).roundToInt(),
+                        )
+                    }
+                    .graphicsLayer {
+                        alpha = min(creux.value / 44f, 1f)
+                        translationX = -0.5f * size.width
+                        translationY = -0.5f * size.height
+                    }
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(teinte.copy(alpha = 0.14f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    "$numero",
+                    color = teinte.copy(alpha = 0.85f),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    // Chiffres tabulaires — le `monospacedDigit` d'iOS. Sans
+                    // eux la pastille tressaute en passant de 9 à 10.
+                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+                )
+            }
         }
     }
 }

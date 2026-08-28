@@ -42,7 +42,26 @@ import androidx.compose.runtime.Stable
 @Stable
 public class SuiviDeLecture {
 
-    /** Les bornes verticales de chaque verset, en coordonnées de la racine. */
+    /**
+     * Les bornes verticales de chaque verset, en coordonnées de la racine.
+     *
+     * ## Une carte ordinaire, et il faut que ça le reste
+     *
+     * Ni `mutableStateMapOf`, ni aucun état observable : rien ici ne doit
+     * déclencher de recomposition. [situer] est appelée à chaque mise en page
+     * de chaque bloc visible, c'est-à-dire très souvent pendant un défilement.
+     *
+     * Rendre cette carte observable coûterait une recomposition par entrée et
+     * par sortie de verset — le prix se paierait par image, sur le geste le
+     * plus courant de l'app. Le défilement vient tout juste d'être ramené à
+     * 10 ms par image ; ce serait le premier endroit où il repartirait.
+     *
+     * iOS a exactement la même fragilité, pour la même raison : son
+     * `SuiviDeLecture` est une classe ordinaire et non `@Observable`, et son
+     * calcul de parts — 0,27 ms pour trente versets — ne tourne aujourd'hui
+     * qu'à l'évaluation du corps. Le rendre observable les facturerait par
+     * image des deux côtés.
+     */
     private val bornes = sortedMapOf<Int, ClosedFloatingPointRange<Float>>()
 
     private var aDefile = false

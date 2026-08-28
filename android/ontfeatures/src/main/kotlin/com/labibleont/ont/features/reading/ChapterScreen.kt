@@ -13,6 +13,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextLayoutResult
 import com.labibleont.ont.designsystem.text.ONTTextRenderer
+import com.labibleont.ont.designsystem.text.pointille
 import com.labibleont.ont.designsystem.text.soulignerEnPointille
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
@@ -313,7 +315,7 @@ private fun BlocDeTexte(
         ) {
             // En prose continue, le bloc réuni ne contient qu'un enchaînement :
             // on le compose d'un seul tenant pour que les lignes se lient.
-            val pointille = ONTColors.accent(theme).copy(alpha = 0.8f)
+            val pointille2 = ONTColors.accent(theme).copy(alpha = 0.8f)
 
             // Quand la liste met ce bloc au rebut, ses versets quittent l'écran
             // sans que rien ne le dise : `onGloballyPositioned` cesse simplement
@@ -353,7 +355,24 @@ private fun BlocDeTexte(
                     }
                 }
 
-                val texte = androidx.compose.ui.text.buildAnnotatedString {
+                // ## Pourquoi ce texte est mémorisé
+                //
+                // Il était rebâti à **chaque recomposition**. En prose
+                // continue, un bloc est une section entière : des centaines de
+                // fragments, chacun avec son style, ses annotations de lien et
+                // son fond de surlignage. Reconstruire tout ça pendant un
+                // défilement mettait le fil d'interface à 250 ms par image,
+                // pour 16 ms cibles — le GPU, lui, était à 4 ms.
+                //
+                // Les clés sont exactement ce dont le texte dépend. `marques`
+                // en fait partie parce qu'un surlignage change les fonds sans
+                // changer le bloc : une liste de valeurs comparables suffit à
+                // le rendre visible, là où la lambda `marque` ne le serait pas.
+                val marques = bloc.verses.map { marque(it.n) }
+                val texte = remember(bloc, typo, preferences, selection, marques, theme) {
+                    plages.clear()
+                    ancres.clear()
+                    androidx.compose.ui.text.buildAnnotatedString {
                     for (verset in bloc.verses) {
                         val debut = length
                         append(
@@ -380,26 +399,38 @@ private fun BlocDeTexte(
                         // les deux modes.
                         append(" ")
                     }
+                    }
                 }
 
-                Text(
-                    texte,
-                    style = ONTProse.francaise.copy(lineHeight = interligne),
-                    onTextLayout = { mise = it },
-                    modifier = Modifier
-                        // `positionInRoot` et non `boundsInRoot` : le second
-                        // **rogne** aux limites visibles, si bien qu'un bloc à
-                        // moitié sorti par le haut se déclare au bord de la
-                        // fenêtre. Tous ses versets paraissaient alors visibles,
-                        // et le plus petit numéro gagnait — c'est-à-dire celui
-                        // qu'on venait justement de quitter.
-                        .onGloballyPositioned { hautDuTexte = it.positionInRoot().y }
-                        .soulignerEnPointille(
-                        layout = { mise },
-                        plages = { selection.mapNotNull { plages[it] } },
-                        couleur = pointille,
-                    ),
-                )
+                // Le texte et son pointillé sont **deux nœuds de dessin**.
+                //
+                // Posé sur la chaîne du `Text`, le pointillé partageait son
+                // nœud : l'invalider réenregistrait aussi les glyphes, et sur
+                // une section haute de plusieurs écrans ça coûtait 48 ms par
+                // image en défilant avec une sélection — pour 16 ms de budget.
+                // Un `Canvas` frère se redessine seul.
+                Box {
+                    Text(
+                        texte,
+                        style = ONTProse.francaise.copy(lineHeight = interligne),
+                        onTextLayout = { mise = it },
+                        modifier = Modifier
+                            // `positionInRoot` et non `boundsInRoot` : le
+                            // second **rogne** aux limites visibles, si bien
+                            // qu'un bloc à moitié sorti par le haut se déclare
+                            // au bord de la fenêtre. Tous ses versets
+                            // paraissaient alors visibles, et le plus petit
+                            // numéro gagnait — c'est-à-dire celui qu'on venait
+                            // justement de quitter.
+                            .onGloballyPositioned { hautDuTexte = it.positionInRoot().y },
+                    )
+                    if (selection.isNotEmpty()) {
+                        val aSouligner = selection.mapNotNull { plages[it] }
+                        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                            pointille(mise, aSouligner, pointille2)
+                        }
+                    }
+                }
             } else {
                 for (verset in bloc.verses) {
                     val estompe = selection.isNotEmpty() && verset.n !in selection
@@ -427,15 +458,13 @@ private fun BlocDeTexte(
                             // l'encre douce des gloses comprises.
                             .alpha(if (estompe) ONTColors.DIMMED_OPACITY else 1f)
                             .soulignerEnPointille(
-                                layout = { mise },
-                                plages = {
-                                    if (designe) {
-                                        listOf("${verset.n} ".length until texte.text.length)
-                                    } else {
-                                        emptyList()
-                                    }
+                                layout = mise,
+                                plages = if (designe) {
+                                    listOf("${verset.n} ".length until texte.text.length)
+                                } else {
+                                    emptyList()
                                 },
-                                couleur = pointille,
+                                couleur = pointille2,
                             )
                             .clickable { onVerset(verset.n) },
                     )
