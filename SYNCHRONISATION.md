@@ -1399,3 +1399,44 @@ coexistent donc pas sur un même verset, et un identifiant neuf sur un verset
 déjà marqué **écrase** au lieu d'ajouter. Un client qui apparierait par `id`
 croirait avoir deux marques là où le serveur n'en garde qu'une — et l'écart ne
 se verrait qu'après un aller-retour.
+
+### 28 août 2026 — une dixième forme : l'optimisation qu'on n'a pas mesurée
+
+La série des manières dont un relevé peut tromper s'est enrichie de deux
+entrées le même jour, et elles se ressemblent assez pour qu'on les confonde.
+
+**La neuvième**, trouvée côté Android : *quand une correction qui n'aurait pas
+dû toucher une mesure la déplace, ce n'est pas du bruit — c'est que la mesure
+portait sur autre chose.* Un défilement relevé à 320 images en a rendu 754
+après un correctif de geste sans rapport ; ce qu'on appelait « le défilement »
+était en partie l'animation d'un feuillet qui volait le doigt. L'instrument
+était juste, le protocole stable, l'écart réel. Seul le **nom** de la grandeur
+était faux.
+
+**La dixième**, trouvée côté iOS le même jour : *une optimisation qu'on n'a pas
+mesurée avant et après est une croyance.* `plainText()` construisait deux
+chaînes là où une suffit ; les fusionner devait rendre un gain net. Relevé :
+**4 %**, de 0,280 à 0,269 ms. Le coût était dans le parcours caractère par
+caractère, pas dans l'allocation qu'on croyait coupable.
+
+**Ce qui les rapproche** : dans les deux cas le chiffre est bon, le protocole
+tient, et c'est le récit autour qui est faux. On croit savoir *ce qu'on mesure*
+dans un cas, *pourquoi c'est rapide* dans l'autre.
+
+**Ce qui les sépare, et qui est la part utile** : la dixième se détecte en
+mesurant — il suffit de le faire des deux côtés du changement. La neuvième ne
+se détecte pas du tout. Il faut qu'une correction étrangère déplace le chiffre,
+et qu'on choisisse de s'en **étonner** plutôt que de s'en réjouir. C'est ce
+qu'on ne fait pas d'ordinaire quand un nombre s'améliore.
+
+**Et la conséquence pratique, prise des deux côtés** : garder dans un test la
+*mesure* plutôt que la *conclusion*. « C'est rapide » vieillit ; « 0,27 ms pour
+trente versets » est encore utile le jour où quelqu'un change la donne. Les
+deux liseuses portent maintenant un relevé de ce genre au même endroit — le
+calcul des ancres de position —, avec le prix écrit de ce qui le rendrait
+coûteux : rendre le suivi de lecture observable le facturerait à chaque image,
+sur le geste le plus courant de l'app.
+
+**Ce qui traverse** : rien de technique. C'est une manière de tenir les
+relevés, et elle vaut pour les trois dépôts — le vault mesure des corpus, le
+site des temps de rendu, l'app des images par seconde.
