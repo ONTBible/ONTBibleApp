@@ -90,3 +90,19 @@ public protocol PreferencesRepository: AnyObject {
 public protocol DailyVerseRepository: Sendable {
     func pool() -> [DailyVerse]
 }
+
+/// Le profil du lecteur.
+///
+/// Un port à part et non un champ des réglages : le profil se **supprime**
+/// avec le compte, là où les réglages de lecture survivent à une
+/// déconnexion. Les mêmes données dans le même dépôt finiraient par partir
+/// ensemble, ou par rester ensemble — et l'une des deux serait fausse.
+public protocol ProfilRepository: AnyObject {
+    var profil: Profil { get set }
+    /// Écrit le portrait et rend le nom du fichier.
+    func enregistrerLePortrait(_ donnees: Data) throws -> String
+    /// Les octets du portrait, ou `nil` s'il n'y en a pas.
+    func portrait() -> Data?
+    /// Tout effacer — appelé par l'effacement du compte.
+    func oublier()
+}

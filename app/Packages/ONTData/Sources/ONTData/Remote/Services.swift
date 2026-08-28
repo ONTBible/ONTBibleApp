@@ -96,15 +96,48 @@ private struct PositionDTO: Codable {
     }
 }
 
+/// Le profil sur le fil.
+///
+/// **`portrait` est une `Data` et non une chaîne** : `JSONEncoder` l'écrit en
+/// base64 et `JSONDecoder` la relit, ce qui est exactement ce que le serveur
+/// range. L'écrire à la main serait une occasion de se tromper d'encodage.
+private struct ProfilDTO: Codable {
+    let nomDusage: String
+    let prenom: String
+    let nom: String
+    let bio: String
+    let portrait: Data?
+    let updatedAt: Int64
+
+    init(_ profil: ProfilEnVol) {
+        nomDusage = profil.nomDUsage
+        prenom = profil.prenom
+        nom = profil.nom
+        bio = profil.bio
+        portrait = profil.portrait
+        updatedAt = Int64(profil.updatedAt.timeIntervalSince1970 * 1000)
+    }
+
+    var domain: ProfilEnVol {
+        ProfilEnVol(
+            nomDUsage: nomDusage, prenom: prenom, nom: nom, bio: bio, portrait: portrait,
+            updatedAt: Date(timeIntervalSince1970: Double(updatedAt) / 1000))
+    }
+}
+
 private struct PullDTO: Decodable {
     let highlights: [HighlightDTO]
     let position: PositionDTO?
     let serverTime: Int64
+    /// Absent d'un serveur qui ne connaît pas encore le profil — l'app arrive
+    /// toujours avant lui, `deployer-backend.yml` ne partant que de `main`.
+    let profil: ProfilDTO?
 }
 
 private struct PushDTO: Encodable {
     let highlights: [HighlightDTO]
     let position: PositionDTO?
+    let profil: ProfilDTO?
 }
 
 // MARK: - Authentification
@@ -203,7 +236,8 @@ public struct HTTPSyncService: SyncService {
         return SyncPayload(
             highlights: dto.highlights.compactMap(\.domain),
             position: dto.position?.domain,
-            serverTime: Date(timeIntervalSince1970: Double(dto.serverTime) / 1000)
+            serverTime: Date(timeIntervalSince1970: Double(dto.serverTime) / 1000),
+            profil: dto.profil?.domain
         )
     }
 
@@ -213,7 +247,8 @@ public struct HTTPSyncService: SyncService {
             "sync",
             body: PushDTO(
                 highlights: payload.highlights.map(HighlightDTO.init),
-                position: payload.position.map(PositionDTO.init)
+                position: payload.position.map(PositionDTO.init),
+                profil: payload.profil.map(ProfilDTO.init)
             )
         )
     }

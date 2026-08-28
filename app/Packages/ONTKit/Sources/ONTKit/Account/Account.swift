@@ -75,15 +75,19 @@ public struct SyncPayload: Sendable {
     public var position: ReadingPosition?
     /// L'horodatage du serveur, à renvoyer au prochain appel incrémental.
     public var serverTime: Date?
+    /// Ce que le lecteur dit de lui.
+    public var profil: ProfilEnVol?
 
     public init(
         highlights: [Highlight] = [],
         position: ReadingPosition? = nil,
-        serverTime: Date? = nil
+        serverTime: Date? = nil,
+        profil: ProfilEnVol? = nil
     ) {
         self.highlights = highlights
         self.position = position
         self.serverTime = serverTime
+        self.profil = profil
     }
 }
 

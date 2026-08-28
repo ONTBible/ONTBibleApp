@@ -187,6 +187,9 @@ final class Composition {
         self.lexiqueSurDisque = glossary
         let index = BundleSearchIndex()
         let store = FileReaderStore()
+        // Un fichier à part : le profil se supprime avec le compte, les
+        // réglages de lecture survivent à une déconnexion.
+        let profils = FileProfilStore()
 
         reading = ReadingModel(
             corpus: corpus,
@@ -269,6 +272,7 @@ final class Composition {
             store: sessions,
             highlights: store,
             positions: store,
+            profils: profils,
             flow: SignInFlow(baseURL: baseURL),
             reporter: reporter
         )
