@@ -162,16 +162,27 @@ private struct VerseOfTheDayCard: View {
         }
     }
 
-    private var shareText: String {
-        // `plainText()` replie déjà ses espaces — et mieux : il respecte les
-        // retours à la ligne et la ponctuation française, là où ce `{2,}`
-        // écrasait tout. Le garder ferait croire que la question est encore
-        // ouverte ici.
-        let body = verse.nodes.plainText()
-        return """
-            \(body)
+    /// Les réglages viennent du **thème**, et non d'un modèle de lecture.
+    ///
+    /// `ONTTheme` porte déjà les préférences et traverse tout l'écran ;
+    /// importer `ReadingFeature` ici pour cinq booléens créerait une
+    /// dépendance entre deux features qui n'ont rien d'autre à se dire.
+    private var reglages: ReglagesDePartage { theme.preferences.partage }
 
-            — \(chapter.title):\(verse.n), La Bible ONT
-            """
+    /// **Le même compositeur que la liseuse**, et donc les mêmes réglages.
+    ///
+    /// Cette carte écrivait sa propre forme, en dur. Deux endroits qui
+    /// composent un partage finissent par n'en avoir qu'un seul de juste : les
+    /// bascules auraient valu pour un passage lu et pas pour le verset du jour,
+    /// et personne n'aurait su pourquoi.
+    ///
+    /// `plainText()` replie déjà ses espaces — retours à la ligne préservés,
+    /// ponctuation française respectée.
+    private var shareText: String {
+        Partage.composer(
+            [Partage.Morceau(numero: verse.n, texte: verse.nodes.plainText())],
+            reference: "\(chapter.title):\(verse.n)",
+            reglages: reglages
+        )
     }
 }
