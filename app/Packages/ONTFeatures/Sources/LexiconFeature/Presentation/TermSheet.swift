@@ -90,14 +90,28 @@ public struct TermSheet: View {
             // toujours.
             .ontRow()
 
-            if let definition = entry.definition {
-                Section("Ce qu'il signifie") {
+            Section("Ce qu'il signifie") {
+                if entry.sansDefinition {
+                    // **Le silence était pire que l'aveu.** Sans cette section,
+                    // l'écran passait de l'en-tête aux repères sans rien entre
+                    // les deux : il avait l'air complet, et le lecteur pouvait
+                    // croire que c'était tout ce qu'il y avait à dire du mot.
+                    //
+                    // La phrase dit ce qui manque **et** ce qui reste vrai : le
+                    // terme est bien de l'ONT, il est bien balisé, seule sa
+                    // fiche n'est pas écrite.
+                    Text(
+                        "Ce terme est balisé dans le texte, mais sa définition "
+                            + "n'est pas encore écrite."
+                    )
+                    .foregroundStyle(.secondary)
+                } else if let definition = entry.definition {
                     ForEach(Array(definition.enumerated()), id: \.offset) { _, block in
                         BlocDeFiche(block: block)
                     }
                 }
-                .ontRow()
             }
+            .ontRow()
 
             if let note = entry.taggingNote {
                 Section("Règle de balisage") {
@@ -201,7 +215,7 @@ private struct BlocDeFiche: View {
     var body: some View {
         switch block {
         case .paragraph(let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .lineSpacing(4)
 
         case .heading(let level, let nodes):
@@ -210,7 +224,7 @@ private struct BlocDeFiche: View {
             // donner une taille de titre le ferait rivaliser avec « Ce qu'il
             // signifie », qui le contient. Deux tailles suffisent, et la
             // seconde n'est qu'une nuance.
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .font(level <= 2 ? .subheadline.weight(.semibold) : .footnote.weight(.semibold))
                 .foregroundStyle(theme.accent)
                 .padding(.top, 6)
@@ -225,13 +239,13 @@ private struct BlocDeFiche: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("·").foregroundStyle(theme.accent)
-                        Text(ONTTextRenderer.compose(item, theme: theme))
+                        Text(ONTTextRenderer.composeFiche(item, theme: theme))
                     }
                 }
             }
 
         case .quote(let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .italic()
                 .padding(.leading, 10)
                 .overlay(alignment: .leading) {
