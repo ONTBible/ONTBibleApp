@@ -153,6 +153,41 @@ struct ThemeContrastTests {
         #expect(mesure >= 3, "\(theme.label) : accent sur surface à \(arrondi(mesure)):1")
     }
 
+    /// La terre brûlée des **Shemot**, arrivée avec la couche des noms propres.
+    ///
+    /// **Au seuil du texte courant, 4,5 — pas les 3:1 de l'or.** Un
+    /// intraduisible est un mot qu'on repère et qu'on touche ; un Shem est un
+    /// nom qu'on **lit dans la phrase**, au même titre que ce qui l'entoure.
+    ///
+    /// Trois valeurs se sont succédé, et chacune tombait sur une mesure que la
+    /// précédente n'avait pas faite : `#A3704D` à 4,33 tenait ses écarts entre
+    /// marquages mais pas le fond ; `#AA7550` à 4,66 tenait AA mais était le
+    /// marquage le plus faible de l'écran.
+    @Test("le Shem se détache du fond", arguments: ReadingTheme.allCases)
+    func shemOnBackground(_ theme: ReadingTheme) {
+        let mesure = contraste(ONTColors.shem(theme), sur: ONTColors.background(theme))
+        #expect(mesure >= 4.5, "\(theme.label) : Shem à \(arrondi(mesure)):1, seuil AA 4,5:1")
+    }
+
+    /// **Et il se range au niveau du bordeaux, pas au minimum d'AA.**
+    ///
+    /// `ONTColors.accentuation` écrit du rose qu'il a été remonté à 6,1:1,
+    /// « au-delà du seuil AA » : le projet s'est donné un standard plus haut
+    /// qu'AA, écrit nulle part et tenu partout. Un marquage neuf qui se
+    /// contenterait de 4,5 serait le plus faible de l'écran — ce qui est
+    /// exactement ce qui a failli arriver.
+    @Test("le Shem tient le niveau du bordeaux", arguments: ReadingTheme.allCases)
+    func shemAuNiveauDuBordeaux(_ theme: ReadingTheme) {
+        let fond = ONTColors.background(theme)
+        let shem = contraste(ONTColors.shem(theme), sur: fond)
+        let bordeaux = contraste(ONTColors.accentuation(theme), sur: fond)
+        // Cinq pour cent de tolérance : on veut le même ordre de grandeur,
+        // pas une égalité que le moindre ajustement de teinte briserait.
+        #expect(
+            shem >= bordeaux * 0.95,
+            "\(theme.label) : Shem à \(arrondi(shem)):1 quand le bordeaux tient \(arrondi(bordeaux)):1")
+    }
+
     @Test("l'accentuation se détache du fond", arguments: ReadingTheme.allCases)
     func accentuationOnBackground(_ theme: ReadingTheme) {
         let mesure = contraste(ONTColors.accentuation(theme), sur: ONTColors.background(theme))

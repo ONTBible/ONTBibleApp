@@ -95,6 +95,42 @@ public enum ONTColors {
         }
     }
 
+    /// La terre brûlée des **Shemot** — les noms propres.
+    ///
+    /// Une troisième couche de marquage, à côté de l'or des intraduisibles et
+    /// du bordeaux de l'accentuation. Le choix de la teinte est celui de
+    /// l'auteur, parmi cinq candidats rendus sur *Bereshit* 4:17 dans les
+    /// quatre thèmes.
+    ///
+    /// **Un vieil or était impossible** : l'espace chaud est occupé. Bronze à
+    /// ΔE 11 de l'or, brun doré à 17, cuivre à 20 — le lecteur n'aurait plus
+    /// distingué un concept d'un nom.
+    ///
+    /// `#603518` le jour, remonté à teinte constante sur fond sombre comme le
+    /// bordeaux devient rose.
+    ///
+    /// **Trois valeurs se sont succédé, et chacune tombait sur une mesure que
+    /// la précédente n'avait pas faite** :
+    ///
+    ///     #A3704D   4,33:1   sous AA — mesuré contre les autres marquages,
+    ///                        jamais contre le fond
+    ///     #AA7550   4,66:1   au-dessus d'AA, mais le marquage le plus faible
+    ///                        du thème sombre — l'or y est à 9,8, le bordeaux
+    ///                        à 6,15
+    ///     #BA8C6C   6,17:1   ici. À hauteur du bordeaux, qui est le seuil que
+    ///                        ce projet s'est donné en le remontant lui-même
+    ///
+    /// Le commentaire de `accentuation` dit du rose qu'il tient « 6,1:1 sur le
+    /// fond — au-delà du seuil AA ». **Le projet a donc un standard plus haut
+    /// qu'AA**, écrit nulle part et tenu partout ; le Shem s'y range.
+    ///
+    /// `ContrastesTests` mesure maintenant tout ça au lieu de le commenter.
+    public static func shem(_ theme: ReadingTheme) -> Color {
+        theme.isDark
+            ? Color(red: 0.729, green: 0.549, blue: 0.424)
+            : Color(red: 0.376, green: 0.208, blue: 0.094)
+    }
+
     /// L'or lisible sur le fond du thème — sur parchemin l'or pur passe mal.
     public static func accent(_ theme: ReadingTheme) -> Color {
         theme.isDark ? gold : goldDeep

@@ -19,6 +19,16 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://term/\(lemma)")
     }
 
+    /// L'adresse d'un **Shem**.
+    ///
+    /// Un hôte distinct de `term` : les deux fiches vivent dans deux fichiers,
+    /// et une seule adresse pour deux populations ferait chercher un nom propre
+    /// dans le glossaire — où il n'est pas, et où la jointure échouerait sans
+    /// rien dire.
+    public static func shemURL(_ lemma: String) -> URL? {
+        URL(string: "\(termScheme)://shem/\(lemma)")
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -237,6 +247,13 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = termURL(lemma)
+                output += piece
+
+            case .shem(let value, let lemma):
+                var style = type.shem
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.link = shemURL(lemma)
                 output += piece
 
             case .hebrew(let value):

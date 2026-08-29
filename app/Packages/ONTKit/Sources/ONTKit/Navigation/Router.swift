@@ -73,6 +73,12 @@ public final class Router {
 
     /// Le lemme dont la fiche est soulevée par-dessus la lecture.
     public var openedLemma: LemmaSelection?
+    /// Le **Shem** qu'on vient de toucher.
+    ///
+    /// Distinct de `openedLemma`, comme les deux fiches le sont : une seule
+    /// propriété obligerait l'écran à deviner dans quel fichier chercher, et il
+    /// se tromperait pour tous les noms dont un intraduisible porte le lemme.
+    public var openedShem: LemmaSelection?
 
     /// Le verset à atteindre à l'ouverture d'une unité — posé par la
     /// recherche, consommé par la vue de lecture.
@@ -172,6 +178,11 @@ public final class Router {
         case "term":
             guard let lemma = parts.first else { return false }
             openedLemma = LemmaSelection(lemma)
+            return true
+
+        case "shem":
+            guard let lemma = parts.first else { return false }
+            openedShem = LemmaSelection(lemma)
             return true
 
         case "verse":
