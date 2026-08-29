@@ -25,7 +25,7 @@
 
 use std::fmt::Write;
 
-use super::{Decl, Enumeration, Modele, Structure, Type};
+use super::{Champ, Decl, Enumeration, Modele, Structure, Type};
 
 /// Les mots que Swift se réserve et qui paraissent dans ce schéma.
 ///
@@ -151,10 +151,102 @@ fn structure(sortie: &mut String, s: &Structure) {
     }
 
     // Le `Decodable` synthétisé suffit tant que les noms Swift **sont** les
-    // clés JSON. C'est le cas par construction : on nomme les propriétés
-    // d'après la clé, jamais d'après le nom Rust. Un `CodingKeys` de plus ne
-    // servirait qu'à répéter la même liste une seconde fois.
+    // clés JSON — c'est le cas par construction — **et** que toutes les clés
+    // sont présentes dans le fichier.
+    //
+    // La seconde condition tombe dès qu'un champ est escamotable. Swift traite
+    // un `Optional` comme un `decodeIfPresent`, donc les optionnels vont bien
+    // tout seuls ; mais un `[Group]` absent lève `keyNotFound`, et le
+    // synthétisé n'offre aucun moyen de dire « absent vaut `[]` ». Il faut
+    // alors écrire le décodeur — donc l'engendrer.
+    if s.champs.iter().any(escamotable_sans_optionnel) {
+        decodeur(sortie, s);
+    }
+
     let _ = writeln!(sortie, "    }}");
+}
+
+/// Un champ qui peut manquer **et** que `Optional` ne sauve pas.
+fn escamotable_sans_optionnel(champ: &Champ) -> bool {
+    champ.escamotable && !matches!(champ.type_, Type::Optionnel(_))
+}
+
+/// La valeur que prend un champ escamotable dont la clé manque.
+///
+/// # Panique
+///
+/// Sur un scalaire, pour la même raison que du côté Kotlin : `0` et `""` sont
+/// des inventions, et une invention dans un décodeur est un défaut muet. Les
+/// deux émetteurs refusent le même schéma — c'est voulu, ils décrivent le même
+/// contrat et n'ont pas à diverger sur ce qu'ils acceptent.
+fn defaut(champ: &Champ) -> String {
+    match &champ.type_ {
+        Type::Liste(_) => "[]".into(),
+        Type::Table(_) => "[:]".into(),
+        autre => panic!(
+            "le champ « {} » est escamotable mais de type {}, qui n'a pas de \
+             valeur par défaut évidente — la déclarer dans schema.rs",
+            champ.cle,
+            swift_type(autre)
+        ),
+    }
+}
+
+/// Le décodeur engendré, pour les structures qui en ont besoin.
+fn decodeur(sortie: &mut String, s: &Structure) {
+    let _ = writeln!(
+        sortie,
+        "\n        private enum CodingKeys: String, CodingKey {{"
+    );
+    let _ = writeln!(
+        sortie,
+        "            case {}",
+        s.champs
+            .iter()
+            .map(|c| echapper(&c.cle))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let _ = writeln!(sortie, "        }}");
+
+    let _ = writeln!(
+        sortie,
+        "\n        public init(from decoder: any Decoder) throws {{"
+    );
+    let _ = writeln!(
+        sortie,
+        "            let container = try decoder.container(keyedBy: CodingKeys.self)"
+    );
+    for champ in &s.champs {
+        let nom = echapper(&champ.cle);
+        match &champ.type_ {
+            // Un optionnel se décode déjà comme « s'il est là » ; que le champ
+            // soit escamotable ou non ne change rien pour lui.
+            Type::Optionnel(interne) => {
+                let _ = writeln!(
+                    sortie,
+                    "            self.{nom} = try container.decodeIfPresent({}.self, forKey: .{nom})",
+                    swift_type(interne)
+                );
+            }
+            _ if champ.escamotable => {
+                let _ = writeln!(
+                    sortie,
+                    "            self.{nom} = try container.decodeIfPresent({}.self, forKey: .{nom}) ?? {}",
+                    swift_type(&champ.type_),
+                    defaut(champ)
+                );
+            }
+            _ => {
+                let _ = writeln!(
+                    sortie,
+                    "            self.{nom} = try container.decode({}.self, forKey: .{nom})",
+                    swift_type(&champ.type_)
+                );
+            }
+        }
+    }
+    let _ = writeln!(sortie, "        }}");
 }
 
 fn enumeration(sortie: &mut String, e: &Enumeration) {
@@ -395,6 +487,67 @@ mod tests {
         );
         assert!(s.contains("/// Le sous-titre de référence."), "{s}");
         assert!(s.contains("/// Nul sur une introduction."), "{s}");
+    }
+
+    #[test]
+    fn une_liste_escamotable_engendre_un_decodeur() {
+        // Le synthétisé lèverait `keyNotFound` : il n'a aucun moyen de dire
+        // « absent vaut [] ». D'où le décodeur écrit à la main, donc engendré.
+        let s = rendu(
+            r#"
+            pub struct Mode {
+                pub id: String,
+                #[serde(default, skip_serializing_if = "Vec::is_empty")]
+                pub groups: Vec<Group>,
+            }
+        "#,
+        );
+        assert!(s.contains("private enum CodingKeys"), "{s}");
+        assert!(
+            s.contains("public init(from decoder: any Decoder) throws"),
+            "{s}"
+        );
+        assert!(
+            s.contains(
+                "self.groups = try container.decodeIfPresent([Group].self, forKey: .groups) ?? []"
+            ),
+            "{s}"
+        );
+        // Les champs obligatoires restent obligatoires dans le même décodeur.
+        assert!(
+            s.contains("self.id = try container.decode(String.self, forKey: .id)"),
+            "{s}"
+        );
+    }
+
+    #[test]
+    fn sans_champ_escamotable_le_synthetise_suffit() {
+        // La contre-épreuve : on n'engendre pas de décodeur pour rien.
+        let s = rendu("pub struct Book { pub id: String, pub chapters: Vec<Chapter> }");
+        assert!(!s.contains("CodingKeys"), "{s}");
+        assert!(!s.contains("init(from decoder"), "{s}");
+    }
+
+    #[test]
+    fn un_optionnel_escamotable_ne_change_rien() {
+        // Swift traite déjà `Optional` comme un `decodeIfPresent` : un
+        // optionnel escamotable n'a pas besoin qu'on écrive son décodeur.
+        let s = rendu(
+            r#"
+            pub struct G {
+                pub id: String,
+                #[serde(default, skip_serializing_if = "Option::is_none")]
+                pub glose: Option<String>,
+            }
+        "#,
+        );
+        assert!(!s.contains("CodingKeys"), "{s}");
+    }
+
+    #[test]
+    #[should_panic(expected = "escamotable")]
+    fn un_scalaire_escamotable_arrete_l_engendrement() {
+        rendu(r#"pub struct A { pub id: String, #[serde(default)] pub count: u32 }"#);
     }
 
     #[test]

@@ -1,0 +1,129 @@
+# La livraison Android — du dépôt au test fermé de Play.
+#
+# ## Ce que ce workflow fait, et ce qu'il ne fait pas
+#
+# Il construit le bundle, le signe avec la clé de téléversement, et l'attache
+# à l'exécution. Il **ne pousse pas** encore vers Play : cela demande un compte
+# de service Google Cloud relié à la console, que Gloire ne peut créer qu'une
+# fois son identité validée. L'étape est écrite plus bas, désactivée, avec ce
+# qu'il faut pour l'allumer en une ligne le jour venu.
+#
+# Construire sans pouvoir livrer n'est pas inutile : c'est ce qui garantit que
+# le jour où la console s'ouvre, le paquet est déjà prêt et éprouvé — plutôt
+# que de découvrir à ce moment-là qu'il ne se signe pas.
+#
+# ## Les secrets attendus
+#
+#   ANDROID_KEYSTORE_BASE64    le magasin .jks encodé — `base64 -i ont-upload.jks`
+#   ANDROID_KEYSTORE_PASSWORD  son mot de passe
+#   ANDROID_KEY_ALIAS          `ont-upload`
+#   ANDROID_KEY_PASSWORD       le même mot de passe
+#
+# Sans eux, le bundle sort **non signé** et l'étape de vérification le dit au
+# lieu de laisser croire à une livraison.
+
+name: Livraison Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: "Le palier visé — pour l'instant, informatif seulement"
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+  push:
+    tags: ["android-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: livraison-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    name: Bundle signé
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Le JDK que le projet demande
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Poser la clé de téléversement
+        id: cle
+        env:
+          MAGASIN: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$MAGASIN" ]; then
+            echo "Aucune clé en secret — le bundle sortira non signé." >&2
+            echo "signe=non" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Hors de l'arbre de travail : un fichier déposé dans le dépôt
+          # cloné finirait dans un artefact au premier `upload-artifact` qui
+          # ratisse large.
+          echo "$MAGASIN" | base64 --decode > "$RUNNER_TEMP/ont-upload.jks"
+          echo "signe=oui" >> "$GITHUB_OUTPUT"
+
+      - name: Construire le bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ont-upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew :app:bundleRelease --no-daemon
+
+      - name: Vérifier que le paquet est bien signé
+        if: steps.cle.outputs.signe == 'oui'
+        run: |
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          # `jarsigner -verify` rend 0 même sur un paquet non signé : il faut
+          # lire sa sortie, pas son code de retour. Le même motif que partout
+          # ailleurs — le verdict survit à l'absence de mesure.
+          sortie=$(jarsigner -verify "$AAB" 2>&1)
+          echo "$sortie"
+          if echo "$sortie" | grep -q "jar is unsigned"; then
+            echo "::error::Le bundle est sorti NON SIGNÉ malgré une clé fournie."
+            exit 1
+          fi
+          echo "Bundle signé."
+
+      - name: Effacer la clé
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ont-upload.jks"
+
+      - name: Attacher le bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ont-android-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      # ── À ALLUMER QUAND LA CONSOLE SERA OUVERTE ──────────────────────────
+      #
+      # Il faut d'abord, dans la Play Console : créer l'application, puis dans
+      # Google Cloud un compte de service, lui donner le rôle de publication,
+      # et coller son JSON dans le secret `PLAY_SERVICE_ACCOUNT_JSON`.
+      #
+      # `status: draft` au premier coup : on veut voir la fiche avant qu'elle
+      # ne parte aux testeurs.
+      #
+      # - name: Pousser vers le test fermé
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.labibleont.ont
+      #     releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+      #     track: internal
+      #     status: draft

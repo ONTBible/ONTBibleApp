@@ -51,8 +51,13 @@ public struct BibleTab: View {
                     Section {
                         ForEach(corpus.modes.sorted(by: { $0.order < $1.order })) { mode in
                             DisclosureGroup {
-                                ForEach(mode.books) { book in
-                                    BookRow(book: book)
+                                ForEach(disposer(mode)) { element in
+                                    switch element.contenu {
+                                    case .entete(let groupe):
+                                        ConteneurLabel(groupe: groupe)
+                                    case .livre(let book):
+                                        BookRow(book: book)
+                                    }
                                 }
                             } label: {
                                 ModeLabel(mode: mode)
@@ -60,10 +65,22 @@ public struct BibleTab: View {
                             .ontRow()
                         }
                     } header: {
-                        Text(corpus.title)
-                            .font(.custom(ONTFonts.display, size: 15))
-                            .textCase(nil)
-                            .foregroundStyle(ONTColors.brandInk(theme.mode))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(corpus.title)
+                                .font(.custom(ONTFonts.display, size: 15))
+                                .textCase(nil)
+                                .foregroundStyle(ONTColors.brandInk(theme.mode))
+                            // Le second nom, dans le registre choisi. Rien ne
+                            // s'affiche quand il n'y a rien à dire — une
+                            // section dont la glose redirait le pont n'en
+                            // porte pas.
+                            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
+                                Text(second)
+                                    .font(.caption)
+                                    .textCase(nil)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
@@ -82,6 +99,17 @@ public struct BibleTab: View {
                     BookView(bookId: id)
                 case .chapter(let book, let chapter):
                     ChapterLoader(bookId: book, chapterId: chapter)
+                case .verses(let book, let chapter):
+                    // **Le lecteur choisit où commencer avant d'ouvrir.**
+                    //
+                    // La sortie courte — « Tout le chapitre » — est en tête de
+                    // cet écran, donc lire de bout en bout coûte un geste de
+                    // plus qu'avant. C'est le prix demandé, et il achète la
+                    // chose que le sommaire ne savait pas faire : arriver à un
+                    // verset précis sans traverser la page pour le trouver.
+                    ChoixDuVerset(book: book, chapter: chapter) { verse in
+                        router.open(book: book, chapter: chapter, verse: verse)
+                    }
                 }
             }
         }
@@ -118,11 +146,17 @@ private struct ResumeRow: View {
 }
 
 private struct ModeLabel: View {
+    @Environment(ReadingModel.self) private var model
     let mode: Mode
 
     var body: some View {
         HStack {
-            Text(mode.title).font(.headline)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(mode.title).font(.headline)
+                if let second = Registre.second(french: mode.french, glose: mode.glose, francaisRecu: model.preferences.french) {
+                    Text(second).font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Spacer()
             Text("\(mode.books.filter { !$0.empty }.count)/\(mode.books.count)")
                 .font(.caption.monospacedDigit())
@@ -132,6 +166,7 @@ private struct ModeLabel: View {
 }
 
 private struct BookRow: View {
+    @Environment(ReadingModel.self) private var model
     let book: BookOutline
 
     var body: some View {
@@ -166,12 +201,21 @@ private struct BookRow: View {
                     .font(.body.italic())
                     .foregroundStyle(book.empty ? .secondary : .primary)
             }
-            // Le français n'est qu'un pont de navigation pour le lecteur
-            // occidental — jamais la désignation principale.
-            Text(book.french)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 28)
+            // Le second nom, dans le registre choisi. Le français n'est qu'un
+            // pont de navigation pour le lecteur occidental — jamais la
+            // désignation principale.
+            //
+            // **C'est ici que le registre comptait le plus, et c'est ici qu'il
+            // manquait.** Les corpus et les modes tiennent en huit lignes ; les
+            // livres en soixante-dix, et ce sont eux qu'on parcourt. Registre
+            // éteint, la liste disait encore « Actes des Apôtres » là où le
+            // site disait « les gevurot de YHWH par ses neviim ».
+            if let second = Registre.second(french: book.french, glose: book.glose, francaisRecu: model.preferences.french) {
+                Text(second)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 28)
+            }
         }
     }
 }
@@ -180,6 +224,9 @@ private struct BookRow: View {
 struct BookView: View {
     @Environment(ReadingModel.self) private var model
     let bookId: String
+
+    /// L'unité dont on choisit le verset, quand on a touché son nombre.
+    @State private var versetsDe: VersetsAChoisir?
 
     var body: some View {
         if let outline = model.outline(bookId) {
@@ -207,12 +254,35 @@ struct BookView: View {
                 }
             }
 
-            Section("Unités") {
+            // **« Unités » est le mot du pipeline**, pas celui du lecteur.
+            //
+            // Il est juste — une unité ONT se ferme quand une fonction
+            // s'accomplit — mais il est interne, et il donnait un troisième nom
+            // à ce que les lignes en dessous appellent déjà « Chapitre 3 » ou
+            // « Parashah 3 ». Trois mots pour une chose, sur un écran dont tout
+            // le propos est de n'en enseigner qu'un.
+            Section(model.preferences.french ? "Chapitres" : "Parashiot") {
                 ForEach(outline.chapters) { chapter in
+                    // **Deux gestes, deux intentions.**
+                    //
+                    // Toucher la ligne ouvre l'unité — c'est ce qu'on veut neuf
+                    // fois sur dix, et ça doit rester d'un seul doigt. Toucher
+                    // le **nombre de versets** ouvre la grille et mène au
+                    // verset choisi.
+                    //
+                    // Le nombre porte déjà ce sens : il dit combien il y en a.
+                    // En faire la porte de « lequel » n'ajoute pas un objet à
+                    // la ligne — il donne un office à celui qui y était.
+                    //
+                    // `.borderless` n'est pas cosmétique : dans une liste, un
+                    // bouton de style ordinaire laisse la ligne entière capter
+                    // le toucher, et le nombre ne répondrait jamais.
                     NavigationLink(
-                        value: Router.Destination.chapter(book: outline.id, chapter: chapter.id)
+                        value: Router.Destination.verses(book: outline.id, chapter: chapter.id)
                     ) {
-                        ChapterRow(stub: chapter)
+                        ChapterRow(stub: chapter) {
+                            versetsDe = VersetsAChoisir(book: outline.id, chapter: chapter.id)
+                        }
                     }
                     .ontRow()
                 }
@@ -226,7 +296,20 @@ struct BookView: View {
         // deuxième titre sous le premier — ferait une barre plus haute pour
         // redire ce qu'on sait déjà. Le lecteur d'iOS 18 perd une redite,
         // pas un renseignement.
-        .modifier(SousTitreDeBarre(texte: outline.french))
+        .modifier(
+            SousTitreDeBarre(
+                texte: Registre.second(french: outline.french, glose: outline.glose, francaisRecu: model.preferences.french)
+                    ?? outline.french
+            )
+        )
+        // La grille des versets, ouverte **directement** — le lecteur vient de
+        // choisir son livre et son unité dans la page qui est dessous ; les
+        // deux premières étapes du sélecteur lui redemanderaient ce qu'il
+        // vient de dire.
+        .sheet(item: $versetsDe) { cible in
+            ReferencePicker(book: cible.book, chapter: cible.chapter)
+                .ontTheme(from: model.preferences)
+        }
     }
 }
 
@@ -244,12 +327,24 @@ private struct SousTitreDeBarre: ViewModifier {
 }
 
 private struct ChapterRow: View {
+    @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
+
+    /// Ce que fait le nombre de versets quand on le touche.
+    let choisirUnVerset: () -> Void
+
+    /// Le libellé de l'unité, dans le registre choisi — le calcul vit dans
+    /// `ChapterStub` parce que le sélecteur de renvoi le fait aussi.
+    private var libelle: String { stub.label(french: model.preferences.french) }
+
+    private var nom: String {
+        LibelleDUnite.nom(french: model.preferences.french)
+    }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(stub.title)
+                Text(libelle)
                 if let reference = stub.reference {
                     Text(reference).font(.caption).foregroundStyle(.tertiary)
                 }
@@ -260,11 +355,40 @@ private struct ChapterRow: View {
                 // Le lecteur doit le savoir avant de citer.
                 StatusPill("brouillon")
             }
-            Text("\(stub.verseCount)")
-                .font(.caption.monospacedDigit())
+            // Le nombre de versets **devient une porte**.
+            //
+            // Il disait déjà « combien » ; il dit maintenant aussi « lequel ».
+            // C'est le seul endroit de la ligne où un second geste ne coûte
+            // aucun objet de plus — et le seul dont le sens y menait déjà.
+            //
+            // `.borderless` est ce qui le rend touchable : dans une liste, un
+            // bouton de style ordinaire laisse la ligne capter tout le
+            // toucher, et le nombre ne répondrait jamais.
+            Button(action: choisirUnVerset) {
+                HStack(spacing: 3) {
+                    Text("\(stub.verseCount)").font(.caption.monospacedDigit())
+                    Image(systemName: "list.number").font(.caption2)
+                }
                 .foregroundStyle(.secondary)
+                .padding(.vertical, 6)
+                .padding(.leading, 8)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Choisir un verset — \(stub.verseCount) dans ce \(nom)")
         }
     }
+}
+
+/// L'unité dont on est en train de choisir le verset.
+///
+/// Un type à part plutôt qu'un booléen et deux chaînes : la feuille n'a de sens
+/// que si les trois sont là ensemble, et `Identifiable` fait que SwiftUI la
+/// repose quand on change d'unité sans la refermer.
+private struct VersetsAChoisir: Identifiable {
+    let book: String
+    let chapter: String
+    var id: String { "\(book)/\(chapter)" }
 }
 
 /// Charge le livre à la demande, puis affiche l'unité voulue.
@@ -289,10 +413,94 @@ struct ChapterLoader: View {
                 .id(chapter.id)
         } else {
             ContentUnavailableView(
-                "Unité introuvable",
+                "\(LibelleDUnite.nom(french: model.preferences.french).localizedCapitalized) introuvable",
                 systemImage: "questionmark.text.page",
                 description: Text("« \(chapterId) » n'est pas dans ce livre.")
             )
         }
     }
 }
+
+// MARK: - Les conteneurs, et la fracture du Ḥurban
+
+/// Ce que la liste d'un mode pose l'un après l'autre.
+private struct Element: Identifiable {
+    enum Contenu {
+        case entete(Conteneur)
+        case livre(BookOutline)
+    }
+    let id: String
+    let contenu: Contenu
+}
+
+/// Intercale les en-têtes de conteneur dans la suite des livres.
+///
+/// L'ordre vient des **livres**, jamais de la liste des conteneurs : c'est le
+/// corpus qui décide où tombe une coupure. Un identifiant porté par un livre
+/// sans déclaration est ignoré — une table des matières qui refuserait de se
+/// rendre pour un ornement coûterait plus au lecteur qu'il ne lui apporte.
+private func disposer(_ mode: Mode) -> [Element] {
+    var sortie: [Element] = []
+    var courant: String?
+    for livre in mode.books {
+        if livre.groupId != courant {
+            courant = livre.groupId
+            if let id = courant, let g = mode.groups.first(where: { $0.id == id }) {
+                sortie.append(Element(id: "entete-\(id)", contenu: .entete(g)))
+            }
+        }
+        sortie.append(Element(id: livre.id, contenu: .livre(livre)))
+    }
+    return sortie
+}
+
+/// L'en-tête d'un conteneur, et sa césure quand il en a une.
+///
+/// **Deux poids, deux traitements.** Un conteneur qui regroupe reçoit un
+/// intertitre discret ; celui qui fracture reçoit d'abord un filet appuyé et la
+/// ligne qui dit ce que la fracture change pour lire.
+///
+/// C'est le *Ḥurban*, et lui seul. `corpus-order.md` le nomme **pivot
+/// herméneutique** : les lettres d'avant parlent du Temple au présent —
+/// *Igeret HaIvrim* est « le dernier mot du Bayit vivant » ; trois numéros plus
+/// loin, il n'existe plus.
+private struct ConteneurLabel: View {
+    @Environment(\.ontTheme) private var theme
+    @Environment(ReadingModel.self) private var model
+    let groupe: Conteneur
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let rupture = groupe.rupture {
+                // **Le filet est en or, et c'est un revirement.**
+                //
+                // Il a d'abord été posé en accentuation, au motif que l'or dit
+                // l'intraduisible partout ailleurs et qu'une règle horizontale
+                // n'en est pas un. L'argument était juste sur le mot, faux sur
+                // la page : l'accentuation est une couleur *de texte*, et un
+                // filet bordeaux au milieu d'un sommaire se lit comme une
+                // alerte — quelque chose ne va pas —, alors qu'il annonce une
+                // charnière.
+                //
+                // L'or est la couleur de direction artistique du projet, celle
+                // des filets et des cadres. C'est ce que le lecteur y attend.
+                Rectangle()
+                    .fill(ONTColors.accent(theme.mode).opacity(0.7))
+                    .frame(height: 2)
+                    .padding(.top, 8)
+                Text(rupture)
+                    .font(.footnote.italic())
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 6)
+            }
+            Text(groupe.title)
+                .font(.caption.smallCaps())
+                .foregroundStyle(.secondary)
+            Text(model.preferences.french ? groupe.french : (groupe.glose ?? groupe.french))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .listRowSeparator(.hidden)
+    }
+}
+

@@ -13,6 +13,7 @@ import SwiftUI
 public struct YouTab: View {
     @Environment(YouModel.self) private var model
     @Environment(AccountModel.self) private var account
+    @Environment(ReadingModel.self) private var reading
 
     /// Ce que fait l'app quand le rappel change. Injecté depuis la cible
     /// d'app : `UserNotifications` n'a rien à faire dans une feature.
@@ -27,10 +28,39 @@ public struct YouTab: View {
         self.onParutions = onParutions
     }
 
+    /// Ce qui est **montrable** : les pierres tombales n'en sont pas.
+    private var nombreDeSurlignages: Int {
+        reading.surlignagesParLivre().reduce(0) { $0 + $1.surlignages.count }
+    }
+
     public var body: some View {
-        NavigationStack {
+        @Bindable var reading = reading
+
+        return NavigationStack {
             List {
                 AccountSection()
+
+                // **Ce qui interrompt le lecteur est rangé à part.**
+                //
+                // Les deux réglages ci-dessous ne servaient qu'à un seul
+                // écran, « Verset du jour », rangé sous « Lecture ». Accepter
+                // d'envoyer un identifiant d'appareil à un serveur se faisait
+                // donc au troisième niveau d'une section qui parle de
+                // typographie. Le verset du jour y était mal rangé aussi : il
+                // interrompt, il ne se lit pas.
+                Section("Notifications") {
+                    NavigationLink {
+                        DailyVerseSettings(onChange: onDailyChange)
+                    } label: {
+                        Label("Verset du jour", systemImage: "sun.horizon")
+                    }
+                    NavigationLink {
+                        ParutionsSettings(onParutions: onParutions)
+                    } label: {
+                        Label("Parutions", systemImage: "book.closed")
+                    }
+                }
+                .ontRow()
 
                 Section("Lecture") {
                     NavigationLink {
@@ -38,11 +68,57 @@ public struct YouTab: View {
                     } label: {
                         Label("Réglages de lecture", systemImage: "textformat.size")
                     }
+                    // **Ce que le lecteur a marqué lui appartient**, et c'était
+                    // jusqu'ici la seule chose de l'app qu'il ne pouvait pas
+                    // revoir : les surlignages n'existaient que là où ils
+                    // avaient été posés, un verset à la fois, dans un chapitre
+                    // qu'il fallait retrouver de mémoire.
                     NavigationLink {
-                        DailyVerseSettings(onChange: onDailyChange, onParutions: onParutions)
+                        MesSurlignages()
                     } label: {
-                        Label("Verset du jour", systemImage: "sun.horizon")
+                        LabeledContent {
+                            Text("\(nombreDeSurlignages)").monospacedDigit()
+                        } label: {
+                            Label("Surlignages", systemImage: "highlighter")
+                        }
                     }
+                }
+                .ontRow()
+
+                // **Le registre ouvre la section du corpus, et ne s'y confond pas.**
+                //
+                // Il était rangé dans les réglages de lecture, entre la
+                // disposition des versets et la taille du texte. C'était le
+                // ranger avec la typographie : or il ne change pas la façon
+                // dont le texte se présente, il change **ce que les livres
+                // sont appelés** — donc le corpus lui-même, tel que le lecteur
+                // le rencontre.
+                //
+                // Sa propre carte, détachée des trois compteurs, parce que ce
+                // n'est pas une mesure : c'est le seul réglage de cet écran
+                // qui décide de ce qu'on lit plutôt que de son état.
+                Section {
+                    Toggle(isOn: $reading.preferences.french) {
+                        Label("Le français reçu", systemImage: "character.book.closed")
+                    }
+                } header: {
+                    Text("Le Corpus")
+                } footer: {
+                    Text(
+                        "Allumé, les livres portent le nom qu'on leur connaît — "
+                            + "« Apocalypse », « la Loi », « Chapitre 7 ». Éteint, ils "
+                            + "portent ce que leur nom hébreu veut dire : « le machazeh "
+                            + "de Yohanan », « la Fondation », « Parashah 7 ».\n\n"
+                            + "L'écart entre les deux n'est pas une nuance de traduction. "
+                            + "La torah est l'instruction qui vise ; le grec l'a rendue par "
+                            + "nomos, le code qui contraint, et le français en a hérité "
+                            + "« la Loi ».\n\n"
+                            + "Ce réglage est une béquille, et il est allumé pour qu'on "
+                            + "puisse marcher avant de savoir. En l'éteignant, des mots "
+                            + "apparaissent que vous n'avez peut-être jamais lus — parashah, "
+                            + "la division que le scribe hébreu traçait en laissant un blanc, "
+                            + "mille ans avant qu'on numérote des chapitres."
+                    )
                 }
                 .ontRow()
 
@@ -57,12 +133,12 @@ public struct YouTab: View {
                     LabeledContent("Entrées de lexique") {
                         Text("\(model.glossaryCount)").monospacedDigit()
                     }
-                } header: {
-                    Text("Le corpus")
                 } footer: {
                     Text(
                         "La Bible ONT est une restitution en cours. Le corpus s'étend "
-                            + "à mesure que les unités sont verrouillées."
+                            + "à mesure que les "
+                            + LibelleDUnite.noms(french: reading.preferences.french)
+                            + " sont verrouillés."
                     )
                 }
                 .ontRow()
@@ -73,6 +149,16 @@ public struct YouTab: View {
                         DSCatalog()
                     } label: {
                         Label("Design system", systemImage: "paintpalette")
+                    }
+                    // L'éditeur n'existe qu'une fois connecté, et une
+                    // connexion réelle demande un fournisseur, un compte et un
+                    // aller-retour réseau. Cette entrée le rend visible sans
+                    // rien simuler : le profil est **local**, il se remplit et
+                    // se relit à l'identique.
+                    NavigationLink {
+                        EditeurDuProfil()
+                    } label: {
+                        Label("Profil", systemImage: "person.crop.circle")
                     }
                 } header: {
                     Text("Développement")
@@ -141,8 +227,16 @@ private struct AccountSection: View {
                             // En la posant à la main, le fond et ce qui se pose
                             // dessus viennent de la même paire de rôles et ne
                             // peuvent plus se confondre.
+                            // Le texte et l'icône sont en **or** sur le
+                            // bordeaux, et non en encre claire : l'or est la
+                            // couleur de marque du projet, et ces trois
+                            // capsules sont le seul aplat de marque de l'app.
+                            //
+                            // `onBrandAccent` et non `gold` : sur les thèmes
+                            // sombres la capsule **est** l'or, et demander l'or
+                            // dessus donnerait un bouton vide.
                             Label("Continuer avec \(provider.label)", systemImage: icon(provider))
-                                .foregroundStyle(ONTColors.onBrand(theme.mode))
+                                .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, spacing.m)
                                 .background(
@@ -186,6 +280,23 @@ private struct AccountSection: View {
             .ontRow()
 
         case .signedIn:
+            // **Le profil ouvre le compte, avant la synchronisation.**
+            //
+            // C'est ce que le lecteur vient voir : « je suis connecté, et
+            // voilà qui je suis ». Le consentement et les échanges sont de
+            // l'administration — vraie, nécessaire, mais qui ne répond pas à
+            // la question qu'on se pose en ouvrant l'écran.
+            //
+            // **Et seulement connecté.** Un profil vide en tête d'un écran
+            // sans compte ne dit rien, là où les trois boutons de connexion
+            // disent quoi faire. L'auteur a d'ailleurs pris l'aperçu de
+            // développement pour le vrai, ce qui est le signe qu'un profil
+            // hors compte n'a pas de sens à cet endroit.
+            Section {
+                EnTeteDuProfil()
+            }
+            .ontRow()
+
             Section {
                 // Le consentement est explicite et séparé : les annotations
                 // d'un lecteur de Bible révèlent des convictions religieuses
@@ -259,7 +370,11 @@ extension View {
             Button("Supprimer", role: .destructive, action: action)
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("La copie de vos annotations sur le serveur sera effacée définitivement.")
+            Text(
+                "La copie de vos annotations sur le serveur sera effacée définitivement, "
+                    + "ainsi que votre profil sur cet appareil — photo, nom et bio. "
+                    + "Vos surlignages, eux, restent sur l'appareil."
+            )
         }
     }
 }

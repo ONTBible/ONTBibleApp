@@ -60,6 +60,8 @@ public final class Router {
     public enum Destination: Hashable, Sendable {
         case book(String)
         case chapter(book: String, chapter: String)
+        /// Le choix du verset avant d'ouvrir — l'étape que le sommaire offre.
+        case verses(book: String, chapter: String)
     }
 
     /// L'app rouvre là où on l'a laissée — sur la lecture au premier lancement.
@@ -131,6 +133,7 @@ public final class Router {
     /// l'app ne propose pas de partage de lien : mieux vaut pas de bouton
     /// qu'un bouton qui produit une adresse morte.
     public static var webBase: URL? {
+        if let impose = webBaseImpose { return impose }
         guard
             let raw = Bundle.main.object(forInfoDictionaryKey: "ONTWebBaseURL") as? String,
             !raw.isEmpty, !raw.contains("à-remplir"),
@@ -138,6 +141,19 @@ public final class Router {
         else { return nil }
         return url
     }
+
+    /// Le domaine, imposé — pour les épreuves, et rien d'autre.
+    ///
+    /// Le lien public est devenu un **contrat entre trois dépôts** : le site le
+    /// produit, les deux liseuses le lisent. Or rien ne le gardait ici, parce
+    /// que `webBase` se lisait dans `Bundle.main` — absent d'un paquet de test,
+    /// donc `openWeb` rendait `false` avant même d'analyser quoi que ce soit.
+    ///
+    /// C'est le même défaut de testabilité que le magasin qui réclamait un
+    /// `Context` là où il lui fallait un fichier : une dépendance plus large
+    /// que le besoin rend l'objet inéprouvable, et ce qui n'est pas éprouvé
+    /// dérive.
+    nonisolated(unsafe) public static var webBaseImpose: URL?
 
     /// Traite un lien. Rend `false` si l'URL ne nous concerne pas.
     ///

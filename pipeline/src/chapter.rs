@@ -274,6 +274,24 @@ fn read_file_name(path: &str) -> (String, u32, ChapterKind) {
     }
 }
 
+/// Où s'arrête ce qui sera publié.
+///
+/// Rend l'indice de la première ligne du paratexte, ou le nombre de lignes
+/// s'il n'y en a pas. La décision est celle de `parse_footer`, pas une règle
+/// écrite en double : on cherche le dernier filet dont la suite s'analyse
+/// comme un pied de page.
+fn fin_du_corps(lines: &[String]) -> usize {
+    for (index, ligne) in lines.iter().enumerate().rev() {
+        if ligne.trim() != "---" {
+            continue;
+        }
+        if parse_footer(&parse_blocks(&lines[index + 1..])).is_some() {
+            return index;
+        }
+    }
+    lines.len()
+}
+
 /// Parse un fichier du vault en unité ONT.
 pub fn parse_chapter(source: &ChapterSource) -> ParsedChapter {
     let lines: Vec<String> = source
@@ -283,8 +301,26 @@ pub fn parse_chapter(source: &ChapterSource) -> ParsedChapter {
         .collect();
     let (id, n, kind) = read_file_name(&source.path);
 
+    // **On ne contrôle que ce qui sera publié.**
+    //
+    // Le contrôle passait sur toutes les lignes du fichier, paratexte compris
+    // — le bloc « Décisions terminologiques » qui suit le dernier filet et que
+    // `parse_footer` écarte du corps. Or ce paratexte imbrique volontiers
+    // italique et gras (`***emunah*`), ce que `lint_markers` signale à juste
+    // titre pour un verset et à tort pour une note d'apparat.
+    //
+    // Le rapport annonçait ainsi vingt-deux anomalies dont **aucune**
+    // n'atteignait un lecteur. Un rapport qui crie au loup n'est pas seulement
+    // inutile : il enterre le vrai déséquilibre qui viendra un jour dans un
+    // verset.
+    //
+    // La borne n'est pas devinée — elle rejoue la décision de l'analyseur en
+    // appelant `parse_footer` lui-même. Une note d'apparat qui cesserait d'en
+    // être une redeviendrait donc contrôlée, sans que personne y pense.
+    let fin_du_corps = fin_du_corps(&lines);
     let issues: Vec<Issue> = lines
         .iter()
+        .take(fin_du_corps)
         .enumerate()
         .flat_map(|(index, line)| {
             lint_markers(line).into_iter().map(move |message| Issue {
@@ -482,5 +518,53 @@ mod tests {
         let pied = c.footer.expect("un pied de page");
         assert!(pied.locked);
         assert_eq!(pied.version.as_deref(), Some("1.0"));
+    }
+}
+
+#[cfg(test)]
+mod tests_du_paratexte {
+    use super::*;
+
+    /// Le paratexte n'est pas contrôlé — il n'est pas publié.
+    #[test]
+    fn le_paratexte_ne_produit_pas_d_anomalie() {
+        let source = ChapterSource {
+            path: "locked/bereshit-15.md".into(),
+            text: "# Bereshit 15\n\n## La vision\n\n1. Un verset sans défaut.\n\n---\n\n\
+                   *Bereshit 15 — Version 1.0 — verrouillée*\n\
+                   - ***emunah* (אֱמוּנָה) — intraduisible, avec **YHWH** dedans*\n"
+                .into(),
+            book_id: "bereshit".into(),
+            status: Status::Locked,
+        };
+        let parsed = parse_chapter(&source);
+        assert!(
+            parsed.issues.is_empty(),
+            "le paratexte a été contrôlé alors qu'il n'est pas publié : {:?}",
+            parsed.issues
+        );
+    }
+
+    /// Et le corps, lui, l'est toujours — c'est ce que la correction ne doit
+    /// pas emporter avec elle.
+    #[test]
+    fn un_desequilibre_dans_le_corps_reste_signale() {
+        let source = ChapterSource {
+            path: "locked/bereshit-15.md".into(),
+            text: "# Bereshit 15\n\n## La vision\n\n1. Un **davar non refermé ici.\n\n---\n\n\
+                   *Bereshit 15 — Version 1.0 — verrouillée*\n"
+                .into(),
+            book_id: "bereshit".into(),
+            status: Status::Locked,
+        };
+        let parsed = parse_chapter(&source);
+        assert!(
+            parsed
+                .issues
+                .iter()
+                .any(|i| i.message.contains("intraduisible")),
+            "un déséquilibre du corps a été perdu : {:?}",
+            parsed.issues
+        );
     }
 }

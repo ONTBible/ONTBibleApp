@@ -1,0 +1,15 @@
+# Ce qui dépend du poste ou naît du build.
+local.properties
+.gradle/
+build/
+*/build/
+.kotlin/
+*.apk
+*.aab
+*.keystore
+captures/
+ontdesignsystem/src/main/res/font/
+android/captures/
+
+# La clé de téléversement Play. Jamais dans le dépôt — voir app/build.gradle.kts.
+cle.properties

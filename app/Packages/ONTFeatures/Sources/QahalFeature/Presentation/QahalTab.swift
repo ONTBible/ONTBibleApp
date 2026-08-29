@@ -106,6 +106,7 @@ public struct QahalTab: View {
 /// ici est ce que le widget ne peut pas faire : composer le verset depuis son
 /// arbre d'inline, avec les intraduisibles en or.
 private struct VerseOfTheDayCard: View {
+    @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
     /// La jumelle de la pastille du widget, qui suit le curseur des réglages :
     /// figée, celle-ci se serait mise à rétrécir à côté de son propre verset.
@@ -115,6 +116,28 @@ private struct VerseOfTheDayCard: View {
     let verse: Verse
 
     var body: some View {
+        // **La carte mène au texte.**
+        //
+        // Elle donnait un verset sans dire d'où il venait — un fragment sans
+        // son avant ni son après, alors que le renvoi était écrit dessus. Le
+        // lecteur qui voulait la suite devait retrouver le passage à la main
+        // dans l'onglet Bible.
+        //
+        // Le geste est celui de la recherche et du lien profond : `open` pose
+        // l'onglet, le livre, l'unité, et désigne le verset — qui est déjà
+        // surligné à l'arrivée.
+        Button {
+            router.open(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
+        } label: {
+            carte
+        }
+        // `.plain` et non un style par défaut : la carte porte déjà sa peau,
+        // et un bouton système la repeindrait.
+        .buttonStyle(.plain)
+        .accessibilityHint("Ouvre le passage dans la Bible")
+    }
+
+    private var carte: some View {
         BurgundyCard {
             ONTDailyCard(
                 text: ONTTextRenderer.composeBare(
@@ -140,9 +163,11 @@ private struct VerseOfTheDayCard: View {
     }
 
     private var shareText: String {
+        // `plainText()` replie déjà ses espaces — et mieux : il respecte les
+        // retours à la ligne et la ponctuation française, là où ce `{2,}`
+        // écrasait tout. Le garder ferait croire que la question est encore
+        // ouverte ici.
         let body = verse.nodes.plainText()
-            .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
         return """
             \(body)
 

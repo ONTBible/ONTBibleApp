@@ -58,4 +58,31 @@ fn main() {
         swift.lines().count(),
         cible.file_name().unwrap_or_default().to_string_lossy()
     );
+
+    // Et le même contrat en Kotlin, pour la liseuse Android.
+    //
+    // Le `contrat` est réutilisé tel quel : les deux liseuses lisent les mêmes
+    // fichiers, donc elles ont les mêmes types. Deux appels à `atteignables`
+    // laisseraient croire qu'elles pourraient diverger.
+    let cible_kt =
+        racine.join("../android/ontdata/src/main/kotlin/com/labibleont/ont/data/schema/Schema.kt");
+    let kotlin = codegen::kotlin::emettre(&contrat);
+
+    if let Some(parent) = cible_kt.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            eprintln!("échec : {} — {e}", parent.display());
+            std::process::exit(1);
+        }
+    }
+    if let Err(e) = fs::write(&cible_kt, &kotlin) {
+        eprintln!("échec : {} — {e}", cible_kt.display());
+        std::process::exit(1);
+    }
+
+    println!(
+        "Kotlin     {} types, {} lignes → {}",
+        contrat.types.len(),
+        kotlin.lines().count(),
+        cible_kt.file_name().unwrap_or_default().to_string_lossy()
+    );
 }

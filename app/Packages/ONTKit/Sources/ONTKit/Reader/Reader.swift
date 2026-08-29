@@ -222,6 +222,24 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     /// suivie, où la découpe en versets est un artefact du XIIIᵉ siècle qui
     /// hache une phrase en trois.
     public var continuous: Bool
+    /// Nommer les livres et les sections dans le français reçu.
+    ///
+    /// **Vrai par défaut**, et c'est délibéré : un lecteur qui arrive doit
+    /// pouvoir se repérer avec les mots qu'il connaît — « Apocalypse »,
+    /// « la Loi », « Chapitre 7 ».
+    ///
+    /// À faux, il lit ce que le nom ONT veut dire : « le **machazeh** de
+    /// Yohanan », « la Fondation », « **Parashah** 7 ». Les intraduisibles y
+    /// restent en hébreu, là où le français les rend.
+    ///
+    /// **L'écart entre les deux est le projet lui-même** : la *torah*,
+    /// l'instruction qui vise, est devenue *nomos*, le code qui contraint,
+    /// puis « la Loi ». Le réglage laisse le lecteur passer d'un monde à
+    /// l'autre au lieu de le lui raconter.
+    ///
+    /// `Codable` avec une valeur par défaut : un réglage enregistré avant
+    /// l'arrivée de ce champ doit se relire sans erreur.
+    public var french: Bool
     /// Le rappel quotidien.
     ///
     /// Ici plutôt que dans un second magasin, parce qu'il n'y a qu'un port de
@@ -243,10 +261,12 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         // demandait de savoir qu'un texte haché en trois n'était pas une
         // fatalité.
         continuous: Bool = true,
+        french: Bool = true,
         daily: DailyVerseSchedule = .default
     ) {
         self.showGloss = showGloss
         self.showLevel3 = showLevel3
+        self.french = french
         self.textSize = textSize
         self.lineSpacing = lineSpacing
         self.theme = theme
@@ -268,6 +288,7 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         theme = try c.decodeIfPresent(ReadingTheme.self, forKey: .theme) ?? defauts.theme
         bodyFont = try c.decodeIfPresent(ReadingFont.self, forKey: .bodyFont) ?? defauts.bodyFont
         continuous = try c.decodeIfPresent(Bool.self, forKey: .continuous) ?? defauts.continuous
+        french = try c.decodeIfPresent(Bool.self, forKey: .french) ?? defauts.french
         daily = try c.decodeIfPresent(DailyVerseSchedule.self, forKey: .daily) ?? defauts.daily
     }
 

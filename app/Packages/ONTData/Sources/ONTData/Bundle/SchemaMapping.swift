@@ -164,6 +164,7 @@ extension BookOutline {
             slot: dto.slot,
             title: dto.title,
             french: dto.french,
+            glose: dto.glose,
             hebrew: dto.hebrew,
             groupId: dto.groupId,
             empty: dto.empty,
@@ -191,12 +192,27 @@ extension Book {
     }
 }
 
+extension Conteneur {
+    init(_ dto: ONTSchema.Group) {
+        self.init(
+            id: dto.id,
+            title: dto.title,
+            french: dto.french,
+            glose: dto.glose,
+            rupture: dto.rupture
+        )
+    }
+}
+
 extension Mode {
     init(_ dto: ONTSchema.ModeOutline) {
         self.init(
             id: dto.id,
             title: dto.title,
+            french: dto.french,
+            glose: dto.glose,
             order: dto.order,
+            groups: dto.groups.map(Conteneur.init),
             books: dto.books.map(BookOutline.init)
         )
     }
@@ -207,6 +223,8 @@ extension Corpus {
         self.init(
             id: dto.id,
             title: dto.title,
+            french: dto.french,
+            glose: dto.glose,
             order: dto.order,
             modes: dto.modes.map(Mode.init)
         )

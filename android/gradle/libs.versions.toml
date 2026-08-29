@@ -1,0 +1,91 @@
+# Le catalogue des versions — l'unique endroit où un numéro est écrit.
+#
+# Gradle le lit tout seul : chaque module dit `libs.compose.ui`, jamais une
+# coordonnée complète. Un numéro relevé ici vaut pour les cinq modules, et
+# personne ne peut faire diverger `ontdata` de `ontfeatures` sans le vouloir.
+#
+# C'est le pendant de `Package.swift` côté iOS, et la même raison d'être que
+# `codegen` : une valeur écrite deux fois finit par différer.
+
+[versions]
+# Relevés en août 2026. AGP 9.3.0 est sorti en juillet, Kotlin 2.4.10 est la
+# stable en cours, et le BOM de Compose suit son propre calendrier daté.
+agp = "9.3.0"
+kotlin = "2.4.10"
+composeBom = "2026.06.01"
+coreKtx = "1.15.0"
+lifecycle = "2.8.7"
+activityCompose = "1.9.3"
+navigation = "2.8.5"
+serialization = "1.9.0"
+ktor = "3.0.3"
+datastore = "1.1.1"
+securityCrypto = "1.1.0-alpha06"
+glance = "1.1.1"
+work = "2.10.0"
+junit = "4.13.2"
+androidxTestJunit = "1.2.1"
+espresso = "3.6.1"
+kotlinxCoroutinesTest = "1.9.0"
+
+[libraries]
+# — Le socle Android
+core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+
+# — Compose. Le BOM fixe toutes les versions d'un coup : on ne numérote
+#   jamais une bibliothèque Compose à la main.
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# La barre qui devient un rail quand l'écran s'élargit. Sa version est tenue par
+# le BOM, comme material3 — un BOM épingle, il n'ajoute pas : il fallait donc
+# déclarer l'artefact.
+compose-material3-navigation-suite = { group = "androidx.compose.material3", name = "material3-adaptive-navigation-suite" }
+compose-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }
+navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+
+# — Les données
+#   `kotlinx-serialization-json` lit le corpus ; c'est ce que `Schema.kt`
+#   engendré annote. Ktor parle au backend Rust.
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+# Le pendant du Keychain : c'est ici qu'atterriront les jetons du compte.
+security-crypto = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "securityCrypto" }
+
+# — Le verset du jour : un widget d'écran d'accueil, et le réveil qui le pose.
+glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+
+# — Les tests
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+kotlin-reflect = { group = "org.jetbrains.kotlin", name = "kotlin-reflect", version.ref = "kotlin" }
+androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+# `org.jetbrains.kotlin.android` n'est plus déclaré : depuis AGP 9.0, le
+# support Kotlin est intégré aux greffons Android et l'ajouter fait échouer
+# la configuration. Seul `ontkit`, module JVM pur, applique encore un greffon
+# Kotlin — celui-ci :
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+# Depuis Kotlin 2.0 le compilateur Compose est un greffon Kotlin : sa version
+# suit celle de Kotlin, pas celle de Compose. C'est la source de confusion la
+# plus fréquente sur ce point — d'où cette ligne.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

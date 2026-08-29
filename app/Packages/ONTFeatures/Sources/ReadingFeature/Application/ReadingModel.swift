@@ -52,6 +52,51 @@ public final class ReadingModel {
         self.preferences = preferences.preferences
     }
 
+    // MARK: - Surlignages
+
+    /// Tout ce que le lecteur a marqué, par livre, dans l'ordre du corpus.
+    ///
+    /// **Le texte ne vient pas du dépôt** — le dépôt ne garde qu'une adresse.
+    /// Il se recompose ici depuis le corpus embarqué, pour la raison qui
+    /// interdit au serveur de le garder : un surlignage rattaché à une identité
+    /// révèle des convictions religieuses.
+    ///
+    /// Le `_ = revision` inscrit la vue comme dépendante des surlignages, comme
+    /// `corpusRevision` le fait pour le corpus. Sans lui, marquer un verset ne
+    /// redessinerait pas cette liste.
+    public func surlignagesParLivre() -> [LivreSurligne] {
+        _ = revision
+        _ = corpusRevision
+
+        // Un livre chargé une fois, pas une fois par surlignage. `Surlignages`
+        // prend une fermeture précisément pour laisser ce choix ici : il ne
+        // sait pas ce qu'un chargement coûte, et n'a pas à le savoir.
+        var charges: [String: Book?] = [:]
+        func livre(_ id: String) -> Book? {
+            if let connu = charges[id] { return connu }
+            let lu = book(id)
+            charges[id] = lu
+            return lu
+        }
+
+        return Surlignages.parLivre(
+            highlights.all(),
+            livres: corpus.allBooks(),
+            texte: { marque in
+                guard
+                    let unite = livre(marque.bookId)?
+                        .chapters.first(where: { $0.id == marque.chapterId }),
+                    let verset = unite.verses.first(where: { $0.n == marque.verse })
+                else { return nil }
+
+                return (
+                    corps: verset.nodes.plainText(),
+                    renvoi: VerseRange.reference([verset.n], chapterTitle: unite.title)
+                )
+            }
+        )
+    }
+
     // MARK: - Corpus
 
     /// Le `_ = corpusRevision` n'est pas décoratif : c'est **lui** qui inscrit
@@ -236,5 +281,20 @@ public final class ReadingModel {
                 verse: verse
             )
         )
+        // **La révision doit bouger, sinon personne n'apprend que la position
+        // a changé.**
+        //
+        // `position` lit `revision` pour s'y abonner : c'est ce qui fait
+        // qu'`@Observable` la surveille, puisque la valeur vient d'un dépôt
+        // qu'il ne voit pas. Écrire sans toucher `revision`, c'est écrire dans
+        // le dépôt sans le dire — toute vue déjà à l'écran qui affiche la
+        // position garde l'ancienne, indéfiniment.
+        //
+        // Ça ne se voyait pas encore : les deux seules vues qui la lisent —
+        // l'écran d'accueil et le sélecteur de renvoi — sont construites à
+        // neuf au moment où on les ouvre, donc elles lisent la valeur fraîche
+        // par accident. Le sélecteur s'appuie désormais dessus pour marquer le
+        // verset courant, et il restera correct même s'il vient à s'observer.
+        revision += 1
     }
 }

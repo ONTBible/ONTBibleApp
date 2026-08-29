@@ -315,6 +315,12 @@ pub struct BookName {
 /// table écrite ici qui vieillirait.
 fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<String, BookName> {
     let mut names = HashMap::new();
+    // Les lignes qui ne visent aucun slot connu. Elles ne sont pas des
+    // déchets : le répertoire porte **une entrée pour deux livres** quand
+    // ceux-ci ne diffèrent que par leur rang — `El HaQorintiyim` couvre
+    // *Alef* et *Bet*. Sans les garder, l'hébreu de onze livres se perdait
+    // une ligne avant d'être lu.
+    let mut couvrantes: HashMap<String, BookName> = HashMap::new();
 
     for cells in table_rows(&section.lines) {
         let Some(hebrew_cell) = cells.iter().find(|c| has_hebrew(c)) else {
@@ -327,6 +333,12 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
             }
             let translit = cell_text(cell);
             let id = slugify(&translit);
+            if !id.is_empty() && !known_ids.contains(&id) {
+                couvrantes.entry(id.clone()).or_insert_with(|| BookName {
+                    translit: translit.clone(),
+                    hebrew: cell_text(hebrew_cell),
+                });
+            }
             if !id.is_empty() && known_ids.contains(&id) && !names.contains_key(&id) {
                 names.insert(
                     id,
@@ -340,7 +352,67 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
         }
     }
 
+    numeroter(&mut names, &couvrantes, known_ids);
     names
+}
+
+/// Les ordinaux hébreux, dans l'ordre de l'alphabet.
+///
+/// La lettre suivie d'un *geresh* — `א׳` — est la notation usuelle du nombre
+/// en hébreu. C'est ainsi qu'un livre numéroté se nomme.
+const ORDINAUX: [(&str, &str); 3] = [("alef", "א׳"), ("bet", "ב׳"), ("gimel", "ג׳")];
+
+/// Donne leur hébreu aux livres numérotés, à partir de l'entrée commune.
+///
+/// ## Pourquoi ils n'en avaient pas
+///
+/// Le répertoire du §2.6 porte **une entrée pour deux livres** — une seule
+/// ligne `El HaQorintiyim` avec son hébreu, pour *Alef* et *Bet*. La recherche
+/// se faisant sur le nom exact, `el-ha-qorintiyim-alef` ne trouvait rien : onze
+/// livres s'affichaient sans écriture hébraïque au sommaire, alors que leur
+/// hébreu existait une ligne plus haut.
+///
+/// ## Ce que cette passe ne fait pas
+///
+/// Elle n'écrase **jamais** une entrée existante. Un livre numéroté qui aurait
+/// sa propre ligne au répertoire — avec un hébreu que personne ne peut
+/// déduire — garde le sien. La déduction ne sert que là où le vault s'est tu.
+fn numeroter(
+    names: &mut HashMap<String, BookName>,
+    couvrantes: &HashMap<String, BookName>,
+    known_ids: &HashSet<String>,
+) {
+    for id in known_ids {
+        if names.contains_key(id) {
+            continue;
+        }
+        let Some((suffixe, ordinal)) = ORDINAUX
+            .iter()
+            .find(|(mot, _)| id.ends_with(&format!("-{mot}")))
+        else {
+            continue;
+        };
+        let base = &id[..id.len() - suffixe.len() - 1];
+        let Some(commun) = names.get(base).or_else(|| couvrantes.get(base)) else {
+            continue;
+        };
+        // **La translittération garde son rang.** Reprendre celle de l'entrée
+        // commune ferait deux livres nommés `El HaQorintiyim`, et le sommaire
+        // les présenterait comme un doublon. Seul l'hébreu se déduit ; le nom
+        // ONT est déjà juste, il vient du corpus.
+        let rang = match *suffixe {
+            "alef" => "Alef",
+            "bet" => "Bet",
+            _ => "Gimel",
+        };
+        names.insert(
+            id.clone(),
+            BookName {
+                translit: format!("{} {rang}", commun.translit),
+                hebrew: format!("{} {ordinal}", commun.hebrew),
+            },
+        );
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

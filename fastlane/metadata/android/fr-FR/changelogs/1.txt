@@ -1,0 +1,5 @@
+La première version pour Android.
+
+La liseuse porte les trois niveaux, les fiches d'intraduisibles, le lexique et la recherche. Le texte se règle — corps, interligne, police, thème — et se lit en versets ou en prose continue.
+
+On change d'unité en faisant glisser la page. Le verset du jour tient sur l'écran d'accueil.

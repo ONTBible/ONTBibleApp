@@ -69,6 +69,28 @@ struct ChapterView: View {
         self.decalage = decalage
     }
 
+    /// Ce que porte la pastille de renvoi — **le livre et le rang**.
+    ///
+    /// Elle est le seul repère de l'écran de lecture : il n'y a pas de barre de
+    /// navigation qui rappelle où l'on est, ni de sommaire au-dessus. Le rang
+    /// seul — « Chapitre 6 » — dirait donc *quelle* unité sans dire *de quoi*.
+    ///
+    /// Mais le rang suit le registre, et c'est ici que ça compte le plus : la
+    /// pastille est le seul endroit où le lecteur croise le mot **pendant**
+    /// qu'il lit. Le sommaire et le sélecteur se traversent ; celui-ci reste
+    /// sous les yeux.
+    ///
+    /// Une introduction garde son titre : elle n'a pas de rang à traduire.
+    private var pastille: String {
+        guard chapter.n > 0 else { return chapter.title }
+        let livre = model.outline(chapter.bookId)?.title ?? chapter.bookId
+        return LibelleDUnite.situe(
+            livre: livre,
+            rang: chapter.n,
+            french: model.preferences.french
+        )
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -230,6 +252,44 @@ struct ChapterView: View {
         // en grande partie cette animation elle-même. Assez court pour suivre
         // le doigt, assez long pour qu'on voie d'où la barre vient.
         .animation(.snappy(duration: 0.14), value: selection.isEmpty)
+        // **Chaque verset se sent, et les trois moments ne se ressemblent pas.**
+        //
+        // On désigne un verset en regardant le texte, pas la barre qui monte du
+        // bas de l'écran. Sans retour tactile, le seul signe que quelque chose
+        // a changé est hors du regard — et il l'est d'autant plus quand le
+        // corps est réglé grand et que la barre sort du champ.
+        //
+        // Le déclencheur est le **`Set` lui-même** et non son `isEmpty`. Un
+        // booléen ne bascule qu'aux frontières du mode : ajouter un deuxième,
+        // un troisième verset ne le changeait pas, donc rien ne se sentait
+        // au-delà du premier. C'est l'écart que l'auteur a senti sur Android
+        // avant de le demander ici.
+        //
+        // Trois sensations, pour savoir **sans regarder** ce qu'on vient de
+        // faire :
+        //
+        // * **on entre** — un choc net, medium. C'est un mode qui s'ouvre, et
+        //   c'est le seul des trois moments qui change ce que l'écran fait ;
+        // * **on ajoute ou on retire** — `.selection`, le retour qu'iOS réserve
+        //   au déplacement d'une poignée de sélection de texte. Étendre une
+        //   sélection est exactement ça ;
+        // * **on sort** — un choc léger, plus discret que l'entrée. La
+        //   dissymétrie est voulue : entrer demande de l'attention, sortir
+        //   rend la page.
+        //
+        // Android en a deux là où nous en avons trois — `LongPress` puis
+        // `TextHandleMove`, sa sortie se confondant avec un retrait. C'est un
+        // écart connu et assumé, pas un oubli.
+        .sensoryFeedback(trigger: selection) { avant, apres in
+            switch (avant.isEmpty, apres.isEmpty) {
+            case (true, false): .impact(weight: .medium, intensity: 0.5)
+            case (false, true): .impact(weight: .light, intensity: 0.35)
+            // Le `Set` a changé sans franchir de frontière : un verset de plus
+            // ou de moins. Et s'il n'a pas changé du tout, SwiftUI ne nous
+            // appelle pas — le déclencheur est `Equatable`.
+            default: .selection
+            }
+        }
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
@@ -243,12 +303,29 @@ struct ChapterView: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
-                        Text(chapter.title)
+                        Text(pastille)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: echelle(10), weight: .bold))
                     }
+                    // **Sans ça, la pastille se vide.**
+                    //
+                    // Elle partage la place de tête avec le bouton de retour
+                    // du système, et iOS lui accorde ce qui reste. Quand le
+                    // libellé s'est allongé — « Bereshit 1 » devenu « Bereshit
+                    // · Chapitre 1 », deux fois plus long —, ce reste est
+                    // tombé à zéro : `lineLimit(1)` a tronqué le texte à
+                    // **rien**, et il ne restait qu'une capsule avec un
+                    // chevron. Le lecteur y voyait la disparition du
+                    // sélecteur, pas un texte tronqué.
+                    //
+                    // `fixedSize` dit à la mise en page que ce texte ne se
+                    // comprime pas. C'est ce que voulait déjà `lineLimit(1)`,
+                    // qui ne dit que « une seule ligne » — pas « garde ta
+                    // largeur ». Deux réglages voisins, un seul répond à la
+                    // question posée.
+                    .fixedSize(horizontal: true, vertical: false)
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -256,7 +333,7 @@ struct ChapterView: View {
                     .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Aller à un autre passage — actuellement \(chapter.title)")
+                .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
@@ -323,8 +400,23 @@ struct ChapterView: View {
             autoShare = true
         }
 
-        let vise = router.pendingVerse
+        // **Borné aux versets qui existent.**
+        //
+        // Rien ne le vérifiait, et un lien vers `?v=999` s'enregistrait tel
+        // quel : « Reprendre » affichait alors « Bereshit 1:999 », et le
+        // lancement suivant visait un verset absent. Un lien bricolé — ou un
+        // lien vers une unité qui a raccourci depuis — empoisonnait l'état
+        // persistant du lecteur.
+        //
+        // Le défilement, lui, ne s'en plaignait pas : viser une ancre inconnue
+        // est une non-opération silencieuse. Le comportement souhaitable
+        // arrivait donc par tolérance du moteur, et le défaut se logeait juste
+        // à côté, dans ce qu'on **retient**.
+        let demande = router.pendingVerse
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
+        let vise = demande.flatMap { n in
+            chapter.verses.contains(where: { $0.n == n }) ? n : nil
+        }
         router.pendingVerse = nil
 
         suivi.recommence()

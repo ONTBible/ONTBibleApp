@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::*;
-use crate::domain::sync::{Highlight, Position};
+use crate::domain::sync::{Highlight, Position, ProfilLecteur};
 use crate::domain::ExternalIdentity;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ impl IdentityProvider for FakeProvider {
     async fn exchange(
         &self,
         _provider: Provider,
+        _origine: Origine,
         _code: &str,
         _redirect_uri: &str,
         _verifier: Option<&str>,
@@ -98,6 +99,7 @@ impl UserRepository for FakeUsers {
 struct FakeSync {
     highlights: Mutex<Vec<Highlight>>,
     position: Mutex<Option<Position>>,
+    profil: Mutex<Option<ProfilLecteur>>,
 }
 
 #[async_trait::async_trait]
@@ -116,6 +118,15 @@ impl SyncRepository for FakeSync {
 
     async fn position(&self, _user: &UserId) -> Result<Option<Position>, DomainError> {
         Ok(self.position.lock().unwrap().clone())
+    }
+
+    async fn profil(&self, _user: &UserId) -> Result<Option<ProfilLecteur>, DomainError> {
+        Ok(self.profil.lock().unwrap().clone())
+    }
+
+    async fn set_profil(&self, _user: &UserId, profil: &ProfilLecteur) -> Result<(), DomainError> {
+        *self.profil.lock().unwrap() = Some(profil.clone());
+        Ok(())
     }
 
     async fn upsert_highlight(
@@ -203,7 +214,7 @@ async fn une_premiere_connexion_cree_le_compte() {
     let (app, _, _) = app(true);
 
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -216,11 +227,11 @@ async fn une_seconde_connexion_retrouve_le_meme_compte() {
     let (app, _, _) = app(true);
 
     let first = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
     let second = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -237,7 +248,7 @@ async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
     let (app, users, _) = app(false);
 
     assert!(app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .is_err());
     assert!(users.identities.lock().unwrap().is_empty());
@@ -251,7 +262,7 @@ async fn un_code_refuse_par_le_fournisseur_ne_cree_rien() {
 async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
     let (app, _, _) = app(true);
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -265,7 +276,7 @@ async fn un_jeton_de_rafraichissement_rend_une_nouvelle_paire() {
 async fn un_jeton_de_rafraichissement_ne_sert_qu_une_fois() {
     let (app, _, _) = app(true);
     let session = app
-        .sign_in(Provider::Apple, "code", "uri", None)
+        .sign_in(Provider::Apple, Origine::App, "code", "uri", None)
         .await
         .unwrap();
 
@@ -295,6 +306,7 @@ async fn un_ecrit_plus_recent_ecrase_le_serveur() {
         PushRequest {
             highlights: vec![highlight(19, "gold", 1_000)],
             position: None,
+            profil: None,
         },
     )
     .await
@@ -305,6 +317,7 @@ async fn un_ecrit_plus_recent_ecrase_le_serveur() {
         PushRequest {
             highlights: vec![highlight(19, "sky", 2_000)],
             position: None,
+            profil: None,
         },
     )
     .await
@@ -325,6 +338,7 @@ async fn un_appareil_en_retard_n_ecrase_pas_le_serveur() {
         PushRequest {
             highlights: vec![highlight(19, "sky", 2_000)],
             position: None,
+            profil: None,
         },
     )
     .await
@@ -336,6 +350,7 @@ async fn un_appareil_en_retard_n_ecrase_pas_le_serveur() {
         PushRequest {
             highlights: vec![highlight(19, "gold", 1_000)],
             position: None,
+            profil: None,
         },
     )
     .await
@@ -354,6 +369,7 @@ async fn la_recuperation_incrementale_ne_rend_que_les_changements() {
         PushRequest {
             highlights: vec![highlight(1, "gold", 1_000), highlight(2, "sky", 3_000)],
             position: None,
+            profil: None,
         },
     )
     .await
@@ -375,4 +391,88 @@ async fn effacer_le_compte_est_transmis_au_stockage() {
     app.erase(&user).await.unwrap();
 
     assert_eq!(users.erased.lock().unwrap().as_slice(), &[user]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Le profil du lecteur
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Une requête qui ne porte **que** le profil.
+fn avec(profil: ProfilLecteur) -> PushRequest {
+    PushRequest {
+        highlights: vec![],
+        position: None,
+        profil: Some(profil),
+    }
+}
+
+fn profil(updated_at: i64, prenom: &str) -> ProfilLecteur {
+    ProfilLecteur {
+        nom_dusage: "gloiiire_".into(),
+        prenom: prenom.into(),
+        nom: "Bikouta".into(),
+        bio: String::new(),
+        portrait: None,
+        updated_at,
+    }
+}
+
+/// **Le profil s'arbitre comme un surlignage** : dernier écrit gagné.
+///
+/// Un appareil resté longtemps hors ligne ne doit pas réimposer un nom
+/// qu'on a changé ailleurs entre-temps.
+#[tokio::test]
+async fn le_profil_le_plus_recent_gagne() {
+    let (app, _, _) = app(true);
+    let lecteur = UserId::new();
+
+    app.push(&lecteur, avec(profil(200, "Gloire")))
+        .await
+        .unwrap();
+    app.push(&lecteur, avec(profil(100, "Ancien")))
+        .await
+        .unwrap();
+
+    let rendu = app.pull(&lecteur, None).await.unwrap().profil.unwrap();
+    assert_eq!(rendu.prenom, "Gloire");
+}
+
+/// Et il descend **sans condition de `since`**.
+///
+/// Un appareil neuf reçoit `since` à jour pour tout le reste ; s'il était
+/// filtré comme les surlignages, le lecteur repartirait sans son propre nom.
+#[tokio::test]
+async fn le_profil_descend_meme_avec_un_since_recent() {
+    let (app, _, _) = app(true);
+    let lecteur = UserId::new();
+    app.push(&lecteur, avec(profil(100, "Gloire")))
+        .await
+        .unwrap();
+
+    let rendu = app.pull(&lecteur, Some(9_999_999)).await.unwrap();
+    assert!(rendu.profil.is_some(), "le profil a été filtré par `since`");
+}
+
+/// **Un portrait trop grand est refusé, et nommé.**
+///
+/// Laisser DynamoDB échouer rendrait une erreur de stockage, que le client
+/// lit comme une panne du serveur — et il réessaierait indéfiniment avec la
+/// même image.
+#[tokio::test]
+async fn un_portrait_trop_grand_est_refuse() {
+    let (app, _, _) = app(true);
+    let lecteur = UserId::new();
+
+    let mut trop = profil(100, "Gloire");
+    trop.portrait = Some("A".repeat(crate::domain::sync::PORTRAIT_MAX + 1));
+
+    let erreur = app
+        .push(&lecteur, avec(trop))
+        .await
+        .expect_err("un portrait hors borne ne peut pas être accepté");
+    assert!(matches!(erreur, DomainError::PortraitTropGrand));
+
+    // Et rien n'a été écrit : un envoi refusé ne laisse pas la moitié de
+    // lui-même derrière lui.
+    assert!(app.pull(&lecteur, None).await.unwrap().profil.is_none());
 }
