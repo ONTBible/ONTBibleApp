@@ -201,7 +201,7 @@ private struct BlocDeFiche: View {
     var body: some View {
         switch block {
         case .paragraph(let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .lineSpacing(4)
 
         case .heading(let level, let nodes):
@@ -210,7 +210,7 @@ private struct BlocDeFiche: View {
             // donner une taille de titre le ferait rivaliser avec « Ce qu'il
             // signifie », qui le contient. Deux tailles suffisent, et la
             // seconde n'est qu'une nuance.
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .font(level <= 2 ? .subheadline.weight(.semibold) : .footnote.weight(.semibold))
                 .foregroundStyle(theme.accent)
                 .padding(.top, 6)
@@ -225,13 +225,13 @@ private struct BlocDeFiche: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("·").foregroundStyle(theme.accent)
-                        Text(ONTTextRenderer.compose(item, theme: theme))
+                        Text(ONTTextRenderer.composeFiche(item, theme: theme))
                     }
                 }
             }
 
         case .quote(let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
+            Text(ONTTextRenderer.composeFiche(nodes, theme: theme))
                 .italic()
                 .padding(.leading, 10)
                 .overlay(alignment: .leading) {
