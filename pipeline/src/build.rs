@@ -4,6 +4,7 @@
 //! dist/corpus.json        l'arborescence de navigation, les 70 slots
 //! dist/books/<id>.json    le contenu complet d'un livre
 //! dist/glossary.json      le lexique des intraduisibles
+//! dist/shemot.json        les fiches des noms propres
 //! dist/occurrences.json   lemme → toutes ses occurrences
 //! dist/search.json        l'index de recherche
 //! dist/daily.json         le vivier du verset du jour
@@ -29,8 +30,7 @@ use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
-};
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel, ShemEntry, ShemotFile,};
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
 
@@ -645,7 +645,8 @@ pub fn build() -> Result<BuildResult, String> {
         .collect();
     fiches_orphelines.sort();
     for entry in glossary.iter_mut() {
-        if let Some(blocs) = fiches.get(&entry.lemma) {
+        if let Some(fiche) = fiches.get(&entry.lemma) {
+            let blocs = &fiche.blocs;
             entry.definition = Some(blocs.clone());
         }
     }
@@ -760,6 +761,46 @@ pub fn build() -> Result<BuildResult, String> {
     shemot_sans_fiche.sort();
     shemot_sans_fiche.dedup();
 
+    // **On ne publie que les porteurs que le corpus nomme.** Le vault tient 305
+    // fiches, le corpus publié en emploie 205 : embarquer les cent autres
+    // ferait payer au lecteur des noms qu'aucune unité écrite ne prononce.
+    // Elles arriveront avec leurs unités.
+    let mut shemot_employes: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in &livre.chapters {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shem_lemmes(nodes, &mut shemot_employes)
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shem_lemmes(&v.nodes, &mut shemot_employes)
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_employes.sort();
+    shemot_employes.dedup();
+
+    let shemot: Vec<ShemEntry> = shemot_employes
+        .iter()
+        .filter_map(|lemme| {
+            fiches.get(lemme).map(|fiche| ShemEntry {
+                lemma: lemme.clone(),
+                title: fiche.titre.clone(),
+                definition: fiche.blocs.clone(),
+            })
+        })
+        .collect();
+
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -813,6 +854,15 @@ pub fn build() -> Result<BuildResult, String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    bytes += write_json(
+        &sortie.join("shemot.json"),
+        &ShemotFile {
+            schema: 1,
+            entries: shemot.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
 
     bytes += write_json(
         &sortie.join("glossary.json"),
@@ -967,6 +1017,20 @@ pub fn build() -> Result<BuildResult, String> {
 }
 
 /// Descend dans un arbre d'inline et relève les termes sans entrée.
+/// Récolte les lemmes de tous les Shemot rencontrés.
+fn collect_shem_lemmes(nodes: &[Inline], out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { lemma, .. } => out.push(lemma.clone()),
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shem_lemmes(children, out),
+            _ => {}
+        }
+    }
+}
+
 /// Récolte les Shemot dont la fiche manque.
 ///
 /// Le pendant de [`collect_or_morts`] pour la troisième couche. Il ne dit pas

@@ -658,6 +658,35 @@ pub struct GlossaryFile {
     pub entries: Vec<GlossaryEntry>,
 }
 
+/// La fiche d'un **Shem** — un porteur de nom.
+///
+/// Elle a la tenue d'une fiche d'intraduisible sans en être une : le §2.10 veut
+/// qu'elle dise le sens de la racine, ce que le nom met sur les épaules de qui
+/// le porte, et ce qui reste à venir. D'où les titres de section, que les fiches
+/// de concepts n'ont pas — 197 sur 305 en portent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShemEntry {
+    /// La clé de jointure avec [`Inline::Shem::lemma`].
+    pub lemma: String,
+    /// La forme d'affichage — `Qayin`, `Tuval-Qayin`, `Na'amah`.
+    pub title: String,
+    /// Le corps de la fiche, titres de section compris.
+    pub definition: Vec<Block>,
+}
+
+/// `dist/shemot.json` — les fiches des noms propres.
+///
+/// **Un fichier à part, et pas des entrées de glossaire.** Le lexique publie les
+/// intraduisibles : y verser les Shemot ferait promettre une fiche de concept
+/// là où il y a un porteur, et remplirait l'onglet Lexique de trois cents noms
+/// qui n'y ont rien à faire. C'est la distinction que toute cette couche existe
+/// pour tenir ; l'effacer au dernier moment n'aurait pas de sens.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShemotFile {
+    pub schema: u32,
+    pub entries: Vec<ShemEntry>,
+}
+
 /// `dist/occurrences.json` — lemme → toutes ses occurrences.
 ///
 /// `BTreeMap` et non `HashMap` : la sortie doit être **déterministe**. Deux
