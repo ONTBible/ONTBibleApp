@@ -9,6 +9,13 @@ private struct SessionDTO: Decodable {
     let refreshToken: String
     let expiresIn: Int
     let created: Bool
+    /// L'adresse rendue par le fournisseur.
+    ///
+    /// Facultative : le serveur ne la renvoyait pas avant, et l'app arrive
+    /// **toujours** avant lui — `deployer-backend.yml` ne part que de `main`.
+    /// La déclarer obligatoire ferait échouer toute connexion jusqu'au
+    /// déploiement suivant.
+    let email: String?
 }
 
 /// Un surlignage tel qu'il voyage.
@@ -170,7 +177,8 @@ public struct HTTPAuthService: AuthService {
         do {
             return try await post(
                 "auth/\(provider.rawValue)",
-                Body(code: code, redirectUri: redirectURI, codeVerifier: verifier)
+                Body(code: code, redirectUri: redirectURI, codeVerifier: verifier),
+                provider: provider
             )
         } catch AccountError.server(503) {
             // Le serveur dit qu'il n'a pas les identifiants de ce fournisseur.
@@ -181,12 +189,24 @@ public struct HTTPAuthService: AuthService {
         }
     }
 
-    public func refresh(_ refreshToken: String) async throws -> Session {
+    public func refresh(_ precedente: Session) async throws -> Session {
         struct Body: Encodable { let refreshToken: String }
-        return try await post("auth/refresh", Body(refreshToken: refreshToken))
+        return try await post(
+            "auth/refresh", Body(refreshToken: precedente.refreshToken),
+            provider: precedente.provider, email: precedente.email)
     }
 
-    private func post(_ path: String, _ body: some Encodable) async throws -> Session {
+    /// `provider` et `email` ne viennent pas de la réponse — ils sont **portés
+    /// à travers** elle.
+    ///
+    /// Le serveur ne renvoie pas le fournisseur, et le rafraîchissement n'en
+    /// connaît aucun : sans ce passage, la première rotation de jeton — au
+    /// bout d'une heure — effacerait le logo, et personne ne relierait la
+    /// disparition à un renouvellement silencieux.
+    private func post(
+        _ path: String, _ body: some Encodable,
+        provider: AuthProvider? = nil, email: String? = nil
+    ) async throws -> Session {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
         request.timeoutInterval = 20
@@ -208,7 +228,15 @@ public struct HTTPAuthService: AuthService {
             return Session(
                 accessToken: dto.accessToken,
                 refreshToken: dto.refreshToken,
-                expiresAt: Date().addingTimeInterval(TimeInterval(dto.expiresIn))
+                expiresAt: Date().addingTimeInterval(TimeInterval(dto.expiresIn)),
+                // **Le fournisseur vient d'ici, pas du serveur** : c'est le
+                // bouton sur lequel le lecteur a appuyé, et cette fonction le
+                // reçoit en paramètre.
+                provider: provider,
+                // Ce que le serveur donne l'emporte ; à défaut, ce qu'on
+                // savait déjà. Un rafraîchissement ne doit pas effacer une
+                // adresse sous prétexte qu'il ne la répète pas.
+                email: dto.email ?? email
             )
         case 401:
             throw AccountError.providerRefused

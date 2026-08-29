@@ -72,6 +72,14 @@ public final class AccountModel {
     /// propriété laisserait croire qu'elle ne coûte rien.
     public func portrait() -> Data? { profils.portrait() }
 
+    /// La session ouverte, pour ce que l'écran a besoin d'en dire — par quoi
+    /// on s'est connecté, et sous quelle adresse.
+    ///
+    /// **En lecture seule.** Une vue n'a aucune raison d'écrire une session, et
+    /// l'exposer autrement rendrait possible d'en poser une sans passer par la
+    /// connexion.
+    public var session: Session? { store.session }
+
     /// Enregistre un portrait et l'attache au profil.
     public func poserLePortrait(_ donnees: Data) {
         guard let nom = try? profils.enregistrerLePortrait(donnees) else { return }

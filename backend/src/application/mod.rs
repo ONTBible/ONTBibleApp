@@ -21,6 +21,17 @@ pub struct Session {
     /// Vrai si le compte vient d'être créé — le client peut alors proposer
     /// de téléverser les annotations déjà prises hors ligne.
     pub created: bool,
+    /// L'adresse rendue par le fournisseur, quand il en donne une.
+    ///
+    /// **On la rend, on ne la garde pas.** Le compte est identifié par le
+    /// `subject` du fournisseur, jamais par l'adresse : celle-ci change, se
+    /// masque — Apple propose un relais —, et n'a de valeur que pour dire au
+    /// lecteur *sous quel compte il est connecté*.
+    ///
+    /// Absente au rafraîchissement, où l'on n'a pas réinterrogé le
+    /// fournisseur. Le client conserve alors celle qu'il avait.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 #[derive(Clone)]
@@ -64,7 +75,7 @@ impl App {
             None => (self.users.create(&identity).await?, true),
         };
 
-        self.open_session(user, created).await
+        self.open_session(user, created, identity.email).await
     }
 
     /// Rafraîchissement : un jeton long contre une nouvelle paire.
@@ -75,10 +86,15 @@ impl App {
     pub async fn refresh(&self, token: &str) -> Result<Session, DomainError> {
         let digest = RefreshToken(token.to_string()).digest();
         let user = self.users.consume_refresh(&digest).await?;
-        self.open_session(user, false).await
+        self.open_session(user, false, None).await
     }
 
-    async fn open_session(&self, user: UserId, created: bool) -> Result<Session, DomainError> {
+    async fn open_session(
+        &self,
+        user: UserId,
+        created: bool,
+        email: Option<String>,
+    ) -> Result<Session, DomainError> {
         let now = self.clock.now();
 
         let access = self
@@ -97,6 +113,7 @@ impl App {
             refresh_token: refresh.0,
             expires_in: crate::domain::token::ACCESS_TTL.whole_seconds(),
             created,
+            email,
         })
     }
 
