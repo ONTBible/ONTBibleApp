@@ -30,7 +30,9 @@ use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel, ShemEntry, ShemotFile,};
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, ShemEntry, ShemotFile, Status, Stub,
+    TermLevel,
+};
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
 
@@ -1036,11 +1038,7 @@ fn collect_shem_lemmes(nodes: &[Inline], out: &mut Vec<String>) {
 /// Le pendant de [`collect_or_morts`] pour la troisième couche. Il ne dit pas
 /// « ce nom est faux » mais « ce porteur n'a pas encore sa fiche » — c'est une
 /// liste de travail, pas une liste d'erreurs.
-fn collect_shemot_sans_fiche(
-    nodes: &[Inline],
-    fiches: &HashSet<String>,
-    out: &mut Vec<String>,
-) {
+fn collect_shemot_sans_fiche(nodes: &[Inline], fiches: &HashSet<String>, out: &mut Vec<String>) {
     for n in nodes {
         match n {
             Inline::Shem { v, lemma } => {
@@ -1051,9 +1049,7 @@ fn collect_shemot_sans_fiche(
             Inline::Em { children }
             | Inline::Accentuation { children }
             | Inline::Gloss { children }
-            | Inline::Link { children, .. } => {
-                collect_shemot_sans_fiche(children, fiches, out)
-            }
+            | Inline::Link { children, .. } => collect_shemot_sans_fiche(children, fiches, out),
             _ => {}
         }
     }
