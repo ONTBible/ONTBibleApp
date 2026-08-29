@@ -270,7 +270,25 @@ public final class Router {
             resolvingAgainstBaseURL: false
         )
         if let verses, !verses.isEmpty {
-            components?.queryItems = [URLQueryItem(name: "v", value: verses)]
+            // **Le renvoi et le paramètre ne s'écrivent pas pareil.**
+            //
+            // `VerseRange.label` joint par « , » — espace comprise, parce que
+            // c'est la typographie française d'un renvoi et que c'est ainsi
+            // qu'on le lit. Passée telle quelle, cette espace devient `%20` :
+            // `?v=1-3,%207` là où le site écrit `?v=1-3,7`.
+            //
+            // Les deux se lisent pareil — mesuré, le site rend le même aperçu
+            // pour l'une et pour l'autre. Mais ce sont **deux chaînes** pour un
+            // seul passage, donc deux entrées de cache et deux aperçus. C'est
+            // exactement ce que le site a voulu éviter en rendant la sélection
+            // idempotente : deux lecteurs qui désignent le même passage doivent
+            // produire le même lien.
+            //
+            // On retire l'espace ici et non dans `label` : le renvoi affiché la
+            // veut, et la lui ôter dégraderait tous les écrans pour arranger
+            // une URL.
+            let canonique = verses.replacingOccurrences(of: " ", with: "")
+            components?.queryItems = [URLQueryItem(name: "v", value: canonique)]
         }
         return components?.url
     }
