@@ -154,6 +154,24 @@ export TF_VAR_apns_sandbox_private_key="$([ -n "${APNS_SANDBOX_KEY_PATH:-}" ] &&
 export TF_VAR_secret_diffusion="${SECRET_DIFFUSION:-}"
 export TF_VAR_github_client_id="$GITHUB_CLIENT_ID"
 export TF_VAR_github_client_secret="$GITHUB_CLIENT_SECRET"
+# Les identités du site. Facultatives — tant qu'elles manquent, le backend dit
+# « fournisseur non configuré » au lieu de présenter la mauvaise identité et de
+# recevoir un `invalid_grant` qu'on chercherait chez le site.
+export TF_VAR_apple_services_id="${APPLE_SERVICES_ID:-}"
+export TF_VAR_github_web_client_id="${GITHUB_WEB_CLIENT_ID:-}"
+export TF_VAR_github_web_client_secret="${GITHUB_WEB_CLIENT_SECRET:-}"
 
 terraform apply -auto-approve -no-color | tail -3
+
+# **Vérifier l'arrivée, pas seulement le départ.**
+#
+# Tout ce qui précède garde le *départ* : les chemins de clés sont contrôlés, la
+# précondition Terraform refuse un apply lancé sans `oauth.env`. Rien ne
+# regardait ce qui est **réellement en ligne** une fois l'apply rendu — et les
+# trois pannes de ce backend se ressemblent toutes : une variable partie vide,
+# aucune erreur, et la découverte des semaines plus tard.
+#
+# Le contrôle lit la configuration de la fonction déployée et rend 1 si une
+# variable nécessaire est vide. Il ne lit jamais une valeur.
+"$RACINE/scripts/eprouver-le-backend.sh"
 ok "déployé"

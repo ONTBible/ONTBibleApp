@@ -60,9 +60,43 @@ struct AccountModelTests {
         func remember(_ position: ReadingPosition) { self.position = position }
     }
 
+    /// Un dépôt de profil **en mémoire**, portrait compris.
+    ///
+    /// Le portrait est gardé sous son nom, comme sur le disque, pour que le
+    /// test éprouve la même chorégraphie : écrire l'image, puis le profil qui
+    /// la nomme. Une doublure qui rendrait toujours les mêmes octets laisserait
+    /// passer une inversion de cet ordre.
+    final class FakeProfils: ProfilRepository {
+        var profil = Profil()
+        var portraits: [String: Data] = [:]
+        private(set) var oublie = false
+
+        func enregistrerLePortrait(_ donnees: Data) throws -> String {
+            let nom = "portrait-\(portraits.count).jpg"
+            portraits[nom] = donnees
+            return nom
+        }
+
+        func portrait() -> Data? { profil.portrait.flatMap { portraits[$0] } }
+
+        func oublier() {
+            profil = Profil()
+            portraits.removeAll()
+            oublie = true
+        }
+    }
+
     private func makeModel(
         signedIn: Bool = true,
         consent: Bool = true
+    ) -> (AccountModel, FakeSync, FakeHighlights) {
+        makeModel(signedIn: signedIn, consent: consent, profils: FakeProfils())
+    }
+
+    private func makeModel(
+        signedIn: Bool = true,
+        consent: Bool = true,
+        profils: FakeProfils
     ) -> (AccountModel, FakeSync, FakeHighlights) {
         let sync = FakeSync()
         let highlights = FakeHighlights()
@@ -78,6 +112,7 @@ struct AccountModelTests {
             store: store,
             highlights: highlights,
             positions: FakePositions(),
+            profils: profils,
             flow: SignInFlow(baseURL: URL(string: "https://exemple.test")!)
         )
         return (model, sync, highlights)

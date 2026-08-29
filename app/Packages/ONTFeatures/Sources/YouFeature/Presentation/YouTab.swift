@@ -28,6 +28,11 @@ public struct YouTab: View {
         self.onParutions = onParutions
     }
 
+    /// Ce qui est **montrable** : les pierres tombales n'en sont pas.
+    private var nombreDeSurlignages: Int {
+        reading.surlignagesParLivre().reduce(0) { $0 + $1.surlignages.count }
+    }
+
     public var body: some View {
         @Bindable var reading = reading
 
@@ -62,6 +67,20 @@ public struct YouTab: View {
                         ReadingSettingsSheet()
                     } label: {
                         Label("Réglages de lecture", systemImage: "textformat.size")
+                    }
+                    // **Ce que le lecteur a marqué lui appartient**, et c'était
+                    // jusqu'ici la seule chose de l'app qu'il ne pouvait pas
+                    // revoir : les surlignages n'existaient que là où ils
+                    // avaient été posés, un verset à la fois, dans un chapitre
+                    // qu'il fallait retrouver de mémoire.
+                    NavigationLink {
+                        MesSurlignages()
+                    } label: {
+                        LabeledContent {
+                            Text("\(nombreDeSurlignages)").monospacedDigit()
+                        } label: {
+                            Label("Surlignages", systemImage: "highlighter")
+                        }
                     }
                 }
                 .ontRow()
@@ -130,6 +149,16 @@ public struct YouTab: View {
                         DSCatalog()
                     } label: {
                         Label("Design system", systemImage: "paintpalette")
+                    }
+                    // L'éditeur n'existe qu'une fois connecté, et une
+                    // connexion réelle demande un fournisseur, un compte et un
+                    // aller-retour réseau. Cette entrée le rend visible sans
+                    // rien simuler : le profil est **local**, il se remplit et
+                    // se relit à l'identique.
+                    NavigationLink {
+                        EditeurDuProfil()
+                    } label: {
+                        Label("Profil", systemImage: "person.crop.circle")
                     }
                 } header: {
                     Text("Développement")
@@ -251,6 +280,23 @@ private struct AccountSection: View {
             .ontRow()
 
         case .signedIn:
+            // **Le profil ouvre le compte, avant la synchronisation.**
+            //
+            // C'est ce que le lecteur vient voir : « je suis connecté, et
+            // voilà qui je suis ». Le consentement et les échanges sont de
+            // l'administration — vraie, nécessaire, mais qui ne répond pas à
+            // la question qu'on se pose en ouvrant l'écran.
+            //
+            // **Et seulement connecté.** Un profil vide en tête d'un écran
+            // sans compte ne dit rien, là où les trois boutons de connexion
+            // disent quoi faire. L'auteur a d'ailleurs pris l'aperçu de
+            // développement pour le vrai, ce qui est le signe qu'un profil
+            // hors compte n'a pas de sens à cet endroit.
+            Section {
+                EnTeteDuProfil()
+            }
+            .ontRow()
+
             Section {
                 // Le consentement est explicite et séparé : les annotations
                 // d'un lecteur de Bible révèlent des convictions religieuses
@@ -324,7 +370,11 @@ extension View {
             Button("Supprimer", role: .destructive, action: action)
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("La copie de vos annotations sur le serveur sera effacée définitivement.")
+            Text(
+                "La copie de vos annotations sur le serveur sera effacée définitivement, "
+                    + "ainsi que votre profil sur cet appareil — photo, nom et bio. "
+                    + "Vos surlignages, eux, restent sur l'appareil."
+            )
         }
     }
 }

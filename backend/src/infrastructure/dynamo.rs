@@ -11,9 +11,16 @@
 //! USER#<id>         PROFILE                   le compte, + `idp` → la clé du lien
 //! USER#<id>         HL#<unité>#<verset>       un surlignage
 //! USER#<id>         POS                       la position de lecture
+//! USER#<id>         LECTEUR                   ce que le lecteur dit de lui
 //! USER#<id>         RT#<empreinte>            un jeton de rafraîchissement
 //! IDP#<fourn>#<sub> LINK                      identité externe → compte
 //! ```
+//!
+//! **`PROFILE` et `LECTEUR` ne sont pas la même chose.** Le premier est le
+//! compte — sa création, son lien d'identité ; le second est ce que le lecteur
+//! écrit de lui-même. Les confondre ferait porter au compte une donnée qu'il
+//! doit pouvoir perdre sans cesser d'exister, et le nom anglais du premier
+//! vient de ce qu'il est antérieur.
 //!
 //! Le profil porte `idp`, la clé du lien d'identité. Sans elle, l'effacement
 //! ne peut pas atteindre l'autre partition — voir `erase`.
@@ -31,7 +38,7 @@ use aws_sdk_dynamodb::Client;
 
 use crate::domain::diffusion::{Appareil, Environnement};
 use crate::domain::ports::{AppareilRepository, SyncRepository, UserRepository};
-use crate::domain::sync::{Highlight, Position};
+use crate::domain::sync::{Highlight, Position, ProfilLecteur};
 use crate::domain::token::UserId;
 use crate::domain::{DomainError, ExternalIdentity};
 use time::OffsetDateTime;
@@ -568,6 +575,42 @@ impl SyncRepository for Dynamo {
         item.insert(
             "updated_at".into(),
             AttributeValue::N(highlight.updated_at.to_string()),
+        );
+
+        self.client
+            .put_item()
+            .table_name(&self.table)
+            .set_item(Some(item))
+            .send()
+            .await
+            .map_err(|_| DomainError::Storage)?;
+        Ok(())
+    }
+
+    async fn profil(&self, user: &UserId) -> Result<Option<ProfilLecteur>, DomainError> {
+        let response = self
+            .client
+            .get_item()
+            .table_name(&self.table)
+            .set_key(Some(Self::key(&Self::user_key(user), "LECTEUR")))
+            .send()
+            .await
+            .map_err(|_| DomainError::Storage)?;
+
+        Ok(response
+            .item()
+            .and_then(|item| string(item, "body"))
+            .and_then(|body| serde_json::from_str(&body).ok()))
+    }
+
+    async fn set_profil(&self, user: &UserId, profil: &ProfilLecteur) -> Result<(), DomainError> {
+        let body = serde_json::to_string(profil).map_err(|_| DomainError::Storage)?;
+
+        let mut item = Self::key(&Self::user_key(user), "LECTEUR");
+        item.insert("body".into(), AttributeValue::S(body));
+        item.insert(
+            "updated_at".into(),
+            AttributeValue::N(profil.updated_at.to_string()),
         );
 
         self.client

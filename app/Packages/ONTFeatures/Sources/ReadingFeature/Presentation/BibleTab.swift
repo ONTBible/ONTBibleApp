@@ -74,7 +74,7 @@ public struct BibleTab: View {
                             // s'affiche quand il n'y a rien à dire — une
                             // section dont la glose redirait le pont n'en
                             // porte pas.
-                            if let second = registre(corpus.french, corpus.glose, model.preferences.french) {
+                            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
                                 Text(second)
                                     .font(.caption)
                                     .textCase(nil)
@@ -153,7 +153,7 @@ private struct ModeLabel: View {
         HStack {
             VStack(alignment: .leading, spacing: 1) {
                 Text(mode.title).font(.headline)
-                if let second = registre(mode.french, mode.glose, model.preferences.french) {
+                if let second = Registre.second(french: mode.french, glose: mode.glose, francaisRecu: model.preferences.french) {
                     Text(second).font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -166,6 +166,7 @@ private struct ModeLabel: View {
 }
 
 private struct BookRow: View {
+    @Environment(ReadingModel.self) private var model
     let book: BookOutline
 
     var body: some View {
@@ -200,12 +201,21 @@ private struct BookRow: View {
                     .font(.body.italic())
                     .foregroundStyle(book.empty ? .secondary : .primary)
             }
-            // Le français n'est qu'un pont de navigation pour le lecteur
-            // occidental — jamais la désignation principale.
-            Text(book.french)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 28)
+            // Le second nom, dans le registre choisi. Le français n'est qu'un
+            // pont de navigation pour le lecteur occidental — jamais la
+            // désignation principale.
+            //
+            // **C'est ici que le registre comptait le plus, et c'est ici qu'il
+            // manquait.** Les corpus et les modes tiennent en huit lignes ; les
+            // livres en soixante-dix, et ce sont eux qu'on parcourt. Registre
+            // éteint, la liste disait encore « Actes des Apôtres » là où le
+            // site disait « les gevurot de YHWH par ses neviim ».
+            if let second = Registre.second(french: book.french, glose: book.glose, francaisRecu: model.preferences.french) {
+                Text(second)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 28)
+            }
         }
     }
 }
@@ -286,7 +296,12 @@ struct BookView: View {
         // deuxième titre sous le premier — ferait une barre plus haute pour
         // redire ce qu'on sait déjà. Le lecteur d'iOS 18 perd une redite,
         // pas un renseignement.
-        .modifier(SousTitreDeBarre(texte: outline.french))
+        .modifier(
+            SousTitreDeBarre(
+                texte: Registre.second(french: outline.french, glose: outline.glose, francaisRecu: model.preferences.french)
+                    ?? outline.french
+            )
+        )
         // La grille des versets, ouverte **directement** — le lecteur vient de
         // choisir son livre et son unité dans la page qui est dessous ; les
         // deux premières étapes du sélecteur lui redemanderaient ce qu'il
@@ -489,19 +504,3 @@ private struct ConteneurLabel: View {
     }
 }
 
-
-/// Le second nom d'une section, dans le registre que le lecteur a choisi.
-///
-/// **Le français par défaut** : un lecteur qui arrive doit pouvoir se repérer
-/// avec les mots qu'il connaît — « la Loi », « Écrits apocalyptiques ». En
-/// glose, il lit ce que le nom ONT veut dire — « la Fondation », « les Réalités
-/// voilées » — et l'écart entre les deux est ce que le projet montre.
-///
-/// Rend `nil` quand il n'y a rien à dire : une section dont la glose redirait
-/// le pont — *Ketouvim* est « Écrits » des deux côtés — n'en porte pas, et la
-/// ligne disparaît plutôt que de se répéter.
-private func registre(_ francais: String?, _ glose: String?, _ francaisRecu: Bool) -> String? {
-    let choisi = francaisRecu ? francais : (glose ?? francais)
-    guard let choisi, !choisi.isEmpty else { return nil }
-    return choisi
-}

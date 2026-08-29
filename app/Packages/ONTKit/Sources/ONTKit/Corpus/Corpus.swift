@@ -203,7 +203,21 @@ public struct BookOutline: Hashable, Sendable, Identifiable {
     /// Le nom hébreu translittéré — le vrai titre du livre (§2.6).
     public let title: String
     /// Le nom français, repère pour le lecteur occidental.
+    ///
+    /// Le **pont de navigation** : les intraduisibles y sont rendus, et
+    /// *Gevurot ha-Neviim* devient « Actes des Apôtres ».
     public let french: String
+    /// Ce que le nom ONT veut dire, quand ça n'est pas déjà le pont.
+    ///
+    /// *Gevurot ha-Neviim* → « les gevurot de YHWH par ses neviim ». Les
+    /// intraduisibles y **restent en hébreu**, là où le français les rend.
+    ///
+    /// Le champ existait dans le corpus et dans le site depuis toujours ; il
+    /// manquait ici, donc les lignes de livres affichaient le français quel
+    /// que soit le registre. C'est pourtant ce que le lecteur parcourt le
+    /// plus — les corpus et les modes tiennent en huit lignes, les livres en
+    /// soixante-dix.
+    public let glose: String?
     public let hebrew: String?
     public let groupId: String?
     /// Vrai tant qu'aucun texte n'a été rédigé pour ce slot.
@@ -211,11 +225,12 @@ public struct BookOutline: Hashable, Sendable, Identifiable {
     public let intro: ChapterStub?
     public let chapters: [ChapterStub]
 
-    public init(id: String, slot: Int, title: String, french: String, hebrew: String?, groupId: String?, empty: Bool, intro: ChapterStub?, chapters: [ChapterStub]) {
+    public init(id: String, slot: Int, title: String, french: String, glose: String? = nil, hebrew: String?, groupId: String?, empty: Bool, intro: ChapterStub?, chapters: [ChapterStub]) {
         self.id = id
         self.slot = slot
         self.title = title
         self.french = french
+        self.glose = glose
         self.hebrew = hebrew
         self.groupId = groupId
         self.empty = empty

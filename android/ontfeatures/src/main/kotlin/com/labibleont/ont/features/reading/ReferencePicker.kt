@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +56,7 @@ import com.labibleont.ont.kit.corpus.ChapterStub
 import com.labibleont.ont.kit.corpus.Status
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.search.SearchEngine
+import com.labibleont.ont.kit.corpus.Registre
 
 /**
  * Le sélecteur de renvoi — livre, unité, verset.
@@ -157,7 +159,9 @@ private fun EtapeDesLivres(
 ) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
-    var recherche by remember { mutableStateOf("") }
+    // Le filtre survit à la rotation : le lecteur qui a tapé « berei » pour
+    // trouver son livre ne doit pas le retaper parce qu'il a tourné l'écran.
+    var recherche by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         ONTPage {
@@ -191,6 +195,7 @@ private fun EtapeDesLivres(
                         LigneDuSelecteur(
                             livre = livre,
                             courant = livre.id == livreCourant,
+                            francaisRecu = model.preferences.french,
                             onChoisir = { onChoisir(livre.id) },
                         )
                     }
@@ -212,11 +217,21 @@ private fun correspond(livre: BookOutline, recherche: String): Boolean {
     val cherche = SearchEngine.fold(recherche.trim())
     if (cherche.isEmpty()) return true
     return SearchEngine.fold(livre.title).contains(cherche) ||
-        SearchEngine.fold(livre.french).contains(cherche)
+        // **Les deux registres**, pas seulement celui qu'on affiche.
+        //
+        // Un lecteur en glose doit retrouver le livre en tapant « actes », et
+        // un lecteur en français reçu en tapant « gevurot ». Chercher dans le
+        // seul registre affiché rendrait introuvable ce que l'autre nomme.
+        SearchEngine.fold(Registre.cherchable(livre)).contains(cherche)
 }
 
 @Composable
-private fun LigneDuSelecteur(livre: BookOutline, courant: Boolean, onChoisir: () -> Unit) {
+private fun LigneDuSelecteur(
+    livre: BookOutline,
+    courant: Boolean,
+    francaisRecu: Boolean,
+    onChoisir: () -> Unit,
+) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
     // Un slot vide reste **visible mais éteint** : le corpus est un chantier, et
@@ -250,7 +265,14 @@ private fun LigneDuSelecteur(livre: BookOutline, courant: Boolean, onChoisir: ()
                     else -> ONTColors.inkSoft(theme)
                 },
             )
-            Text(livre.french, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            // Le sélecteur n'appliquait le registre **nulle part** : il rendait
+            // le français en dur, quel que soit le réglage. Le même défaut
+            // qu'iOS a trouvé chez lui — une règle de trois lignes recopiée
+            // dans les vues est une règle qu'un écran finit par ne pas
+            // appliquer.
+            Registre.second(livre.french, livre.glose, francaisRecu)?.let {
+                Text(it, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            }
         }
         if (!lisible) {
             Text("à venir", fontSize = 12.sp, color = ONTColors.inkSoft(theme))

@@ -28,6 +28,7 @@ import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.kit.reader.ReadingTheme
+import com.labibleont.ont.designsystem.typography.interligne
 
 /**
  * Les réglages de lecture.
@@ -129,6 +130,45 @@ public fun ReadingSettings(
                         onValueChange = { onChange(preferences.copy(textSize = it.toDouble())) },
                         valueRange = 14f..34f,
                         steps = 19,
+                    )
+                }
+                ONTGroupDivider()
+                // L'interligne, qui existait dans le modèle et n'avait jamais
+                // eu de curseur.
+                //
+                // Le champ était là, persisté, et la liseuse l'appliquait — un
+                // lecteur qui l'avait réglé sur iOS puis synchronisé voyait son
+                // choix respecté sans pouvoir en changer. La même plage et le
+                // même pas que sur iOS, pour qu'un compte donne la même page
+                // des deux côtés.
+                Column(modifier = Modifier.padding(espace.l)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "Interligne",
+                            color = ONTColors.ink(theme),
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            // L'interligne total, pas le réglage brut : « 0,5 »
+                            // ne dit rien, « 1,74 × » se compare à ce qu'on voit.
+                            "%.2f ×".format(interligne(preferences.lineSpacing)),
+                            color = ONTColors.accent(theme),
+                            fontSize = 15.sp,
+                        )
+                    }
+                    Text(
+                        "L'air entre les lignes, et entre les versets",
+                        color = ONTColors.inkSoft(theme),
+                        fontSize = 13.sp,
+                    )
+                    Slider(
+                        value = preferences.lineSpacing.toFloat(),
+                        onValueChange = {
+                            onChange(preferences.copy(lineSpacing = it.toDouble()))
+                        },
+                        valueRange = 0.2f..1.0f,
+                        steps = 7,
                     )
                 }
             }

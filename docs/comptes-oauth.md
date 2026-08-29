@@ -127,6 +127,61 @@ Puis **Generate a new client secret**.
 
 ---
 
+## 3 bis. GitHub, **une seconde fois**, pour le site
+
+**Ce n'est pas un second identifiant, c'est une seconde application.** Le
+portail de GitHub n'admet qu'**une seule** adresse de retour par application,
+et celle ci-dessus est prise par l'app. Il n'y a pas de champ à ajouter : il
+faut recommencer.
+
+C'est ce qui rend GitHub plus cher qu'Apple, qui se contente d'un Services ID
+sous la même clé de signature — et que Google, qui ne demande rien du tout.
+
+Même chemin, **New OAuth App** encore une fois :
+
+| Champ | Valeur |
+|---|---|
+| Application name | La Bible ONT — site |
+| Homepage URL | `https://ontbible.com` |
+| Authorization callback URL | `https://ontbible.com/fr/compte/retour` |
+
+Puis **Generate a new client secret**.
+
+| Variable | Où |
+|---|---|
+| `GITHUB_WEB_CLIENT_ID` | Lambda **et** le site |
+| `GITHUB_WEB_CLIENT_SECRET` | Lambda **seulement** |
+
+**Aucune API ne crée une OAuth App.** GitHub n'expose pas d'endpoint pour ça —
+seules les *GitHub Apps* ont un flux par manifeste, et il passe de toute façon
+par un formulaire. Ces trois minutes de navigateur ne sont donc pas
+automatisables, et c'est la seule étape qui ne l'est pas.
+
+## 3 ter. Apple, le Services ID
+
+Pour la même raison inverse : un code venu d'un navigateur a été accordé au
+**Services ID**, jamais à l'App ID. Présenter l'un pour l'autre rend
+`invalid_grant`, **dans les deux sens**.
+
+Le Services ID existe déjà — `com.labibleont.ont.webapp`, domaine
+`ontbible.com`, retour `https://ontbible.com/fr/compte/retour`. La clé `.p8`
+sert aux deux flux : c'est l'identité qui change, pas la signature.
+
+| Variable | Où |
+|---|---|
+| `APPLE_SERVICES_ID` | Lambda **seulement** |
+
+**Tant que ces trois variables manquent**, le backend répond au site
+`503 fournisseur non configuré` — jamais un refus. Le site sait donc que la
+faute est chez nous, au lieu de la chercher chez lui devant un `invalid_grant`.
+C'est éprouvé par `le_site_se_dit_non_configure_tant_que_ses_identites_manquent`.
+
+Elles n'entrent volontairement **pas** dans la précondition Terraform qui garde
+les identifiants de l'app : leur absence est un état légitime, celui où le site
+n'est pas encore branché.
+
+---
+
 ## 4. Tout brancher
 
 ```bash

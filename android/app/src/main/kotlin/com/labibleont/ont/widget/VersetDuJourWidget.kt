@@ -12,6 +12,7 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
 import androidx.glance.action.actionStartActivity
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
@@ -28,6 +29,9 @@ import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.kit.reader.DailySelection
 import java.time.Instant
+import android.content.Intent
+import android.net.Uri
+import com.labibleont.ont.kit.reader.LienProfond
 
 /**
  * Le verset du jour sur l'écran d'accueil.
@@ -67,13 +71,25 @@ public class VersetDuJourWidget : GlanceAppWidget() {
                 Contenu(
                     reference = verset?.reference,
                     texte = verset?.text,
+                    // Construite ici, où le contexte existe : un composable
+                    // Glance n'y a pas accès.
+                    intention = verset?.let {
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(
+                                LienProfond.ecrire(it.bookId, it.chapterId, setOf(it.verse)),
+                            ),
+                            context,
+                            MainActivity::class.java,
+                        )
+                    },
                 )
             }
         }
     }
 
     @Composable
-    private fun Contenu(reference: String?, texte: String?) {
+    private fun Contenu(reference: String?, texte: String?, intention: Intent?) {
         // Le bordeaux de la marque en fond, l'or dessus : c'est la règle du
         // site, dont le bouton principal est `bg-or text-nuit`. Un widget ne
         // suit pas le thème de lecture — il est posé sur l'écran d'accueil du
@@ -83,7 +99,17 @@ public class VersetDuJourWidget : GlanceAppWidget() {
                 .fillMaxSize()
                 .background(ONTColors.burgundy)
                 .padding(16.dp)
-                .clickable(actionStartActivity<MainActivity>()),
+                // Toucher le widget ouvre **le verset**, pas l'app là où elle
+                // en était. Sans l'adresse, le lecteur touchait un verset et
+                // atterrissait sur l'écran qu'il avait quitté la veille — le
+                // widget montrait quelque chose puis le perdait.
+                .clickable(
+                    if (intention == null) {
+                        actionStartActivity<MainActivity>()
+                    } else {
+                        actionStartActivity(intention)
+                    },
+                ),
             verticalAlignment = Alignment.Vertical.CenterVertically,
         ) {
             if (reference == null || texte == null) {
