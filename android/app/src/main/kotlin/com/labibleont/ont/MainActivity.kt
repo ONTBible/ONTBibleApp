@@ -95,6 +95,7 @@ import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
+import com.labibleont.ont.kit.reader.LienPublic
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
@@ -603,7 +604,26 @@ private fun Racine(
                             ?.filter { it.n in lecture.selection }
                             ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
+                        // **Le lien manquait, et il ne manquait que chez le
+                        // destinataire.** Le texte partagé semblait complet
+                        // depuis l'app ; celui qui le recevait n'avait aucun
+                        // moyen d'ouvrir ce qu'on lui citait. iOS en pose un
+                        // depuis toujours — c'est lui qui produit la carte
+                        // d'aperçu avec la vignette de la marque.
+                        val lien = lecture.chapitre?.let {
+                            LienPublic.passage(it.bookId, it.id, lecture.selection)
+                        }
+                        partager(
+                            contexte,
+                            buildString {
+                                append("« ")
+                                append(passage)
+                                append(" »\n\n")
+                                append(lecture.renvoi())
+                                append(" — La Bible ONT")
+                                lien?.let { append("\n").append(it) }
+                            },
+                        )
                     },
                     onFermer = lecture::deselectionner,
                 )
