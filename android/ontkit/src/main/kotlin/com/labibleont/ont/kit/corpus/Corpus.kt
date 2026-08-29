@@ -71,6 +71,22 @@ public data class Chapter(
 }
 
 /** La forme allégée d'une unité dans l'arborescence de navigation. */
+/**
+ * La fiche d'un **Shem** — un porteur de nom.
+ *
+ * Elle a la tenue d'une fiche d'intraduisible sans en être une. Le §2.10 veut
+ * qu'elle dise le sens de la racine, ce que le nom met sur les épaules de qui le
+ * porte, et ce qui reste à venir — d'où les titres de section, que les fiches de
+ * concepts n'ont pas.
+ */
+public data class ShemEntry(
+    /** La clé de jointure avec `Inline.Shem.lemma`. */
+    public val lemma: String,
+    /** La forme d'affichage, avec sa casse et son apostrophe — `Na'amah`. */
+    public val title: String,
+    public val definition: kotlin.collections.List<Block>,
+)
+
 public data class ChapterStub(
     public val id: String,
     public val n: Int,

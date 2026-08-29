@@ -55,6 +55,24 @@ public object ONTColors {
      */
     public val goldDeep: Color = Color(0xFFA6874F)
 
+    /**
+     * La terre brûlée des **Shemot** — les noms propres. **#603518** le jour.
+     *
+     * Choisie par Gloire parmi cinq candidats rendus dans les quatre thèmes, sur
+     * un critère mesuré : l'écart CIE Lab contre les trois couches déjà
+     * présentes, avec un plancher de 25. Elle donne **ΔE 34 de l'or profond, 33
+     * du bordeaux, 29 de l'encre**.
+     *
+     * Le vieil or qu'il voulait d'abord était impossible — bronze à ΔE 11 de
+     * l'or, brun doré à 17, cuivre à 20. Le lecteur n'aurait plus distingué un
+     * concept d'un nom, ce qui est précisément la distinction que cette couche
+     * existe pour porter.
+     */
+    public val burntEarth: Color = Color(0xFF603518)
+
+    /** La même, éclaircie pour un fond sombre — **#A3704D**, teinte constante. */
+    public val burntEarthLight: Color = Color(0xFFA3704D)
+
     // ─────────────────────────────────────────────────────────────────────
     // La nuit du site
     // ─────────────────────────────────────────────────────────────────────
@@ -122,6 +140,10 @@ public object ONTColors {
     /** L'or lisible sur le fond du thème — sur parchemin l'or pur passe mal. */
     public fun accent(theme: ReadingTheme): Color =
         if (theme.isDark) gold else goldDeep
+
+    /** La couleur d'un **Shem**, selon la peau. */
+    public fun shem(theme: ReadingTheme): Color =
+        if (theme.isDark) burntEarthLight else burntEarth
 
     /**
      * L'encre d'un **titre** — plus vive que celle du corps.
