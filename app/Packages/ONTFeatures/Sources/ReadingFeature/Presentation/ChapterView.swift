@@ -806,7 +806,19 @@ private struct VerseActionBar: View {
                 .frame(maxWidth: .infinity)
             }
             ActionTile(title: "Copier", icon: "doc.on.doc") {
-                UIPasteboard.general.string = shareText
+                // **Le lien vient aussi.**
+                //
+                // Le partage l'emportait, le presse-papier non — et rien ne le
+                // disait. Le lecteur qui allume la bascule du lien la croit
+                // vraie partout ; il colle son verset dans un message, et le
+                // lien manque sans qu'aucun écran ne lui ait annoncé
+                // l'exception.
+                //
+                // Une seule chaîne ici, et non deux objets comme au partage :
+                // un presse-papier n'a qu'un contenu, et la ligne à part fait
+                // que le destinataire peut citer le texte sans traîner
+                // l'adresse.
+                UIPasteboard.general.string = texteACopier
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -876,6 +888,14 @@ private struct VerseActionBar: View {
             reglages: model.preferences.partage
         )
     }
+
+    /// Ce que le bouton « Copier » met dans le presse-papier.
+    ///
+    /// Le même texte que le partage, plus le lien sur sa propre ligne quand la
+    /// bascule l'allume. Séparé par une ligne blanche, comme la signature, et
+    /// pour la même raison : ce qui se cite doit pouvoir se détacher de ce qui
+    /// l'accompagne.
+    private var texteACopier: String { Partage.avecLien(shareText, lien) }
 
     /// Le lien public du passage, s'il existe un domaine.
     ///
