@@ -55,6 +55,35 @@ pub enum Inline {
     /// glossaire. La liseuse rend `v` et ouvre la fiche `lemma`.
     Term { v: String, lemma: String },
 
+    /// Un **Shem** — un nom propre, balisé `[[Ainsi]]`.
+    ///
+    /// ## Pourquoi ce n'est pas un intraduisible
+    ///
+    /// `**chesed**` est en hébreu parce que « bonté » rate quelque chose :
+    /// l'intraduisible promet une fiche de **concept**, et la fiche l'honore.
+    /// `[[Avraham]]` n'est pas intraduisible, il est simplement **non traduit**.
+    /// Les confondre promettrait un concept là où il y a un porteur.
+    ///
+    /// ## Pourquoi ce n'est pas un lien
+    ///
+    /// La marque est le lien natif d'Obsidian, que le pipeline lisait déjà. Mais
+    /// l'émettre en [`Inline::Link`] obligerait chaque liseuse à distinguer « une
+    /// chaîne sans schéma » d'une URL — une règle qui casse au premier cas
+    /// particulier, et il y en a : l'apostrophe de `Na'amah`, le composé de
+    /// `Tuval-Qayin`, un jour un renvoi interne écrit en relatif.
+    ///
+    /// Mesuré avant de trancher : le site classe extérieur tout `href` qui ne
+    /// commence pas par son adresse, et un Shem y serait devenu un lien souligné
+    /// ouvrant un onglet neuf vers une page inexistante. Pas un lien mort — un
+    /// lien mort qui arrache le lecteur de sa page.
+    ///
+    /// Le type déplace la décision là où l'information existe : le pipeline sait
+    /// qu'il a lu `[[…]]` et qu'une fiche répond. Aucune liseuse n'a à le
+    /// redéduire d'une forme de chaîne.
+    ///
+    /// `v` garde la casse du texte, `lemma` est la clé de jointure vers la fiche.
+    Shem { v: String, lemma: String },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :
