@@ -1324,6 +1324,114 @@ la forme à viser.
 l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
 « Reprendre » qui l'affiche.
 
+### 30 août 2026 — la troisième couche du texte, et ce qu'un type fait qu'un lien ne fait pas
+
+Les noms propres — les **Shemot** — ont leur couche. `[[Nom]]` dans le vault
+devient `Inline::Shem { v, lemma }` dans le pipeline, et paraît en terre brûlée,
+touchable, avec sa fiche.
+
+#### Ce que le choix du type a évité
+
+La marque est le lien natif d'Obsidian, que `inline.rs` lisait déjà. On aurait
+donc pu émettre un `Link` et laisser chaque liseuse reconnaître un Shem à ce que
+son `href` n'a « ni schéma ni barre oblique ».
+
+Le site a mesuré ce que ça donnait chez lui avant qu'on décide, au lieu de le
+déduire : il classe extérieur tout `href` qui ne commence pas par son adresse.
+Chaque Shem y serait devenu un lien souligné, `noopener`, ouvrant un onglet neuf
+vers une page inexistante. **Pas un lien mort — un lien mort qui arrache le
+lecteur de sa page.**
+
+Et sa formulation vaut mieux que la mesure : *une règle qui distingue « une
+chaîne sans schéma » d'une URL casse au premier cas particulier.* Il y en a
+déjà — l'apostrophe de `Na'amah`, le composé de `Tuval-Qayin` — et trois
+liseuses auraient refait le même arbitrage, chacune se trompant séparément.
+
+**Un type déplace la décision là où l'information existe.** Le pipeline sait
+qu'il a lu `[[…]]` ; aucune liseuse n'a à le redéduire d'une forme de chaîne.
+
+#### L'asymétrie qui n'existe plus, et une mémoire qui l'ignorait
+
+J'ai affirmé que le changement casserait iOS et Android — engendrés — en
+laissant le site se taire, puisqu'il écrit son domaine à la main.
+
+**C'était vrai jusqu'à fin août et ça ne l'est plus.** Le site dépend de
+`ont-pipeline` comme d'une caisse, son `match` porte neuf bras sans `_ =>`, et
+une variante nouvelle y produit un `error[E0004]`. Trois chemins, un contrat,
+trois refus de compiler.
+
+Je le récitais depuis une note de projet écrite le 25 août, sans aller vérifier —
+alors que le `grep` qui m'aurait détrompé prend cinq secondes, et que je l'avais
+fait : j'avais vu `pipeline::Inline::Link` dans son code et lu « il redéfinit les
+formes » au lieu de « il importe les tiennes ».
+
+**Une forme de plus : un relevé juste, conservé, et devenu faux sans que rien ne
+le signale.** Proche des deux référentiels divergents, mais décalée dans le
+*temps* plutôt que dans l'espace. Une mémoire ne se périme pas bruyamment ; elle
+attend qu'on la récite.
+
+#### Ce que le compilateur ne garde pas
+
+Le site tient une garde qui refuse tout `href` relatif dans le corpus. Elle
+n'attrape pas ce que les compilateurs attrapent — elle attrape ce qu'ils ne
+peuvent pas voir.
+
+**Les formes, jamais les contenus.** Un Shem émis en `Link` avec un `href`
+relatif est un `Link` parfaitement valide : le type juste, la valeur fausse. Le
+type `shem` transforme précisément cette valeur vérifiée à l'exécution en forme
+vérifiée à la compilation — trois compilateurs au lieu d'une garde, et la garde
+reste pour tout le reste.
+
+#### Deux contrôles qui manquaient, et le second n'était pas cherché
+
+Un Shem sans fiche **ne dégrade pas** : il est émis, et un compteur le nomme.
+Le §2.10 veut qu'une fiche dise ce qui reste à venir, et le vault porte des
+renvois vers des porteurs pas encore écrits — ce sont des marques de travail, pas
+des erreurs. Dégrader en texte nu ferait disparaître la liste de ce qui manque.
+Dix aujourd'hui, sur 1 947 Shemot et 205 porteurs.
+
+Le second est venu du vault, qui l'a trouvé **en faisant autre chose**. En
+posant l'hébreu dans les fiches, cinq intraduisibles n'avaient rien à prendre au
+glossaire : `neshamah`, `emunah`, `tsadiq`, `tsedaqah`, `mabbul` étaient
+déclarés au §2.5, balisés partout, affichés en or et touchables — et le §3 ne
+disait rien d'eux.
+
+**Trois gardes les avaient laissés passer**, une du site et deux d'ici. Aucune ne
+se trompait : toutes vérifiaient que le mot **mène** quelque part, jamais que ce
+quelque part **dise** quelque chose. C'est plus facile à écrire, et c'est ce qui
+reste faux.
+
+#### Les titres de section n'ont demandé aucun code
+
+Le vault et le site les croyaient jetés par `read_fiches`, sur la foi d'un filtre
+qui n'existe plus. `bloc_de_fiche` les gère, et n'écarte que le niveau 1 — le
+titre de la fiche, affiché par ailleurs.
+
+Ils ne paraissaient nulle part parce que **les seules fiches qui en portent sont
+celles des Shemot**, précisément celles qui n'étaient pas publiées : 197 sur 305,
+contre zéro des 108 fiches d'intraduisibles. Publier les unes fait apparaître les
+autres — 620 titres pour 1 498 paragraphes.
+
+Ce qui l'a montré : avoir mesuré la **sortie** au lieu de relire le code.
+
+#### Et le lien de partage qui manquait à Android
+
+Un passage partagé depuis Android arrivait chez le destinataire sans aucun moyen
+de l'ouvrir. iOS en pose un depuis toujours.
+
+**Je l'ai d'abord nié**, `grep ontbible.com` rendant zéro sur ses chemins de
+partage. L'URL est construite, et le domaine ne s'écrit que dans `project.yml` —
+pour qu'un changement de domaine ne demande pas de toucher au code. Chercher une
+chaîne littérale ne pouvait pas la trouver, et j'ai pris l'absence d'une chaîne
+pour l'absence d'une chose. L'erreur s'est propagée : j'ai fait douter iOS d'une
+fonctionnalité qu'elle avait.
+
+Un écart minuscule est tombé en le posant : `VerseRange.label` joint avec « , »,
+espace comprise, et iOS passe cette chaîne à `URLQueryItem`, qui la
+percent-encode. Son lien émet `?v=1-3,%207` là où le site produit `?v=1-3,7`.
+Les deux parsent — mesuré en production — mais ce sont deux chaînes pour un même
+passage, donc deux entrées de cache et deux aperçus.
+
 ### 28 août 2026 — la liseuse Android sur un vrai téléphone, et ce qu'il a montré
 
 Un Galaxy S20+ sous Android 13, branché pour la première fois. Trois défauts
