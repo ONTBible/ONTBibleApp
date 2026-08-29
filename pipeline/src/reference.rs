@@ -518,7 +518,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
             .split("\n\n")
             .map(str::trim)
             .filter(|p| !p.is_empty())
-            .filter_map(|p| bloc_de_fiche(p))
+            .filter_map(bloc_de_fiche)
             .collect();
         if !blocs.is_empty() {
             fiches.insert(lemme, blocs);
