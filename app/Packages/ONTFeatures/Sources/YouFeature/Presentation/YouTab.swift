@@ -73,6 +73,18 @@ public struct YouTab: View {
                     // revoir : les surlignages n'existaient que là où ils
                     // avaient été posés, un verset à la fois, dans un chapitre
                     // qu'il fallait retrouver de mémoire.
+                    // **Ici et non dans la barre de partage.**
+                    //
+                    // Le moment où l'on veut ces réglages est celui du partage
+                    // — mais la barre de lecture porte déjà quatre tuiles, et
+                    // une cinquième pour un écran qu'on ouvre trois fois dans
+                    // sa vie coûterait la place de celles qu'on touche tous les
+                    // jours.
+                    NavigationLink {
+                        OptionsDePartage()
+                    } label: {
+                        Label("Options de partage", systemImage: "square.and.arrow.up")
+                    }
                     NavigationLink {
                         MesSurlignages()
                     } label: {

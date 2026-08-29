@@ -865,16 +865,16 @@ private struct VerseActionBar: View {
     /// translittérations, ni hébreu. L'appareil critique appartient à la
     /// liseuse, pas à une capture qui part dans une conversation.
     private var shareText: String {
-        let body = chapterVerses
-            .filter { selection.contains($0.n) }
-            .map { verse in
-                verse.nodes.plainText()
-                    .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespaces)
-            }
-            .joined(separator: " ")
-
-        return "\(body)\n\n— \(reference), La Bible ONT"
+        // Le repli des espaces est fait par `plainText()` depuis qu'il écrit
+        // au fil — et mieux : retours à la ligne préservés, ponctuation
+        // française respectée. Le `{2,}` qui traînait ici écrasait tout.
+        Partage.composer(
+            chapterVerses
+                .filter { selection.contains($0.n) }
+                .map { Partage.Morceau(numero: $0.n, texte: $0.nodes.plainText()) },
+            reference: reference,
+            reglages: model.preferences.partage
+        )
     }
 
     /// Le lien public du passage, s'il existe un domaine.
@@ -884,7 +884,8 @@ private struct VerseActionBar: View {
     /// pour qui n'a pas l'app. Mieux vaut partager sans lien que partager une
     /// adresse morte.
     private var lien: URL? {
-        Router.webLink(
+        guard model.preferences.partage.lien else { return nil }
+        return Router.webLink(
             book: chapter.bookId,
             chapter: chapter.id,
             verses: VerseRange.label(selection)
