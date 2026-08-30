@@ -28,10 +28,18 @@ import YouFeature
 /// mécanisme sur le Mac, et une liseuse de bureau n'en a pas besoin pour
 /// rendre le service qu'on lui demande.
 ///
-/// **Pas d'ouverture animée.** `AvecOuverture` sert à couvrir le temps que met
-/// un téléphone à charger le corpus depuis son disque lent. Un Mac l'a fait
-/// avant que la fenêtre paraisse ; une animation n'y serait qu'un délai qu'on
-/// s'impose.
+/// **L'ouverture animée, elle, reste.** J'avais commencé par l'écarter, en
+/// pensant qu'elle couvrait le temps de chargement d'un téléphone — un Mac
+/// l'ayant fait avant que la fenêtre paraisse, elle n'aurait été qu'un délai
+/// qu'on s'impose.
+///
+/// C'était mal lire ce qu'elle fait. Elle ne masque rien : sa durée est fixe et
+/// ne dépend d'aucun chargement. **Elle porte la marque** — la montagne est
+/// l'identité de l'ONT, pas un cache-misère —, et l'écarter aurait retiré au
+/// Mac le seul moment où l'app dit qui elle est.
+///
+/// La leçon est la même qu'ailleurs aujourd'hui : on retire une chose pour la
+/// raison qu'on croit qu'elle a, et l'on découvre qu'elle en avait une autre.
 @main
 struct ONTMacApp: App {
     @State private var composition = Composition()
@@ -39,7 +47,9 @@ struct ONTMacApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AvecOuverture(theme: composition.reading.preferences.theme) {
+                RootView()
+            }
                 .environment(composition.router)
                 .environment(composition.reading)
                 .environment(composition.lexicon)
