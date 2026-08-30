@@ -91,6 +91,7 @@ import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
 import com.labibleont.ont.kit.corpus.LibelleDUnite
+import com.labibleont.ont.kit.reader.Partage
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -663,17 +664,11 @@ private fun Racine(
                         val lien = lecture.chapitre?.let {
                             LienPublic.passage(it.bookId, it.id, lecture.selection)
                         }
-                        partager(
-                            contexte,
-                            buildString {
-                                append("« ")
-                                append(passage)
-                                append(" »\n\n")
-                                append(lecture.renvoi())
-                                append(" — La Bible ONT")
-                                lien?.let { append("\n").append(it) }
-                            },
-                        )
+                        // La forme vit dans `Partage`, pas ici. Écrite au
+                        // point d'appel, elle s'écrivait deux fois — et les deux
+                        // avaient déjà divergé : le verset du jour partait sans
+                        // le lien que cet écran-ci y mettait.
+                        partager(contexte, Partage.texte(passage, lecture.renvoi(), lien))
                     },
                     onFermer = lecture::deselectionner,
                 )
