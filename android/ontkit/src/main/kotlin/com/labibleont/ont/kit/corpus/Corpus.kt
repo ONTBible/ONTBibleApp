@@ -45,6 +45,81 @@ public enum class ChapterKind(public val cle: String) {
 }
 
 /**
+ * Comment une unité se nomme devant le lecteur — le seul endroit où le mot se
+ * décide.
+ *
+ * ## Pourquoi ça vit dans le domaine
+ *
+ * Le calcul tient en une ligne, et c'est précisément ce qui le rend dangereux :
+ * une règle courte se recopie. Sur iOS elle l'était — le sommaire disait
+ * « Chapitre 2 » quand le sélecteur disait encore « Bereshit 2 », et la pastille
+ * de l'écran de lecture ne suivait ni l'un ni l'autre.
+ *
+ * Android ne l'avait recopiée nulle part : il ne l'avait pas du tout. Le réglage
+ * du français reçu **annonçait** « Parashah 7 » dans son texte d'aide, et aucun
+ * écran ne le produisait. Une déclaration sans la chose.
+ *
+ * ## Ce que l'écart dit
+ *
+ * « Chapitre » est la division de Stephen Langton, XIIIᵉ siècle, que le §2.3 du
+ * vault écarte comme « administrative médiévale — souvent arbitraire ». La
+ * **parashah** est la division native de l'hébreu, attestée à Qumrân, et elle
+ * *ouvre* : le scribe laisse le reste de la ligne blanc.
+ *
+ * Le réglage ne change donc pas un mot contre un autre, il fait passer d'un
+ * découpage à l'autre. C'est le projet lui-même, rendu touchable.
+ */
+public object LibelleDUnite {
+
+    /** « Chapitre 7 » ou « Parashah 7 ». */
+    public fun rang(n: Int, francaisRecu: Boolean): String =
+        if (francaisRecu) "Chapitre $n" else "Parashah $n"
+
+    /**
+     * Le nom de l'unité, seul — « chapitre » ou « parashah ».
+     *
+     * En minuscules : c'est un nom commun, et il paraît le plus souvent au
+     * milieu d'une phrase. Les rares points d'appel qui ouvrent une ligne avec
+     * le capitalisent eux-mêmes.
+     */
+    public fun nom(francaisRecu: Boolean): String =
+        if (francaisRecu) "chapitre" else "parashah"
+
+    /**
+     * Le pluriel — « chapitres » ou **« parashiot »**.
+     *
+     * Le pluriel de *parashah* n'est pas régulier : il ne prend pas le `s`
+     * français mais la marque hébraïque `-ot`, et le §2.5 du vault le fixe
+     * ainsi. Écrire « parashahs » franciserait un intraduisible, ce qui est
+     * exactement ce que le réglage cherche à défaire.
+     */
+    public fun noms(francaisRecu: Boolean): String =
+        if (francaisRecu) "chapitres" else "parashiot"
+
+    /**
+     * « Tout le chapitre » / « Toute la parashah » — le nom **et son genre**.
+     *
+     * Le genre voyage avec le mot, sinon le point d'appel doit l'accorder
+     * lui-même — et il l'oubliera le jour où un troisième registre s'ajoutera.
+     * Android écrivait « Toute l'unité », un troisième mot qui n'appartient à
+     * aucun des deux registres et ne dit rien au lecteur de ce qu'il a choisi.
+     */
+    public fun toutLe(francaisRecu: Boolean): String =
+        if (francaisRecu) "Tout le chapitre" else "Toute la parashah"
+
+    /**
+     * « Bereshit · Chapitre 7 » — le livre **et** le rang.
+     *
+     * Réservé aux écrans où rien d'autre ne dit dans quel livre on est. Sur
+     * iOS c'est la pastille de renvoi ; ici c'est le titre de la barre du haut,
+     * qui ne portait que le nom du livre — « Bereshit », sans jamais dire
+     * laquelle de ses unités on lisait.
+     */
+    public fun situe(livre: String, rang: Int, francaisRecu: Boolean): String =
+        "$livre · ${rang(rang, francaisRecu)}"
+}
+
+/**
  * Une unité ONT : un chapitre fonctionnel, ou la feuille d'introduction d'un
  * livre (§2.7).
  *
@@ -68,9 +143,17 @@ public data class Chapter(
     /** Tous les versets de l'unité, à plat. */
     public val verses: kotlin.collections.List<Verse>
         get() = blocks.filterIsInstance<Block.Verses>().flatMap { it.verses }
+
+    /**
+     * Le nom de l'unité dans le registre choisi.
+     *
+     * Une introduction garde son titre : elle n'a pas de rang à traduire, et
+     * sans ce cas l'écran annoncerait « Chapitre 0 ».
+     */
+    public fun label(francaisRecu: Boolean): String =
+        if (n > 0) LibelleDUnite.rang(n, francaisRecu) else title
 }
 
-/** La forme allégée d'une unité dans l'arborescence de navigation. */
 /**
  * La fiche d'un **Shem** — un porteur de nom.
  *
@@ -87,6 +170,7 @@ public data class ShemEntry(
     public val definition: kotlin.collections.List<Block>,
 )
 
+/** La forme allégée d'une unité dans l'arborescence de navigation. */
 public data class ChapterStub(
     public val id: String,
     public val n: Int,
@@ -94,7 +178,17 @@ public data class ChapterStub(
     public val status: Status,
     public val verseCount: Int,
     public val reference: String?,
-)
+) {
+    /**
+     * Le nom de l'unité dans le registre choisi — voir [Chapter.label].
+     *
+     * Écrit sur les deux formes plutôt qu'une seule : le sélecteur ne connaît
+     * que le stub, l'écran de lecture ne connaît que l'unité pleine, et leur
+     * faire converger vers un même type coûterait plus que la ligne recopiée.
+     */
+    public fun label(francaisRecu: Boolean): String =
+        if (n > 0) LibelleDUnite.rang(n, francaisRecu) else title
+}
 
 /** Un livre — un des 70 slots de `corpus-order.md`. */
 public data class BookOutline(
