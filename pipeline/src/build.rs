@@ -639,13 +639,6 @@ pub fn build() -> Result<BuildResult, String> {
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
     let fiches = read_fiches(&racine);
-    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
-    let mut fiches_orphelines: Vec<String> = fiches
-        .keys()
-        .filter(|l| !lemmes.contains(l.as_str()))
-        .cloned()
-        .collect();
-    fiches_orphelines.sort();
     for entry in glossary.iter_mut() {
         if let Some(fiche) = fiches.get(&entry.lemma) {
             let blocs = &fiche.blocs;
@@ -791,6 +784,26 @@ pub fn build() -> Result<BuildResult, String> {
     }
     shemot_employes.sort();
     shemot_employes.dedup();
+
+    // **Une fiche orpheline est une fiche que personne n'atteint**, et il y a
+    // désormais deux chemins pour l'atteindre.
+    //
+    // Ce contrôle datait d'avant la seconde espèce de fiche : il ne connaissait
+    // que le glossaire, si bien que les cent quatre-vingt-dix-sept fiches de
+    // Shemot y paraissaient toutes. Cent pour cent de faux positifs — et une
+    // garde qui crie toujours ne dit plus rien : une vraie fiche orpheline y
+    // serait devenue invisible.
+    //
+    // C'est ma couche des Shemot qui l'a rendue fausse. Le contrôle n'avait pas
+    // changé ; le monde qu'il décrivait, si.
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let atteints: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()) && !atteints.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
 
     let shemot: Vec<ShemEntry> = shemot_employes
         .iter()
@@ -1023,6 +1036,7 @@ pub fn build() -> Result<BuildResult, String> {
             superseded: &lu.superseded,
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
+            shemot_sans_fiche: &shemot_sans_fiche,
         },
         &racine,
     );
@@ -1109,6 +1123,13 @@ struct Anomalies<'a> {
     superseded: &'a [String],
     fiches_orphelines: &'a [String],
     ors_morts: &'a [String],
+    /// Les porteurs que le corpus nomme et dont la fiche reste à écrire.
+    ///
+    /// **Le compte seul ne servait à rien.** « 10 Shemot sans fiche » dit qu'il
+    /// y a du travail ; il ne dit pas lequel, et personne ne peut agir dessus
+    /// sans refaire la recherche à la main. Les noms étaient récoltés, triés,
+    /// dédoublonnés — puis seul `.len()` survivait.
+    shemot_sans_fiche: &'a [String],
 }
 
 fn format_report(
@@ -1123,6 +1144,7 @@ fn format_report(
         superseded,
         fiches_orphelines,
         ors_morts,
+        shemot_sans_fiche,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1218,12 +1240,34 @@ fn format_report(
             String::new(),
             "## Fiches sans entrée de glossaire".into(),
             String::new(),
-            "Ces fiches de `lexique/` ne retombent sur aucun lemme : leur texte".into(),
-            "n'atteint aucun lecteur. Le nom du fichier doit être le lemme.".into(),
+            "Ces fiches de `lexique/` ne retombent ni sur un lemme du glossaire".into(),
+            "ni sur un Shem du corpus : leur texte n'atteint aucun lecteur. Le".into(),
+            "nom du fichier doit être la clé de jointure.".into(),
             String::new(),
         ]);
         for f in fiches_orphelines {
             l.push(format!("- `lexique/{f}.md`"));
+        }
+    }
+
+    // **Les porteurs qui attendent leur fiche.**
+    //
+    // Ce n'est pas une liste d'erreurs : le §2.10 veut qu'une fiche dise ce qui
+    // reste à venir, et le vault porte des renvois vers des porteurs pas encore
+    // écrits. C'est une liste de travail, et elle n'a de valeur que nommée — un
+    // compte dit qu'il y en a, jamais lesquels.
+    if !shemot_sans_fiche.is_empty() {
+        l.extend([
+            String::new(),
+            "## Shemot sans fiche".into(),
+            String::new(),
+            "Ces noms paraissent dans le corpus et leur fiche reste à écrire.".into(),
+            "Ce ne sont pas des fautes : le renvoi précède la fiche, et cette".into(),
+            "liste est ce qu'il reste à faire.".into(),
+            String::new(),
+        ]);
+        for f in shemot_sans_fiche {
+            l.push(format!("- {f}"));
         }
     }
 
