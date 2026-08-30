@@ -51,10 +51,20 @@ struct BarreLateraleONT: View {
             }
         }
         .listStyle(.sidebar)
-        // Le fond de la liseuse, et non celui du système : une barre grise
-        // contre un parchemin ferait deux apps dans une fenêtre.
+        // **La surface, et non le fond de page.**
+        //
+        // Le fond du système ferait deux apps dans une fenêtre — une barre
+        // grise contre un parchemin. Mais le fond de *page* faisait pire : la
+        // barre et le contenu portaient exactement la même couleur, et rien ne
+        // disait où l'une finissait. L'auteur l'a relevé en comparant avec
+        // l'iPad, dont la barre native se détache du contenu.
+        //
+        // `surface` est le cran que la peau a déjà pour ça — en mystique,
+        // l'aubergine passe de (0,094 · 0,035 · 0,051) à
+        // (0,149 · 0,063 · 0,086). Aucune couleur n'est inventée : c'est le
+        // même écart que celui des cartes sur le fond de page.
         .scrollContentBackground(.hidden)
-        .background(theme.background)
+        .background(theme.surface)
         // **Le compte en bas, épinglé.**
         //
         // C'est la place qu'Apple Music lui donne, et ce n'est pas une
@@ -76,7 +86,9 @@ struct BarreLateraleONT: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
             }
-            .background(theme.background)
+            // La même surface que la barre : la ligne du compte en fait partie,
+            // elle n'est pas posée dessus.
+            .background(theme.surface)
         }
     }
 
