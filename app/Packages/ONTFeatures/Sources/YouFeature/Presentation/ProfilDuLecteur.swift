@@ -103,13 +103,24 @@ private func logo(_ provider: AuthProvider) -> String {
 }
 
 /// Le portrait, ou ce qui en tient lieu.
-private struct Portrait: View {
+///
+/// **Public parce qu'il paraît maintenant hors du compte** : en bas de la barre
+/// latérale de l'iPad, et dans l'onglet de l'iPhone. Le trois-temps — la photo,
+/// les initiales, la silhouette — doit être le même partout, sinon le lecteur
+/// se voit d'une façon dans un écran et d'une autre ailleurs.
+public struct Portrait: View {
     @Environment(\.ontTheme) private var theme
     let profil: Profil
     let octets: Data?
     var taille: CGFloat = 56
 
-    var body: some View {
+    public init(profil: Profil, octets: Data?, taille: CGFloat = 56) {
+        self.profil = profil
+        self.octets = octets
+        self.taille = taille
+    }
+
+    public var body: some View {
         Group {
             if let octets, let image = ONTImage(data: octets) {
                 Image(ontImage: image)

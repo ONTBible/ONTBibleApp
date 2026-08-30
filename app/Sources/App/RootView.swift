@@ -27,6 +27,7 @@ struct RootView: View {
     @Environment(ReadingModel.self) private var reading
     @Environment(Composition.self) private var composition
     @Environment(\.horizontalSizeClass) private var largeur
+    @State private var compteOuvert = false
 
     var body: some View {
         @Bindable var router = router
@@ -41,6 +42,27 @@ struct RootView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        // **Le compte en bas de la barre, comme Apple Music.**
+        //
+        // `tabViewSidebarBottomBar` est la seule façon d'épingler quelque chose
+        // sous les onglets sans quitter la barre du système. Un `Tab` ne peut
+        // pas y descendre : il prend sa place dans la liste, et c'est elle qui
+        // l'ordonne — c'est ce qui a fait échouer les deux tentatives d'avant.
+        //
+        // Il ouvre une **feuille** plutôt que de désigner un onglet. Deux
+        // raisons : « Vous » n'existe plus comme onglet en largeur régulière,
+        // donc une sélection ne mènerait nulle part ; et un compte se consulte
+        // puis se referme, il n'est pas un endroit où l'on reste. C'est aussi
+        // ce que fait Music.
+        .tabViewSidebarBottomBar {
+            LigneDuCompte { compteOuvert = true }
+        }
+        .sheet(isPresented: $compteOuvert) {
+            NavigationStack {
+                YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+            }
+            .ontTheme(from: reading.preferences)
+        }
         // Un onglet-livre peut cesser d'exister sous les pieds du lecteur :
         // l'app passe en Split View, ou le livre choisi hier n'est plus au
         // corpus. La `TabView` n'aurait alors plus rien à afficher pour la
@@ -186,6 +208,38 @@ struct RootView: View {
 }
 
 
+/// Le compte, en bas de la barre latérale.
+///
+/// Le nom du lecteur quand il en a donné un, « Vous » sinon — voir
+/// `Profil.nomDeBarre`. Ce n'est pas une coquetterie : une barre qui dit
+/// « Vous » à quelqu'un dont on connaît le prénom lui demande de se rappeler
+/// qu'il est connecté, alors qu'on avait l'information sous la main.
+private struct LigneDuCompte: View {
+    let action: () -> Void
+
+    @Environment(AccountModel.self) private var compte
+    @Environment(\.ontTheme) private var theme
+    private var espace = ONTSpacing()
+
+    init(action: @escaping () -> Void) { self.action = action }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: espace.s) {
+                Portrait(profil: compte.profil, octets: compte.portrait(), taille: 26)
+                Text(compte.profil.nomDeBarre).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(theme.ink)
+            .padding(.horizontal, espace.m)
+            .padding(.vertical, espace.s)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Les quatre onglets de toujours.
 ///
 /// Un type nommé, et pas un bloc dans le `body` : écrit d'un seul tenant, le
@@ -201,6 +255,9 @@ struct RootView: View {
 private struct OngletsFixes: TabContent {
     /// Vrai quand la barre latérale est déployée — l'iPad, pas l'iPhone.
     let enBarreLaterale: Bool
+    
+    @Environment(AccountModel.self) private var compte
+
     let appliquer: (DailyVerseSchedule) async -> Bool
     let appliquerParutions: (Bool) async -> Bool
 
@@ -239,8 +296,40 @@ private struct OngletsFixes: TabContent {
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
         }
-        Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
-            YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+        // **« Vous » n'est un onglet que sur l'iPhone.**
+        //
+        // En barre latérale, il est épinglé **en bas** — voir
+        // `tabViewSidebarBottomBar` sur la racine. C'est la place qu'Apple Music
+        // lui donne sur iPad, et ce n'est pas une convention arbitraire : le
+        // compte n'est pas une destination parmi les livres, c'est *qui
+        // regarde*. Il ne défile donc pas avec eux, et reste atteignable de
+        // n'importe quel endroit du corpus.
+        //
+        // Le laisser **aussi** dans la liste le montrerait deux fois.
+        if !enBarreLaterale {
+            // **Le portrait dans l'onglet, quand il y en a un.**
+            //
+            // Un lecteur connecté doit se reconnaître dans sa barre. Mais une
+            // barre d'onglets veut une `Image`, pas une vue — voir
+            // `PortraitDOnglet` : lui donner autre chose ne produit pas une
+            // erreur, ça produit un onglet **sans icône**, mesuré à l'écran.
+            //
+            // Sans portrait, le symbole du système : c'est la bonne icône pour
+            // qui n'a pas de compte, et le système sait l'animer.
+            if let rond = PortraitDOnglet.rond(compte.portrait()) {
+                Tab(value: Router.TabID.you) {
+                    YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+                } label: {
+                    Label { Text("Vous") } icon: { rond }
+                }
+            } else {
+                Tab(
+                    "Vous", systemImage: "person.crop.circle.fill",
+                    value: Router.TabID.you
+                ) {
+                    YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+                }
+            }
         }
     }
 }
