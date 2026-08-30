@@ -1904,8 +1904,6 @@ relire, et ce qui a motivé la liseuse du Mac.
 **Une exigence dont on connaît le motif se défend ; une exigence orpheline se
 fait raboter au premier arbitrage.** Le vault, le site et les deux apps tiennent
 tous des seuils de contraste : ils savent maintenant contre quoi.
-<<<<<<< HEAD
-=======
 
 ---
 
@@ -1965,4 +1963,3 @@ discours collés sur une ligne.
 **Sortir une décision au bon endroit ne suffit pas si on en profite pour en
 ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
 personne ne relit.
->>>>>>> origin/dev
