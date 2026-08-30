@@ -86,3 +86,29 @@ struct PartageTests {
         #expect(ancien.lien)
     }
 }
+
+/// Ce que « Copier » met dans le presse-papier.
+///
+/// Un presse-papier n'a **qu'un** contenu, là où une feuille de partage porte
+/// deux objets — le texte d'un côté, l'URL de l'autre, pour que la messagerie
+/// en tire un aperçu. Le copier n'emportait donc rien du lien, et rien ne le
+/// disait : celui qui allume la bascule la croit vraie partout.
+struct CopierAvecLienTests {
+    private let texte = "«\u{00A0}1 Au commencement.\u{00A0}»\n\n— Bereshit 1:1"
+
+    @Test("le lien suit, sur sa propre ligne")
+    func leLienSuit() {
+        let rendu = Partage.avecLien(
+            texte, URL(string: "https://ontbible.com/fr/lire/bereshit/bereshit-1?v=1"))
+
+        #expect(rendu.hasSuffix("\n\nhttps://ontbible.com/fr/lire/bereshit/bereshit-1?v=1"))
+        #expect(rendu.contains("— Bereshit 1:1"))
+    }
+
+    /// Sans lien — bascule éteinte, ou domaine non configuré — le texte reste
+    /// tel quel, sans ligne blanche en trop.
+    @Test("sans lien, rien ne dépasse")
+    func sansLien() {
+        #expect(Partage.avecLien(texte, nil) == texte)
+    }
+}

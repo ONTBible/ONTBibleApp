@@ -1051,6 +1051,17 @@ La journée en avait donné le motif — *le format de sortie survit à l'absenc
 mesure*. L'enquête ci-dessus l'a fait rendre trois fois, sous trois formes
 distinctes, et c'est la distinction qui est utile.
 
+> **Il y en a six.** Trois autres ont été trouvées le 27 août, pendant le
+> rattrapage d'Android sur iOS, et sont consignées dans cette entrée-là —
+> « Trois manières de plus pour un instrument de rendre un relevé faux ». Elles
+> y sont bien rangées, puisqu'elles appartiennent à ce récit ; le renvoi est
+> ici parce que c'est ici qu'on vient chercher le sujet.
+>
+> Sans lui, on lit « trois manières », on referme, et on croit avoir fait le
+> tour. C'est le lecteur **confiant** qui se trompe, pas le distrait — la même
+> forme que le journal qui régresse, où l'on croit lire l'état de la
+> connaissance et où l'on lit celui d'avant.
+
 **Un instrument non reproductible.** Le premier balayage refermait la fiche par
 un glissement vers le bas entre deux appuis — geste qui fait aussi **défiler la
 page**. Chaque appui suivant visait le mot là où il n'était plus. Le relevé
@@ -1324,6 +1335,114 @@ la forme à viser.
 l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
 « Reprendre » qui l'affiche.
 
+### 30 août 2026 — la troisième couche du texte, et ce qu'un type fait qu'un lien ne fait pas
+
+Les noms propres — les **Shemot** — ont leur couche. `[[Nom]]` dans le vault
+devient `Inline::Shem { v, lemma }` dans le pipeline, et paraît en terre brûlée,
+touchable, avec sa fiche.
+
+#### Ce que le choix du type a évité
+
+La marque est le lien natif d'Obsidian, que `inline.rs` lisait déjà. On aurait
+donc pu émettre un `Link` et laisser chaque liseuse reconnaître un Shem à ce que
+son `href` n'a « ni schéma ni barre oblique ».
+
+Le site a mesuré ce que ça donnait chez lui avant qu'on décide, au lieu de le
+déduire : il classe extérieur tout `href` qui ne commence pas par son adresse.
+Chaque Shem y serait devenu un lien souligné, `noopener`, ouvrant un onglet neuf
+vers une page inexistante. **Pas un lien mort — un lien mort qui arrache le
+lecteur de sa page.**
+
+Et sa formulation vaut mieux que la mesure : *une règle qui distingue « une
+chaîne sans schéma » d'une URL casse au premier cas particulier.* Il y en a
+déjà — l'apostrophe de `Na'amah`, le composé de `Tuval-Qayin` — et trois
+liseuses auraient refait le même arbitrage, chacune se trompant séparément.
+
+**Un type déplace la décision là où l'information existe.** Le pipeline sait
+qu'il a lu `[[…]]` ; aucune liseuse n'a à le redéduire d'une forme de chaîne.
+
+#### L'asymétrie qui n'existe plus, et une mémoire qui l'ignorait
+
+J'ai affirmé que le changement casserait iOS et Android — engendrés — en
+laissant le site se taire, puisqu'il écrit son domaine à la main.
+
+**C'était vrai jusqu'à fin août et ça ne l'est plus.** Le site dépend de
+`ont-pipeline` comme d'une caisse, son `match` porte neuf bras sans `_ =>`, et
+une variante nouvelle y produit un `error[E0004]`. Trois chemins, un contrat,
+trois refus de compiler.
+
+Je le récitais depuis une note de projet écrite le 25 août, sans aller vérifier —
+alors que le `grep` qui m'aurait détrompé prend cinq secondes, et que je l'avais
+fait : j'avais vu `pipeline::Inline::Link` dans son code et lu « il redéfinit les
+formes » au lieu de « il importe les tiennes ».
+
+**Une forme de plus : un relevé juste, conservé, et devenu faux sans que rien ne
+le signale.** Proche des deux référentiels divergents, mais décalée dans le
+*temps* plutôt que dans l'espace. Une mémoire ne se périme pas bruyamment ; elle
+attend qu'on la récite.
+
+#### Ce que le compilateur ne garde pas
+
+Le site tient une garde qui refuse tout `href` relatif dans le corpus. Elle
+n'attrape pas ce que les compilateurs attrapent — elle attrape ce qu'ils ne
+peuvent pas voir.
+
+**Les formes, jamais les contenus.** Un Shem émis en `Link` avec un `href`
+relatif est un `Link` parfaitement valide : le type juste, la valeur fausse. Le
+type `shem` transforme précisément cette valeur vérifiée à l'exécution en forme
+vérifiée à la compilation — trois compilateurs au lieu d'une garde, et la garde
+reste pour tout le reste.
+
+#### Deux contrôles qui manquaient, et le second n'était pas cherché
+
+Un Shem sans fiche **ne dégrade pas** : il est émis, et un compteur le nomme.
+Le §2.10 veut qu'une fiche dise ce qui reste à venir, et le vault porte des
+renvois vers des porteurs pas encore écrits — ce sont des marques de travail, pas
+des erreurs. Dégrader en texte nu ferait disparaître la liste de ce qui manque.
+Dix aujourd'hui, sur 1 947 Shemot et 205 porteurs.
+
+Le second est venu du vault, qui l'a trouvé **en faisant autre chose**. En
+posant l'hébreu dans les fiches, cinq intraduisibles n'avaient rien à prendre au
+glossaire : `neshamah`, `emunah`, `tsadiq`, `tsedaqah`, `mabbul` étaient
+déclarés au §2.5, balisés partout, affichés en or et touchables — et le §3 ne
+disait rien d'eux.
+
+**Trois gardes les avaient laissés passer**, une du site et deux d'ici. Aucune ne
+se trompait : toutes vérifiaient que le mot **mène** quelque part, jamais que ce
+quelque part **dise** quelque chose. C'est plus facile à écrire, et c'est ce qui
+reste faux.
+
+#### Les titres de section n'ont demandé aucun code
+
+Le vault et le site les croyaient jetés par `read_fiches`, sur la foi d'un filtre
+qui n'existe plus. `bloc_de_fiche` les gère, et n'écarte que le niveau 1 — le
+titre de la fiche, affiché par ailleurs.
+
+Ils ne paraissaient nulle part parce que **les seules fiches qui en portent sont
+celles des Shemot**, précisément celles qui n'étaient pas publiées : 197 sur 305,
+contre zéro des 108 fiches d'intraduisibles. Publier les unes fait apparaître les
+autres — 620 titres pour 1 498 paragraphes.
+
+Ce qui l'a montré : avoir mesuré la **sortie** au lieu de relire le code.
+
+#### Et le lien de partage qui manquait à Android
+
+Un passage partagé depuis Android arrivait chez le destinataire sans aucun moyen
+de l'ouvrir. iOS en pose un depuis toujours.
+
+**Je l'ai d'abord nié**, `grep ontbible.com` rendant zéro sur ses chemins de
+partage. L'URL est construite, et le domaine ne s'écrit que dans `project.yml` —
+pour qu'un changement de domaine ne demande pas de toucher au code. Chercher une
+chaîne littérale ne pouvait pas la trouver, et j'ai pris l'absence d'une chaîne
+pour l'absence d'une chose. L'erreur s'est propagée : j'ai fait douter iOS d'une
+fonctionnalité qu'elle avait.
+
+Un écart minuscule est tombé en le posant : `VerseRange.label` joint avec « , »,
+espace comprise, et iOS passe cette chaîne à `URLQueryItem`, qui la
+percent-encode. Son lien émet `?v=1-3,%207` là où le site produit `?v=1-3,7`.
+Les deux parsent — mesuré en production — mais ce sont deux chaînes pour un même
+passage, donc deux entrées de cache et deux aperçus.
+
 ### 28 août 2026 — la liseuse Android sur un vrai téléphone, et ce qu'il a montré
 
 Un Galaxy S20+ sous Android 13, branché pour la première fois. Trois défauts
@@ -1394,6 +1513,57 @@ La règle qui en sort : **un chiffre stable et reproductible ne garantit pas qu'
 mesure la chose qu'on nomme.** Quand une correction sans rapport déplace une
 mesure qu'elle ne devait pas toucher, ce n'est pas du bruit — c'est que la
 mesure portait sur autre chose.
+
+#### La publication sur Play, et deux manières pour un cache de mentir
+
+L'app est en test interne sur le Play Store, installée depuis le Store et
+signée par Google. La chaîne complète a été éprouvée bout en bout : un lien
+`ontbible.com` ouvre l'app, affiche l'unité, et désigne les versets demandés.
+
+Deux défauts sont tombés en chemin, et aucun n'était dans notre code.
+
+**L'empreinte recopiée depuis la mauvaise source.** La page de signature de la
+Play Console affiche désormais **deux** certificats côte à côte — la clé
+classique et une clé post-quantique — avec deux boutons au libellé identique.
+C'est le second qui a été copié, et la valeur est partie au site.
+
+Rien n'aurait cassé : `assetlinks.json` aurait été servi, bien formé, avec une
+empreinte inutile, et les liens auraient continué de partir au navigateur sans
+qu'aucun message ne dise pourquoi.
+
+Ce qui l'a rattrapée, c'est d'avoir tiré l'APK du téléphone et recalculé le
+condensat — `apksigner --print-certs` sur l'objet réel plutôt que sur ce qu'une
+console en dit. **Onzième forme : la source faisait autorité et n'était pas la
+mesure.** La console n'a pas menti ; elle affichait deux valeurs, et rien dans
+la page ne dit laquelle Android va lire.
+
+La règle qui en sort vaut au-delà du cas : **quand une valeur décrit un objet
+qu'on peut interroger, on interroge l'objet.**
+
+**Puis le cache de Google, qui rend deux réponses contradictoires.** Le site
+déployé servait bien les deux empreintes, et la vérification échouait toujours.
+L'API publique de Google — `digitalassetlinks.googleapis.com` — n'en voyait
+qu'une : son infrastructure avait mis le fichier en cache avant le déploiement.
+
+Le champ `maxAge` de la réponse donne la durée de vie restante, et sert de
+signal : une valeur qui **remonte** signifie que Google est allé relire. Elle
+est passée de 37 minutes à une heure pleine, la seconde empreinte est apparue,
+et la vérification a rendu `verified`.
+
+Mais huit appels d'affilée depuis la même machine ont ensuite rendu quatre fois
+l'ancien contenu et quatre fois le nouveau. **Douzième forme : un même système
+rend deux réponses contradictoires au même instant**, chacune cohérente en
+elle-même, et l'on tombe sur l'une ou l'autre au hasard.
+
+Elle est la plus retorse de la série parce qu'elle prend à contre-pied tout ce
+qui précède. Les onze premières se corrigent en mesurant ; celle-ci punit qui
+mesure **une seule fois** — un appel rend une réponse complète, plausible, sans
+erreur. Rien n'invite à en faire un second quand le premier répond ce qu'on
+espérait, et c'est exactement à ce moment-là qu'il le faut.
+
+Conséquence pratique, écrite pour le jour où un testeur le signale : pendant la
+propagation, deux appareils peuvent obtenir des résultats opposés avec un
+fichier irréprochable. Ce n'est pas une régression, et ça se règle seul.
 
 #### Ce que le téléphone a confirmé par ailleurs
 
@@ -1521,3 +1691,154 @@ sur le geste le plus courant de l'app.
 **Ce qui traverse** : rien de technique. C'est une manière de tenir les
 relevés, et elle vaut pour les trois dépôts — le vault mesure des corpus, le
 site des temps de rendu, l'app des images par seconde.
+
+---
+
+## 30 août 2026 — le corpus publié écrasait le corpus embarqué, plus neuf
+
+**Traverse les trois dépôts.** Le vault date le contenu, le pipeline l'estampille,
+le site le publie, les deux apps le lisent. Le maillon manquant tenait en un
+champ vide.
+
+### Ce qui se serait passé
+
+L'app iOS lit son corpus **du disque quand il existe, du bundle sinon** — et le
+disque est rempli par ce que le site publie. Tant que le publié est le plus
+récent des deux, tout va bien. C'est faux **à chaque livraison TestFlight**, où
+un build part avant que le site redéploie.
+
+Mesuré sur simulateur en voulant simplement montrer le rendu des Shemot :
+
+    bundle de l'app : 1913 occurrences de "shem"
+    disque de l'app :  217   ← ce que l'app lit vraiment
+
+Le dossier effacé, l'app le recréait au lancement en retéléchargeant l'ancien.
+La couche des noms propres serait arrivée chez tous les testeurs **sans un seul
+nom affiché**. Aucun test ne pouvait l'attraper : ils mesurent tous le corpus du
+bundle, que personne ne lit.
+
+### La forme du défaut
+
+`genere` traverse toute la chaîne depuis le début, et vaut `""`. Il n'a pas été
+oublié : `build.rs` le laisse vide **délibérément**, pour que deux exécutions
+sur le même vault produisent le même octet — donc la même empreinte, donc aucun
+retéléchargement inutile. Le déterminisme était tenu ; l'ordre entre deux corpus
+n'existait nulle part, et personne n'en avait eu besoin jusqu'ici.
+
+Côté site, `corpus-publie.py` reportait bien le champ, mais avec un
+`.get(…, "")` : il publiait un manifeste **bien formé et indatable**. Un défaut
+par valeur par défaut est plus discret qu'un défaut par oubli, parce que sa
+sortie a l'air correcte.
+
+### Le remède, et pourquoi il n'est pas une horloge
+
+La date porte celle du **contenu source** — le dernier commit du vault —, pas
+celle du build. Déterministe pour un vault donné, croissante quand il change :
+l'ordre qui manquait, sans sacrifier ce que le pipeline tenait.
+
+Elle est **passée en entrée** au pipeline, jamais lue par lui : un binaire qui
+ouvre `.git` tombe sur un export d'archive, un `--depth 1`, un vault copié sans
+son dépôt. Et le repli sur la mtime des fichiers est un piège — un clone frais
+leur donne la mtime du `checkout`, c'est-à-dire l'heure du build déguisée, et
+non déterministe en CI où personne ne regarde.
+
+### Le format, qui n'est pas une préférence
+
+    %Y-%m-%dT%H:%M:%SZ en UTC   →   2026-08-30T00:14:00Z
+
+L'app compare ces dates **comme des chaînes**. Deux écritures du *même instant*
+s'ordonnent alors à l'envers :
+
+    "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"
+
+L'app garderait le plus vieux des deux corpus **en croyant garder le plus
+neuf** — le même défaut, sous une date bien formée, donc bien plus difficile à
+voir qu'un champ vide. Pas de `to_rfc3339()` : il rend l'offset de la machine de
+build et des fractions de seconde, ce qui casse aussi le déterminisme entre la
+CI en UTC et une machine en `+02:00`.
+
+### Ce que chaque dépôt en porte
+
+| | |
+|---|---|
+| **pipeline** | `generated_at` reçoit la date du vault, en entrée |
+| **site** | refuse de publier un corpus indatable ; le report existait déjà |
+| **app iOS** | `CorpusUpdater.Estampille` — n'accepte que ce qu'il peut prouver plus récent |
+| **app Android** | n'avait aucun dépôt disque : le défaut n'y existait pas, l'actualiseur s'y porte avec la garde |
+
+**Refuser quand l'ordre est indécidable.** Un corpus figé se voit et se répare ;
+un corpus silencieusement remplacé par du plus vieux ne se voit pas. C'est le
+défaut qu'on corrige — l'accepter « au cas où » serait le reproduire dans sa
+correction.
+
+**Ordre de livraison, sinon on se bloque en rond** : pipeline, site, app.
+
+### Ce qu'on en retient au-delà du cas
+
+Trois fois dans la même soirée, une mesure exacte a répondu à une autre question
+que celle qu'on posait. Le rendu montrait du rose : le moteur, sondé plutôt
+qu'accusé, rendait `#B98B6C` — c'était la donnée qui était vieille. Une session
+cherchait le même défaut sur Android, ne l'a pas trouvé, et a trouvé à la place
+une fiche Play qui promettait la fonctionnalité absente. Et les quatre tests de
+la nouvelle garde passaient **sans elle**, leurs manifestes ne listant aucun
+fichier — un instrument dont la panne ressemble au résultat attendu.
+
+La parade, à chaque fois, est la même : vérifier que l'épreuve **échoue** quand
+on retire ce qu'elle garde.
+
+---
+
+## 30 août 2026 — une déclaration sans la chose, deux fois le même mois
+
+Le réglage « Le français reçu » d'Android décrivait son effet dans son propre
+texte d'aide — « Apocalypse », « la Loi », « **Chapitre 7** » — et aucun écran
+de lecture ne le produisait. La pastille disait `Bereshit 2` dans les deux
+registres ; le sélecteur aussi ; sa sortie courte proposait « Toute l'unité »,
+un troisième mot hors des deux registres.
+
+C'est **le deuxième cas du même genre en quelques jours**. La fiche du Play
+Store annonçait la mise à jour du corpus avant qu'Android sache la faire ; la
+correction n'était pas d'amender la phrase mais d'écrire l'actualiseur. Gloire
+l'avait dit en une ligne : *« il faut pas fixer la déclaration, il faut
+implémenter ce qu'il manque »*.
+
+Le motif mérite d'être nommé, parce qu'il ne ressemble pas à un défaut : rien
+n'est faux dans le code, rien ne plante, aucun test ne rougit. C'est un texte
+qui décrit une intention, et la distance entre l'intention et le fait n'est
+mesurée nulle part. **Une phrase d'aide, une fiche de magasin, un `README` : ce
+sont des affirmations sur le logiciel que le logiciel ne vérifie pas.**
+
+### L'état des trois, sur ce point précis
+
+| | ce qu'il fait du registre |
+|---|---|
+| **site** | complet, et **au-delà** : en glose ONT, `Parashah` est un intraduisible en or, touchable, qui ouvre sa fiche |
+| **app iOS** | complet — `LibelleDUnite`, cinq formes, trois points d'appel |
+| **app Android** | l'annonçait dans ses réglages, ne le produisait nulle part → #153 |
+
+Le site était **en avance sur les deux apps**, ce qui n'est pas l'ordre
+habituel. Le porter d'iOS a suffi pour Android ; son traitement du mot comme
+intraduisible touchable reste, lui, à porter — et c'est à iOS d'en décider.
+
+### Le pluriel qui ne se francise pas
+
+*parashah* fait *parashiot*, jamais « parashahs » : le §2.5 le fixe, et la
+marque hébraïque est le seul détail du lot qu'un point d'appel pressé règle
+avec un `+ "s"`. Franciser l'intraduisible **déferait exactement ce que le
+réglage vient de faire**. Les trois dépôts portent maintenant le cas dans un
+test.
+
+### Et une méthode qui a servi deux fois
+
+Une branche en retard ne demande pas un rebasage, elle demande qu'on vérifie
+**si elle a encore quelque chose à dire**. Appliquée à deux PR le même soir,
+elle a donné des verdicts opposés : #144 était entièrement dépassée et s'est
+fermée ; #95 était 38 commits derrière et portait pourtant deux choses vivantes
+— le libellé d'unité, et le skill de l'émulateur — qui sont dans #153.
+
+Le reste de #95 posait la **bonne** question — en prose continue, le rang de
+l'item ne bouge jamais — avec le mauvais remède : sa fraction de défilement
+*estimait* la position, là où `SuiviDeLecture` la *mesure* par
+`TextLayoutResult`. Vérifié sur l'appareil avant de fermer, parce qu'une
+session qui ne peut pas éprouver du Kotlin avait refusé de trancher à
+l'aveugle sur un terrain qui n'était pas le sien.

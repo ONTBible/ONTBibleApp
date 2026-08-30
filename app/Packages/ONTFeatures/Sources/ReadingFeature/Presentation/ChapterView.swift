@@ -492,6 +492,9 @@ struct ChapterView: View {
             Text(chapter.title)
                 .font(theme.type.display.font)
                 .foregroundStyle(theme.type.display.color)
+                // Le titre de l'unité : le premier repère du rotor, et celui
+                // qui ramène en haut d'un chapitre parcouru au doigt.
+                .accessibilityAddTraits(.isHeader)
 
             if let subtitle = chapter.subtitle {
                 HStack(spacing: spacing.s) {
@@ -549,8 +552,19 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
-                .lineSpacing(theme.lineSpacing)
+            // Deux ajouts qui n'ont rien à voir l'un avec l'autre et qui
+            // atterrissent sur la même ligne : la césure française vient de
+            // cette branche, le sol du numéro de verset vient de `dev`. Les
+            // deux sont nécessaires — garder l'un ferait taire l'autre sans
+            // que rien ne le dise.
+            Text(
+                ONTTextRenderer.compose(
+                    verse: verse, theme: theme, underlined: selected,
+                    surligne: highlight != nil
+                )
+                .cesuree(theme.preferences.hyphenation)
+            )
+            .lineSpacing(theme.lineSpacing)
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
@@ -568,7 +582,7 @@ private struct VerseRow: View {
             // fond, qui ferait croire qu'on vient de surligner.
             if let color = highlight?.color {
                 RoundedRectangle(cornerRadius: ONTRadius.highlight)
-                    .fill(ONTColors.highlight(color).opacity(ONTColors.highlightOpacity))
+                    .fill(ONTColors.highlight(color, theme.mode).opacity(ONTColors.highlightOpacity))
             }
         }
         // Toute la boîte répond, pas seulement les lettres : viser un mot pour
@@ -751,7 +765,7 @@ private struct VerseActionBar: View {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(ONTColors.highlight(color))
+                        .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -806,7 +820,19 @@ private struct VerseActionBar: View {
                 .frame(maxWidth: .infinity)
             }
             ActionTile(title: "Copier", icon: "doc.on.doc") {
-                UIPasteboard.general.string = shareText
+                // **Le lien vient aussi.**
+                //
+                // Le partage l'emportait, le presse-papier non — et rien ne le
+                // disait. Le lecteur qui allume la bascule du lien la croit
+                // vraie partout ; il colle son verset dans un message, et le
+                // lien manque sans qu'aucun écran ne lui ait annoncé
+                // l'exception.
+                //
+                // Une seule chaîne ici, et non deux objets comme au partage :
+                // un presse-papier n'a qu'un contenu, et la ligne à part fait
+                // que le destinataire peut citer le texte sans traîner
+                // l'adresse.
+                UIPasteboard.general.string = texteACopier
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -876,6 +902,14 @@ private struct VerseActionBar: View {
             reglages: model.preferences.partage
         )
     }
+
+    /// Ce que le bouton « Copier » met dans le presse-papier.
+    ///
+    /// Le même texte que le partage, plus le lien sur sa propre ligne quand la
+    /// bascule l'allume. Séparé par une ligne blanche, comme la signature, et
+    /// pour la même raison : ce qui se cite doit pouvoir se détacher de ce qui
+    /// l'accompagne.
+    private var texteACopier: String { Partage.avecLien(shareText, lien) }
 
     /// Le lien public du passage, s'il existe un domaine.
     ///
@@ -1098,7 +1132,7 @@ private struct FlowingVerses: View {
     private var surlignages: [Int: Color] {
         verses.reduce(into: [:]) { table, verse in
             guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
-            table[verse.n] = ONTColors.highlight(marque.color)
+            table[verse.n] = ONTColors.highlight(marque.color, theme.mode)
                 .opacity(ONTColors.highlightOpacity)
         }
     }
@@ -1298,6 +1332,11 @@ private struct BlockView: View {
         case .heading(_, let nodes):
             Text(ONTTextRenderer.compose(nodes, theme: theme))
                 .font(theme.type.heading.font)
+                // Les intertitres du corps — « Noach trouve grâce », « les fils
+                // d'Elohim et les Nephilim ». Ce sont eux qui font d'un chapitre
+                // une suite de scènes plutôt qu'un mur, et c'est par eux qu'on
+                // navigue quand on ne voit pas la page.
+                .accessibilityAddTraits(.isHeader)
                 .foregroundStyle(theme.type.heading.color)
                 .padding(.top, spacing.s)
 
@@ -1526,6 +1565,7 @@ public struct ReadingSettingsSheet: View {
         Form {
                 Section {
                     Toggle("Versets à la suite", isOn: $model.preferences.continuous)
+                    Toggle("Couper les mots", isOn: $model.preferences.hyphenation)
                 } header: {
                     Text("Disposition")
                 } footer: {
@@ -1533,6 +1573,15 @@ public struct ReadingSettingsSheet: View {
                         "À la suite, les versets coulent en prose et leurs numéros "
                             + "passent en exposant — c'est la lecture suivie. En blocs, "
                             + "chaque verset se tient seul : c'est le mode d'étude."
+                            + "\n\nCouper les mots resserre la justification et "
+                            + "supprime les lézardes blanches d'une colonne étroite. "
+                            + "Éteint par défaut : la césure hache les mots, et qui "
+                            + "grossit le texte pour le voir se retrouve avec plus de "
+                            + "coupures, pas moins.\n\nAllumée, elle coupe **en "
+                            + "français** — les motifs de coupure sont propres à "
+                            + "chaque langue, et sans le déclarer un téléphone réglé "
+                            + "en anglais couperait « pro-blème » au lieu de "
+                            + "« pro-blè-me »."
                     )
                 }
                 .ontRow()

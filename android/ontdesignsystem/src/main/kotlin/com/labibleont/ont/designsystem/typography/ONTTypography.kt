@@ -88,6 +88,21 @@ public data class ONTTypography(
         )
 
     /**
+     * Niveau 1 — un **Shem**, touchable.
+     *
+     * Même graisse et même corps que l'intraduisible : ce sont deux couches du
+     * texte, pas deux importances. Seule la teinte les sépare, et c'est
+     * suffisant parce qu'elles ne se rencontrent presque jamais dans la même
+     * phrase.
+     */
+    public val shem: SpanStyle
+        get() = SpanStyle(
+            fontFamily = body,
+            fontSize = size.pt,
+            color = ONTColors.shem(theme),
+        )
+
+    /**
      * Niveau 1 — une accentuation, qui ne se touche pas.
      *
      * Semi-gras **et** colorée : la couleur seule ne suffit pas — un lecteur

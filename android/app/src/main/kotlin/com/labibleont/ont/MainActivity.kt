@@ -65,6 +65,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.remote.CorpusUpdater
+import com.labibleont.ont.data.remote.DiskCorpusRepository
+import com.labibleont.ont.data.remote.DiskGlossaryRepository
+import com.labibleont.ont.data.remote.DiskShemotRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
@@ -75,6 +79,9 @@ import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
+import com.labibleont.ont.data.bundle.AssetShemotRepository
+import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.features.lexicon.ShemSheet
 import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.qahal.QahalModel
 import com.labibleont.ont.features.qahal.QahalTab
@@ -83,6 +90,7 @@ import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -92,6 +100,7 @@ import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
+import com.labibleont.ont.kit.reader.LienPublic
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
@@ -244,11 +253,30 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         adresseRecue.value = intent?.dataString
 
-        val corpus = AssetCorpusRepository(applicationContext)
-        val glossaire = AssetGlossaryRepository(applicationContext)
+        // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
+        // un corpus complet — elle marche au premier lancement, sans réseau — et
+        // ce qui a été téléchargé le recouvre morceau par morceau.
+        val corpus = DiskCorpusRepository(applicationContext)
+        val glossaire = DiskGlossaryRepository(applicationContext)
+        val shemot = DiskShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val lecteur = FileReaderStore(applicationContext)
+
+        // **La mise à jour du corpus, en fond, à chaque lancement.**
+        //
+        // Une correction de traduction ne devrait pas attendre une revue de
+        // Play. Le vault bouge tous les jours ; l'app, bien plus rarement.
+        //
+        // Sans attendre, et sans rien bloquer : ce qui arrive sera lu au
+        // prochain lancement. Recharger l'écran en cours de lecture déplacerait
+        // le texte sous les yeux de quelqu'un — le prix est plus élevé que le
+        // délai qu'on économise.
+        //
+        // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
+        Thread { runCatching { CorpusUpdater(applicationContext).synchroniser() } }
+            .apply { isDaemon = true }
+            .start()
 
         setContent {
             val adresse by adresseRecue.collectAsState()
@@ -282,6 +310,7 @@ public class MainActivity : ComponentActivity() {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
+                    shemot = shemot,
                     recherche = recherche,
                     qahal = qahal,
                     preferences = preferences,
@@ -307,6 +336,7 @@ private fun Racine(
     onAdresseSuivie: () -> Unit,
     lecture: ReadingModel,
     lexique: LexiconModel,
+    shemot: ShemotRepository,
     recherche: SearchModel,
     qahal: QahalModel,
     preferences: ReadingPreferences,
@@ -334,6 +364,11 @@ private fun Racine(
         mutableStateOf(Ecran.Onglets)
     }
     var terme: String? by rememberSaveable { mutableStateOf(null) }
+    // Le Shem touché — un état distinct de `terme`. Les deux feuilles ne se
+    // remplacent pas : elles ne parlent pas de la même chose, et un lecteur qui
+    // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
+    // fermant.
+    var shem: String? by rememberSaveable { mutableStateOf(null) }
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
     val portee = rememberCoroutineScope()
@@ -402,7 +437,11 @@ private fun Racine(
         onAdresseSuivie()
     }
     LaunchedEffect(onglet) {
-        if (onglet == Onglet.LEXIQUE) lexique.charger()
+        // Vous aussi : sa section « Le corpus » compte les entrées du lexique,
+        // et sans ce chargement elle afficherait zéro à qui n'a jamais ouvert
+        // l'onglet Lexique. `charger()` est idempotent — il rend la main tout
+        // de suite si les entrées sont déjà là.
+        if (onglet == Onglet.LEXIQUE || onglet == Onglet.VOUS) lexique.charger()
         if (onglet == Onglet.QAHAL) qahal.choisir()
     }
 
@@ -503,9 +542,32 @@ private fun Racine(
                             // et de Bible Strong. Sans elle, aller de
                             // Bereshit 1 à Bereshit 18 demandait de revenir au
                             // sommaire, replier le livre, le déplier, viser.
+                            //
+                            // ## Elle suit le registre, et c'est ici que ça
+                            // compte le plus
+                            //
+                            // Elle portait `chapitre.title` — « Bereshit 2 »,
+                            // le nom ONT, identique dans les deux registres.
+                            // Or c'est le seul endroit où le lecteur croise le
+                            // mot **pendant** qu'il lit : le sommaire et le
+                            // sélecteur se traversent, celle-ci reste sous les
+                            // yeux. Si le réglage doit se voir quelque part,
+                            // c'est ici.
+                            //
+                            // Une introduction garde son titre : elle n'a pas
+                            // de rang à traduire.
                             PastilleDeRenvoi(
-                                renvoi = lecture.chapitre?.title
-                                    ?: lecture.livre?.title.orEmpty(),
+                                renvoi = lecture.chapitre?.let { u ->
+                                    if (u.n > 0) {
+                                        LibelleDUnite.situe(
+                                            lecture.livre?.title.orEmpty(),
+                                            u.n,
+                                            lecture.preferences.french,
+                                        )
+                                    } else {
+                                        u.title
+                                    }
+                                } ?: lecture.livre?.title.orEmpty(),
                                 onClick = { ecran = Ecran.Selecteur() },
                             )
                         } else {
@@ -592,7 +654,26 @@ private fun Racine(
                             ?.filter { it.n in lecture.selection }
                             ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
+                        // **Le lien manquait, et il ne manquait que chez le
+                        // destinataire.** Le texte partagé semblait complet
+                        // depuis l'app ; celui qui le recevait n'avait aucun
+                        // moyen d'ouvrir ce qu'on lui citait. iOS en pose un
+                        // depuis toujours — c'est lui qui produit la carte
+                        // d'aperçu avec la vignette de la marque.
+                        val lien = lecture.chapitre?.let {
+                            LienPublic.passage(it.bookId, it.id, lecture.selection)
+                        }
+                        partager(
+                            contexte,
+                            buildString {
+                                append("« ")
+                                append(passage)
+                                append(" »\n\n")
+                                append(lecture.renvoi())
+                                append(" — La Bible ONT")
+                                lien?.let { append("\n").append(it) }
+                            },
+                        )
                     },
                     onFermer = lecture::deselectionner,
                 )
@@ -703,6 +784,7 @@ private fun Racine(
                             },
                             onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
+                            onShem = { lemme -> shem = lemme },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
@@ -746,6 +828,7 @@ private fun Racine(
                     slotsRediges = lecture.slotsRediges,
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,
+                    entreesDeLexique = lexique.entrees.size,
                     onAller = { ecran = Ecran.Reglage(it) },
                     enDeveloppement = BuildConfig.DEBUG,
                     onPasEncore = {
@@ -773,6 +856,18 @@ private fun Racine(
                 preferences = preferences,
                 onChange = onPreferences,
             )
+        }
+    }
+
+    shem?.let { lemme ->
+        shemot.fiche(lemme)?.let { entree ->
+            ModalBottomSheet(
+                onDismissRequest = { shem = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ONTColors.surface(theme),
+            ) {
+                ShemSheet(entree = entree, preferences = preferences)
+            }
         }
     }
 

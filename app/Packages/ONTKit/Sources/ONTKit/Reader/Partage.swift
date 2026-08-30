@@ -117,4 +117,23 @@ public enum Partage {
 
         return corps.isEmpty ? signature : "\(corps)\n\n\(signature)"
     }
+
+    /// Le texte et son lien, en **une seule chaîne**.
+    ///
+    /// C'est ce que le presse-papier demande : il n'a qu'un contenu, là où une
+    /// feuille de partage porte deux objets — le texte d'un côté, l'URL de
+    /// l'autre, pour que la messagerie en tire un aperçu.
+    ///
+    /// **Le copier ne l'emportait pas**, et rien ne le disait. Le lecteur qui
+    /// allume la bascule du lien la croit vraie partout ; il colle son verset
+    /// dans un message, et le lien manque sans qu'aucun écran ne lui ait
+    /// annoncé l'exception.
+    ///
+    /// Le lien va sur sa propre ligne, détaché par une ligne blanche comme la
+    /// signature : ce qui se cite doit pouvoir se séparer de ce qui
+    /// l'accompagne.
+    public static func avecLien(_ texte: String, _ lien: URL?) -> String {
+        guard let lien else { return texte }
+        return "\(texte)\n\n\(lien.absoluteString)"
+    }
 }

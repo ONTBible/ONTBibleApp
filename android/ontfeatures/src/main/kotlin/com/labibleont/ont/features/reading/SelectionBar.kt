@@ -151,7 +151,7 @@ private fun Pastille(couleur: HighlightColor, onClick: () -> Unit) {
                     // La même opacité qu'à la lecture : la pastille montre ce
                     // que le verset aura, pas une version plus vive qui
                     // décevrait au moment de la poser.
-                    ONTColors.highlight(couleur).copy(alpha = ONTColors.HIGHLIGHT_OPACITY),
+                    ONTColors.highlight(couleur, theme).copy(alpha = ONTColors.HIGHLIGHT_OPACITY),
                 )
                 .border(1.dp, ONTColors.separator(theme), CircleShape),
         ) {}

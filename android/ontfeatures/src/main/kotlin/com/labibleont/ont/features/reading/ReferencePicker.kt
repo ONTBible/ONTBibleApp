@@ -53,6 +53,7 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.ChapterStub
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.corpus.Status
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.search.SearchEngine
@@ -134,6 +135,7 @@ public fun ReferencePicker(
 
         is Etape.Versets -> EtapeDesVersets(
             unite = model.esquisse(e.livre)?.chapters?.firstOrNull { it.id == e.unite },
+            francaisRecu = model.preferences.french,
             onRetour = { etape = Etape.Unites(e.livre) },
             onToutLUnite = { onAller(e.livre, e.unite, null) },
             onVerset = { n -> onAller(e.livre, e.unite, n) },
@@ -377,6 +379,7 @@ private fun Case(unite: ChapterStub, courant: Boolean, onClick: () -> Unit) {
 @Composable
 private fun EtapeDesVersets(
     unite: ChapterStub?,
+    francaisRecu: Boolean,
     onRetour: () -> Unit,
     onToutLUnite: () -> Unit,
     onVerset: (Int) -> Unit,
@@ -385,12 +388,20 @@ private fun EtapeDesVersets(
     val espace = ontSpacing
 
     Column(modifier = modifier.fillMaxWidth()) {
-        FilDAriane(unite?.title ?: "", onRetour = onRetour)
+        // Le libellé, pas le titre : « Chapitre 2 » ou « Parashah 2 » selon le
+        // registre. Le titre du corpus ne dit qu'un seul des deux — il porte le
+        // nom ONT, « Bereshit 2 », qui restait affiché même français reçu
+        // allumé.
+        FilDAriane(unite?.label(francaisRecu) ?: "", onRetour = onRetour)
 
         // La sortie courte, en premier : neuf fois sur dix on veut l'unité, pas
         // un verset précis.
         SortieCourte(
-            intitule = "Toute l'unité",
+            // « Tout le chapitre » / « Toute la parashah ». « Toute l'unité »
+            // était un troisième mot, qui n'appartenait à aucun des deux
+            // registres et ne renvoyait donc le lecteur à rien de ce qu'il
+            // avait choisi.
+            intitule = LibelleDUnite.toutLe(francaisRecu),
             icone = Icons.AutoMirrored.Filled.Notes,
             onClick = onToutLUnite,
             modifier = Modifier.padding(horizontal = espace.l),

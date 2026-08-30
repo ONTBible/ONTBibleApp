@@ -98,3 +98,46 @@ struct SearchTests {
         #expect(SearchEngine.search("a", in: records, scope: .all).isEmpty)
     }
 }
+
+/// L'identité d'un résultat de recherche.
+///
+/// Deux résultats distincts ne doivent jamais partager un identifiant : la
+/// liste s'en sert comme clé, et une clé doublée fait réutiliser la mauvaise
+/// vue. Sur Android elle fait carrément lever.
+@Suite("L'identité d'un résultat")
+struct IdentiteDUnResultatTests {
+
+    private func intertitre(_ texte: String) -> SearchRecord {
+        SearchRecord(
+            b: "bereshit", c: "bereshit-15", v: 0, k: .heading,
+            t: texte, g: "", h: "", l: [], x: texte
+        )
+    }
+
+    /// **Le cas réel.** `bereshit-15` porte quatre intertitres, tous au verset
+    /// zéro, dont deux contiennent « alliance ».
+    @Test("deux intertitres du même verset ont des identifiants distincts")
+    func intertitresDuMemeVerset() {
+        let hits = SearchEngine.search(
+            "alliance",
+            in: [
+                intertitre("l'alliance entre les morceaux"),
+                intertitre("la prophetie de l'exil et le rite de l'alliance"),
+            ],
+            scope: .body
+        )
+
+        #expect(hits.count == 2)
+        #expect(Set(hits.map(\.id)).count == 2, "identifiants doublés : \(hits.map(\.id))")
+    }
+
+    /// Et l'identifiant ne doit pas bouger entre deux recherches identiques —
+    /// sinon il défait les animations qu'il sert à tenir.
+    @Test("le même résultat garde le même identifiant")
+    func identifiantStable() {
+        let records = [intertitre("l'alliance entre les morceaux")]
+        let premier = SearchEngine.search("alliance", in: records, scope: .body).map(\.id)
+        let second = SearchEngine.search("alliance", in: records, scope: .body).map(\.id)
+        #expect(premier == second)
+    }
+}
