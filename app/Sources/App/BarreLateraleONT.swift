@@ -71,7 +71,7 @@ struct BarreLateraleONT: View {
                 LigneDeBarre(
                     cible: .you,
                     titre: compte.profil.nomDeBarre,
-                    symbole: "person.crop.circle.fill"
+                    icone: .portrait(compte.profil, compte.portrait())
                 )
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
@@ -99,10 +99,21 @@ struct BarreLateraleONT: View {
 /// vaut ici doublement : `Font.custom(_:size:)` suit Dynamic Type d'office,
 /// là où un `.system(size:)` reste figé. La barre grandit donc avec ⌘=, ce
 /// qu'on lui demandait depuis le début.
+/// Ce qui tient lieu d'icône à une ligne.
+///
+/// Un enum plutôt qu'un générique : les deux cas sont fermés et le resteront —
+/// un symbole du système pour une destination, le visage du lecteur pour son
+/// compte. Un générique ferait porter à chaque appel un paramètre de type que
+/// personne ne veut nommer.
+enum IconeDeLigne {
+    case symbole(String)
+    case portrait(Profil, Data?)
+}
+
 struct LigneDeBarre: View {
     let cible: Router.TabID
     let titre: String
-    let symbole: String
+    let icone: IconeDeLigne
 
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
@@ -110,10 +121,15 @@ struct LigneDeBarre: View {
     private var espace = ONTSpacing()
     private var échelle = ONTScaled()
 
-    init(cible: Router.TabID, titre: String, symbole: String) {
+    init(cible: Router.TabID, titre: String, icone: IconeDeLigne) {
         self.cible = cible
         self.titre = titre
-        self.symbole = symbole
+        self.icone = icone
+    }
+
+    /// Le raccourci du cas courant.
+    init(cible: Router.TabID, titre: String, symbole: String) {
+        self.init(cible: cible, titre: titre, icone: .symbole(symbole))
     }
 
     private var choisie: Bool { router.tab == cible }
@@ -123,9 +139,18 @@ struct LigneDeBarre: View {
             router.tab = cible
         } label: {
             HStack(spacing: espace.s) {
-                Image(systemName: symbole)
-                    .font(.system(size: échelle(13)))
-                    .frame(width: échelle(20))
+                switch icone {
+                case .symbole(let nom):
+                    Image(systemName: nom)
+                        .font(.system(size: échelle(13)))
+                        .frame(width: échelle(20))
+                case .portrait(let profil, let octets):
+                    // Le portrait remplit la même case qu'un symbole : sans ça
+                    // le libellé du compte ne s'alignerait pas sur les autres,
+                    // et l'œil verrait une ligne de travers avant de voir un
+                    // visage.
+                    Portrait(profil: profil, octets: octets, taille: échelle(20))
+                }
                 Text(titre)
                     .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
                     .lineLimit(1)
