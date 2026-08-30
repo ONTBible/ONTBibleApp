@@ -53,8 +53,10 @@ struct ONTMacApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AvecOuverture(theme: etat.composition.reading.preferences.theme) {
-                RacineMac()
+            AvecLaFonteDeLInterface {
+                AvecOuverture(theme: etat.composition.reading.preferences.theme) {
+                    RacineMac()
+                }
             }
                 .environment(etat.composition.router)
                 .environment(etat.composition.reading)
@@ -84,17 +86,6 @@ struct ONTMacApp: App {
                 // system.
                 .frame(minWidth: 720, minHeight: 520)
                 .environment(vault)
-                // **La fonte par défaut de tout ce qui n'en déclare pas.**
-                //
-                // Passer les `.font(.body)` par `ONTUI` ne suffisait pas : un
-                // libellé de `Form`, une ligne de `List`, un `Toggle` n'écrivent
-                // aucune fonte et prennent celle de l'environnement. La fenêtre
-                // grandissait, la feuille de réglages non — c'est ce que
-                // l'auteur a vu sur ⌘,.
-                //
-                // Neutre au facteur 1 : `ONTUI.body` rend alors exactement les
-                // 13 points que le Mac pose de lui-même.
-                .environment(\.font, ONTUI.body)
                 // **Cette fenêtre-ci sait recevoir les liens.**
                 //
                 // La forme *vue* de `handlesExternalEvents`, et non la forme
@@ -129,7 +120,8 @@ struct ONTMacApp: App {
         // système, apparaît dans le menu de l'app, et se ferme comme une
         // fenêtre de réglages — trois choses qu'un onglet ne peut pas donner.
         Settings {
-            YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
+            AvecLaFonteDeLInterface {
+                YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
                 .environment(etat.composition.router)
                 .environment(etat.composition.reading)
                 .environment(etat.composition.lexicon)
@@ -139,18 +131,8 @@ struct ONTMacApp: App {
                 .environment(etat.composition.account)
                 .environment(etat.composition)
                 .ontTheme(from: etat.composition.reading.preferences)
-                // **La fonte par défaut de tout ce qui n'en déclare pas.**
-                //
-                // Passer les `.font(.body)` par `ONTUI` ne suffisait pas : un
-                // libellé de `Form`, une ligne de `List`, un `Toggle` n'écrivent
-                // aucune fonte et prennent celle de l'environnement. La fenêtre
-                // grandissait, la feuille de réglages non — c'est ce que
-                // l'auteur a vu sur ⌘,.
-                //
-                // Neutre au facteur 1 : `ONTUI.body` rend alors exactement les
-                // 13 points que le Mac pose de lui-même.
-                .environment(\.font, ONTUI.body)
                 .frame(minWidth: 620, minHeight: 520)
+            }
         }
 
         .commands {

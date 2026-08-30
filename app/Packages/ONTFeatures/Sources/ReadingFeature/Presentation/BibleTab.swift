@@ -7,6 +7,36 @@ import SwiftUI
 /// L'ordre affiché est l'ordre **fonctionnel** du `corpus-order.md`, pas
 /// l'alphabétique. Les slots encore vides restent visibles : le corpus est un
 /// projet en cours, et les masquer donnerait une fausse idée de sa forme.
+/// Un mode **et le corpus qui le porte**.
+///
+/// ## Pourquoi l'identifiant du mode ne suffit pas
+///
+/// Un identifiant de mode n'est unique que **dans son corpus** — c'est ainsi que
+/// le vault les nomme, et c'est juste : `ketouvim` désigne les Écrits, dans
+/// l'un comme dans l'autre. Mais trois d'entre eux existent des deux côtés :
+///
+///     kenesset       torah · neviim · ketouvim · nistarot
+///     berit-hadashah besorot · ketouvim · neviim · nistarot
+///
+/// Or le sommaire range les deux corpus dans **une seule** `List`, et SwiftUI y
+/// identifie les lignes à plat. Deux `DisclosureGroup` portant le même
+/// identifiant partagent alors leur état : toucher « Ketouvim » du Kenesset
+/// dépliait celui de la Berit Hadashah.
+///
+/// Le défaut est dans la vue, pas dans le domaine : c'est elle qui aplatit deux
+/// espaces de noms en un. Elle doit donc porter l'identité composée.
+///
+/// C'est la même forme que le défaut des résultats de recherche, réparé le
+/// 28 août : **un identifiant local employé là où il faut un identifiant
+/// global**. Il ne se voit jamais à la relecture — les deux lignes sont
+/// correctes chacune de son côté.
+private struct ModeSitue: Identifiable {
+    let corpus: String
+    let mode: Mode
+
+    var id: String { "\(corpus)/\(mode.id)" }
+}
+
 public struct BibleTab: View {
     @Environment(\.ontTheme) private var theme
     @Environment(ReadingModel.self) private var model
@@ -49,9 +79,17 @@ public struct BibleTab: View {
 
                 ForEach(model.corpora) { corpus in
                     Section {
-                        ForEach(corpus.modes.sorted(by: { $0.order < $1.order })) { mode in
+                        // **Situé, pas seulement nommé.** Voir `ModeSitue` :
+                        // trois modes portent le même identifiant dans les deux
+                        // corpus, et une `List` les range tous dans la même
+                        // suite de lignes.
+                        ForEach(
+                            corpus.modes
+                                .sorted(by: { $0.order < $1.order })
+                                .map { ModeSitue(corpus: corpus.id, mode: $0) }
+                        ) { situe in
                             DisclosureGroup {
-                                ForEach(disposer(mode)) { element in
+                                ForEach(disposer(situe.mode)) { element in
                                     switch element.contenu {
                                     case .entete(let groupe):
                                         ConteneurLabel(groupe: groupe)
@@ -60,7 +98,7 @@ public struct BibleTab: View {
                                     }
                                 }
                             } label: {
-                                ModeLabel(mode: mode)
+                                ModeLabel(mode: situe.mode)
                             }
                             .ontRow()
                         }
