@@ -88,9 +88,9 @@ public struct ShemSheet: View {
             }
             .listStyle(.plain)
             .ontScreen()
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: ONTPlacement.principale) {
                     Button("Fermer") { dismiss() }
                 }
             }

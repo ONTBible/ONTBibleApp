@@ -59,10 +59,10 @@ public struct SearchView: View {
             .listStyle(.plain)
             .ontScreen()
             .navigationTitle("Rechercher")
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .searchable(
                 text: $model.query,
-                placement: .navigationBarDrawer(displayMode: .always),
+                placement: ONTPlacement.recherche,
                 prompt: "Un mot, un intraduisible, ou de l'hébreu"
             )
             .toolbar {

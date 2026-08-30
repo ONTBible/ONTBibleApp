@@ -287,6 +287,59 @@ Trois décisions à ne pas défaire sans les connaître :
 
 ---
 
+## La liseuse du Mac, et son mode développeur
+
+`ONTMac` est une **cible native**, pas du Catalyst. Catalyst rendrait l'app iOS
+dans une fenêtre — gestes, marges de pouce, barre d'onglets en bas —, une app
+iPad posée sur un bureau. Elle partage les quatre paquets, donc le corpus, les
+thèmes, le moteur de rendu et les seuils de contraste ; **rien de ce qui fait la
+lecture n'est réécrit.**
+
+Ce qui diffère est borné et court : les tâches de fond (`BGTaskScheduler`
+n'existe pas ici, et une machine allumée n'en a pas besoin), Sentry, et les
+notifications distantes. Le reste des écarts passe par `ONTPlateformes`, côté
+design system : une vue déclare une intention — « ce titre est compact » —
+jamais un système.
+
+### Lire ses brouillons
+
+L'app lit `dist/`, pas le vault. Entre les deux il y a le pipeline. Le mode
+vault ferme la boucle : on désigne le dossier, il surveille, il reconstruit,
+l'app recharge.
+
+```
+./scripts/embarquer-le-pipeline.sh     # une fois, après un build de ONTMac
+```
+
+puis, dans l'app, **Fichier → Suivre un vault…** (⇧⌘O). Un bandeau en bas de
+fenêtre dit ce qui se passe.
+
+Le pipeline est **embarqué dans l'app** plutôt qu'installé : un binaire posé
+dans `/usr/local/bin` vieillirait à part, et l'on relirait ses brouillons avec
+un pipeline d'il y a trois semaines sans que rien ne le dise.
+
+Il attend **deux secondes de silence** avant de reconstruire. En dessous, une
+sauvegarde automatique d'éditeur déclencherait une reconstruction par phrase ;
+au-dessus, on attend devant un texte qu'on vient de corriger. Chaque écriture
+repousse l'échéance : c'est la fin de l'écriture qu'on guette, pas son début.
+
+Il écrit dans `Application Support/vault-apercu`, jamais dans `dist/` : un
+aperçu de brouillon n'a rien à faire dans un arbre de travail git, ni dans un
+build par accident.
+
+### Pourquoi ce mode existe
+
+Relire un brouillon dans un aperçu markdown distingue le corps des gloses par
+**l'italique** — donc par la pente des lettres. C'est le pire discriminant
+possible pour un lecteur atteint de kératocône, où la condition déforme déjà les
+formes et effondre la sensibilité au contraste.
+
+L'app distingue les niveaux par **la couleur, la taille et l'espace** — voir
+`ONTTypography.apparatus` — et sait éteindre les gloses pour ne garder que le
+corps. **C'est aussi la raison, longtemps tacite, du standard de contraste
+au-dessus d'AA que ce projet s'impose.** Une exigence dont on connaît le motif
+se défend ; une exigence orpheline se fait raboter au premier arbitrage.
+
 # IV. La livraison
 
 Cinq workflows, et chacun répond à une question différente.

@@ -81,7 +81,7 @@ public struct ParutionsSettings: View {
             }
         }
         .navigationTitle("Parutions")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontRow()
         .ontScreen()
     }

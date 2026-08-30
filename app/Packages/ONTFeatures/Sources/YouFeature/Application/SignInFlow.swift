@@ -1,4 +1,10 @@
 import AuthenticationServices
+
+#if canImport(UIKit)
+    import UIKit
+#else
+    import AppKit
+#endif
 import CryptoKit
 import Foundation
 import ONTKit
@@ -226,31 +232,37 @@ private final class PresentationAnchor: NSObject, ASWebAuthenticationPresentatio
         Self.keyWindow()
     }
 
+    /// La fenêtre sur laquelle la session web vient s'ancrer.
+    ///
+    /// **Deux mondes, deux façons de trouver une fenêtre.** iOS passe par ses
+    /// scènes ; le Mac a une fenêtre clé et rien d'autre à démêler.
     static func keyWindow() -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-
-        if let key = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
-            return key
-        }
-        // Le repli. `ASPresentationAnchor()` sans scène est déprécié depuis
-        // iOS 26 et ne saurait de toute façon pas où se présenter : une
-        // fenêtre doit appartenir à une scène. On prend la première scène au
-        // premier plan, et à défaut n'importe laquelle — mieux vaut une
-        // fenêtre rattachée à la mauvaise scène qu'une fenêtre orpheline.
-        // À défaut de fenêtre clé, n'importe quelle fenêtre déjà posée fait
-        // l'affaire : elle appartient forcément à une scène.
-        if let existante = scenes.flatMap(\.windows).first {
-            return existante
-        }
-        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        guard let scene else {
-            // Sans aucune scène, l'app n'a pas d'interface — il n'y a
-            // littéralement rien où présenter la page de connexion. La branche
-            // est inatteignable depuis un bouton, mais la signature du
-            // protocole exige une fenêtre. On rend une fenêtre détachée : la
-            // session échouera proprement au lieu de faire tomber l'app.
-            return ASPresentationAnchor()
-        }
-        return ASPresentationAnchor(windowScene: scene)
+        #if canImport(UIKit)
+            let scenes = UIApplication.shared.connectedScenes.compactMap {
+                $0 as? UIWindowScene
+            }
+            if let key = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+                return key
+            }
+            // Le repli. `ASPresentationAnchor()` sans scène est déprécié depuis
+            // iOS 26 et ne saurait de toute façon pas où se présenter : une
+            // fenêtre doit appartenir à une scène. À défaut de fenêtre clé,
+            // n'importe quelle fenêtre déjà posée fait l'affaire — elle
+            // appartient forcément à une scène.
+            if let existante = scenes.flatMap(\.windows).first {
+                return existante
+            }
+            let scene = scenes.first { $0.activationState == .foregroundActive }
+                ?? scenes.first
+            return scene.map { UIWindow(windowScene: $0) } ?? UIWindow()
+        #else
+            // Sur le Mac, la fenêtre clé suffit. S'il n'y en a pas — l'app
+            // vient d'ouvrir, ou toutes ses fenêtres sont fermées —, on en
+            // prend une quelconque plutôt que d'en fabriquer une : une fenêtre
+            // neuve apparaîtrait vide derrière la feuille d'authentification.
+            NSApplication.shared.keyWindow
+                ?? NSApplication.shared.windows.first
+                ?? NSWindow()
+        #endif
     }
 }
