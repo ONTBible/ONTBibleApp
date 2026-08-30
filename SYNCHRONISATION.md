@@ -1904,3 +1904,65 @@ relire, et ce qui a motivé la liseuse du Mac.
 **Une exigence dont on connaît le motif se défend ; une exigence orpheline se
 fait raboter au premier arbitrage.** Le vault, le site et les deux apps tiennent
 tous des seuils de contraste : ils savent maintenant contre quoi.
+<<<<<<< HEAD
+=======
+
+---
+
+## 30 août 2026 — la décision qui vivait dans la vue, et ce qu'elle avait déjà coûté
+
+La session iOS, en portant la liseuse sur Mac, a nommé une frontière : **une
+compilation conditionnelle doit suivre ce qui touche au système, jamais ce qui
+touche au sens.** Chez elle, `ONTShareItem` était enfermé dans un
+`#if canImport(UIKit)` sans contenir un octet d'UIKit, et emportait avec lui le
+code qui *décide* quoi partager.
+
+Android n'a ni `#if` ni `expect`/`actual`. La question s'y posait donc
+autrement — quelle décision est écrite dans une vue ? — et la réponse était la
+même : **la composition du texte partagé, écrite deux fois.**
+
+### Ce que la duplication avait déjà coûté
+
+|  | corps | renvoi | lien |
+|---|---|---|---|
+| lecture | oui | oui | **oui** |
+| verset du jour | oui | oui | **non** |
+
+Le lien manquait au partage le plus fréquent — un verset du jour se transmet, un
+passage étudié beaucoup moins. C'était donc le seul que le destinataire ne
+pouvait pas ouvrir. Et il manquait depuis qu'on l'avait *ajouté* : le second
+point d'appel n'avait pas été vu.
+
+**iOS porte le même écart, sur la même paire d'écrans** — `ChapterView.swift`
+pose un lien, `QahalTab.swift` non.
+
+### Le détail qu'aucune lecture du code n'aurait donné
+
+Android enveloppait le corps dans une paire de chevrons, iOS non. On pouvait
+croire à un goût. C'en est un fait : **le corpus ouvre des citations que le
+verset ne ferme pas.** Bereshit 6:13 porte un chevron ouvrant et aucun fermant,
+parce que le discours d'Elohim continue au verset suivant — le français veut
+qu'on rouvre à chaque unité sans fermer avant la fin.
+
+    « Elohim dit à Noach : « La fin de toute chair… avec la Terre. »
+
+Deux ouvertures, une fermeture, et un chevron final qui **ferme un propos que le
+traducteur avait laissé courir**. Il fallait un verset qui cite quelqu'un, et il
+fallait regarder la feuille de partage sur l'appareil.
+
+### Et l'erreur commise en corrigeant, qui est la vraie leçon
+
+En extrayant la composition, on y a ajouté une « normalisation » du corps qui
+fondait les retours à la ligne en espaces. Elle contredisait `replier`, **deux
+fichiers plus loin**, qui les préserve délibérément :
+
+> un retour à la ligne est une décision de mise en page du traducteur — la
+> seconde ligne d'un parallélisme, l'ouverture d'un discours
+
+Sur l'écran, ça sautait aux yeux : « Elohim dit à Noach : » et l'ouverture du
+discours collés sur une ligne.
+
+**Sortir une décision au bon endroit ne suffit pas si on en profite pour en
+ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
+personne ne relit.
+>>>>>>> origin/dev

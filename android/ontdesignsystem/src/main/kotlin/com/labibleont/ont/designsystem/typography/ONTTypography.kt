@@ -117,7 +117,18 @@ public data class ONTTypography(
             color = ONTColors.accentuation(theme),
         )
 
-    /** Niveau 2 — une glose. */
+    /**
+     * Niveau 2 — une glose.
+     *
+     * **Deux signaux, jamais la pente.** Elle se distingue par la taille et par
+     * la couleur, et c'est délibéré : Gloire a un kératocône, et une cornée
+     * déformée diffuse la lumière au point que l'inclinaison des jambages
+     * devient le pire discriminant possible. Un italique seul aurait paru
+     * élégant et n'aurait rien distingué.
+     *
+     * L'italique du niveau 3 — [translit] — vient **par-dessus** ces deux
+     * signaux, jamais à leur place.
+     */
     public val gloss: SpanStyle
         get() = SpanStyle(fontFamily = body, fontSize = glossSize.pt, color = soft)
 

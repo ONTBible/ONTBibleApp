@@ -37,6 +37,29 @@ import kotlin.math.pow
  * écrit — le bordeaux est noté « 6,1:1 — au-delà du seuil AA » — mais un
  * plancher qu'on peut tenir vaut mieux qu'un idéal qu'on abaisse à la première
  * gêne.
+ *
+ * ## Contre quoi on tient, et ce n'est pas une norme
+ *
+ * **Gloire a un kératocône bilatéral.** La cornée déformée diffuse la lumière :
+ * les bords se dédoublent, les contours proches se confondent. Le projet visait
+ * au-dessus d'AA depuis des semaines sans que la raison soit écrite nulle part,
+ * et une raison non écrite est une raison qu'on abaisse le jour où elle gêne.
+ *
+ * Ce qui en découle vaut au-delà du contraste, et touche ce fichier de près :
+ *
+ * - **distinguer deux niveaux de texte par la pente est le pire choix
+ *   possible.** Un italique se lit à l'inclinaison des jambages, exactement ce
+ *   qu'un halo efface. Ce qui tient est la **couleur**, la **taille**, l'**air**
+ *   autour. `ONTTypography` fait déjà ainsi — une glose est plus petite *et*
+ *   plus douce, l'italique du niveau 3 n'est qu'un renfort par-dessus deux
+ *   signaux qui suffisent — mais ce fichier-ci est le seul qui le mesure ;
+ * - **une dette de contraste n'est pas un détail cosmétique.** Les douze lignes
+ *   inscrites plus bas sont l'or de la marque sur les peaux claires, et
+ *   c'est bien une décision de Gloire — mais elle la prend en connaissant ce
+ *   qu'elle lui coûte à lui, pas à un lecteur théorique.
+ *
+ * La note vient de la session iOS, le 30 août 2026, en portant la liseuse sur
+ * Mac. Elle valait pour les trois plateformes et n'était écrite dans aucune.
  */
 class ContrastesTest {
 
