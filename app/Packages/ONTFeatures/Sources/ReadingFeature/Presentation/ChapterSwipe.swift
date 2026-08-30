@@ -561,7 +561,7 @@ private struct Pastille: View {
         // la pose donc, sans dépendre d'une version.
         let teinte = ONTColors.melange(theme.ink, vers: .white, part: densite)
         Text("\(numero)")
-            .font(.title3.weight(.medium))
+            .font(ONTUI.title3.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(teinte.opacity(0.85))
             .padding(.horizontal, 14)

@@ -28,31 +28,72 @@ import YouFeature
 /// mécanisme sur le Mac, et une liseuse de bureau n'en a pas besoin pour
 /// rendre le service qu'on lui demande.
 ///
-/// **Pas d'ouverture animée.** `AvecOuverture` sert à couvrir le temps que met
-/// un téléphone à charger le corpus depuis son disque lent. Un Mac l'a fait
-/// avant que la fenêtre paraisse ; une animation n'y serait qu'un délai qu'on
-/// s'impose.
+/// **L'ouverture animée, elle, reste.** J'avais commencé par l'écarter, en
+/// pensant qu'elle couvrait le temps de chargement d'un téléphone — un Mac
+/// l'ayant fait avant que la fenêtre paraisse, elle n'aurait été qu'un délai
+/// qu'on s'impose.
+///
+/// C'était mal lire ce qu'elle fait. Elle ne masque rien : sa durée est fixe et
+/// ne dépend d'aucun chargement. **Elle porte la marque** — la montagne est
+/// l'identité de l'ONT, pas un cache-misère —, et l'écarter aurait retiré au
+/// Mac le seul moment où l'app dit qui elle est.
+///
+/// La leçon est la même qu'ailleurs aujourd'hui : on retire une chose pour la
+/// raison qu'on croit qu'elle a, et l'on découvre qu'elle en avait une autre.
 @main
 struct ONTMacApp: App {
-    @State private var composition = Composition()
+    /// L'état partagé — voir `EtatMac` : les fermetures de `.commands` ne
+    /// voient pas la même instance que la fenêtre, donc rien de mutable ne
+    /// vit dans cette structure.
+    private let etat = EtatMac.partage
+    /// Voir `DelegueMac` — il existe pour une seule raison : recevoir les liens
+    /// avant que SwiftUI n'en fasse une fenêtre de plus.
+    @NSApplicationDelegateAdaptor(DelegueMac.self) private var delegue
     @State private var vault = ModeVault()
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(composition.router)
-                .environment(composition.reading)
-                .environment(composition.lexicon)
-                .environment(composition.search)
-                .environment(composition.qahal)
-                .environment(composition.you)
-                .environment(composition.account)
-                .environment(composition)
+            AvecLaFonteDeLInterface {
+                AvecOuverture(theme: etat.composition.reading.preferences.theme) {
+                    RacineMac()
+                }
+            }
+                .environment(etat.composition.router)
+                .environment(etat.composition.reading)
+                .environment(etat.composition.lexicon)
+                .environment(etat.composition.search)
+                .environment(etat.composition.qahal)
+                .environment(etat.composition.you)
+                .environment(etat.composition.account)
+                .environment(etat.composition)
                 // La colonne de lecture a besoin d'une largeur ; en dessous,
                 // les gloses se hachent et le texte cesse d'être lisible —
                 // ce que cette app existe précisément pour éviter.
+                // **La teinte de l'app, et non celle du système.**
+                //
+                // Sans elle, le Mac colore les symboles de la barre latérale,
+                // les coches et les curseurs avec l'accent choisi dans les
+                // Réglages du lecteur — rose vif sur cette machine. Une liseuse
+                // dont la peau est or et bordeaux se retrouve alors piquée
+                // d'une couleur qui n'est ni l'une ni l'autre.
+                //
+                // iOS ne pose pas la question : il n'a pas d'accent système
+                // qu'une app hérite sans le demander.
+                .tint(ONTColors.accent(etat.composition.reading.preferences.theme))
+                // Pas de `.dynamicTypeSize` : mesuré inerte sur macOS — voir
+                // `ONTEchelleUI` et l'épreuve qui le montre. L'échelle passe
+                // par `EtatMac.appliquerLEchelle`, qui la pose dans le design
+                // system.
                 .frame(minWidth: 720, minHeight: 520)
                 .environment(vault)
+                // **Cette fenêtre-ci sait recevoir les liens.**
+                //
+                // La forme *vue* de `handlesExternalEvents`, et non la forme
+                // *scène* : la première dit « celle-ci sait faire », la seconde
+                // dit seulement « ce groupe sait faire » — et SwiftUI ouvre
+                // alors une fenêtre neuve pour le prouver. Mesuré : deux
+                // fenêtres, dont la première rétractée à 99 × 144 points.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 // L'état du mode vault, en bas de fenêtre et non en alerte :
                 // il change à chaque sauvegarde, et une alerte par phrase
                 // rendrait l'app inutilisable pendant qu'on écrit.
@@ -60,7 +101,40 @@ struct ONTMacApp: App {
                     if vault.vault != nil { BandeauDuVault(mode: vault) }
                 }
         }
+        // **La taille d'ouverture, mesurée et non choisie.**
+        //
+        // 1240 × 960, soit un rapport de **1,29** — celui de la fenêtre que
+        // l'auteur a montrée en référence, relevé au pixel sur sa capture plutôt
+        // qu'estimé à l'œil.
+        //
+        // Ce rapport n'est pas décoratif : plus large, la colonne de lecture
+        // laisse deux marges vides que rien n'occupe ; plus étroit, les gloses
+        // se hachent. C'est la forme d'une page, et c'est ce que l'app est.
+        //
+        // `defaultSize` ne s'applique qu'à la **première** ouverture : macOS
+        // restaure ensuite la taille que le lecteur a donnée, ce qui est le
+        // comportement voulu — on propose, on n'impose pas.
+        .defaultSize(width: 1240, height: 960)
         .windowResizability(.contentMinSize)
+        // **Les réglages où le Mac les attend.** `Settings` reçoit ⌘, du
+        // système, apparaît dans le menu de l'app, et se ferme comme une
+        // fenêtre de réglages — trois choses qu'un onglet ne peut pas donner.
+        Settings {
+            AvecLaFonteDeLInterface {
+                YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
+                .environment(etat.composition.router)
+                .environment(etat.composition.reading)
+                .environment(etat.composition.lexicon)
+                .environment(etat.composition.search)
+                .environment(etat.composition.qahal)
+                .environment(etat.composition.you)
+                .environment(etat.composition.account)
+                .environment(etat.composition)
+                .ontTheme(from: etat.composition.reading.preferences)
+                .frame(minWidth: 620, minHeight: 520)
+            }
+        }
+
         .commands {
             // Le Mac attend qu'on puisse changer de thème au clavier — et
             // avec un kératocône, on en change souvent, selon la lumière de
@@ -74,16 +148,83 @@ struct ONTMacApp: App {
                     Button("Cesser de suivre") { vault.arreter() }
                 }
             }
+            // **Deux tailles, deux gestes.** ⌘± règle l'interface ; ⌘⌥± le
+            // corps du texte, et rien d'autre. Les confondre serait un
+            // contresens : on monte le corps très haut pour lire, sans vouloir
+            // qu'une barre latérale enfle et mange la place de ce texte.
+            //
+            // **Deux tailles, deux gestes, un seul groupe de menu.**
+            //
+            // ⌘± règle l'interface ; ⌘⌃± le corps du texte, et rien d'autre.
+            // Les confondre serait un contresens : on monte le corps très haut
+            // pour lire, sans vouloir qu'une barre latérale enfle et mange la
+            // place de ce texte.
+            //
+            // **Un seul `CommandGroup`**, et non trois : deux groupes déclarés
+            // au même emplacement se disputent la place, et l'un des deux peut
+            // ne pas paraître du tout — un raccourci qu'on croit posé et qui
+            // n'existe nulle part.
             CommandGroup(after: .toolbar) {
                 Divider()
-                Button("Thème suivant") {
-                    let ordre = ReadingTheme.allCases
-                    let actuel = composition.reading.preferences.theme
-                    let suivant = ordre.firstIndex(of: actuel).map {
-                        ordre[($0 + 1) % ordre.count]
-                    }
-                    if let suivant { composition.reading.preferences.theme = suivant }
+                // **La barre latérale, par l'action du système.**
+                //
+                // Elle n'est pas à nous : `TabView(.sidebarAdaptable)` la
+                // fabrique, et aucun état de la vue ne la commande. On demande
+                // donc au répondeur de faire ce qu'il sait faire — c'est le
+                // même chemin que le bouton de la barre d'outils emprunte.
+                //
+                // ⌘B plutôt que le ⌃⌘S d'AppKit : c'est le geste que les apps
+                // de lecture ont adopté, et le lecteur le connaît d'ailleurs.
+                Button("Masquer ou afficher la barre latérale") {
+                    NSApp.keyWindow?.firstResponder?.tryToPerform(
+                        Selector(("toggleSidebar:")), with: nil)
                 }
+                .keyboardShortcut("b", modifiers: .command)
+
+                // **Où paraissent les fiches.** Le réglage est aussi dans la
+                // barre de tête de la fiche elle-même — mais on ne le trouve
+                // là qu'une fois qu'on en a ouvert une. Le menu l'annonce
+                // avant.
+                Button(etat.modeDeFiche.titreDeBascule) {
+                    etat.modeDeFiche = etat.modeDeFiche.suivant
+                }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+
+                Divider()
+                Button("Agrandir l'interface") { etat.interface(de: 1) }
+                // **`=` et non `+`, et ce n'est pas un détail de forme.**
+                //
+                // Sur un clavier français, `+` s'obtient par Maj+`=`. Un
+                // raccourci déclaré `⌘+` **sans** Maj ne peut donc correspondre
+                // à aucune frappe réelle : le système livre « + » avec Maj, la
+                // déclaration attend « + » sans, et rien ne se produit jamais.
+                //
+                // C'est ce que l'auteur constatait — « ⌘+ ne marche toujours
+                // pas ». Le raccourci n'était pas cassé, il était **intypable**.
+                //
+                // `⌘=` se tape directement, et le menu l'affiche tel quel.
+                .keyboardShortcut("=", modifiers: .command)
+                Button("Réduire l'interface") { etat.interface(de: -1) }
+                .keyboardShortcut("-", modifiers: .command)
+                Button("Taille d'interface par défaut") { etat.interfaceParDefaut() }
+                .keyboardShortcut("0", modifiers: .command)
+
+                Divider()
+                // **⌃ et non ⌥.** `⌘⌥+` est pris par le zoom d'accessibilité du
+                // système sur bien des machines : le raccourci partait au
+                // zoom d'écran au lieu d'arriver ici.
+                // Le corps du texte sur **⌘⇧**, à la demande de l'auteur.
+                //
+                // `=` là aussi : `⌘⇧+` demanderait Maj **deux fois**, ce qui ne
+                // se tape pas. `⌘⇧=` est la frappe qui produit ce que tout le
+                // monde appelle « ⌘⇧+ ».
+                Button("Agrandir le texte") { etat.corps(de: 1) }
+                    .keyboardShortcut("=", modifiers: [.command, .shift])
+                Button("Réduire le texte") { etat.corps(de: -1) }
+                    .keyboardShortcut("-", modifiers: [.command, .shift])
+
+                Divider()
+                Button("Thème suivant") { etat.themeSuivant() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
@@ -115,11 +256,11 @@ private struct BandeauDuVault: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbole)
-            Text(libelle).font(.footnote.monospacedDigit())
+            Text(libelle).font(ONTUI.footnote.monospacedDigit())
             Spacer()
             if let vault = mode.vault {
                 Text(vault.lastPathComponent)
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -144,6 +285,28 @@ private struct BandeauDuVault: View {
         case .enCours: "reconstruction…"
         case .fait(let unites, let versets): "\(unites) unités, \(versets) versets"
         case .echec(let raison): raison
+        }
+    }
+}
+
+/// Le délégué d'application — pour les liens, et rien d'autre.
+///
+/// ## Pourquoi il faut en passer par là
+///
+/// `ont://term/bara` ouvrait une **seconde fenêtre**, et rétractait la première
+/// à 99 × 144 points au passage — mesuré, deux fenêtres au lieu d'une, dont une
+/// vide. SwiftUI traite un événement externe que personne ne revendique comme
+/// une raison d'ouvrir une scène ; `handlesExternalEvents(matching:)` n'y a rien
+/// changé, essayé avec le schéma puis avec `*`.
+///
+/// Un délégué qui implémente `application(_:open:)` consomme l'événement avant
+/// ce mécanisme. C'est le seul endroit du Mac où l'on redescend sous SwiftUI, et
+/// c'est pour la même raison que partout ailleurs aujourd'hui : ce qui est en
+/// jeu appartient au système, pas à l'app.
+final class DelegueMac: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            for url in urls { EtatMac.partage.composition.router.open(url) }
         }
     }
 }

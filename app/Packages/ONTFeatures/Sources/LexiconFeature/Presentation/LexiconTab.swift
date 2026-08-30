@@ -63,7 +63,7 @@ public struct LexiconTab: View {
                         }
                     } header: {
                         Text(tranche.lettre)
-                            .font(.footnote.weight(.semibold))
+                            .font(ONTUI.footnote.weight(.semibold))
                             .foregroundStyle(theme.accent)
                             .accessibilityAddTraits(.isHeader)
                     }
@@ -142,12 +142,12 @@ private struct EntryRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title)
-                    .font(.body.weight(.medium))
+                    .font(ONTUI.body.weight(.medium))
                     .foregroundStyle(entry.tagged ? ONTColors.brandInk(theme.mode) : theme.ink)
 
                 if let rendering = entry.rendering, rendering != entry.title {
                     Text(rendering)
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -162,7 +162,7 @@ private struct EntryRow: View {
 
             if entry.count > 0 {
                 Text("\(entry.count)")
-                    .font(.caption2.monospacedDigit())
+                    .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .frame(minWidth: 28, alignment: .trailing)
             }
