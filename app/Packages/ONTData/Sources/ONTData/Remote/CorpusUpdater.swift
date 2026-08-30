@@ -86,15 +86,29 @@ public actor CorpusUpdater {
     private let origine: URL
     private let dossier: URL
     private let session: URLSession
+    /// Injectable : sans ça, l'épreuve de la garde dépendrait du bundle de
+    /// l'hôte des tests, qui ne porte pas le corpus.
+    let estampilleEmbarquee: Estampille?
 
     public init(
         origine: URL = URL(string: "https://ontbible.com/corpus/")!,
         dossier: URL? = nil,
         session: URLSession = .shared
     ) {
+        self.init(origine: origine, dossier: dossier, session: session,
+                  estampilleEmbarquee: Self.estampilleEmbarquee())
+    }
+
+    init(
+        origine: URL,
+        dossier: URL?,
+        session: URLSession,
+        estampilleEmbarquee: Estampille?
+    ) {
         self.origine = origine
         self.dossier = dossier ?? Self.dossierParDefaut()
         self.session = session
+        self.estampilleEmbarquee = estampilleEmbarquee
     }
 
     /// `Application Support/corpus`.
@@ -106,6 +120,78 @@ public actor CorpusUpdater {
     public static func dossierParDefaut() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("corpus", isDirectory: true)
+    }
+
+    /// L'estampille d'un corpus — **ce qu'il contient**, pas quand on l'a compilé.
+    ///
+    /// ## Pourquoi il en fallait une
+    ///
+    /// L'app lit le disque quand il existe, le bundle sinon. Le disque est
+    /// rempli par ce qui est publié. Tant que le publié est le plus récent des
+    /// deux, tout va bien — et c'est faux à chaque fois qu'un build part avant
+    /// un déploiement du site, c'est-à-dire à chaque livraison TestFlight.
+    ///
+    /// Mesuré sur simulateur le 30 août 2026 : bundle à 1913 occurrences de
+    /// `shem`, disque à 217. Le dossier effacé, l'app le recréait au lancement
+    /// en retéléchargeant l'ancien. La couche des noms propres serait arrivée
+    /// chez tous les testeurs **sans un seul nom affiché**, et aucun test ne
+    /// pouvait l'attraper : ils mesurent tous le corpus du bundle, que
+    /// personne ne lit.
+    ///
+    /// ## Pourquoi ce n'est pas l'heure du build
+    ///
+    /// `build.rs` laisse `generated_at` vide, et le commentaire dit pourquoi :
+    /// deux exécutions sur le même vault doivent produire le même octet, donc
+    /// la même empreinte, donc aucun retéléchargement. Un `now()` republierait
+    /// tout le corpus à des lecteurs dont rien n'a changé.
+    ///
+    /// La date porte donc celle du **contenu source** — le dernier commit du
+    /// vault. Déterministe pour un vault donné, et croissante quand il change :
+    /// exactement l'ordre qui manquait, sans rien sacrifier.
+    ///
+    /// ## Pourquoi un format strict, et pas `ISO8601DateFormatter`
+    ///
+    /// Parce que la comparaison se fait sur des chaînes, et que deux écritures
+    /// du **même instant** s'ordonnent alors à l'envers :
+    ///
+    ///     "2026-08-30T00:14:00Z" < "2026-08-30T02:14:00+02:00"
+    ///
+    /// Une date bien formée mais dans un autre fuseau ferait garder le plus
+    /// vieux des deux corpus en croyant garder le plus neuf — le défaut
+    /// d'aujourd'hui, sous une forme bien plus difficile à voir qu'un champ
+    /// vide. La session du site l'a relevé avant que ça arrive.
+    ///
+    /// D'où : **UTC, à la seconde, et rien d'autre.** Ce qui ne s'écrit pas
+    /// ainsi n'est pas une estampille, quelle que soit sa vraisemblance.
+    struct Estampille: Comparable, Sendable {
+        let texte: String
+
+        /// `2026-08-30T00:14:00Z`, strictement.
+        init?(_ brut: String) {
+            let c = Array(brut)
+            guard c.count == 20, c[4] == "-", c[7] == "-", c[10] == "T",
+                  c[13] == ":", c[16] == ":", c[19] == "Z" else { return nil }
+            for i in [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18]
+            where !c[i].isNumber { return nil }
+            texte = brut
+        }
+
+        /// Sûre, parce que le format est fixe : à longueur et champs égaux,
+        /// l'ordre lexicographique **est** l'ordre chronologique.
+        static func < (a: Self, b: Self) -> Bool { a.texte < b.texte }
+    }
+
+    /// L'estampille du corpus que l'app embarque, lue de son `manifest.json`.
+    ///
+    /// `nil` quand elle manque ou ne s'écrit pas comme il faut — et le refus
+    /// qui s'ensuit est délibéré, voir `synchroniser`.
+    static func estampilleEmbarquee(_ bundle: Foundation.Bundle = .main) -> Estampille? {
+        guard let url = bundle.url(forResource: "manifest", withExtension: "json"),
+              let octets = try? Data(contentsOf: url),
+              let objet = try? JSONSerialization.jsonObject(with: octets) as? [String: Any],
+              let brut = objet["generatedAt"] as? String
+        else { return nil }
+        return Estampille(brut)
     }
 
     /// Va chercher ce qui a changé, et l'écrit.
@@ -124,6 +210,23 @@ public actor CorpusUpdater {
         guard manifeste.schema == Self.schema else {
             throw Failure.unsupportedSchema(manifeste.schema)
         }
+
+        // **On n'accepte que ce qu'on peut prouver plus récent.**
+        //
+        // Refuser plutôt qu'accepter, quand l'ordre est indécidable : un corpus
+        // qui ne se met pas à jour se voit et se répare ; un corpus
+        // silencieusement remplacé par du plus vieux ne se voit pas. C'est
+        // précisément le défaut qu'on corrige, et l'accepter « au cas où »
+        // serait le reproduire dans sa correction.
+        //
+        // Conséquence assumée : tant que le site publie un `genere` vide, les
+        // builds qui portent cette garde restent sur leur bundle. C'est
+        // l'ordre de livraison — pipeline, site, app —, et l'inverse gèlerait
+        // les mises à jour sans que rien ne les dégèle.
+        guard let publiee = Estampille(manifeste.genere),
+              let embarquee = estampilleEmbarquee,
+              publiee > embarquee
+        else { return 0 }
 
         try preparerLeDossier()
         var connus = empreintesConnues()
