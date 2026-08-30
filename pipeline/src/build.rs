@@ -639,13 +639,9 @@ pub fn build() -> Result<BuildResult, String> {
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
     let fiches = read_fiches(&racine);
-    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
-    let mut fiches_orphelines: Vec<String> = fiches
-        .keys()
-        .filter(|l| !lemmes.contains(l.as_str()))
-        .cloned()
-        .collect();
-    fiches_orphelines.sort();
+    // `fiches_orphelines` se calcule plus bas, une fois les Shemot connus : le
+    // dossier `lexique/` porte deux espèces de fiches depuis la troisième
+    // couche, et il fallait les deux pour savoir laquelle est orpheline.
     for entry in glossary.iter_mut() {
         if let Some(fiche) = fiches.get(&entry.lemma) {
             let blocs = &fiche.blocs;
@@ -791,6 +787,34 @@ pub fn build() -> Result<BuildResult, String> {
     }
     shemot_employes.sort();
     shemot_employes.dedup();
+
+    // **Une fiche orpheline, maintenant qu'il y a deux espèces de fiches.**
+    //
+    // Le contrôle demandait « ce nom de fichier est-il un lemme du
+    // glossaire ? ». C'était la bonne question tant que `lexique/` ne contenait
+    // que des intraduisibles. Depuis la troisième couche il y tient aussi les
+    // fiches de Shemot, **qui n'ont pas d'entrée de glossaire par
+    // construction** — un porteur n'est pas un concept, et c'est toute la
+    // raison d'être de la couche.
+    //
+    // La section listait donc les cent quatre-vingt-dix-sept fiches de noms
+    // propres, toutes fausses. À ce taux elle n'est pas seulement inutile :
+    // elle **noie le signal qu'elle portait**, puisqu'une vraie fiche
+    // d'intraduisible orpheline y serait devenue invisible. Une garde qui crie
+    // toujours ne garde plus rien.
+    //
+    // Un critère par espèce, donc : un lemme du glossaire, ou un Shem que le
+    // corpus nomme. Ce qui n'est ni l'un ni l'autre est bien du travail perdu
+    // — y compris une fiche de Shem écrite pour un nom qu'aucune unité publiée
+    // ne prononce, qui est le même défaut sous l'autre espèce.
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let porteurs: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()) && !porteurs.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
 
     let shemot: Vec<ShemEntry> = shemot_employes
         .iter()
@@ -1023,6 +1047,7 @@ pub fn build() -> Result<BuildResult, String> {
             superseded: &lu.superseded,
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
+            shemot_sans_fiche: &shemot_sans_fiche,
         },
         &racine,
     );
@@ -1109,6 +1134,15 @@ struct Anomalies<'a> {
     superseded: &'a [String],
     fiches_orphelines: &'a [String],
     ors_morts: &'a [String],
+    /// Les Shemot que le corpus nomme et pour lesquels aucune fiche n'existe.
+    ///
+    /// **Ils étaient comptés, triés, dédoublonnés — puis seul `.len()`
+    /// survivait**, et le `Vec` était jeté. Le rapport annonçait « 10 Shemot
+    /// sans fiche » sans dire lesquels, ce qui ne permet à personne d'agir :
+    /// il faut alors refaire à la main le relevé que le pipeline venait de
+    /// faire. Les trois autres compteurs ont tous leur section ; celui-ci
+    /// était le seul à n'avoir qu'un nombre.
+    shemot_sans_fiche: &'a [String],
 }
 
 fn format_report(
@@ -1123,6 +1157,7 @@ fn format_report(
         superseded,
         fiches_orphelines,
         ors_morts,
+        shemot_sans_fiche,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1227,6 +1262,22 @@ fn format_report(
         }
     }
 
+    // Un nom propre que le texte porte sans qu'aucune fiche ne l'explique :
+    // le lecteur touche le mot et n'obtient rien.
+    if !shemot_sans_fiche.is_empty() {
+        l.extend([
+            String::new(),
+            "## Shemot sans fiche".into(),
+            String::new(),
+            "Ces noms propres sont employés dans le corpus publié et n'ont pas".into(),
+            "de fiche dans `lexique/`. Le nom du fichier doit être le lemme.".into(),
+            String::new(),
+        ]);
+        for s in shemot_sans_fiche {
+            l.push(format!("- {s}"));
+        }
+    }
+
     // Le gras d'insistance dans une fiche promet une fiche qui n'existe pas.
     if !ors_morts.is_empty() {
         l.extend([
@@ -1307,6 +1358,54 @@ fn format_report(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Le rapport nommait un nombre sans jamais nommer sa substance.
+    ///
+    /// Les Shemot sans fiche étaient calculés, triés, dédoublonnés — puis seul
+    /// `.len()` survivait. « 10 Shemot sans fiche » ne permet à personne
+    /// d'agir : il faut refaire à la main le relevé que le pipeline vient de
+    /// faire. C'est ce qu'a dû faire la session du vault pour les retrouver.
+    #[test]
+    fn le_rapport_nomme_les_shemot_sans_fiche() {
+        let sans = ["**Par'oh** — `lexique/paroh.md`".to_string()];
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &sans,
+            },
+            Path::new("/vault"),
+        );
+        assert!(
+            rapport.contains("## Shemot sans fiche"),
+            "la section manque"
+        );
+        assert!(rapport.contains("Par'oh"), "le nom manque : {rapport}");
+    }
+
+    /// Une section vide ne s'écrit pas — comme les trois autres.
+    #[test]
+    fn sans_shem_orphelin_la_section_ne_parait_pas() {
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &[],
+            },
+            Path::new("/vault"),
+        );
+        assert!(!rapport.contains("## Shemot sans fiche"));
+    }
 
     #[test]
     fn l_extrait_se_centre_sur_la_forme() {
