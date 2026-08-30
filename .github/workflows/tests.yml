@@ -50,7 +50,12 @@ jobs:
     #
     # Trente minutes : plus du double du temps observé, assez pour absorber une
     # lenteur de runner, assez court pour qu'un blocage se voie dans l'heure.
-    timeout-minutes: 30
+    #
+    # **Quarante depuis que le Mac est éprouvé ici aussi.** Le chiffre suit la
+    # règle qu'énonce le paragraphe ci-dessus — le double du temps observé — et
+    # non l'inverse : une seconde cible à bâtir allonge le run, et garder 30
+    # aurait transformé la borne en couperet sur des builds sains.
+    timeout-minutes: 40
 
     steps:
       - name: L'app
@@ -222,12 +227,57 @@ jobs:
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 
-      # Le compte réel, lu du paquet de résultats. La ligne « Executed 0 tests »
+      # **La liseuse du Mac n'était éprouvée nulle part.**
+      #
+      # `-scheme ONT` ne bâtit que la cible iOS. Les épreuves de `MacTests/` —
+      # dont `EchelleDeLInterfaceTests`, qui établit que `dynamicTypeSize` est
+      # inerte sur macOS et que le texte sans fonte déclarée suit bien le
+      # facteur d'interface — ne tournaient que sur la machine de la session
+      # qui les avait écrites. Un commit iOS pouvait casser le Mac en vert.
+      #
+      # Ce sont précisément les constats qui ont coûté le plus cher à établir :
+      # trois relevés pour comprendre que l'ancien levier était mort. Les
+      # laisser hors CI, c'était accepter de les réapprendre.
+      #
+      # Pas de simulateur ici : la destination est le runner lui-même.
+      #
+      # **Sans signature, et c'est une limite qu'il faut connaître.** Le runner
+      # n'a pas de compte développeur, donc pas de profil, donc rien à signer
+      # avec. Les droits d'`ONTMac.entitlements` sont alors absents du binaire :
+      # ce job dit que le code du Mac tient, il ne dira **jamais** que Sign in
+      # with Apple fonctionne. Cette vérification-là se fait à la main, sur une
+      # machine enregistrée dans le compte développeur.
+      - name: Les tests du Mac
+        working-directory: ONTBibleApp/app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONTMac \
+            -destination "platform=macOS" \
+            -resultBundlePath ../resultats-mac.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcbeautify --renderer github-actions
+
+      # Le compte réel, lu des paquets de résultats. La ligne « Executed 0 tests »
       # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
       # invisible, et l'on croirait qu'aucun test n'a tourné.
+      #
+      # Chaque paquet est compté séparément, et son absence est dite plutôt que
+      # levée : quand l'iPhone tombe, le Mac n'a pas tourné et son paquet
+      # n'existe pas. Une erreur de plus ici masquerait celle qu'on cherche.
       - name: Le compte
         if: always()
         working-directory: ONTBibleApp
         run: |
-          xcrun xcresulttool get test-results summary --path resultats.xcresult \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{d['passedTests']} réussis / {d['totalTestCount']}\")"
+          compter() {
+            if [ ! -d "$1.xcresult" ]; then
+              echo "$2 — pas de résultats : les épreuves n'ont pas tourné"
+              return
+            fi
+            xcrun xcresulttool get test-results summary --path "$1.xcresult" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"$2 — {d['passedTests']} réussis / {d['totalTestCount']}\")"
+          }
+          compter resultats "l'iPhone"
+          compter resultats-mac "le Mac"
