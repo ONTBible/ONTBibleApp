@@ -1149,7 +1149,9 @@ divergeaient.** Un audit utile compare ce qui s'affiche, pas ce qui s'appelle.
 les identifiants doublés — il avertit, et réutilise parfois la mauvaise vue.
 Compose lève : chercher « alliance » fermait l'app. Même domaine, même donnée,
 même requête ; une plateforme plante là où l'autre murmure. **Un défaut
-silencieux d'un côté n'est pas un défaut absent.**
+silencieux d'un côté n'est pas un défaut absent** — Android ne l'a pas
+introduit, il l'a révélé. Le portage est donc un instrument de mesure sur
+l'amont, et pas seulement du travail en aval.
 
 **Ce que la plateforme donne gratuitement à l'une, l'autre doit l'écrire.** Le
 même réglage d'interligne rendait 1,735 sur iOS et 1,500 sur Android :
@@ -1169,10 +1171,11 @@ l'empreinte de la clé de téléversement. Une seconde empreinte s'y **ajoutera*
 après le premier envoi à Play, celle avec laquelle Google resigne : la
 remplacer ferait cesser d'être reconnues toutes les installations de test.
 
-Pour le **vault** : les décisions terminologiques du pied d'unité portent des
-astérisques littérales — `*Elohim` — que les deux liseuses affichent, parce
-qu'elles emploient le même chemin de composition. C'est au pipeline de dire si
-ces marques doivent survivre jusqu'à l'écran.
+Pour le **vault** : rien à corriger. Les astérisques des décisions
+terminologiques viennent de l'analyseur du pipeline, qui ne sait pas ouvrir une
+emphase juste avant un gras — `***Elohim** / …*` est du Markdown valide. Le
+mot d'or s'appelle alors littéralement `*Elohim`, vingt-six fois dans
+*bereshit*. Le lien de la fiche reste juste ; seul l'affichage est faux.
 
 **Et une règle nouvelle, posée par Gloire ce jour :** les initiatives viennent
 d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
