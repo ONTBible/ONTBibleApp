@@ -1842,3 +1842,65 @@ l'item ne bouge jamais — avec le mauvais remède : sa fraction de défilement
 `TextLayoutResult`. Vérifié sur l'appareil avant de fermer, parce qu'une
 session qui ne peut pas éprouver du Kotlin avait refusé de trancher à
 l'aveugle sur un terrain qui n'était pas le sien.
+
+---
+
+## 30 août 2026 — la liseuse du Mac, et la raison du standard de contraste
+
+**Traverse les trois dépôts**, pour deux raisons très différentes.
+
+### Ce qui a été fait
+
+`ONTFeatures` était le seul paquet fermé à macOS, avec pour raison écrite « les
+vues emploient UIKit ». **Mesuré : 3 fichiers sur 25, 8 références.** La
+déclaration était très au-dessus de la chose — et elle a tenu des semaines parce
+que personne n'avait compté.
+
+Le reste — une trentaine de points — n'était pas un désaccord de conception mais
+des modificateurs SwiftUI qu'iOS a et que le Mac n'a pas. Ils passent désormais
+par `ONTPlateformes`, côté design system : **une vue déclare une intention,
+jamais un système.**
+
+### Ce que ça dit à Android
+
+Le portage Kotlin a rencontré la même question et l'a résolue autrement, en
+écrivant deux fois. La leçon vaut dans les deux sens : **ce qui diffère entre
+plateformes se range en deux tas, et on les traite différemment.**
+
+- ce que les deux nomment autrement — un titre compact, un placement de bouton,
+  une image : ça se **traduit**, en un seul endroit ;
+- ce que l'une a et l'autre pas — un glissement de retour, une tâche de fond
+  qui suppose un appareil qui dort : ça se **décide**, et le code doit montrer
+  qu'on a décidé.
+
+Le second tas est petit. C'est le premier qui fait croire qu'un portage est
+long.
+
+### Ce que ça dit au site
+
+`ONTShareItem` était enfermé dans un `#if canImport(UIKit)` alors qu'il ne
+contient rien d'UIKit. Il emportait avec lui tout le code qui *décide* quoi
+partager — identique partout —, alors que seule la **présentation** diffère.
+
+**La limite qu'une compilation conditionnelle doit suivre : ce qui touche au
+système, jamais ce qui touche au sens.** Le site a la même frontière à tenir
+entre ce qui dépend du navigateur et ce qui dépend du corpus.
+
+### Et le point qui vaut le plus, pour les trois
+
+**Le projet s'impose un standard de contraste au-dessus d'AA depuis des
+semaines, et la raison n'était écrite nulle part.**
+
+Elle a un nom : le **kératocône** de l'auteur. La condition déforme les lettres
+et effondre la sensibilité au contraste. Distinguer deux niveaux de texte par
+*la pente* — l'italique — est donc pour lui le pire discriminant possible : on
+ajoute de la déformation à de la déformation. Ce qui tient contre elle est la
+**couleur, la taille, l'espace**.
+
+C'est ce que fait `ONTTypography.apparatus` depuis toujours, sans que le
+commentaire dise pourquoi. C'est aussi ce qui rend un aperçu markdown pénible à
+relire, et ce qui a motivé la liseuse du Mac.
+
+**Une exigence dont on connaît le motif se défend ; une exigence orpheline se
+fait raboter au premier arbitrage.** Le vault, le site et les deux apps tiennent
+tous des seuils de contraste : ils savent maintenant contre quoi.

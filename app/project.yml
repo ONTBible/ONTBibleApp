@@ -282,6 +282,93 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
 
+  # La liseuse du Mac.
+  #
+  # ## Pourquoi une cible native, et pas Catalyst
+  #
+  # Catalyst rendrait l'app iOS dans une fenêtre, avec ses gestes, ses marges
+  # de pouce et sa barre d'onglets en bas — une app iPad posée sur un bureau.
+  # C'est précisément ce qu'on ne veut pas ici, puisqu'elle s'ouvrira à côté
+  # d'un éditeur pour relire ce qu'on vient d'écrire.
+  #
+  # Une cible native partage les quatre paquets — donc le corpus, les thèmes,
+  # le moteur de rendu et les seuils de contraste — et ne diverge que là où le
+  # Mac est vraiment différent.
+  #
+  # ## Ce qu'elle n'emporte pas, et pourquoi
+  #
+  # **Pas de widget** : le Mac n'a pas d'écran d'accueil au sens d'iOS.
+  # **Pas de tâche de fond** : `BGTaskScheduler` n'existe pas ici ; la mise à
+  # jour du corpus se fait à l'ouverture et sur demande, ce qui suffit à une
+  # machine qu'on n'éteint pas.
+  # **Pas de Sentry** : on n'instrumente pas une liseuse avant qu'elle ait un
+  # seul lecteur.
+  ONTMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    dependencies:
+      - package: ONTKit
+      - package: ONTData
+      - package: ONTDesignSystem
+      - package: ONTFeatures
+        product: ReadingFeature
+      - package: ONTFeatures
+        product: LexiconFeature
+      - package: ONTFeatures
+        product: SearchFeature
+      - package: ONTFeatures
+        product: QahalFeature
+      - package: ONTFeatures
+        product: YouFeature
+    sources:
+      - path: Sources
+        excludes:
+          # Trois fichiers d'iOS, relevés et non devinés — les seuls de
+          # `Sources/` qui importent UIKit ou Sentry.
+          #
+          # `ONTApp` déclare des tâches de fond et une barre d'onglets ; le Mac
+          # a son propre point d'entrée, dans `MacSources`.
+          - "App/ONTApp.swift"
+          # Sentry n'est pas lié à cette cible : on n'instrumente pas une
+          # liseuse avant qu'elle ait un seul lecteur.
+          - "App/Observability.swift"
+          # Les notifications distantes passent par un autre mécanisme sur le
+          # Mac, et une liseuse de bureau n'en a pas besoin pour rendre le
+          # service qu'on lui demande.
+          - "App/PushDistant.swift"
+      - path: MacSources
+      - path: Resources
+        buildPhase: resources
+    info:
+      path: Info-Mac.plist
+      properties:
+        LSApplicationCategoryType: public.app-category.reference
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleDisplayName: La Bible ONT
+        CFBundleShortVersionString: "1.0.5"
+        CFBundleVersion: "1"
+        # Le même contrat de lien public que sur iOS.
+        ONTWebBaseURL: https://ontbible.com
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.mac
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: YES
+
+  # Les épreuves de ce qui n'existe que sur le Mac.
+  ONTMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: MacTests
+    dependencies:
+      - target: ONTMac
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
   ONTTests:
     type: bundle.unit-test
     platform: iOS

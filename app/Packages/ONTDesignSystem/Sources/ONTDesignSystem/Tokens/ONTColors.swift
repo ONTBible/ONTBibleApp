@@ -1,6 +1,12 @@
 import ONTKit
 import SwiftUI
 
+#if canImport(UIKit)
+    import UIKit
+#else
+    import AppKit
+#endif
+
 /// La palette.
 ///
 /// Relevée sur le combination mark de La Bible ONT — le bordeaux et l'or
@@ -129,6 +135,35 @@ public enum ONTColors {
         theme.isDark
             ? Color(red: 0.729, green: 0.549, blue: 0.424)
             : Color(red: 0.376, green: 0.208, blue: 0.094)
+    }
+
+    /// Deux couleurs mêlées, sans dépendre d'une version du système.
+    ///
+    /// `Color.mix(with:by:)` fait la même chose et demande **macOS 15** quand
+    /// les paquets en déclarent 14. L'appel ne casse alors que la compilation
+    /// du Mac — invisible depuis un build iOS, qui est le seul qu'on lance
+    /// d'ordinaire. C'est ainsi qu'on perd la vérification la plus rapide
+    /// qu'on ait, et c'était déjà arrivé au dégradé de l'ouverture.
+    ///
+    /// L'interpolation est linéaire par composante, comme la sienne.
+    public static func melange(_ depart: Color, vers arrivee: Color, part: Double) -> Color {
+        let p = min(max(part, 0), 1)
+        func composantes(_ c: Color) -> (Double, Double, Double) {
+            #if canImport(UIKit)
+                let n = UIColor(c).cgColor.components ?? [0, 0, 0]
+            #else
+                let n = NSColor(c).cgColor.components ?? [0, 0, 0]
+            #endif
+            let v = n.map(Double.init)
+            return v.count > 2 ? (v[0], v[1], v[2]) : (v[0], v[0], v[0])
+        }
+        let a = composantes(depart)
+        let b = composantes(arrivee)
+        return Color(
+            red: a.0 + (b.0 - a.0) * p,
+            green: a.1 + (b.1 - a.1) * p,
+            blue: a.2 + (b.2 - a.2) * p
+        )
     }
 
     /// L'or lisible sur le fond du thème — sur parchemin l'or pur passe mal.

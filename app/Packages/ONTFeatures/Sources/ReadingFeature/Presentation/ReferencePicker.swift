@@ -60,7 +60,7 @@ public struct ReferencePicker: View {
         NavigationStack(path: $chemin) {
             livres
                 .navigationTitle("Aller à")
-                .navigationBarTitleDisplayMode(.inline)
+                .ontTitreCompact()
                 .navigationDestination(for: Etape.self) { etape in
                     switch etape {
                     case .unites(let book):
@@ -120,7 +120,7 @@ public struct ReferencePicker: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(ONTPlacement.listeGroupee)
         .searchable(text: $recherche, prompt: "Chercher un livre")
         .ontScreen()
     }
@@ -193,7 +193,7 @@ public struct ReferencePicker: View {
             }
         }
         .navigationTitle(livre?.title ?? bookId)
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 
@@ -296,7 +296,7 @@ public struct ChoixDuVerset: View {
             .padding(spacing.m)
         }
         .navigationTitle(unite?.label(french: model.preferences.french) ?? chapter)
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 

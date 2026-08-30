@@ -293,14 +293,14 @@ struct ChapterView: View {
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .toolbar {
             if actif {
             // La pastille de renvoi, en haut à gauche — le geste de YouVersion
             // et de Bible Strong. Elle dit où l'on est **et** sert de porte :
             // sans elle, aller de Bereshit 1 à Bereshit 18 demande de remonter
             // à la table, replier, déplier, redescendre.
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: ONTPlacement.retrait) {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
                         Text(pastille)
@@ -335,7 +335,7 @@ struct ChapterView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: ONTPlacement.principale) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
             }
             }
@@ -375,7 +375,7 @@ struct ChapterView: View {
             // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
             // grande taille avec les gloses allumées, la mi-hauteur ne laisse
             // plus voir les réglages.
-            .presentationDetents([.medium, .large])
+            .ontHauteurDeFeuille([.medium, .large])
             .ontTheme(from: model.preferences)
         }
         .sheet(item: $noteTarget) { selection in
@@ -832,7 +832,7 @@ private struct VerseActionBar: View {
                 // un presse-papier n'a qu'un contenu, et la ligne à part fait
                 // que le destinataire peut citer le texte sans traîner
                 // l'adresse.
-                UIPasteboard.general.string = texteACopier
+                ONTPressePapier.poser(texteACopier)
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -1479,7 +1479,7 @@ private struct NoteEditor: View {
                 .ontRow()
             }
             .navigationTitle("Note")
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annuler") { dismiss() }
@@ -1500,7 +1500,7 @@ private struct NoteEditor: View {
             .ontRow()
             .ontScreen()
         }
-        .presentationDetents([.medium])
+        .ontHauteurDeFeuille([.medium])
     }
 }
 
@@ -1554,7 +1554,7 @@ public struct ReadingSettingsSheet: View {
             controls
         }
         .navigationTitle("Lecture")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
     }
 
     /// Les réglages, qui défilent sous l'aperçu.

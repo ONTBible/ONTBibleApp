@@ -84,11 +84,11 @@ public struct BibleTab: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(ONTPlacement.listeGroupee)
             .ontScreen()
             .navigationTitle("La Bible ONT")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: ONTPlacement.principale) {
                     Button("Rechercher", systemImage: "magnifyingglass") { searching = true }
                 }
             }

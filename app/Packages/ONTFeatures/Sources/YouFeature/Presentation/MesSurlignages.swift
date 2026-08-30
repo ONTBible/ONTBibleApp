@@ -77,12 +77,12 @@ public struct MesSurlignages: View {
             }
         }
         .navigationTitle("Surlignages")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         // Le décompte est **dans** la barre et non en tête de liste : il suit le
         // filtre, et une ligne de total qui monte et descend avec lui ferait
         // sauter toute la liste à chaque changement.
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: ONTPlacement.principale) {
                 Text("\(total)")
                     .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)

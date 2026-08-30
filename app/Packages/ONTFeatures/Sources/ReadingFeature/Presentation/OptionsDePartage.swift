@@ -89,7 +89,7 @@ public struct OptionsDePartage: View {
             .ontRow()
         }
         .navigationTitle("Options de partage")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 
