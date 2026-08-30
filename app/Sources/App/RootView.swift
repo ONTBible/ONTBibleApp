@@ -107,11 +107,19 @@ struct RootView: View {
     /// désabonner d'abord laisserait un jeton mort dans la table jusqu'à ce
     /// qu'une diffusion le heurte.
     private func appliquerParutions(_ actif: Bool) async -> Bool {
-        guard actif else {
-            await PushDistant.desactiver()
-            return true
-        }
-        return await PushDistant.activer()
+        // **iOS seulement.** Les notifications distantes passent par APNs et
+        // un jeton d'appareil ; le Mac les gère autrement, et une liseuse de
+        // bureau n'en a pas besoin pour rendre son service. On rend `false` :
+        // le réglage ne s'allume pas, plutôt que de prétendre qu'il l'est.
+        #if os(iOS)
+            guard actif else {
+                await PushDistant.desactiver()
+                return true
+            }
+            return await PushDistant.activer()
+        #else
+            return false
+        #endif
     }
 
     /// Les corpus à poser dans la barre latérale — aucun en largeur compacte.

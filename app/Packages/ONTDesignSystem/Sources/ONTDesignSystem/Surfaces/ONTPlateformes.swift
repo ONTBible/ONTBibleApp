@@ -47,6 +47,19 @@ extension View {
         #endif
     }
 
+    /// Cache la barre d'état, là où il y en a une.
+    ///
+    /// Le Mac n'en a pas : sa barre de menus appartient au système et une app
+    /// ne la masque que si elle passe en plein écran, ce qu'une liseuse ne
+    /// fait pas de sa propre initiative.
+    public func ontSansBarreDEtat(_ cachee: Bool) -> some View {
+        #if os(iOS)
+            return statusBarHidden(cachee)
+        #else
+            return self
+        #endif
+    }
+
     /// Pas de capitale automatique — un clavier logiciel seulement.
     public func ontSansCapitaleAutomatique() -> some View {
         #if os(iOS)

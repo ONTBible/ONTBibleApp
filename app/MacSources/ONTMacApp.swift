@@ -1,0 +1,74 @@
+import LexiconFeature
+import ONTData
+import ONTDesignSystem
+import ONTKit
+import QahalFeature
+import ReadingFeature
+import SearchFeature
+import SwiftUI
+import YouFeature
+
+/// La liseuse du Mac.
+///
+/// ## Ce qu'elle partage, et c'est presque tout
+///
+/// Les quatre paquets, donc le corpus, les thèmes, le moteur de rendu et les
+/// seuils de contraste. La même `Composition` qu'iOS assemble les mêmes
+/// dépôts sur les mêmes fichiers. **Rien de ce qui fait la lecture n'est
+/// réécrit ici** — c'est ce qui permet à une correction de contraste de valoir
+/// sur les deux plateformes sans qu'on y pense.
+///
+/// ## Ce qui diffère, et pourquoi
+///
+/// **Une fenêtre qu'on redimensionne**, avec une taille minimale : le rendu du
+/// texte suppose une colonne, et une fenêtre réduite à une bande la casserait.
+///
+/// **Pas de `PushDelegate`** : les notifications distantes passent par un autre
+/// mécanisme sur le Mac, et une liseuse de bureau n'en a pas besoin pour
+/// rendre le service qu'on lui demande.
+///
+/// **Pas d'ouverture animée.** `AvecOuverture` sert à couvrir le temps que met
+/// un téléphone à charger le corpus depuis son disque lent. Un Mac l'a fait
+/// avant que la fenêtre paraisse ; une animation n'y serait qu'un délai qu'on
+/// s'impose.
+@main
+struct ONTMacApp: App {
+    @State private var composition = Composition()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(composition.router)
+                .environment(composition.reading)
+                .environment(composition.lexicon)
+                .environment(composition.search)
+                .environment(composition.qahal)
+                .environment(composition.you)
+                .environment(composition.account)
+                .environment(composition)
+                // La colonne de lecture a besoin d'une largeur ; en dessous,
+                // les gloses se hachent et le texte cesse d'être lisible —
+                // ce que cette app existe précisément pour éviter.
+                .frame(minWidth: 720, minHeight: 520)
+        }
+        .windowResizability(.contentMinSize)
+        .commands {
+            // Le Mac attend qu'on puisse changer de thème au clavier — et
+            // avec un kératocône, on en change souvent, selon la lumière de
+            // la pièce. Le réglage existe déjà dans l'écran de lecture ; ce
+            // raccourci le double, il ne le remplace pas.
+            CommandGroup(after: .toolbar) {
+                Divider()
+                Button("Thème suivant") {
+                    let ordre = ReadingTheme.allCases
+                    let actuel = composition.reading.preferences.theme
+                    let suivant = ordre.firstIndex(of: actuel).map {
+                        ordre[($0 + 1) % ordre.count]
+                    }
+                    if let suivant { composition.reading.preferences.theme = suivant }
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+            }
+        }
+    }
+}
