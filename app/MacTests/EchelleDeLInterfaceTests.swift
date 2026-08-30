@@ -119,6 +119,7 @@ struct FonteDeLInterfaceTests {
     ///     .font(ONTUI.body) sur la ligne           48 px   suit
     ///     .font(ONTUI.body) posé sur la List       32 px   ne suit pas
     ///     .environment(\.font, …) sur la List      32 px   ne suit pas
+    ///     .font(ONTUI.body) posé sur une Section   32 px   ne suit pas
     ///     Label .font(…) dans une List             32 px   ne suit pas
     ///     Label sous un LabelStyle                 48 px   suit
     ///
@@ -128,6 +129,11 @@ struct FonteDeLInterfaceTests {
     /// et rien de ce qu'on met au-dessus ne franchit la barrière. Pour un
     /// `Label`, même `.font()` sur la ligne ne suffit pas : c'est son *style*
     /// qui compose son titre.
+    ///
+    /// La ligne de la `Section` est celle qu'on aurait tentée en second, après
+    /// la liste : elle ne passe pas non plus. Il n'y a **aucun rang
+    /// intermédiaire** où poser la fonte — ou bien la ligne la déclare, ou bien
+    /// un style l'atteint.
     ///
     /// Le nom dit donc maintenant ce que l'épreuve tient, et pas ce qu'on
     /// espérait qu'elle établisse.
