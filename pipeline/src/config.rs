@@ -53,10 +53,79 @@ pub fn vault() -> PathBuf {
 /// manifeste qui n'en porte pas. Un corpus figé se voit et se répare ; un corpus
 /// silencieusement remplacé par du plus ancien ne se voit pas.
 pub fn genere() -> String {
-    std::env::var("ONT_GENERE")
-        .unwrap_or_default()
-        .trim()
-        .to_string()
+    let brut = std::env::var("ONT_GENERE").unwrap_or_default();
+    let candidat = brut.trim();
+    if bien_formee(candidat) {
+        candidat.to_string()
+    } else {
+        // Une date mal formée est pire qu'aucune : les liseuses comparent ces
+        // chaînes, et une forme voisine s'ordonne n'importe comment. On refuse
+        // plutôt que de publier un ordre faux.
+        String::new()
+    }
+}
+
+/// `2026-08-30T22:45:48Z` — vingt signes, UTC, secondes obligatoires.
+///
+/// ## Pourquoi une seule forme
+///
+/// Les liseuses comparent ces dates **comme des chaînes**, parce qu'un ordre
+/// lexicographique suffit quand la forme est fixe, et qu'aucune ne veut
+/// embarquer un analyseur de dates. Deux écritures du même instant s'ordonnent
+/// alors à l'envers dès que le fuseau diffère :
+///
+/// ```text
+/// "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"     → vrai
+/// ```
+///
+/// L'app garderait le plus ancien en croyant garder le plus récent. C'est le
+/// défaut qu'on corrige, sous une date bien formée — donc bien plus difficile à
+/// voir qu'un champ vide.
+///
+/// Les millisecondes et les offsets sont refusés, même valides en ISO 8601.
+fn bien_formee(s: &str) -> bool {
+    let o = s.as_bytes();
+    o.len() == 20
+        && o[..4].iter().all(u8::is_ascii_digit)
+        && o[4] == b'-'
+        && o[5..7].iter().all(u8::is_ascii_digit)
+        && o[7] == b'-'
+        && o[8..10].iter().all(u8::is_ascii_digit)
+        && o[10] == b'T'
+        && o[11..13].iter().all(u8::is_ascii_digit)
+        && o[13] == b':'
+        && o[14..16].iter().all(u8::is_ascii_digit)
+        && o[16] == b':'
+        && o[17..19].iter().all(u8::is_ascii_digit)
+        && o[19] == b'Z'
+}
+
+#[cfg(test)]
+mod tests_estampille {
+    use super::bien_formee;
+
+    #[test]
+    fn la_forme_attendue_passe() {
+        assert!(bien_formee("2026-08-30T22:45:48Z"));
+    }
+
+    #[test]
+    fn les_formes_voisines_sont_refusees() {
+        // Toutes valides en ISO 8601, toutes inutilisables pour un ordre
+        // lexicographique dès qu'elles se mélangent.
+        for cas in [
+            "2026-08-30T22:45:48+02:00",
+            "2026-08-30T22:45:48.123Z",
+            "2026-08-30T22:45Z",
+            "2026-08-30 22:45:48Z",
+            "2026-08-30T22:45:48",
+            "26-08-30T22:45:48Z",
+            "2026-08-30T22:45:48z",
+            "",
+        ] {
+            assert!(!bien_formee(cas), "aurait dû être refusée : {cas}");
+        }
+    }
 }
 
 /// Où le pipeline dépose ses données.

@@ -44,8 +44,22 @@ vert=$'\033[32m'; fin=$'\033[0m'
 # manifeste publié, ce qui gèle la mise à jour au lieu de risquer un corpus
 # remplacé par du plus ancien. Un texte figé se voit ; un texte silencieusement
 # rajeuni à l'envers ne se voit pas.
+# **En UTC, terminée par `Z`, et c'est une contrainte, pas un goût.** Les
+# liseuses comparent ces dates comme des chaînes : deux écritures du même instant
+# s'ordonnent alors à l'envers dès que le fuseau diffère.
+#
+#     "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"     → vrai
+#
+# L'app garderait le plus ancien des deux corpus en croyant garder le plus
+# récent — le défaut d'aujourd'hui, mais sous une date bien formée, donc bien
+# plus difficile à voir qu'un champ vide.
+#
+# `%cI` ne convient pas : il rend l'offset du commit. Et `--date=format:` garde
+# l'heure **du commit** en y collant notre `Z` — une date fausse de deux heures,
+# parfaitement plausible. Il faut `format-local` avec `TZ=UTC`, qui convertit.
 VAULT="${ONT_VAULT:-$(cd "$(dirname "$0")/../../ONTBibleTranslation" && pwd)}"
-ONT_GENERE="$(git -C "$VAULT" log -1 --format=%cI 2>/dev/null || true)"
+ONT_GENERE="$(TZ=UTC git -C "$VAULT" log -1 \
+  --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd 2>/dev/null || true)"
 export ONT_GENERE
 if [ -n "$ONT_GENERE" ]; then
   echo "→ le corpus — vault du $ONT_GENERE"
