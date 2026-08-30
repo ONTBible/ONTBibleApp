@@ -1051,6 +1051,17 @@ La journée en avait donné le motif — *le format de sortie survit à l'absenc
 mesure*. L'enquête ci-dessus l'a fait rendre trois fois, sous trois formes
 distinctes, et c'est la distinction qui est utile.
 
+> **Il y en a six.** Trois autres ont été trouvées le 27 août, pendant le
+> rattrapage d'Android sur iOS, et sont consignées dans cette entrée-là —
+> « Trois manières de plus pour un instrument de rendre un relevé faux ». Elles
+> y sont bien rangées, puisqu'elles appartiennent à ce récit ; le renvoi est
+> ici parce que c'est ici qu'on vient chercher le sujet.
+>
+> Sans lui, on lit « trois manières », on referme, et on croit avoir fait le
+> tour. C'est le lecteur **confiant** qui se trompe, pas le distrait — la même
+> forme que le journal qui régresse, où l'on croit lire l'état de la
+> connaissance et où l'on lit celui d'avant.
+
 **Un instrument non reproductible.** Le premier balayage refermait la fiche par
 un glissement vers le bas entre deux appuis — geste qui fait aussi **défiler la
 page**. Chaque appui suivant visait le mot là où il n'était plus. Le relevé
