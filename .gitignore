@@ -44,6 +44,11 @@ DerivedData/
 # de la machine qui les a produits.
 *.xcresult/
 
+# Le log brut d'`xcodebuild`, gardé à côté d'`xcbeautify` par `tests.yml`
+# pour que les diagnostics d'`actool` ne se perdent pas. Rejouer la commande à
+# la main le dépose ici.
+brut-mac.log
+
 # Artefacts de compilation Swift Package Manager — 15 955 fichiers, tous
 # régénérés au premier build. Ils étaient la quasi-totalité de ce que git
 # voyait.

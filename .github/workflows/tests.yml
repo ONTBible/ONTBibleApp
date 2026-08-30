@@ -258,7 +258,25 @@ jobs:
             -resultBundlePath ../resultats-mac.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            | xcbeautify --renderer github-actions
+            2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
+
+      # **Ce que `xcbeautify` avale.**
+      #
+      # Il rend la sortie lisible en ne gardant que ce qu'il sait nommer. Les
+      # diagnostics d'`actool` n'en font pas partie : au premier passage de ce
+      # job, la compilation de l'icône a échoué et le compte rendu ne portait
+      # que « Command CompileAssetCatalogVariant failed with a nonzero exit
+      # code » — l'échec sans sa raison, donc un aller-retour de CI pour
+      # apprendre ce que la première exécution savait déjà.
+      #
+      # On garde le brut à côté et on n'en montre les lignes d'erreur que
+      # lorsqu'il y en a. Rien ne s'ajoute au journal d'un run vert.
+      - name: Ce que le Mac a vraiment dit
+        if: failure()
+        working-directory: ONTBibleApp
+        run: |
+          echo "── les lignes d'erreur du log brut ──"
+          grep -iE "error:|failed|\*\* [A-Z]+ FAILED" brut-mac.log | tail -40 || true
 
       # Le compte réel, lu des paquets de résultats. La ligne « Executed 0 tests »
       # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
