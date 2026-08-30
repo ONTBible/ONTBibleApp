@@ -213,6 +213,17 @@ private struct OngletsFixes: TabContent {
     let appliquerParutions: (Bool) async -> Bool
 
     var body: some TabContent<Router.TabID> {
+        // **« Reprendre » en tête, sur le Mac seulement.**
+        //
+        // Sur un téléphone, c'est une carte en tête de la Bible : l'écran est
+        // petit et un onglet de plus mangerait la barre. Sur un bureau, la
+        // barre latérale est verticale et n'a pas cette contrainte — le geste
+        // le plus fréquent mérite d'y être le premier.
+        #if os(macOS)
+            Tab("Reprendre", systemImage: "bookmark.fill", value: Router.TabID.reprendre) {
+                RepriseDeLecture()
+            }
+        #endif
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
             QahalTab()
         }
@@ -222,9 +233,19 @@ private struct OngletsFixes: TabContent {
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
         }
-        Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
-            YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
-        }
+        // **« Vous » n'est pas un onglet sur le Mac.**
+        //
+        // Un bureau a un endroit pour les réglages, et c'est ⌘, — la même
+        // touche dans toutes les apps depuis vingt ans. L'y mettre coûte moins
+        // qu'un onglet à trouver, et le lecteur n'a rien à apprendre.
+        //
+        // Sur un téléphone, l'inverse : il n'y a pas de menu, donc pas de ⌘,
+        // et l'onglet est le seul chemin.
+        #if !os(macOS)
+            Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
+                YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+            }
+        #endif
     }
 }
 

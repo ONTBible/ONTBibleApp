@@ -360,6 +360,15 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.mac
+        # **Le nom du bundle sur le disque**, et donc celui que le Dock montre
+        # dans son infobulle. `CFBundleName` ne suffisait pas : il nomme les
+        # menus, pas le fichier — l'app s'appelait « La Bible ONT » partout sauf
+        # au survol de son icône, où elle restait « ONTMac ».
+        #
+        # Un troisième endroit, après la barre des menus et le Finder, où le
+        # même nom se déclare autrement. C'est ce qui rend ce genre de défaut
+        # tenace : on en corrige un, on croit avoir fini.
+        PRODUCT_NAME: La Bible ONT
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
 

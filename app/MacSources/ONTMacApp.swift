@@ -89,6 +89,23 @@ struct ONTMacApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        // **Les réglages où le Mac les attend.** `Settings` reçoit ⌘, du
+        // système, apparaît dans le menu de l'app, et se ferme comme une
+        // fenêtre de réglages — trois choses qu'un onglet ne peut pas donner.
+        Settings {
+            YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
+                .environment(etat.composition.router)
+                .environment(etat.composition.reading)
+                .environment(etat.composition.lexicon)
+                .environment(etat.composition.search)
+                .environment(etat.composition.qahal)
+                .environment(etat.composition.you)
+                .environment(etat.composition.account)
+                .environment(etat.composition)
+                .ontTheme(from: etat.composition.reading.preferences)
+                .frame(minWidth: 620, minHeight: 520)
+        }
+
         .commands {
             // Le Mac attend qu'on puisse changer de thème au clavier — et
             // avec un kératocône, on en change souvent, selon la lumière de
