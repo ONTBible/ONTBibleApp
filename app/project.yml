@@ -345,6 +345,13 @@ targets:
       properties:
         LSApplicationCategoryType: public.app-category.reference
         ITSAppUsesNonExemptEncryption: false
+        # **`CFBundleName` en plus de `CFBundleDisplayName`.**
+        #
+        # Le Mac prend son nom de menu dans `CFBundleName`, qui retombe sur le
+        # nom de la cible quand il manque : la barre affichait « ONTMac ».
+        # `CFBundleDisplayName` ne sert qu'au Finder et au Dock, où le nom était
+        # juste — d'où un défaut visible partout sauf là où on l'avait vérifié.
+        CFBundleName: La Bible ONT
         CFBundleDisplayName: La Bible ONT
         CFBundleShortVersionString: "1.0.5"
         CFBundleVersion: "1"
