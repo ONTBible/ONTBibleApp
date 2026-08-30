@@ -52,6 +52,51 @@ public final class ReadingModel {
         self.preferences = preferences.preferences
     }
 
+    // MARK: - Surlignages
+
+    /// Tout ce que le lecteur a marqué, par livre, dans l'ordre du corpus.
+    ///
+    /// **Le texte ne vient pas du dépôt** — le dépôt ne garde qu'une adresse.
+    /// Il se recompose ici depuis le corpus embarqué, pour la raison qui
+    /// interdit au serveur de le garder : un surlignage rattaché à une identité
+    /// révèle des convictions religieuses.
+    ///
+    /// Le `_ = revision` inscrit la vue comme dépendante des surlignages, comme
+    /// `corpusRevision` le fait pour le corpus. Sans lui, marquer un verset ne
+    /// redessinerait pas cette liste.
+    public func surlignagesParLivre() -> [LivreSurligne] {
+        _ = revision
+        _ = corpusRevision
+
+        // Un livre chargé une fois, pas une fois par surlignage. `Surlignages`
+        // prend une fermeture précisément pour laisser ce choix ici : il ne
+        // sait pas ce qu'un chargement coûte, et n'a pas à le savoir.
+        var charges: [String: Book?] = [:]
+        func livre(_ id: String) -> Book? {
+            if let connu = charges[id] { return connu }
+            let lu = book(id)
+            charges[id] = lu
+            return lu
+        }
+
+        return Surlignages.parLivre(
+            highlights.all(),
+            livres: corpus.allBooks(),
+            texte: { marque in
+                guard
+                    let unite = livre(marque.bookId)?
+                        .chapters.first(where: { $0.id == marque.chapterId }),
+                    let verset = unite.verses.first(where: { $0.n == marque.verse })
+                else { return nil }
+
+                return (
+                    corps: verset.nodes.plainText(),
+                    renvoi: VerseRange.reference([verset.n], chapterTitle: unite.title)
+                )
+            }
+        )
+    }
+
     // MARK: - Corpus
 
     /// Le `_ = corpusRevision` n'est pas décoratif : c'est **lui** qui inscrit

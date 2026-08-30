@@ -19,6 +19,16 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://term/\(lemma)")
     }
 
+    /// L'adresse d'un **Shem**.
+    ///
+    /// Un hôte distinct de `term` : les deux fiches vivent dans deux fichiers,
+    /// et une seule adresse pour deux populations ferait chercher un nom propre
+    /// dans le glossaire — où il n'est pas, et où la jointure échouerait sans
+    /// rien dire.
+    public static func shemURL(_ lemma: String) -> URL? {
+        URL(string: "\(termScheme)://shem/\(lemma)")
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -47,16 +57,22 @@ public enum ONTTextRenderer {
     /// YouVersion et Bible Strong. Un soulignement suit les retours à la ligne
     /// et n'ajoute aucune surface colorée : il désigne sans se confondre avec
     /// le surlignage, qui, lui, est une marque que le lecteur a posée.
+    /// - Parameter surligne: vrai quand le verset porte un surlignage. Le
+    ///   numéro change alors d'or : le sien n'a pas de quoi tenir sous le
+    ///   voile. Voir `ONTColors.accentSurSurlignage`.
     public static func compose(
         verse: Verse,
         theme: ONTTheme,
-        underlined: Bool = false
+        underlined: Bool = false,
+        surligne: Bool = false
     ) -> AttributedString {
         let type = theme.type
 
         var number = AttributedString("\(verse.n)\u{00A0}")
         number.font = type.verseNumber.font
-        number.foregroundColor = type.verseNumber.color
+        number.foregroundColor = surligne
+            ? ONTColors.accentSurSurlignage(theme.mode)
+            : type.verseNumber.color
         number.baselineOffset = type.verseBaselineOffset
 
         var body = compose(verse.nodes, theme: theme)
@@ -116,7 +132,11 @@ public enum ONTTextRenderer {
             // fragments qui la portent.
             var numero = AttributedString("\(verse.n)\u{00A0}")
             numero.font = type.verseNumber.font
-            numero.foregroundColor = type.verseNumber.color
+            // Le sol sous le numéro n'est pas la page quand le verset est
+            // marqué : `highlight` le dit déjà, il suffisait de l'écouter.
+            numero.foregroundColor = highlight(verse.n) == nil
+                ? type.verseNumber.color
+                : ONTColors.accentSurSurlignage(theme.mode)
             numero.baselineOffset = type.verseBaselineOffset
 
             // Une espace pleine entre deux versets, jamais un retour à la
@@ -200,6 +220,28 @@ public enum ONTTextRenderer {
             .joined(separator: " ")
     }
 
+    /// Compose une **fiche de lexique**, hébreu compris quel que soit le
+    /// réglage de lecture.
+    ///
+    /// Le niveau 3 est un réglage de la **surface de lecture**, où l'hébreu à
+    /// côté de chaque intraduisible encombrerait le fil. Une fiche est l'endroit
+    /// où l'on vient précisément *pour voir le mot* : l'y masquer la vide de ce
+    /// qu'elle est.
+    ///
+    /// **La fiche se contredisait déjà elle-même.** Son en-tête montre le mot
+    /// hébreu sans condition — `אָדָם` en haut de l'écran — pendant que sa prose
+    /// le perdait dès que le lecteur éteignait le niveau 3. Cent une
+    /// translittérations et sept passages hébreux disparaissaient ainsi des
+    /// cent huit fiches, sous un en-tête qui les montrait.
+    ///
+    /// La glose, elle, reste au choix du lecteur : c'est une voix du texte, pas
+    /// le sujet de la fiche.
+    public static func composeFiche(_ nodes: [Inline], theme: ONTTheme) -> AttributedString {
+        var complet = theme
+        complet.preferences.showLevel3 = true
+        return compose(nodes, theme: complet)
+    }
+
     /// Compose le corps seul — ce qu'on partage ou ce qu'on met en exergue.
     public static func composeBare(
         _ nodes: [Inline],
@@ -240,6 +282,13 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = termURL(lemma)
+                output += piece
+
+            case .shem(let value, let lemma):
+                var style = type.shem
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.link = shemURL(lemma)
                 output += piece
 
             case .hebrew(let value):

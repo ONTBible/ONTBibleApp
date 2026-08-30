@@ -106,6 +106,7 @@ public struct QahalTab: View {
 /// ici est ce que le widget ne peut pas faire : composer le verset depuis son
 /// arbre d'inline, avec les intraduisibles en or.
 private struct VerseOfTheDayCard: View {
+    @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
     /// La jumelle de la pastille du widget, qui suit le curseur des réglages :
     /// figée, celle-ci se serait mise à rétrécir à côté de son propre verset.
@@ -115,6 +116,28 @@ private struct VerseOfTheDayCard: View {
     let verse: Verse
 
     var body: some View {
+        // **La carte mène au texte.**
+        //
+        // Elle donnait un verset sans dire d'où il venait — un fragment sans
+        // son avant ni son après, alors que le renvoi était écrit dessus. Le
+        // lecteur qui voulait la suite devait retrouver le passage à la main
+        // dans l'onglet Bible.
+        //
+        // Le geste est celui de la recherche et du lien profond : `open` pose
+        // l'onglet, le livre, l'unité, et désigne le verset — qui est déjà
+        // surligné à l'arrivée.
+        Button {
+            router.open(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
+        } label: {
+            carte
+        }
+        // `.plain` et non un style par défaut : la carte porte déjà sa peau,
+        // et un bouton système la repeindrait.
+        .buttonStyle(.plain)
+        .accessibilityHint("Ouvre le passage dans la Bible")
+    }
+
+    private var carte: some View {
         BurgundyCard {
             ONTDailyCard(
                 text: ONTTextRenderer.composeBare(
@@ -139,14 +162,27 @@ private struct VerseOfTheDayCard: View {
         }
     }
 
-    private var shareText: String {
-        let body = verse.nodes.plainText()
-            .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
-        return """
-            \(body)
+    /// Les réglages viennent du **thème**, et non d'un modèle de lecture.
+    ///
+    /// `ONTTheme` porte déjà les préférences et traverse tout l'écran ;
+    /// importer `ReadingFeature` ici pour cinq booléens créerait une
+    /// dépendance entre deux features qui n'ont rien d'autre à se dire.
+    private var reglages: ReglagesDePartage { theme.preferences.partage }
 
-            — \(chapter.title):\(verse.n), La Bible ONT
-            """
+    /// **Le même compositeur que la liseuse**, et donc les mêmes réglages.
+    ///
+    /// Cette carte écrivait sa propre forme, en dur. Deux endroits qui
+    /// composent un partage finissent par n'en avoir qu'un seul de juste : les
+    /// bascules auraient valu pour un passage lu et pas pour le verset du jour,
+    /// et personne n'aurait su pourquoi.
+    ///
+    /// `plainText()` replie déjà ses espaces — retours à la ligne préservés,
+    /// ponctuation française respectée.
+    private var shareText: String {
+        Partage.composer(
+            [Partage.Morceau(numero: verse.n, texte: verse.nodes.plainText())],
+            reference: "\(chapter.title):\(verse.n)",
+            reglages: reglages
+        )
     }
 }

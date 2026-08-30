@@ -75,11 +75,14 @@ struct CatalogColors: View {
                     swatch("ink", ONTColors.ink(theme))
                     swatch("accent", ONTColors.accent(theme))
                     swatch("separator", ONTColors.separator(theme))
-                }
-            }
-            Section("Surlignage") {
-                ForEach(HighlightColor.allCases, id: \.self) { color in
-                    swatch(color.label, ONTColors.highlight(color))
+                    // **Les surlignages entrent dans la boucle des thèmes.**
+                    //
+                    // Ils en sortaient, et le catalogue montrait donc cinq
+                    // pastels sans dire sur quel fond — ce qui était déjà le
+                    // défaut lui-même, reproduit dans l'outil censé le montrer.
+                    ForEach(HighlightColor.allCases, id: \.self) { color in
+                        swatch("surlignage \(color.label)", ONTColors.highlight(color, theme))
+                    }
                 }
             }
         }

@@ -71,6 +71,22 @@ public data class Chapter(
 }
 
 /** La forme allégée d'une unité dans l'arborescence de navigation. */
+/**
+ * La fiche d'un **Shem** — un porteur de nom.
+ *
+ * Elle a la tenue d'une fiche d'intraduisible sans en être une. Le §2.10 veut
+ * qu'elle dise le sens de la racine, ce que le nom met sur les épaules de qui le
+ * porte, et ce qui reste à venir — d'où les titres de section, que les fiches de
+ * concepts n'ont pas.
+ */
+public data class ShemEntry(
+    /** La clé de jointure avec `Inline.Shem.lemma`. */
+    public val lemma: String,
+    /** La forme d'affichage, avec sa casse et son apostrophe — `Na'amah`. */
+    public val title: String,
+    public val definition: kotlin.collections.List<Block>,
+)
+
 public data class ChapterStub(
     public val id: String,
     public val n: Int,
@@ -89,6 +105,18 @@ public data class BookOutline(
     public val title: String,
     /** Le nom français, repère pour le lecteur occidental. */
     public val french: String,
+    /**
+     * Le nom du livre **dans le registre de l'ONT** — « les gevurot de YHWH
+     * par ses neviim » pour ce que le français reçu appelle « Actes des
+     * Apôtres ».
+     *
+     * Il manquait au domaine alors que le corpus le porte sur vingt-quatre
+     * livres et que le site l'affiche depuis toujours. Le mapping le jetait
+     * donc, et l'app rendait le français quel que soit le registre : un lecteur
+     * qui l'avait éteint voyait quand même « Actes des Apôtres » là où
+     * ontbible.com disait autre chose.
+     */
+    public val glose: String?,
     public val hebrew: String?,
     public val groupId: String?,
     /** Vrai tant qu'aucun texte n'a été rédigé pour ce slot. */

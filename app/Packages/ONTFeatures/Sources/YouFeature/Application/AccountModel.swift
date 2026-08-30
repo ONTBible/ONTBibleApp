@@ -27,12 +27,64 @@ public final class AccountModel {
     private let store: any SessionStore
     private let highlights: any HighlightRepository
     private let positions: any PositionRepository
+    private let profils: any ProfilRepository
     private let flow: SignInFlow
     private let reporter: any Reporter
 
     public private(set) var state: State = .signedOut
     public private(set) var lastSync: Date?
     public private(set) var syncing = false
+
+    /// Ce que le lecteur dit de lui — privé aujourd'hui, profil du Qahal
+    /// demain.
+    ///
+    /// Doublé en mémoire pour que SwiftUI voie le changement, comme les
+    /// réglages de lecture : le dépôt persiste, cette propriété notifie.
+    public var profil: Profil {
+        didSet { profils.profil = profil }
+    }
+
+    /// Adopte le profil du serveur s'il est plus récent que le nôtre.
+    ///
+    /// **Le portrait est écrit avant le profil**, jamais l'inverse : le profil
+    /// ne porte que le *nom* du fichier, et l'enregistrer avant que le fichier
+    /// existe laisserait, entre les deux écritures, un profil qui pointe vers
+    /// rien. C'est court, mais c'est exactement l'instant où l'app peut être
+    /// tuée par le système.
+    private func fusionnerLeProfil(_ recu: ProfilEnVol?) {
+        guard let recu, recu.updatedAt > profil.updatedAt else { return }
+
+        var nomDuFichier = profil.portrait
+        if let octets = recu.portrait {
+            nomDuFichier = try? profils.enregistrerLePortrait(octets)
+        } else {
+            // Le serveur n'a pas de portrait **et** il est plus récent : il a
+            // donc été retiré ailleurs. Le garder ici ferait revivre une photo
+            // que le lecteur croit supprimée.
+            nomDuFichier = nil
+        }
+        profil = recu.versLeProfil(portrait: nomDuFichier)
+    }
+
+    /// Les octets du portrait, relus du disque.
+    ///
+    /// Une fonction et non une propriété : c'est une lecture de fichier, et une
+    /// propriété laisserait croire qu'elle ne coûte rien.
+    public func portrait() -> Data? { profils.portrait() }
+
+    /// La session ouverte, pour ce que l'écran a besoin d'en dire — par quoi
+    /// on s'est connecté, et sous quelle adresse.
+    ///
+    /// **En lecture seule.** Une vue n'a aucune raison d'écrire une session, et
+    /// l'exposer autrement rendrait possible d'en poser une sans passer par la
+    /// connexion.
+    public var session: Session? { store.session }
+
+    /// Enregistre un portrait et l'attache au profil.
+    public func poserLePortrait(_ donnees: Data) {
+        guard let nom = try? profils.enregistrerLePortrait(donnees) else { return }
+        profil.portrait = nom
+    }
 
     /// Le consentement à la synchronisation, distinct du fait d'avoir un compte.
     public var consent: Bool {
@@ -49,6 +101,7 @@ public final class AccountModel {
         store: any SessionStore,
         highlights: any HighlightRepository,
         positions: any PositionRepository,
+        profils: any ProfilRepository,
         flow: SignInFlow,
         reporter: any Reporter = SilentReporter()
     ) {
@@ -57,8 +110,10 @@ public final class AccountModel {
         self.store = store
         self.highlights = highlights
         self.positions = positions
+        self.profils = profils
         self.flow = flow
         self.reporter = reporter
+        profil = profils.profil
         state = store.session == nil ? .signedOut : .signedIn
     }
 
@@ -113,6 +168,15 @@ public final class AccountModel {
             try await sync.erase()
             store.session = nil
             store.consent = .none
+            // **Le profil part avec le compte.** Il n'a de sens qu'attaché à
+            // lui — c'est ce qui deviendra visible au Qahal —, et le garder
+            // après un effacement laisserait sur l'appareil un portrait et un
+            // nom que le lecteur croit avoir supprimés.
+            //
+            // Une simple déconnexion, elle, le laisse : on se reconnecte, et
+            // ressaisir son nom à chaque fois n'aurait aucun sens.
+            profils.oublier()
+            profil = Profil()
             state = .signedOut
         } catch {
             state = .failed(error.localizedDescription)
@@ -140,7 +204,15 @@ public final class AccountModel {
             try await sync.push(
                 // `allForSync` et non `all` : le second masque les pierres
                 // tombales, et un envoi sans elles perdrait les suppressions.
-                SyncPayload(highlights: highlights.allForSync(), position: positions.position)
+                SyncPayload(
+                    highlights: highlights.allForSync(),
+                    position: positions.position,
+                    // **Le profil ne monte que s'il porte quelque chose.**
+                    // Envoyer un profil vide écraserait celui d'un autre
+                    // appareil si son horodatage était plus récent — et il le
+                    // serait, puisqu'un profil vide vient d'être créé.
+                    profil: profil.estVide ? nil : ProfilEnVol(profil, portrait: profils.portrait())
+                )
             )
             lastSync = Date()
         } catch AccountError.unauthorized {
@@ -160,6 +232,8 @@ public final class AccountModel {
     }
 
     private func merge(_ remote: SyncPayload) {
+        fusionnerLeProfil(remote.profil)
+
         // La comparaison se fait sur **toutes** les lignes, pierres tombales
         // comprises : `highlight(chapterId:verse:)` ne rend que le vivant, donc
         // une suppression locale y paraîtrait comme une absence, et le serveur

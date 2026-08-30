@@ -128,8 +128,12 @@ public struct ReferencePicker: View {
     private func correspond(_ livre: BookOutline) -> Bool {
         guard !recherche.isEmpty else { return true }
         let cherche = replie(recherche)
+        // Les deux seconds noms sont interrogés, quel que soit celui qui est
+        // affiché : le lecteur qui tape « actes » doit trouver le livre même
+        // s'il lit en glose, et l'inverse.
         return replie(livre.title).contains(cherche)
             || replie(livre.french).contains(cherche)
+            || replie(livre.glose ?? "").contains(cherche)
     }
 
     /// Replie une chaîne pour la comparaison : sans accents, sans casse.
@@ -359,6 +363,7 @@ private struct Case: View {
 }
 
 private struct LivreLigne: View {
+    @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
 
     let livre: BookOutline
@@ -375,9 +380,17 @@ private struct LivreLigne: View {
                 Text(livre.title)
                     .font(.custom(ONTFonts.display, size: 16))
                     .foregroundStyle(livre.empty ? theme.ink.opacity(0.35) : theme.ink)
-                Text(livre.french)
-                    .font(.caption)
-                    .foregroundStyle(theme.ink.opacity(0.45))
+                // Le second nom suit le registre, comme dans la liste de la
+                // Bible. Sans ça, le sélecteur restait en français même quand
+                // le reste de l'app était passé à la glose.
+                if let second = Registre.second(
+                    french: livre.french, glose: livre.glose,
+                    francaisRecu: model.preferences.french
+                ) {
+                    Text(second)
+                        .font(.caption)
+                        .foregroundStyle(theme.ink.opacity(0.45))
+                }
             }
             Spacer(minLength: 8)
             if courant {

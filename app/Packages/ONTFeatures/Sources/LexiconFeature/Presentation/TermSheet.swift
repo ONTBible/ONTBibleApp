@@ -90,25 +90,33 @@ public struct TermSheet: View {
             // toujours.
             .ontRow()
 
-            if let definition = entry.definition {
-                Section("Ce qu'il signifie") {
+            Section("Ce qu'il signifie") {
+                if entry.sansDefinition {
+                    // **Le silence était pire que l'aveu.** Sans cette section,
+                    // l'écran passait de l'en-tête aux repères sans rien entre
+                    // les deux : il avait l'air complet, et le lecteur pouvait
+                    // croire que c'était tout ce qu'il y avait à dire du mot.
+                    //
+                    // La phrase dit ce qui manque **et** ce qui reste vrai : le
+                    // terme est bien de l'ONT, il est bien balisé, seule sa
+                    // fiche n'est pas écrite.
+                    Text(
+                        "Ce terme est balisé dans le texte, mais sa définition "
+                            + "n'est pas encore écrite."
+                    )
+                    .foregroundStyle(.secondary)
+                } else if let definition = entry.definition {
                     ForEach(Array(definition.enumerated()), id: \.offset) { _, block in
-                        if case .paragraph(let nodes) = block {
-                            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                                .lineSpacing(4)
-                        }
+                        BlocDeFiche(block: block)
                     }
                 }
-                .ontRow()
             }
+            .ontRow()
 
             if let note = entry.taggingNote {
                 Section("Règle de balisage") {
                     ForEach(Array(note.enumerated()), id: \.offset) { _, block in
-                        if case .paragraph(let nodes) = block {
-                            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                                .lineSpacing(4)
-                        }
+                        BlocDeFiche(block: block)
                     }
                 }
                 .ontRow()

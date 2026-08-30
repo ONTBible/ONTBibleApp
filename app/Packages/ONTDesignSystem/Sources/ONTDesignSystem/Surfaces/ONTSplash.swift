@@ -218,12 +218,12 @@ public struct ONTSplash: View {
             //
             // Le bord est la nuit mêlée de noir plutôt qu'un noir franc : c'est
             // ce qui garde le bordeaux perceptible au lieu de le remplacer.
-            colors: [ONTColors.nuit, Teintes.nuitProfonde],
+            colors: [ONTColors.nuit, Teintes.bordDeLOuverture],
             center: UnitPoint(x: 0.5, y: 0.55),
             startRadius: 0,
             endRadius: 620
         )
-        .background(Teintes.nuitProfonde)
+        .background(Teintes.bordDeLOuverture)
         .ignoresSafeArea()
     }
 
@@ -308,6 +308,17 @@ public struct ONTSplash: View {
 /// imposé. Les mêler aux jetons de lecture donnerait à croire qu'on peut les
 /// employer ailleurs.
 private enum Teintes {
+    /// Le bord de l'ouverture — la nuit mêlée de noir à 55 %.
+    ///
+    /// **Écrite, et non calculée.** `Color.mix(with:by:)` demande macOS 15 ;
+    /// le paquet en déclare 14, et l'appel ne cassait donc que la compilation
+    /// **macOS** — invisible depuis un build iOS, qui est le seul qu'on lance
+    /// d'ordinaire. Le paquet ne se compilait plus seul depuis, et c'est ainsi
+    /// qu'on perd la vérification la plus rapide qu'on ait : celle qui prend
+    /// dix secondes au lieu de trois minutes.
+    ///
+    /// La valeur est celle que `mix` rendait de `#18090D` mêlé de noir.
+    static let bordDeLOuverture = Color(red: 0.042, green: 0.016, blue: 0.023)
     /// La montagne dans la pénombre — `#3a3527`.
     static let penombre = Color(red: 0.227, green: 0.208, blue: 0.153)
     /// L'or du logo — `#cdbe83`.
@@ -320,13 +331,6 @@ private enum Teintes {
     static let trainee = Color(red: 1, green: 0.965, blue: 0.847)
     /// Son cœur — `#fffdf5`.
     static let traineeCoeur = Color(red: 1, green: 0.992, blue: 0.961)
-    /// La nuit du projet, assombrie — le bord du dégradé.
-    ///
-    /// ``ONTColors/nuit`` (#18090D) ramenée à 45 % de sa clarté, écrite plutôt
-    /// que calculée : `Color.mix(with:by:)` n'existe qu'à partir de macOS 15,
-    /// et le paquet déclare macOS 14. La compilation pour iOS ne le montrait
-    /// pas — seule celle du paquet, qui vise aussi le Mac, faisait rougir.
-    static let nuitProfonde = Color(red: 0.042, green: 0.016, blue: 0.023)
     /// La lueur — `rgba(255,240,200,·)`.
     static let lueur = Color(red: 1, green: 0.941, blue: 0.784)
 }

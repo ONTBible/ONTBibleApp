@@ -8,9 +8,9 @@
 use async_trait::async_trait;
 
 use super::diffusion::{Annonce, Appareil};
-use super::sync::{Highlight, Position};
+use super::sync::{Highlight, Position, ProfilLecteur};
 use super::token::UserId;
-use super::{DomainError, ExternalIdentity, Provider};
+use super::{DomainError, ExternalIdentity, Origine, Provider};
 
 /// Échange un code d'autorisation contre une identité.
 ///
@@ -21,6 +21,7 @@ pub trait IdentityProvider: Send + Sync {
     async fn exchange(
         &self,
         provider: Provider,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
@@ -76,6 +77,10 @@ pub trait SyncRepository: Send + Sync {
     ) -> Result<(), DomainError>;
 
     async fn set_position(&self, user: &UserId, position: &Position) -> Result<(), DomainError>;
+
+    async fn profil(&self, user: &UserId) -> Result<Option<ProfilLecteur>, DomainError>;
+
+    async fn set_profil(&self, user: &UserId, profil: &ProfilLecteur) -> Result<(), DomainError>;
 }
 
 /// Le registre des appareils à joindre.

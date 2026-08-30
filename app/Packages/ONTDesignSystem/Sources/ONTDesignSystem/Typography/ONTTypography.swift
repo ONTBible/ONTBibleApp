@@ -186,6 +186,16 @@ public struct ONTTypography: Sendable {
         .init(font: .custom(body, size: size), color: ONTColors.accent(theme))
     }
 
+    /// Niveau 1 — un **Shem**, touchable.
+    ///
+    /// Même graisse que le corps, comme un intraduisible : c'est la couleur
+    /// qui distingue, et le nom doit se lire dans le fil de la phrase. Un
+    /// semi-gras en ferait une insistance, alors qu'un nom propre n'insiste
+    /// pas — il désigne.
+    public var shem: ONTTextStyle {
+        .init(font: .custom(body, size: size), color: ONTColors.shem(theme))
+    }
+
     /// Niveau 1 — une accentuation, qui ne se touche pas.
     ///
     /// Semi-gras **et** coloré : la couleur seule ne suffit pas — un lecteur

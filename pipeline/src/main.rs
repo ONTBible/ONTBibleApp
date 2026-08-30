@@ -23,6 +23,13 @@ fn main() {
                 r.issues,
                 r.ors_morts
             );
+            // Les deux suivants ne sont pas des fautes : ce sont des listes de
+            // travail. Un Shem sans fiche est un porteur pas encore écrit ; un
+            // terme balisé sans définition est une entrée du §3 à rédiger.
+            println!(
+                "À écrire   {} Shemot sans fiche, {} termes balisés sans définition",
+                r.shemot_sans_fiche, r.sans_definition
+            );
             println!("Sortie     {} Ko", r.bytes / 1024);
         }
         Err(message) => {

@@ -18,6 +18,22 @@ public enum Inline: Hashable, Sendable {
     case text(String)
     /// Un intraduisible. `lemma` est la clé qui ouvre sa fiche de lexique.
     case term(String, lemma: String)
+    /// Un **Shem** — un nom propre, balisé `[[Ainsi]]` dans le vault.
+    ///
+    /// **Ce n'est pas un intraduisible**, et la distinction porte toute cette
+    /// couche : `chesed` reste en hébreu parce que « bonté » rate quelque
+    /// chose ; `Avraham` est simplement **non traduit**. Un nom propre n'a pas
+    /// de traduction qui échouerait — il a un **sens** que le porteur reçoit,
+    /// et c'est ce que sa fiche dit : Avraham est « père d'une multitude »,
+    /// Peleg le partage.
+    ///
+    /// L'accentuation les portait avant, en bordeaux : elle disait « ceci est
+    /// une personne » et s'arrêtait là.
+    ///
+    /// Sa fiche vit dans `shemot.json`, **pas dans le glossaire** : y verser
+    /// trois cents noms ferait promettre une fiche de concept là où il y a un
+    /// porteur, et remplirait le Lexique de ce qui n'y a rien à faire.
+    case shem(String, lemma: String)
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
@@ -60,32 +76,105 @@ public extension [Inline] {
     ///
     /// Par défaut ne rend que le corps de la traduction — c'est la voix du
     /// texte, sans l'appareil.
+    /// **Ce qui est omis laisse ses espaces derrière lui**, et il faut les
+    /// reprendre. « Quand ⟦hébreu⟧ commença » devient « Quand  commença » avec
+    /// deux espaces : le nœud disparaît, pas les espaces qui l'entouraient. En
+    /// lecture ça ne se voit pas — le nœud est rendu ; ici, si.
+    ///
+    /// **Le repli se fait en écrivant, pas après.** Il a d'abord été une
+    /// seconde passe sur le texte assemblé : deux chaînes entières allouées là
+    /// où une suffit, et le calcul des ancres de position rappelle cette
+    /// fonction sur tout un bloc à chaque évaluation. Mesuré à 0,28 ms pour
+    /// trente versets — 3 % d'une image à 120 Hz, pour une réponse qu'on
+    /// pouvait obtenir en un seul parcours.
     func plainText(gloss: Bool = false, level3: Bool = false) -> String {
-        reduce(into: "") { output, node in
+        var repliage = Repliage()
+        ecrire(dans: &repliage, gloss: gloss, level3: level3)
+        return repliage.sortie
+    }
+
+    private func ecrire(dans repliage: inout Repliage, gloss: Bool, level3: Bool) {
+        for node in self {
             switch node {
             case .text(let value):
-                output += value
+                repliage.ajouter(value)
             case .term(let value, _):
-                output += value
+                repliage.ajouter(value)
+            // Un Shem s'écrit comme il se lit : c'est un nom, pas un
+            // marquage. Il reste dans un partage, dans une recherche et
+            // dans un résumé — au contraire de l'hébreu, qu'on omet.
+            case .shem(let value, _):
+                repliage.ajouter(value)
             case .hebrew(let value):
-                if level3 { output += value }
+                if level3 { repliage.ajouter(value) }
             case .translit(let translit, let hebrew):
-                if level3 { output += "(\(translit) / \(hebrew))" }
+                if level3 { repliage.ajouter("(\(translit) / \(hebrew))") }
             case .gloss(let children):
-                if gloss { output += children.plainText(gloss: gloss, level3: level3) }
+                if gloss { children.ecrire(dans: &repliage, gloss: gloss, level3: level3) }
             case .emphasis(let children), .accentuation(let children), .link(let children, _):
-                output += children.plainText(gloss: gloss, level3: level3)
+                children.ecrire(dans: &repliage, gloss: gloss, level3: level3)
             case .lineBreak:
-                output += "\n"
+                repliage.ajouter("\n")
             }
         }
     }
+}
 
+/// Le repli des espaces, appliqué **au fil de l'écriture**.
+///
+/// Un espace n'est pas écrit quand il se présente : il est **retenu**, et c'est
+/// ce qui le suit qui décide s'il sert d'espace ou s'il se perd. Un nœud ne sait
+/// pas ce qui vient après lui — c'est pourquoi la décision ne peut pas se
+/// prendre nœud par nœud, et pourquoi elle n'a pas non plus besoin d'une
+/// seconde passe.
+private struct Repliage {
+    private(set) var sortie = ""
+    private var espaceEnAttente = false
+
+    /// Ce qui ne prend jamais d'espace devant, en français.
+    ///
+    /// Le point et la virgule, la parenthèse et le crochet fermants, les points
+    /// de suspension. Le point-virgule, les deux-points, le point
+    /// d'exclamation, l'interrogation et le chevron fermant en prennent un,
+    /// eux — c'est la règle française, et le corpus l'applique déjà.
+    ///
+    /// La règle vaut quelle que soit l'origine de l'espace : une omission en
+    /// laisse, mais un espace avant un point serait faux même écrit à la main.
+    private static let sansEspaceDevant: Set<Character> = [".", ",", ")", "]", "…"]
+
+    mutating func ajouter(_ morceau: String) {
+        for caractere in morceau {
+            switch caractere {
+            case " ", "\t":
+                espaceEnAttente = !sortie.isEmpty
+            case "\n":
+                espaceEnAttente = false
+                while sortie.last == " " { sortie.removeLast() }
+                sortie.append(caractere)
+            default:
+                if espaceEnAttente, sortie.last != "\n",
+                    !Self.sansEspaceDevant.contains(caractere)
+                {
+                    sortie.append(" ")
+                }
+                espaceEnAttente = false
+                sortie.append(caractere)
+            }
+        }
+    }
+}
+
+public extension [Inline] {
     /// Tous les intraduisibles de l'arbre, dans l'ordre du texte.
     var lemmas: [String] {
         flatMap { node -> [String] in
             switch node {
             case .term(_, let lemma): [lemma]
+            // **Un Shem n'entre pas ici.** `lemmas` sert à joindre le
+            // glossaire ; y verser les noms propres ferait chercher une fiche
+            // de concept pour un porteur, et la jointure échouerait en
+            // silence. Leur fiche vit dans `shemot.json`.
+            case .shem: []
             case .gloss(let children), .emphasis(let children), .accentuation(let children),
                 .link(let children, _):
                 children.lemmas

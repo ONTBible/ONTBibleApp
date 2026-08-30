@@ -12,22 +12,96 @@
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Le retour prédictif — l'aperçu de l'écran d'arrivée pendant qu'on tire
+      depuis le bord.
+
+      En `targetSdk 36` sur Android 16+, il est déjà actif sans ce drapeau : ce
+      qu'on gagne ici, ce sont Android 13, 14 et 15, c'est-à-dire la majorité
+      du parc. Le drapeau ne gouverne **que** l'animation — `OnBackPressedCallback`
+      est appelé quoi qu'il arrive, donc aucune logique de retour ne change.
+
+      Ce qui reste à faire et qui n'est pas ici : le `BackHandler` de
+      `MainActivity` est actif sur tout sous-écran, et un callback de priorité
+      normale empêche le système de jouer ses animations — il ne peut pas
+      animer une transition dont il ignore l'issue. Tant qu'il n'est pas rendu
+      plus étroit, ce drapeau ne se voit que là où l'app n'intercepte pas.
+    -->
     <application
         android:name=".ONTApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.ONT">
 
+        <!--
+          `singleTask` : sans lui, une notification touchée alors que l'app est
+          déjà ouverte empilerait une seconde activité au lieu de rendre la
+          main à celle qui existe. `onNewIntent` ne serait jamais appelé, et le
+          lien ne marcherait qu'à froid.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.ONT">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Le lien **public**, celui qui circule réellement.
+
+              Un `ont://` collé dans une conversation n'est pas cliquable et ne
+              mène nulle part pour qui n'a pas l'app. Ce qu'on partage est une
+              adresse web, que le site sait servir de son côté — donc le lecteur
+              sans l'app lit quand même, et celui qui l'a est amené dedans.
+
+              `autoVerify` demande à Android de vérifier
+              `https://ontbible.com/.well-known/assetlinks.json` à
+              l'installation. Tant que ce fichier n'est pas servi, le lien
+              ouvrira le sélecteur d'app au lieu d'aller droit à l'ONT — pas de
+              régression, seulement une étape de moins qu'espéré.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="ontbible.com" />
+                <!--
+                  `www` n'est **pas** déclaré, et c'est délibéré.
+
+                  Il redirige en 301 vers l'apex, et Android refuse une
+                  redirection sur `/.well-known/assetlinks.json` : l'hôte ne
+                  serait jamais accordé. Le laisser ici ne le rendrait pas
+                  fonctionnel — ça mettrait la vérification en échec.
+
+                  Et l'échec ne resterait pas local à cet hôte. Avant Android
+                  12, la vérification est **tout ou rien** : un seul hôte qui
+                  échoue emporte le filtre entier, donc `ontbible.com` cesserait
+                  d'être accordé lui aussi. `minSdk` valant 26, cette moitié du
+                  parc est concernée.
+
+                  Le site ne fabrique jamais de lien en `www` — le seul cas est
+                  quelqu'un qui le tape à la main, et Chrome suit alors la
+                  redirection et affiche la page. Dégradé pour un cas qui
+                  n'arrive pas, contre cassé pour tous les autres.
+                -->
+            </intent-filter>
+
+            <!--
+              Le schéma interne — widget, notification, fiche de lexique. Il ne
+              sort pas de l'appareil et n'a donc rien à vérifier.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ont" />
             </intent-filter>
         </activity>
 

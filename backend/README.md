@@ -53,8 +53,56 @@ adresses de retour exactes et les pièges de chaque portail, est dans
 c'était faux : quand le code d'autorisation vient de l'**interface native**
 (Face ID, pas un navigateur), Apple l'accorde à l'app elle-même. Le `client_id`
 de l'échange doit donc être l'identifiant de l'app — `com.labibleont.ONT` — et
-un Services ID provoquerait un `invalid_grant`. Apple le dit lui-même. Il ne
-redeviendra nécessaire que le jour où une version web signera des comptes.
+un Services ID provoquerait un `invalid_grant`. Apple le dit lui-même.
+
+**Ce jour est arrivé le 27 août 2026** : `ontbible.com` signe des comptes, et le
+Services ID redevient nécessaire — *pour le site seulement*. Le backend choisit
+donc l'identité selon l'origine du code (voir la section suivante).
+
+### Deux origines, deux identités
+
+Le corps de `POST /auth/{fournisseur}` porte un champ `origine` : `"app"` ou
+`"webapp"`. **Absent vaut `"app"`** — les versions déjà installées ne l'envoient
+pas et ne le pourront jamais rétroactivement ; un défaut à `"webapp"` les casserait
+toutes le jour du déploiement.
+
+**`webapp` et non `web`** : le dépôt s'appelle `ONTBibleWebapp` et le Services
+ID `com.labibleont.ont.webapp`. Un nom qui traverse trois dépôts vaut mieux
+unique — un troisième mot pour la même chose ferait chercher lequel fait foi.
+
+| fournisseur | app | site | ce que ça coûte |
+|---|---|---|---|
+| **Apple** | App ID `com.labibleont.ONT`, `redirect_uri` **omis** | Services ID `com.labibleont.ont.webapp`, `redirect_uri` **envoyé** | un identifiant de plus ; la clé `.p8` sert aux deux |
+| **GitHub** | l'application de l'app | une **seconde application** | un identifiant *et* un secret de plus |
+| **Google** | le même client | le même client | rien — une adresse de retour de plus dans la console |
+
+**Pourquoi GitHub coûte plus cher qu'Apple** : son portail n'admet qu'une seule
+adresse de retour par application, et celle de l'app la prend. Il faut donc une
+seconde application, là où Apple ne demande qu'un second identifiant sous la
+même clé de signature.
+
+**Et c'est pourquoi Google a été branché en premier** : il ne distingue rien,
+son client étant déjà de type « Application Web ». Aucun dépôt à toucher.
+
+Les variables à poser, en plus de celles de l'app. **Elles vivent dans
+`terraform/main.tf`**, pas dans une commande : l'environnement de la Lambda est
+décrit là, et un `aws lambda update-function-configuration` serait effacé au
+prochain `apply`.
+
+    APPLE_SERVICES_ID          com.labibleont.ont.webapp
+    GITHUB_WEB_CLIENT_ID       (seconde application GitHub — à créer)
+    GITHUB_WEB_CLIENT_SECRET   (son secret)
+
+Elles se posent dans `oauth.env`, que `scripts/deployer-backend.sh` source. La
+marche à suivre des portails est dans `../docs/comptes-oauth.md`, §3 bis et
+§3 ter — **la création de la seconde application GitHub est la seule étape que
+rien n'automatise**, GitHub n'exposant aucune API pour créer une OAuth App.
+
+**Une identité manquante se dit.** Sans elle, la route rend
+`ProviderNotConfigured` — 503, « fournisseur non configuré » — et non un refus.
+Le site saurait ainsi que la faute est chez nous, au lieu de la chercher chez
+lui devant un `invalid_grant`. C'est éprouvé par
+`le_site_se_dit_non_configure_tant_que_ses_identites_manquent`.
 
 Apple est en revanche le seul à ne pas donner de secret statique : le secret est
 un JWT ES256 fabriqué à chaque échange depuis le `.p8` — voir

@@ -27,11 +27,46 @@ public struct Session: Codable, Hashable, Sendable {
     public var accessToken: String
     public var refreshToken: String
     public var expiresAt: Date
+    /// **Par quoi on s'est connecté.**
+    ///
+    /// Le serveur ne le renvoie pas, et il n'a pas besoin de le faire :
+    /// l'**app sait sur quel bouton on a appuyé**, et c'est exactement ce que
+    /// la question demande. Le tirer d'un aller-retour réseau ferait dépendre
+    /// d'un déploiement une information qu'on tient déjà.
+    ///
+    /// Porté par la session plutôt qu'à côté : il naît avec elle, se persiste
+    /// avec elle, et s'efface à la déconnexion sans qu'on ait à y penser.
+    ///
+    /// Optionnel parce qu'une session écrite avant ce champ se relit — elle
+    /// n'affichera simplement pas de logo jusqu'à la prochaine connexion.
+    public var provider: AuthProvider?
+    /// L'adresse rendue par le fournisseur, quand le serveur la donne.
+    ///
+    /// Elle arrive **après** le fournisseur : le serveur la connaît depuis
+    /// toujours — `ExternalIdentity` la porte — mais ne la renvoyait pas. Elle
+    /// reste donc nulle jusqu'au déploiement qui suit, et l'écran s'en passe.
+    public var email: String?
 
-    public init(accessToken: String, refreshToken: String, expiresAt: Date) {
+    public init(
+        accessToken: String, refreshToken: String, expiresAt: Date,
+        provider: AuthProvider? = nil, email: String? = nil
+    ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.expiresAt = expiresAt
+        self.provider = provider
+        self.email = email
+    }
+
+    /// Décodage tolérant : une session du trousseau écrite avant ces deux
+    /// champs se relit. Sans ça, la mise à jour déconnecterait tout le monde.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        accessToken = try c.decode(String.self, forKey: .accessToken)
+        refreshToken = try c.decode(String.self, forKey: .refreshToken)
+        expiresAt = try c.decode(Date.self, forKey: .expiresAt)
+        provider = try c.decodeIfPresent(AuthProvider.self, forKey: .provider)
+        email = try c.decodeIfPresent(String.self, forKey: .email)
     }
 
     /// Vrai si le jeton d'accès est expiré, ou sur le point de l'être.
@@ -75,15 +110,19 @@ public struct SyncPayload: Sendable {
     public var position: ReadingPosition?
     /// L'horodatage du serveur, à renvoyer au prochain appel incrémental.
     public var serverTime: Date?
+    /// Ce que le lecteur dit de lui.
+    public var profil: ProfilEnVol?
 
     public init(
         highlights: [Highlight] = [],
         position: ReadingPosition? = nil,
-        serverTime: Date? = nil
+        serverTime: Date? = nil,
+        profil: ProfilEnVol? = nil
     ) {
         self.highlights = highlights
         self.position = position
         self.serverTime = serverTime
+        self.profil = profil
     }
 }
 
@@ -92,6 +131,13 @@ public enum AccountError: LocalizedError, Equatable, Sendable {
     case providerRefused
     /// Le fournisseur n'a pas pu conclure, et ne dit pas pourquoi.
     case providerUnavailable(AuthProvider)
+    /// Ce fournisseur n'est pas installé sur le déploiement qu'on interroge.
+    ///
+    /// **Distinct de [`providerUnavailable`], et la nuance est celle qu'on dit
+    /// au lecteur** : là, réessayer peut marcher ; ici, jamais. Le serveur ne
+    /// possède pas les identifiants, et aucune patience n'y changera rien. Lui
+    /// dire d'attendre serait l'envoyer buter contre le même mur.
+    case providerNotConfigured(AuthProvider)
     case unauthorized
     case offline
     case server(Int)
@@ -109,6 +155,9 @@ public enum AccountError: LocalizedError, Equatable, Sendable {
                 "La connexion avec \(provider.label) n’a pas abouti. Réessayez "
                     + "dans un instant."
             }
+        case .providerNotConfigured(let provider):
+            "La connexion avec \(provider.label) n’est pas disponible. "
+                + "Essayez un autre moyen de connexion."
         case .unauthorized: "Session expirée — reconnectez-vous."
         case .offline: "Pas de connexion. Vos annotations restent sur cet appareil."
         case .server(let code): "Le serveur a répondu \(code)."
@@ -159,7 +208,12 @@ public protocol AuthService: Sendable {
         verifier: String?
     ) async throws -> Session
 
-    func refresh(_ refreshToken: String) async throws -> Session
+    /// Renouvelle la session, **en conservant ce que le serveur ne redit pas**.
+    ///
+    /// La session rendue doit garder le fournisseur et l'adresse de celle
+    /// qu'elle remplace : le serveur ne les renvoie pas au rafraîchissement, et
+    /// les perdre effacerait le logo du compte au bout d'une heure.
+    func refresh(_ precedente: Session) async throws -> Session
 }
 
 /// La synchronisation de ce que le lecteur produit.

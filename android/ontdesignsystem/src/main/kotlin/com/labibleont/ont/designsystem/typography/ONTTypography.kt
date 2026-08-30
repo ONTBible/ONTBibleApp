@@ -88,6 +88,21 @@ public data class ONTTypography(
         )
 
     /**
+     * Niveau 1 — un **Shem**, touchable.
+     *
+     * Même graisse et même corps que l'intraduisible : ce sont deux couches du
+     * texte, pas deux importances. Seule la teinte les sépare, et c'est
+     * suffisant parce qu'elles ne se rencontrent presque jamais dans la même
+     * phrase.
+     */
+    public val shem: SpanStyle
+        get() = SpanStyle(
+            fontFamily = body,
+            fontSize = size.pt,
+            color = ONTColors.shem(theme),
+        )
+
+    /**
      * Niveau 1 — une accentuation, qui ne se touche pas.
      *
      * Semi-gras **et** colorée : la couleur seule ne suffit pas — un lecteur
@@ -152,3 +167,33 @@ public data class ONTTypography(
     public val apparatus: SpanStyle
         get() = SpanStyle(fontFamily = body, fontSize = glossSize.pt, color = soft)
 }
+
+/**
+ * L'interligne naturel de Literata, en multiples du corps.
+ *
+ * Relevé dans sa table `hhea` — 1177 + 308 pour 1000 unités par cadratin —
+ * et non estimé. C'est la valeur que la liseuse iOS a mesurée le jour où un
+ * interligne « à peu près 1,35 » s'est révélé faux de dix pour cent.
+ *
+ * ## Pourquoi Android en a besoin alors qu'iOS ne le nomme pas
+ *
+ * Les deux plateformes ne comptent pas la même chose. `SwiftUI.lineSpacing`
+ * **ajoute** des points à l'interligne que la fonte porte déjà ; Compose
+ * `lineHeight` **fixe** la hauteur totale et efface le naturel. Le même
+ * réglage rendait donc deux textes différents : au défaut de 0,5, iOS
+ * composait à 1,735 fois le corps et Android à 1,500 — treize et demi pour
+ * cent plus serré, et jusqu'à vingt-quatre pour cent au bas du curseur.
+ *
+ * Pour retrouver la même page, Compose doit donc rajouter à la main ce que
+ * SwiftUI tenait de la fonte.
+ */
+public const val INTERLIGNE_NATUREL: Float = 1.485f
+
+/**
+ * L'interligne total, en multiples du corps, pour un réglage donné.
+ *
+ * La formule est celle d'iOS — `scaledTextSize × lineSpacing × 0.5` ajouté au
+ * naturel —, ramenée en multiple parce que Compose raisonne ainsi.
+ */
+public fun interligne(reglage: Double): Float =
+    INTERLIGNE_NATUREL + reglage.toFloat() * 0.5f
