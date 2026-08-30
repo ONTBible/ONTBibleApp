@@ -98,7 +98,7 @@ struct CatalogColors: View {
                     RoundedRectangle(cornerRadius: ONTRadius.highlight)
                         .stroke(.quaternary)
                 )
-            Text(name).font(.callout.monospaced())
+            Text(name).font(ONTUI.callout.monospaced())
         }
     }
 }
@@ -125,7 +125,7 @@ struct CatalogTypography: View {
 
     private func row(_ name: String, _ sample: String, _ style: ONTTextStyle) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(name).font(.caption.monospaced()).foregroundStyle(.tertiary)
+            Text(name).font(ONTUI.caption.monospaced()).foregroundStyle(.tertiary)
             Text(sample).font(style.font).foregroundStyle(style.color)
         }
         .padding(.vertical, 2)
@@ -161,9 +161,9 @@ struct CatalogMetrics: View {
 
     private func bar(_ name: String, _ value: CGFloat) -> some View {
         HStack {
-            Text(name).font(.callout.monospaced()).frame(width: 52, alignment: .leading)
+            Text(name).font(ONTUI.callout.monospaced()).frame(width: 52, alignment: .leading)
             Rectangle().fill(ONTColors.goldDeep).frame(width: value, height: 14)
-            Text("\(Int(value)) pt").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            Text("\(Int(value)) pt").font(ONTUI.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
 }

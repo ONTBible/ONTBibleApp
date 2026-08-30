@@ -84,28 +84,6 @@ struct RootView: View {
         // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
         // même chose nommée deux fois, c'est un autre geste. Le code doit
         // montrer qu'on a décidé.
-        #if os(macOS)
-            .inspector(isPresented: Binding(
-                get: { router.openedLemma != nil },
-                set: { if !$0 { router.openedLemma = nil } }
-            )) {
-                if let selection = router.openedLemma {
-                    TermSheet(lemma: selection.id)
-                        .ontTheme(from: reading.preferences)
-                        .inspectorColumnWidth(min: 320, ideal: 400, max: 560)
-                }
-            }
-            .inspector(isPresented: Binding(
-                get: { router.openedShem != nil },
-                set: { if !$0 { router.openedShem = nil } }
-            )) {
-                if let selection = router.openedShem {
-                    ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
-                        .ontTheme(from: reading.preferences)
-                        .inspectorColumnWidth(min: 320, ideal: 400, max: 560)
-                }
-            }
-        #else
         .sheet(item: $router.openedLemma) { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
@@ -118,7 +96,6 @@ struct RootView: View {
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }
-        #endif
     }
 
     /// Le seul endroit qui connaît `UserNotifications`.
@@ -213,17 +190,6 @@ private struct OngletsFixes: TabContent {
     let appliquerParutions: (Bool) async -> Bool
 
     var body: some TabContent<Router.TabID> {
-        // **« Reprendre » en tête, sur le Mac seulement.**
-        //
-        // Sur un téléphone, c'est une carte en tête de la Bible : l'écran est
-        // petit et un onglet de plus mangerait la barre. Sur un bureau, la
-        // barre latérale est verticale et n'a pas cette contrainte — le geste
-        // le plus fréquent mérite d'y être le premier.
-        #if os(macOS)
-            Tab("Reprendre", systemImage: "bookmark.fill", value: Router.TabID.reprendre) {
-                RepriseDeLecture()
-            }
-        #endif
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
             QahalTab()
         }
@@ -233,19 +199,9 @@ private struct OngletsFixes: TabContent {
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
         }
-        // **« Vous » n'est pas un onglet sur le Mac.**
-        //
-        // Un bureau a un endroit pour les réglages, et c'est ⌘, — la même
-        // touche dans toutes les apps depuis vingt ans. L'y mettre coûte moins
-        // qu'un onglet à trouver, et le lecteur n'a rien à apprendre.
-        //
-        // Sur un téléphone, l'inverse : il n'y a pas de menu, donc pas de ⌘,
-        // et l'onglet est le seul chemin.
-        #if !os(macOS)
-            Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
-                YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
-            }
-        #endif
+        Tab("Vous", systemImage: "person.crop.circle.fill", value: Router.TabID.you) {
+            YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+        }
     }
 }
 

@@ -337,6 +337,12 @@ targets:
           # Mac, et une liseuse de bureau n'en a pas besoin pour rendre le
           # service qu'on lui demande.
           - "App/PushDistant.swift"
+          # **La racine d'iOS.** Le Mac a la sienne, `MacSources/RacineMac.swift`,
+          # et ce n'est pas une duplication : `RootView` monte une
+          # `TabView(.sidebarAdaptable)` dont AppKit dessine la barre latérale —
+          # sa teinte, sa taille de texte et sa largeur échappent alors à l'app.
+          # Le contenu, lui, reste partagé : ce sont les mêmes onglets.
+          - "App/RootView.swift"
       - path: MacSources
       - path: Resources
         buildPhase: resources
@@ -357,6 +363,17 @@ targets:
         CFBundleVersion: "1"
         # Le même contrat de lien public que sur iOS.
         ONTWebBaseURL: https://ontbible.com
+        # **Le schéma interne, qu'il manquait ici.**
+        #
+        # `RacineMac` appelle `onOpenURL` et `Router.open` depuis le premier
+        # jour, mais rien ne déclarait `ont://` au système : le Mac répondait
+        # « aucune application ne sait ouvrir cette adresse ». Le code était
+        # prêt, la déclaration non — et rien ne pouvait le dire, puisque le
+        # défaut est dans un fichier que le compilateur ne lit pas.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.labibleont.ONT.mac.term
+            CFBundleURLSchemes:
+              - ont
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.mac
@@ -381,6 +398,11 @@ targets:
         # appeler du Swift.
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRODUCT_NAME: La Bible ONT
+        # Le nom du **module**, que `PRODUCT_NAME` entraînerait sinon :
+        # « La Bible ONT » devient `La_Bible_ONT`, et les épreuves qui
+        # écrivent `@testable import ONTMac` ne le trouvent plus. Le nom
+        # affiché et le nom de code n'ont aucune raison d'être le même.
+        PRODUCT_MODULE_NAME: ONTMac
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
 
@@ -396,6 +418,17 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        # **L'hôte se nomme par son `PRODUCT_NAME`, pas par sa cible.**
+        #
+        # XcodeGen déduit `TEST_HOST` du nom de la cible — « ONTMac.app » —, or
+        # le produit s'appelle « La Bible ONT.app » depuis qu'on l'a renommé
+        # pour le Dock. Le chemin pointait donc sur une app qui n'existe pas, et
+        # `xcodebuild test` refusait de démarrer.
+        #
+        # Conséquence qu'on n'avait pas vue : les épreuves du Mac n'ont jamais
+        # tourné. Elles étaient écrites, compilées, et injoignables.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/La Bible ONT.app/Contents/MacOS/La Bible ONT"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
   ONTTests:
     type: bundle.unit-test
@@ -462,3 +495,21 @@ schemes:
       config: Debug
       targets:
         - ONTTests
+
+  # Le Mac, avec ses épreuves.
+  #
+  # Sans ce schéma, `xcodebuild test -scheme ONTMac` répond « not currently
+  # configured for the test action » : la cible d'épreuves existait, rien ne la
+  # rattachait. Des tests qu'aucune commande ne lance sont des tests qui
+  # n'existent pas.
+  ONTMac:
+    build:
+      targets:
+        ONTMac: all
+        ONTMacTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ONTMacTests

@@ -76,7 +76,7 @@ public struct BibleTab: View {
                             // porte pas.
                             if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
                                 Text(second)
-                                    .font(.caption)
+                                    .font(ONTUI.caption)
                                     .textCase(nil)
                                     .foregroundStyle(.secondary)
                             }
@@ -129,9 +129,9 @@ private struct ResumeRow: View {
                     .foregroundStyle(ONTColors.accent(theme.mode))
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Reprendre").font(.subheadline.weight(.medium))
+                    Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
                     Text("\(position.chapterTitle):\(position.verse)")
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -152,14 +152,14 @@ private struct ModeLabel: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 1) {
-                Text(mode.title).font(.headline)
+                Text(mode.title).font(ONTUI.headline)
                 if let second = Registre.second(french: mode.french, glose: mode.glose, francaisRecu: model.preferences.french) {
-                    Text(second).font(.caption).foregroundStyle(.secondary)
+                    Text(second).font(ONTUI.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
             Text("\(mode.books.filter { !$0.empty }.count)/\(mode.books.count)")
-                .font(.caption.monospacedDigit())
+                .font(ONTUI.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
     }
@@ -172,7 +172,7 @@ private struct BookRow: View {
     var body: some View {
         if book.empty {
             LabeledContent {
-                Text("à venir").font(.caption).foregroundStyle(.tertiary)
+                Text("à venir").font(ONTUI.caption).foregroundStyle(.tertiary)
             } label: {
                 title
             }
@@ -180,7 +180,7 @@ private struct BookRow: View {
             NavigationLink(value: Router.Destination.book(book.id)) {
                 LabeledContent {
                     Text("\(book.verseCount) v.")
-                        .font(.caption.monospacedDigit())
+                        .font(ONTUI.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 } label: {
                     title
@@ -193,12 +193,12 @@ private struct BookRow: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
                 Text("\(book.slot)")
-                    .font(.caption2.monospacedDigit())
+                    .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .frame(minWidth: 20, alignment: .trailing)
                 // Le nom hébreu translittéré est le vrai titre du livre (§2.6).
                 Text(book.title)
-                    .font(.body.italic())
+                    .font(ONTUI.body.italic())
                     .foregroundStyle(book.empty ? .secondary : .primary)
             }
             // Le second nom, dans le registre choisi. Le français n'est qu'un
@@ -212,7 +212,7 @@ private struct BookRow: View {
             // site disait « les gevurot de YHWH par ses neviim ».
             if let second = Registre.second(french: book.french, glose: book.glose, francaisRecu: model.preferences.french) {
                 Text(second)
-                    .font(.caption)
+                    .font(ONTUI.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 28)
             }
@@ -346,7 +346,7 @@ private struct ChapterRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(libelle)
                 if let reference = stub.reference {
-                    Text(reference).font(.caption).foregroundStyle(.tertiary)
+                    Text(reference).font(ONTUI.caption).foregroundStyle(.tertiary)
                 }
             }
             Spacer()
@@ -366,8 +366,8 @@ private struct ChapterRow: View {
             // toucher, et le nombre ne répondrait jamais.
             Button(action: choisirUnVerset) {
                 HStack(spacing: 3) {
-                    Text("\(stub.verseCount)").font(.caption.monospacedDigit())
-                    Image(systemName: "list.number").font(.caption2)
+                    Text("\(stub.verseCount)").font(ONTUI.caption.monospacedDigit())
+                    Image(systemName: "list.number").font(ONTUI.caption2)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 6)
@@ -489,15 +489,15 @@ private struct ConteneurLabel: View {
                     .frame(height: 2)
                     .padding(.top, 8)
                 Text(rupture)
-                    .font(.footnote.italic())
+                    .font(ONTUI.footnote.italic())
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 6)
             }
             Text(groupe.title)
-                .font(.caption.smallCaps())
+                .font(ONTUI.caption.smallCaps())
                 .foregroundStyle(.secondary)
             Text(model.preferences.french ? groupe.french : (groupe.glose ?? groupe.french))
-                .font(.caption2)
+                .font(ONTUI.caption2)
                 .foregroundStyle(.tertiary)
         }
         .listRowSeparator(.hidden)

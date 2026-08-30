@@ -16,6 +16,10 @@ import SwiftUI
 public struct ShemSheet: View {
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
+    /// Posé par la présentation quand ce n'est pas une feuille — voir
+    /// `ONTFermeture`. `dismiss` ne ferme ni un panneau latéral ni un
+    /// aperçu en surimpression.
+    @Environment(\.ontFermer) private var fermer
 
     let lemma: String
     private let shemot: any ShemotRepository
@@ -42,7 +46,7 @@ public struct ShemSheet: View {
                                 // vient de toucher.
                                 .foregroundStyle(ONTColors.shem(theme.mode))
                             Text("Nom propre")
-                                .font(.caption)
+                                .font(ONTUI.caption)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -90,8 +94,13 @@ public struct ShemSheet: View {
             .ontScreen()
             .ontTitreCompact()
             .toolbar {
-                ToolbarItem(placement: ONTPlacement.principale) {
-                    Button("Fermer") { dismiss() }
+                // Voir `TermSheet` : quand la présentation porte sa propre
+                // croix, un second « Fermer » part se poser dans la barre de
+                // titre de la fenêtre, loin de ce qu'il ferme.
+                if fermer == nil {
+                    ToolbarItem(placement: ONTPlacement.principale) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
             }
         }

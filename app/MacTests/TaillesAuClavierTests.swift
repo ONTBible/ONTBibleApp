@@ -49,13 +49,18 @@ struct TaillesAuClavierTests {
         #expect(TaillesAuClavier.interfaceDeplacee(0, de: -1) == 0)
     }
 
-    /// **Aucune taille d'accessibilité.** `DynamicTypeSize` en compte cinq de
-    /// plus, qui recomposent les vues en colonnes et rendent une barre latérale
-    /// inutilisable. Le lecteur qui en a besoin les obtient du système, pour
-    /// toutes ses apps ; ce raccourci règle le confort, pas l'accessibilité.
-    @Test("les tailles d'accessibilité ne sont pas offertes au raccourci")
-    func pasDeTaillesDAccessibilite() {
-        #expect(TaillesAuClavier.interface.allSatisfy { !$0.isAccessibilitySize })
+    /// **Le réglage reste celui du confort, pas de l'accessibilité.**
+    ///
+    /// Les crans allaient de `.xSmall` à `.xxxLarge` du temps où l'on croyait
+    /// `dynamicTypeSize` opérant sur le Mac ; ils vont maintenant de −15 % à
+    /// +50 %. L'intention n'a pas changé : au-delà, les vues se recomposent en
+    /// colonnes et la barre latérale devient inutilisable. Le lecteur qui a
+    /// besoin de bien plus grand monte le **corps du texte**, qui va jusqu'à
+    /// 28 pt sans faire enfler la barre au passage.
+    @Test("les crans restent dans le domaine du confort")
+    func desCransRaisonnables() {
+        #expect(TaillesAuClavier.interface.allSatisfy { $0 >= 0.8 && $0 <= 1.5 })
+        #expect(TaillesAuClavier.interface == TaillesAuClavier.interface.sorted())
     }
 
     /// Le départ est celui du système, pas le milieu de la liste — un lecteur
@@ -63,7 +68,7 @@ struct TaillesAuClavierTests {
     /// montrent.
     @Test("le départ est la taille du système")
     func leDepartEstCeluiDuSysteme() {
-        #expect(TaillesAuClavier.interface[TaillesAuClavier.interfaceParDefaut] == .large)
+        #expect(TaillesAuClavier.interface[TaillesAuClavier.interfaceParDefaut] == 1.0)
     }
 }
 

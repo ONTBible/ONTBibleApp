@@ -304,7 +304,7 @@ struct ChapterView: View {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
                         Text(pastille)
-                            .font(.subheadline.weight(.semibold))
+                            .font(ONTUI.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: echelle(10), weight: .bold))
@@ -500,10 +500,10 @@ struct ChapterView: View {
                 HStack(spacing: spacing.s) {
                     // Le pont de navigation : le nom français et le renvoi
                     // biblique, jamais la désignation principale (§2.6).
-                    Text(subtitle.french).font(.callout.italic())
+                    Text(subtitle.french).font(ONTUI.callout.italic())
                     Text(subtitle.hebrew).font(theme.type.hebrew.font)
                     if let reference = subtitle.reference {
-                        Text(reference).font(.callout.monospacedDigit())
+                        Text(reference).font(ONTUI.callout.monospacedDigit())
                     }
                 }
                 .foregroundStyle(theme.ink.opacity(0.6))
@@ -511,7 +511,7 @@ struct ChapterView: View {
 
             if chapter.status == .brouillon {
                 Label("Brouillon — en attente de validation", systemImage: "pencil.line")
-                    .font(.caption)
+                    .font(ONTUI.caption)
                     .foregroundStyle(ONTColors.accent(theme.mode))
                     .padding(.top, spacing.xs)
             }
@@ -568,7 +568,7 @@ private struct VerseRow: View {
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.leading, spacing.xs)
             }
@@ -978,7 +978,7 @@ private struct ActionTileLabel: View {
                         .fill(theme.accent.opacity(0.12))
                 )
             Text(title)
-                .font(.caption2)
+                .font(ONTUI.caption2)
                 .foregroundStyle(theme.ink.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -1423,13 +1423,13 @@ private struct FooterView: View {
                     Text("· Version \(version)")
                 }
             }
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(ONTColors.accent(theme.mode))
 
             if !footer.notes.isEmpty {
                 SectionCaption("Décisions terminologiques")
                 ForEach(Array(footer.notes.enumerated()), id: \.offset) { _, note in
-                    Text(plain(note)).font(.footnote).foregroundStyle(.secondary)
+                    Text(plain(note)).font(ONTUI.footnote).foregroundStyle(.secondary)
                 }
             }
         }
@@ -1722,7 +1722,7 @@ private struct SettingsPreview: View {
         var body: some View {
             VStack(alignment: .leading, spacing: spacing.xs) {
                 Text("Aperçu — \(title)")
-                    .font(.caption.weight(.semibold))
+                    .font(ONTUI.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(theme.ink.opacity(0.5))
@@ -1847,7 +1847,7 @@ private struct ThemeRow: View {
                 Text(selection.label)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote.weight(.semibold))
+                    .font(ONTUI.footnote.weight(.semibold))
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
             }
             .contentShape(.rect)
@@ -1873,13 +1873,13 @@ private struct FontRow: View {
                         .font(.custom(ONTFonts.family(font), size: 19))
                         .foregroundStyle(theme.ink)
                     Text(font.note)
-                        .font(.footnote)
+                        .font(ONTUI.footnote)
                         .foregroundStyle(theme.ink.opacity(0.6))
                 }
                 Spacer(minLength: 8)
                 if chosen {
                     Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
+                        .font(ONTUI.body.weight(.semibold))
                         .foregroundStyle(theme.accent)
                 }
             }

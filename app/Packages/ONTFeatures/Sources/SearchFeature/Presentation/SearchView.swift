@@ -101,13 +101,13 @@ private struct HitRow: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
                 Text(reference)
-                    .font(.caption.monospaced())
+                    .font(ONTUI.caption.monospaced())
                     .foregroundStyle(ONTColors.accent(theme.mode))
                 if hit.level == .gloss {
                     StatusPill("glose", tint: .gray)
                 }
             }
-            Text(highlighted).font(.callout).lineLimit(3)
+            Text(highlighted).font(ONTUI.callout).lineLimit(3)
         }
         .padding(.vertical, 3)
         .contentShape(.rect)
@@ -170,8 +170,8 @@ private struct Hints: View {
 
     private func hint(_ example: String, _ explanation: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(example).font(.body.weight(.medium)).foregroundStyle(ONTColors.brandInk(theme.mode))
-            Text(explanation).font(.caption).foregroundStyle(.secondary)
+            Text(example).font(ONTUI.body.weight(.medium)).foregroundStyle(ONTColors.brandInk(theme.mode))
+            Text(explanation).font(ONTUI.caption).foregroundStyle(.secondary)
         }
     }
 }

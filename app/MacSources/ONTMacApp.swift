@@ -46,12 +46,15 @@ struct ONTMacApp: App {
     /// voient pas la même instance que la fenêtre, donc rien de mutable ne
     /// vit dans cette structure.
     private let etat = EtatMac.partage
+    /// Voir `DelegueMac` — il existe pour une seule raison : recevoir les liens
+    /// avant que SwiftUI n'en fasse une fenêtre de plus.
+    @NSApplicationDelegateAdaptor(DelegueMac.self) private var delegue
     @State private var vault = ModeVault()
 
     var body: some Scene {
         WindowGroup {
             AvecOuverture(theme: etat.composition.reading.preferences.theme) {
-                RootView()
+                RacineMac()
             }
                 .environment(etat.composition.router)
                 .environment(etat.composition.reading)
@@ -75,12 +78,20 @@ struct ONTMacApp: App {
                 // iOS ne pose pas la question : il n'a pas d'accent système
                 // qu'une app hérite sans le demander.
                 .tint(ONTColors.accent(etat.composition.reading.preferences.theme))
-                .dynamicTypeSize(
-                    TaillesAuClavier.interface[
-                        min(max(etat.tailleInterface, 0),
-                            TaillesAuClavier.interface.count - 1)])
+                // Pas de `.dynamicTypeSize` : mesuré inerte sur macOS — voir
+                // `ONTEchelleUI` et l'épreuve qui le montre. L'échelle passe
+                // par `EtatMac.appliquerLEchelle`, qui la pose dans le design
+                // system.
                 .frame(minWidth: 720, minHeight: 520)
                 .environment(vault)
+                // **Cette fenêtre-ci sait recevoir les liens.**
+                //
+                // La forme *vue* de `handlesExternalEvents`, et non la forme
+                // *scène* : la première dit « celle-ci sait faire », la seconde
+                // dit seulement « ce groupe sait faire » — et SwiftUI ouvre
+                // alors une fenêtre neuve pour le prouver. Mesuré : deux
+                // fenêtres, dont la première rétractée à 99 × 144 points.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 // L'état du mode vault, en bas de fenêtre et non en alerte :
                 // il change à chaque sauvegarde, et une alerte par phrase
                 // rendrait l'app inutilisable pendant qu'on écrit.
@@ -166,6 +177,15 @@ struct ONTMacApp: App {
                 }
                 .keyboardShortcut("b", modifiers: .command)
 
+                // **Où paraissent les fiches.** Le réglage est aussi dans la
+                // barre de tête de la fiche elle-même — mais on ne le trouve
+                // là qu'une fois qu'on en a ouvert une. Le menu l'annonce
+                // avant.
+                Button(etat.modeDeFiche.titreDeBascule) {
+                    etat.modeDeFiche = etat.modeDeFiche.suivant
+                }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+
                 Divider()
                 Button("Agrandir l'interface") { etat.interface(de: 1) }
                 // **`=` et non `+`, et ce n'est pas un détail de forme.**
@@ -232,11 +252,11 @@ private struct BandeauDuVault: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbole)
-            Text(libelle).font(.footnote.monospacedDigit())
+            Text(libelle).font(ONTUI.footnote.monospacedDigit())
             Spacer()
             if let vault = mode.vault {
                 Text(vault.lastPathComponent)
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -261,6 +281,28 @@ private struct BandeauDuVault: View {
         case .enCours: "reconstruction…"
         case .fait(let unites, let versets): "\(unites) unités, \(versets) versets"
         case .echec(let raison): raison
+        }
+    }
+}
+
+/// Le délégué d'application — pour les liens, et rien d'autre.
+///
+/// ## Pourquoi il faut en passer par là
+///
+/// `ont://term/bara` ouvrait une **seconde fenêtre**, et rétractait la première
+/// à 99 × 144 points au passage — mesuré, deux fenêtres au lieu d'une, dont une
+/// vide. SwiftUI traite un événement externe que personne ne revendique comme
+/// une raison d'ouvrir une scène ; `handlesExternalEvents(matching:)` n'y a rien
+/// changé, essayé avec le schéma puis avec `*`.
+///
+/// Un délégué qui implémente `application(_:open:)` consomme l'événement avant
+/// ce mécanisme. C'est le seul endroit du Mac où l'on redescend sous SwiftUI, et
+/// c'est pour la même raison que partout ailleurs aujourd'hui : ce qui est en
+/// jeu appartient au système, pas à l'app.
+final class DelegueMac: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            for url in urls { EtatMac.partage.composition.router.open(url) }
         }
     }
 }
