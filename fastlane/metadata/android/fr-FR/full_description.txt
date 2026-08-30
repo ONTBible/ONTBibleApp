@@ -20,6 +20,6 @@ Trois livres sur soixante-dix. Le compte est public, et il est tenu par le corpu
 
 HORS LIGNE
 
-Le texte est dans l'application. Il se met à jour tout seul quand une correction paraît, et il se lit sans réseau.
+Le texte est dans l'application : il se lit sans réseau, en avion, au désert. Les corrections arrivent avec les mises à jour de l'application.
 
 Le verset du jour se pose sur l'écran d'accueil, et se rappelle à l'heure que vous choisissez.
