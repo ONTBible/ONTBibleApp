@@ -41,7 +41,7 @@ public struct TermSheet: View {
                 }
             }
             .ontScreen()
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fermer") { dismiss() }

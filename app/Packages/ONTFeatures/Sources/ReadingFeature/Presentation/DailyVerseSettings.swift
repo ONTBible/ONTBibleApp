@@ -67,7 +67,7 @@ public struct DailyVerseSettings: View {
             }
         }
         .navigationTitle("Verset du jour")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontRow()
         .ontScreen()
     }

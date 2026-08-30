@@ -111,8 +111,8 @@ private struct Portrait: View {
 
     var body: some View {
         Group {
-            if let octets, let image = UIImage(data: octets) {
-                Image(uiImage: image)
+            if let octets, let image = ONTImage(data: octets) {
+                Image(ontImage: image)
                     .resizable()
                     .scaledToFill()
             } else if !profil.initiales.isEmpty {
@@ -214,7 +214,7 @@ struct EditeurDuProfil: View {
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                     TextField("nomdusage", text: $account.profil.nomDUsage)
-                        .textInputAutocapitalization(.never)
+                        .ontSansCapitaleAutomatique()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("profil.nomDUsage")
                         .accessibilityLabel("Nom d'usage")
@@ -297,7 +297,7 @@ struct EditeurDuProfil: View {
             .ontRow()
         }
         .navigationTitle("Profil")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
         .task(id: choix) { await recevoirLaPhoto() }
         .fileImporter(
@@ -322,7 +322,7 @@ struct EditeurDuProfil: View {
         let ouvert = url.startAccessingSecurityScopedResource()
         defer { if ouvert { url.stopAccessingSecurityScopedResource() } }
 
-        guard let brut = try? Data(contentsOf: url), let image = UIImage(data: brut) else {
+        guard let brut = try? Data(contentsOf: url), let image = ONTImage(data: brut) else {
             refus = "Ce fichier n'est pas une image lisible."
             return
         }
@@ -336,20 +336,20 @@ struct EditeurDuProfil: View {
         defer { chargeLaPhoto = false }
 
         guard let brut = try? await choix.loadTransferable(type: Data.self),
-            let image = UIImage(data: brut)
+            let image = ONTImage(data: brut)
         else { return }
         poser(image)
     }
 
-    private func poser(_ image: UIImage) {
+    private func poser(_ image: ONTImage) {
 
         // **On réduit avant d'écrire.** Une photo d'appareil moderne fait
         // plusieurs mégaoctets ; on en affiche un rond de 96 points. Garder
         // l'original coûterait le stockage du lecteur pour un détail que
         // personne ne verra jamais — et le ferait monter tel quel à la
         // synchronisation.
-        guard let reduite = image.reduite(a: 512),
-            let jpeg = reduite.sousLaBorne(ONTPortrait.borne)
+        guard let reduite = image.ontReduite(a: 512),
+            let jpeg = reduite.ontSousLaBorne(ONTPortrait.borne)
         else {
             refus = "Cette image n'a pas pu être préparée."
             return
@@ -367,40 +367,4 @@ enum ONTPortrait {
     /// s'arrête donc à 110 Kio de JPEG. Écrire la borne du serveur ici sans
     /// compter cette inflation ferait refuser des images qui paraissent tenir.
     static let borne = 100 * 1024
-}
-
-extension UIImage {
-    /// Encode en JPEG sous une borne, en baissant la qualité s'il le faut.
-    ///
-    /// On ne réduit **pas** les dimensions une seconde fois : elles ont déjà
-    /// été choisies pour l'affichage, et les rogner encore rendrait le portrait
-    /// flou sur les écrans à trois points par pixel. C'est la qualité qui cède,
-    /// parce qu'un portrait de 96 points la pardonne.
-    func sousLaBorne(_ borne: Int) -> Data? {
-        for qualite in stride(from: 0.85, through: 0.35, by: -0.1) {
-            guard let donnees = jpegData(compressionQuality: qualite) else { continue }
-            if donnees.count <= borne { return donnees }
-        }
-        // Une image qui résiste à 0,35 est pathologique — un bruit de fond
-        // photographique, que le JPEG ne sait pas compresser. On la réduit
-        // alors vraiment, plutôt que de la refuser.
-        return reduite(a: 256)?.jpegData(compressionQuality: 0.6)
-    }
-
-    /// Réduit l'image pour que son plus grand côté tienne dans `cote`.
-    ///
-    /// Rend `self` quand elle est déjà assez petite : réencoder une image qui
-    /// n'en a pas besoin lui coûte une génération de qualité pour rien.
-    func reduite(a cote: CGFloat) -> UIImage? {
-        let plusGrand = max(size.width, size.height)
-        guard plusGrand > cote else { return self }
-
-        let facteur = cote / plusGrand
-        let cible = CGSize(width: size.width * facteur, height: size.height * facteur)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: cible, format: format).image { _ in
-            draw(in: CGRect(origin: .zero, size: cible))
-        }
-    }
 }

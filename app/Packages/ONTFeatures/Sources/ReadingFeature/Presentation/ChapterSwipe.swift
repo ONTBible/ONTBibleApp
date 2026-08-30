@@ -550,7 +550,16 @@ private struct Pastille: View {
     let densite: Double
 
     var body: some View {
-        let teinte = theme.ink.mix(with: .white, by: densite)
+        // **Mêlée à la main, et non par `mix(with:by:)`.**
+        //
+        // Celui-ci demande macOS 15 quand le paquet en déclare 14 : l'appel ne
+        // cassait que la compilation du Mac, invisible depuis un build iOS.
+        // C'est exactement ce qui était arrivé au dégradé de l'ouverture, et
+        // pour la même raison.
+        //
+        // L'interpolation linéaire par composante est ce que `mix` fait ; on
+        // la pose donc, sans dépendre d'une version.
+        let teinte = ONTColors.melange(theme.ink, vers: .white, part: densite)
         Text("\(numero)")
             .font(.title3.weight(.medium))
             .monospacedDigit()
@@ -724,6 +733,19 @@ extension EnvironmentValues {
 
 // MARK: - Le glissement de retour du système
 
+// MARK: - Le geste de retour du système
+
+// **iOS seulement, et ce n'est pas un manque du Mac.**
+//
+// Ce qui suit coupe le glissement de retour du `UINavigationController` pour le
+// rendre nous-mêmes. Le Mac n'a ni ce geste ni ce contrôleur : il n'y a rien à
+// couper, et rien à remplacer. Une fenêtre se referme par son bouton, et le
+// lecteur ne cherche pas à la faire glisser.
+//
+// C'est une différence qui se **décide**, pas qui se traduit — d'où ce `#if`
+// ici plutôt qu'une intention dans `ONTPlateformes`, où ne vivent que les
+// choses que les deux plateformes nomment autrement.
+#if os(iOS)
 extension View {
     /// Coupe le glissement de retour du système sur cette vue, et le rend en
     /// partant.
@@ -760,3 +782,18 @@ private struct CoupeGesteDeRetour: UIViewControllerRepresentable {
         }
     }
 }
+
+
+#else
+
+    extension View {
+        /// Sur le Mac, il n'y a **rien à couper** : ni glissement de retour, ni
+        /// `UINavigationController` pour le porter. La vue passe telle quelle.
+        ///
+        /// Écrit plutôt que borné au point d'appel : une vue qui déclare « pas
+        /// de geste système ici » dit la même chose sur les deux plateformes,
+        /// et c'est au design system de savoir que l'une n'a rien à faire.
+        func sansGesteDeRetourSysteme() -> some View { self }
+    }
+
+#endif
