@@ -1,8 +1,13 @@
 import CryptoKit
 import Foundation
-import UIKit
 import UserNotifications
 import os
+
+#if canImport(UIKit)
+    import UIKit
+#elseif canImport(AppKit)
+    import AppKit
+#endif
 
 /// L'enregistrement auprès d'Apple, pour être prévenu **à l'instant**.
 ///
@@ -94,9 +99,9 @@ enum PushDistant {
         guard accorde else { return false }
 
         UserDefaults.standard.set(true, forKey: cleConsentement)
-        // C'est iOS qui rend le jeton, de façon asynchrone, au délégué. On ne
-        // fait ici que le demander.
-        UIApplication.shared.registerForRemoteNotifications()
+        // C'est le système qui rend le jeton, de façon asynchrone, au délégué.
+        // On ne fait ici que le demander.
+        sInscrireAuprèsDApple()
         return true
     }
 
@@ -111,7 +116,35 @@ enum PushDistant {
             await retirer(empreinte)
             UserDefaults.standard.removeObject(forKey: cleEmpreinte)
         }
-        UIApplication.shared.unregisterForRemoteNotifications()
+        seDesinscrireDApple()
+    }
+
+    // MARK: - Les deux seules lignes qui connaissent la plateforme
+
+    /// **Tout le reste de ce fichier est neutre**, et c'est ce qui a permis au
+    /// Mac de le reprendre sans rien réécrire : le consentement, l'empreinte,
+    /// l'appel au serveur et l'ordre de retrait valent des deux côtés. APNs ne
+    /// distingue pas non plus les deux plateformes — c'est le même service, le
+    /// même format de jeton, le même registre côté backend.
+    ///
+    /// Ne diffère que **le nom de l'application** : `UIApplication` d'un côté,
+    /// `NSApplication` de l'autre, avec la même méthode. Les isoler ici plutôt
+    /// que de semer des `#if` dans la logique garde le fichier lisible et dit
+    /// où est la frontière — elle tient en deux fonctions.
+    private static func sInscrireAuprèsDApple() {
+        #if canImport(UIKit)
+            UIApplication.shared.registerForRemoteNotifications()
+        #elseif canImport(AppKit)
+            NSApplication.shared.registerForRemoteNotifications()
+        #endif
+    }
+
+    private static func seDesinscrireDApple() {
+        #if canImport(UIKit)
+            UIApplication.shared.unregisterForRemoteNotifications()
+        #elseif canImport(AppKit)
+            NSApplication.shared.unregisterForRemoteNotifications()
+        #endif
     }
 
     /// Appelé par le délégué quand iOS a rendu le jeton.

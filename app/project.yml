@@ -333,10 +333,6 @@ targets:
           # Sentry n'est pas lié à cette cible : on n'instrumente pas une
           # liseuse avant qu'elle ait un seul lecteur.
           - "App/Observability.swift"
-          # Les notifications distantes passent par un autre mécanisme sur le
-          # Mac, et une liseuse de bureau n'en a pas besoin pour rendre le
-          # service qu'on lui demande.
-          - "App/PushDistant.swift"
           # **La racine d'iOS.** Le Mac a la sienne, `MacSources/RacineMac.swift`,
           # et ce n'est pas une duplication : `RootView` monte une
           # `TabView(.sidebarAdaptable)` dont AppKit dessine la barre latérale —

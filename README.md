@@ -296,10 +296,50 @@ thèmes, le moteur de rendu et les seuils de contraste ; **rien de ce qui fait l
 lecture n'est réécrit.**
 
 Ce qui diffère est borné et court : les tâches de fond (`BGTaskScheduler`
-n'existe pas ici, et une machine allumée n'en a pas besoin), Sentry, et les
-notifications distantes. Le reste des écarts passe par `ONTPlateformes`, côté
-design system : une vue déclare une intention — « ce titre est compact » —
-jamais un système.
+n'existe pas ici, et une machine allumée n'en a pas besoin) et Sentry. Le reste
+des écarts passe par `ONTPlateformes`, côté design system : une vue déclare une
+intention — « ce titre est compact » — jamais un système.
+
+**Les notifications, elles, ne diffèrent plus.** Elles figuraient dans cette
+liste sur une note affirmant que le Mac « les gère autrement ». Il ne les gérait
+pas du tout : `RacineMac` rendait `false` au réglage des parutions et `true` au
+verset du jour sans rien programmer — un interrupteur qui refusait de s'allumer,
+et un autre qui s'allumait pour rien.
+
+Rien ne l'empêchait. `UserNotifications` existe sur macOS, et
+`DailyVerseNotifications` était déjà compilée dans la cible sans que personne
+l'appelle. APNs ne distingue pas non plus les deux plateformes : même service,
+même format de jeton, même registre côté backend. `PushDistant` n'était UIKit
+que par **deux lignes** — `registerForRemoteNotifications` —, isolées depuis
+dans deux fonctions privées derrière un `#if canImport`.
+
+### L'échelle de l'interface, et ce que les listes en font
+
+⌘= grossit l'interface — `ONTEchelleUI`, puisque `dynamicTypeSize` est inerte
+ici. Deux chemins mènent au texte, et il faut savoir lequel on emprunte :
+
+- **déclarer la fonte** — `ONTUI.body`, `ONTUI.points(14)`. C'est ce que fait la
+  barre latérale, et ça marche partout ;
+- **s'en remettre à l'environnement**, que `AvecLaFonteDeLInterface` pose sur
+  toute la fenêtre. Ça marche partout **sauf dans une `List`**.
+
+Une `List` de macOS ne transmet pas `\.font` à ses lignes : elle leur pose la
+fonte système de son style. L'environnement n'est pas perdu — la même vue posée
+à côté de la liste grossit — il est écrasé au passage. Mesuré au pixel, facteur
+forcé à 1,5, où 32 px valent 13 pt et 48 px valent 19,5 :
+
+| ce qu'on pose | dans une `List` |
+|---|---|
+| rien (l'environnement seul) | 32 px — ne suit pas |
+| `.font()` sur la `List` | 32 px — ne suit pas |
+| `.font()` sur une `Section` | 32 px — ne suit pas |
+| `.font()` sur un `Text` de ligne | 48 px — suit |
+| `.font()` sur un `Label` de ligne | 32 px — ne suit pas |
+| un `LabelStyle` | 48 px — suit |
+
+D'où `FonteDesListes`, deux styles posés une fois sur le détail. Les en-têtes de
+section et les `Text` nus de `YouTab` restent hors d'atteinte : aucun
+modificateur extérieur ne les touche, il faudra qu'ils déclarent `ONTUI`.
 
 ### Lire ses brouillons
 

@@ -9,14 +9,30 @@
 	     parte. L'app affichait « la connexion avec Apple n'a pas abouti »,
 	     ce qui était vrai et n'aidait personne.
 
-	     Le fichier est distinct de `ONT.entitlements` parce que les deux
-	     plateformes ne demandent pas les mêmes choses : pas d'`aps-environment`
-	     ici, les notifications distantes du Mac passant par un autre chemin.
-	     Les liens universels, eux, valent des deux côtés. -->
+	     Les liens universels valent des deux côtés. -->
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
 	</array>
+
+	<!-- Les notifications distantes.
+
+	     Le Mac en était exclu, sur une note qui affirmait qu'il « les gère
+	     autrement ». C'était faux : il ne les gérait pas du tout, et
+	     `RacineMac` rendait `false` au réglage des parutions — le lecteur
+	     voyait un interrupteur qui refusait de s'allumer, sans rien qui
+	     l'explique.
+
+	     APNs ne distingue pas les deux plateformes : même service, même
+	     format de jeton, même registre côté backend. Ce qui manquait était ce
+	     droit et deux appels — `NSApplication` au lieu d'`UIApplication`.
+
+	     `development` et non `production` : c'est ce qu'un profil de
+	     développement délivre, et le backend refuse un jeton dont
+	     l'environnement ne correspond pas au sien. La chaîne de livraison le
+	     bascule à `production` en signant, comme sur iOS. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:ontbible.com</string>
