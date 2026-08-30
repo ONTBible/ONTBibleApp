@@ -18,6 +18,7 @@ struct BarreLateraleONT: View {
     @Environment(ReadingModel.self) private var reading
     @Environment(AccountModel.self) private var compte
     @Environment(\.ontTheme) private var theme
+    private var espace = ONTSpacing()
 
     var body: some View {
         List {
@@ -41,12 +42,53 @@ struct BarreLateraleONT: View {
             // Seulement les corpus qui ont un livre à proposer : un en-tête
             // « Berit Hadashah » suivi de rien annoncerait un rayon vide.
             ForEach(corpusPeuplés) { corpus in
-                Section(corpus.title) {
-                    ForEach(livresRédigés(de: corpus)) { livre in
-                        LigneDeBarre(
-                            cible: .book(livre.id), titre: livre.title,
-                            symbole: "book.pages")
+                Section {
+                    // Le pli est fait à la main, et non par `Section(isExpanded:)`.
+                    //
+                    // Celui-ci replie bien, mais **dessine son propre chevron
+                    // au survol** — l'auteur en a vu deux, le sien et le nôtre,
+                    // dès que la souris passait sur l'en-tête. Et le sien
+                    // n'apparaît qu'au survol, là où l'iPad l'affiche toujours.
+                    // Deux raisons de ne pas le prendre, la seconde étant la
+                    // vraie : on veut le témoin visible.
+                    if !repliés.contains(corpus.id) {
+                        ForEach(livresRédigés(de: corpus)) { livre in
+                            LigneDeBarre(
+                                cible: .book(livre.id), titre: livre.title,
+                                symbole: "book.pages")
+                        }
                     }
+                } header: {
+                    // **Un en-tête à nous, et non celui du système.**
+                    //
+                    // Celui du style `sidebar` compose en très petit, tout en
+                    // capitales et en gris — trois écarts d'un coup avec la
+                    // barre de l'iPad, relevés sur captures côte à côte. Le
+                    // nom d'un corpus n'est pas une étiquette de rangement :
+                    // « Kenesset » se lit, comme les livres en dessous.
+                    //
+                    // **Et le chevron est dessiné, pas hérité.**
+                    // `Section(isExpanded:)` replie bien, mais n'affiche aucun
+                    // témoin sous ce style — mesuré : la section se repliait
+                    // sans que rien ne dise qu'elle le pouvait. Sur l'iPad il
+                    // est toujours visible ; ici il l'est aussi.
+                    Button {
+                        basculer(corpus)
+                    } label: {
+                        HStack(spacing: espace.xs) {
+                            Text(corpus.title)
+                                .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: ONTUI.points(11), weight: .semibold))
+                                .rotationEffect(.degrees(repliés.contains(corpus.id) ? -90 : 0))
+                        }
+                        .foregroundStyle(theme.ink.opacity(0.7))
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .textCase(nil)
+                    .padding(.vertical, espace.xs)
                 }
             }
         }
@@ -89,6 +131,27 @@ struct BarreLateraleONT: View {
             // La même surface que la barre : la ligne du compte en fait partie,
             // elle n'est pas posée dessus.
             .background(theme.surface)
+        }
+    }
+
+    /// Les corpus qu'on a repliés, par identifiant.
+    ///
+    /// Repliable comme sur l'iPad, dont chaque section porte son chevron. Sur
+    /// un corpus complet — soixante-dix livres — c'est la différence entre une
+    /// barre qu'on parcourt et une barre qu'on défile.
+    ///
+    /// L'état n'est pas gardé d'une session à l'autre, et c'est délibéré :
+    /// rouvrir l'app sur une barre à moitié repliée ferait croire à un corpus
+    /// amputé. Le pli est un geste de lecture, pas un réglage.
+    @State private var repliés: Set<String> = []
+
+    private func basculer(_ corpus: Corpus) {
+        withAnimation(.easeOut(duration: 0.18)) {
+            if repliés.contains(corpus.id) {
+                repliés.remove(corpus.id)
+            } else {
+                repliés.insert(corpus.id)
+            }
         }
     }
 
@@ -169,14 +232,19 @@ struct LigneDeBarre: View {
                 Spacer(minLength: 0)
             }
             .foregroundStyle(encre)
-            .padding(.horizontal, espace.s)
-            .padding(.vertical, espace.xs + 2)
+            .padding(.horizontal, espace.s + 2)
+            .padding(.vertical, espace.s)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(fond, in: .rect(cornerRadius: ONTRadius.highlight + 2))
+            // **Une capsule, comme la barre native de l'iPad.**
+            //
+            // Le coin de 8 points venait du reste de l'app, où il est juste.
+            // Ici il donnait une pastille rectangulaire là où l'iPad pose un
+            // ovale plein — relevé sur capture, les deux côte à côte.
+            .background(fond, in: .capsule)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+        .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .onHover { survolée = $0 }
@@ -189,12 +257,12 @@ struct LigneDeBarre: View {
     /// L'aplat de marque quand la ligne est choisie ; un voile d'encre au
     /// survol, qui dit « on peut cliquer » sans annoncer une sélection.
     private var fond: Color {
-        if choisie { return theme.ink.opacity(0.14) }
+        if choisie { return ONTColors.brandInk(theme.mode) }
         if survolée { return theme.ink.opacity(0.07) }
         return .clear
     }
 
     private var encre: Color {
-        theme.ink
+        choisie ? ONTColors.onBrand(theme.mode) : theme.ink
     }
 }

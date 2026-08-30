@@ -105,7 +105,7 @@ public struct BibleTab: View {
                     } header: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(corpus.title)
-                                .font(.custom(ONTFonts.display, size: 15))
+                                .font(.custom(ONTFonts.display, size: ONTUI.points(15)))
                                 .textCase(nil)
                                 .foregroundStyle(ONTColors.brandInk(theme.mode))
                             // Le second nom, dans le registre choisi. Rien ne
@@ -382,7 +382,7 @@ private struct ChapterRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(libelle)
+                Text(libelle).font(ONTUI.body)
                 if let reference = stub.reference {
                     Text(reference).font(ONTUI.caption).foregroundStyle(.tertiary)
                 }

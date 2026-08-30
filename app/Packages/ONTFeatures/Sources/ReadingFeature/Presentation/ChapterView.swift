@@ -1016,7 +1016,7 @@ private struct ActionTileLabel: View {
             // dessous — et lui suit le curseur. On perd donc une icône qui
             // grandit, pas une information qui se lit.
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: ONTUI.points(18), weight: .medium))
                 .foregroundStyle(theme.accent)
                 .frame(width: 52, height: 44)
                 .background(
@@ -1464,9 +1464,9 @@ private struct FooterView: View {
 
             HStack(spacing: spacing.xs) {
                 Image(systemName: footer.locked ? "lock.fill" : "pencil.line")
-                Text(footer.locked ? "Verrouillée" : "À valider")
+                Text(footer.locked ? "Verrouillée" : "À valider").font(ONTUI.caption)
                 if let version = footer.version {
-                    Text("· Version \(version)")
+                    Text("· Version \(version)").font(ONTUI.caption)
                 }
             }
             .font(ONTUI.caption)
@@ -1881,7 +1881,7 @@ private struct ThemeRow: View {
                     if choix == selection {
                         Label(choix.label, systemImage: "checkmark")
                     } else {
-                        Text(choix.label)
+                        Text(choix.label).font(ONTUI.body)
                     }
                 }
             }
@@ -1890,7 +1890,7 @@ private struct ThemeRow: View {
                 Text("Thème")
                     .foregroundStyle(theme.ink)
                 Spacer(minLength: 8)
-                Text(selection.label)
+                Text(selection.label).font(ONTUI.body)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
                 Image(systemName: "chevron.up.chevron.down")
                     .font(ONTUI.footnote.weight(.semibold))
@@ -1916,7 +1916,7 @@ private struct FontRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(font.label)
-                        .font(.custom(ONTFonts.family(font), size: 19))
+                        .font(.custom(ONTFonts.family(font), size: ONTUI.points(19)))
                         .foregroundStyle(theme.ink)
                     Text(font.note)
                         .font(ONTUI.footnote)

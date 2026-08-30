@@ -113,7 +113,7 @@ public struct ReferencePicker: View {
                         }
                     } header: {
                         Text(corpus.title)
-                            .font(.custom(ONTFonts.display, size: 15))
+                            .font(.custom(ONTFonts.display, size: ONTUI.points(15)))
                             .textCase(nil)
                             .foregroundStyle(ONTColors.brandInk(theme.mode))
                     }
@@ -378,7 +378,7 @@ private struct LivreLigne: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(livre.title)
-                    .font(.custom(ONTFonts.display, size: 16))
+                    .font(.custom(ONTFonts.display, size: ONTUI.points(16)))
                     .foregroundStyle(livre.empty ? theme.ink.opacity(0.35) : theme.ink)
                 // Le second nom suit le registre, comme dans la liste de la
                 // Bible. Sans ça, le sélecteur restait en français même quand

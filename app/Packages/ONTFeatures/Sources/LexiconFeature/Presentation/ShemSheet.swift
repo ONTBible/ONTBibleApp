@@ -40,7 +40,7 @@ public struct ShemSheet: View {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entree.title)
-                                .font(.custom(ONTFonts.display, size: 26))
+                                .font(.custom(ONTFonts.display, size: ONTUI.points(26)))
                                 // La terre brûlée, la même qu'en lecture : le
                                 // lecteur doit reconnaître la couleur qu'il
                                 // vient de toucher.

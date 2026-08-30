@@ -74,10 +74,10 @@ public struct TermSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let hebrew = entry.hebrew {
                         Text(hebrew)
-                            .font(.custom(ONTFonts.hebrew, size: 40))
+                            .font(.custom(ONTFonts.hebrew, size: ONTUI.points(40)))
                     }
                     Text(entry.title)
-                        .font(.custom(ONTFonts.display, size: 26))
+                        .font(.custom(ONTFonts.display, size: ONTUI.points(26)))
                         .foregroundStyle(ONTColors.brandInk(theme.mode))
 
                     if let rendering = entry.rendering, rendering != entry.title {
