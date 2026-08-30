@@ -549,7 +549,9 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
+            Text(ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil))
                 .lineSpacing(theme.lineSpacing)
 
             if let note = highlight?.note {
@@ -568,7 +570,7 @@ private struct VerseRow: View {
             // fond, qui ferait croire qu'on vient de surligner.
             if let color = highlight?.color {
                 RoundedRectangle(cornerRadius: ONTRadius.highlight)
-                    .fill(ONTColors.highlight(color).opacity(ONTColors.highlightOpacity))
+                    .fill(ONTColors.highlight(color, theme.mode).opacity(ONTColors.highlightOpacity))
             }
         }
         // Toute la boîte répond, pas seulement les lettres : viser un mot pour
@@ -751,7 +753,7 @@ private struct VerseActionBar: View {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(ONTColors.highlight(color))
+                        .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -1118,7 +1120,7 @@ private struct FlowingVerses: View {
     private var surlignages: [Int: Color] {
         verses.reduce(into: [:]) { table, verse in
             guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
-            table[verse.n] = ONTColors.highlight(marque.color)
+            table[verse.n] = ONTColors.highlight(marque.color, theme.mode)
                 .opacity(ONTColors.highlightOpacity)
         }
     }

@@ -47,6 +47,16 @@ public protocol GlossaryRepository: Sendable {
     func occurrences(of lemma: String) -> [Occurrence]
 }
 
+/// Les fiches des **Shemot**.
+///
+/// **Un port distinct de `GlossaryRepository`**, et pas par symétrie : les deux
+/// populations vivent dans deux fichiers, et un port commun ferait chercher un
+/// nom propre dans le glossaire — où il n'est pas, et où la jointure échouerait
+/// sans rien dire.
+public protocol ShemotRepository: Sendable {
+    func entries() throws -> [ShemEntry]
+}
+
 // MARK: - Recherche
 
 /// L'index de recherche.

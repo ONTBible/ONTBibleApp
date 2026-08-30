@@ -3,6 +3,7 @@ package com.labibleont.ont.kit.ports
 import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.Chapter
+import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.corpus.Corpus
 import com.labibleont.ont.kit.glossary.GlossaryEntry
 import com.labibleont.ont.kit.glossary.Occurrence
@@ -56,6 +57,17 @@ public interface GlossaryRepository {
 
     /** Les passages où un lemme paraît. */
     public fun occurrences(lemma: String): kotlin.collections.List<Occurrence>
+}
+
+/**
+ * L'accès aux fiches des noms propres.
+ *
+ * Un port distinct du glossaire, comme le fichier est distinct : les Shemot ne
+ * sont pas des intraduisibles, et les mêler ferait promettre une fiche de
+ * concept là où il y a un porteur.
+ */
+public interface ShemotRepository {
+    public fun fiche(lemma: String): ShemEntry?
 }
 
 /** L'index de recherche. */

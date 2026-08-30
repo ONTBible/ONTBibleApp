@@ -75,6 +75,9 @@ import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
+import com.labibleont.ont.data.bundle.AssetShemotRepository
+import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.features.lexicon.ShemSheet
 import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.qahal.QahalModel
 import com.labibleont.ont.features.qahal.QahalTab
@@ -92,6 +95,7 @@ import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
+import com.labibleont.ont.kit.reader.LienPublic
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
@@ -246,6 +250,7 @@ public class MainActivity : ComponentActivity() {
 
         val corpus = AssetCorpusRepository(applicationContext)
         val glossaire = AssetGlossaryRepository(applicationContext)
+        val shemot = AssetShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val lecteur = FileReaderStore(applicationContext)
@@ -282,6 +287,7 @@ public class MainActivity : ComponentActivity() {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
+                    shemot = shemot,
                     recherche = recherche,
                     qahal = qahal,
                     preferences = preferences,
@@ -307,6 +313,7 @@ private fun Racine(
     onAdresseSuivie: () -> Unit,
     lecture: ReadingModel,
     lexique: LexiconModel,
+    shemot: ShemotRepository,
     recherche: SearchModel,
     qahal: QahalModel,
     preferences: ReadingPreferences,
@@ -334,6 +341,11 @@ private fun Racine(
         mutableStateOf(Ecran.Onglets)
     }
     var terme: String? by rememberSaveable { mutableStateOf(null) }
+    // Le Shem touché — un état distinct de `terme`. Les deux feuilles ne se
+    // remplacent pas : elles ne parlent pas de la même chose, et un lecteur qui
+    // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
+    // fermant.
+    var shem: String? by rememberSaveable { mutableStateOf(null) }
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
     val portee = rememberCoroutineScope()
@@ -592,7 +604,26 @@ private fun Racine(
                             ?.filter { it.n in lecture.selection }
                             ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
+                        // **Le lien manquait, et il ne manquait que chez le
+                        // destinataire.** Le texte partagé semblait complet
+                        // depuis l'app ; celui qui le recevait n'avait aucun
+                        // moyen d'ouvrir ce qu'on lui citait. iOS en pose un
+                        // depuis toujours — c'est lui qui produit la carte
+                        // d'aperçu avec la vignette de la marque.
+                        val lien = lecture.chapitre?.let {
+                            LienPublic.passage(it.bookId, it.id, lecture.selection)
+                        }
+                        partager(
+                            contexte,
+                            buildString {
+                                append("« ")
+                                append(passage)
+                                append(" »\n\n")
+                                append(lecture.renvoi())
+                                append(" — La Bible ONT")
+                                lien?.let { append("\n").append(it) }
+                            },
+                        )
                     },
                     onFermer = lecture::deselectionner,
                 )
@@ -703,6 +734,7 @@ private fun Racine(
                             },
                             onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
+                            onShem = { lemme -> shem = lemme },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
@@ -773,6 +805,18 @@ private fun Racine(
                 preferences = preferences,
                 onChange = onPreferences,
             )
+        }
+    }
+
+    shem?.let { lemme ->
+        shemot.fiche(lemme)?.let { entree ->
+            ModalBottomSheet(
+                onDismissRequest = { shem = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ONTColors.surface(theme),
+            ) {
+                ShemSheet(entree = entree, preferences = preferences)
+            }
         }
     }
 

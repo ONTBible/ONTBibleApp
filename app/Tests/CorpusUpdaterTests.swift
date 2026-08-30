@@ -45,6 +45,36 @@ struct CorpusUpdaterTests {
         }
     }
 
+    /// Le corpus publié porte-t-il une estampille lisible ?
+    ///
+    /// **Nouveau garde-fou, et il change ce que ces tests peuvent prouver.**
+    /// `CorpusUpdater` n'accepte plus qu'un corpus qu'il peut *prouver* plus
+    /// récent que celui du bundle — voir `Estampille`. Tant que le site publie
+    /// `genere: ""`, aucun téléchargement n'a lieu, et les tests qui en
+    /// attendent un n'ont rien à mesurer.
+    ///
+    /// Ils sont donc ignorés, comme quand le réseau manque, **et pas
+    /// réécrits** : le jour où la chaîne pipeline → site publie une vraie date,
+    /// ils reprennent leur office sans que personne ait à y penser. Les
+    /// abaisser à « zéro fichier, c'est bien aussi » aurait fait taire
+    /// exactement ce qu'ils gardent.
+    ///
+    /// Le refus lui-même est éprouvé sans réseau, dans `EstampilleTests` : on
+    /// ne peut pas demander au serveur de publier un corpus plus vieux que le
+    /// bundle sur commande.
+    static var corpusDatable: Bool {
+        get async {
+            let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
+            guard let (octets, _) = try? await URLSession.shared.data(from: url),
+                let manifeste = try? JSONDecoder().decode(
+                    CorpusUpdater.Manifest.self, from: octets),
+                CorpusUpdater.Estampille(manifeste.genere) != nil,
+                CorpusUpdater.estampilleEmbarquee() != nil
+            else { return false }
+            return true
+        }
+    }
+
     static var reseauDisponible: Bool {
         get async {
             let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
@@ -89,6 +119,7 @@ struct CorpusUpdaterTests {
     func synchronisationIdempotente() async throws {
         guard await Self.reseauDisponible else { return }
         guard await Self.corpusAuFormatDeLApp else { return }
+        guard await Self.corpusDatable else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }
@@ -107,6 +138,7 @@ struct CorpusUpdaterTests {
     func lectureDepuisLeDisque() async throws {
         guard await Self.reseauDisponible else { return }
         guard await Self.corpusAuFormatDeLApp else { return }
+        guard await Self.corpusDatable else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }
