@@ -125,6 +125,26 @@ impl HttpIdentityProvider {
             .map_err(|_| DomainError::ProviderRejected)
     }
 
+    /// Quels identifiants GitHub servent, selon d'où vient le code.
+    ///
+    /// Une fonction à part pour qu'on puisse l'éprouver **sans réseau** : le
+    /// choix est ce qui a été faux, et l'échange lui-même n'apprend rien de
+    /// plus. Une épreuve qui appelle GitHub pour vérifier quel identifiant on
+    /// lui présente mesure la connexion au moins autant que le code.
+    fn identifiants_github(
+        &self,
+        origine: Origine,
+    ) -> Option<&crate::infrastructure::config::OAuthCredentials> {
+        match origine {
+            Origine::App => self.config.github.as_ref(),
+            Origine::Webapp => self
+                .config
+                .github_web
+                .as_ref()
+                .or(self.config.github.as_ref()),
+        }
+    }
+
     async fn github(
         &self,
         origine: Origine,
@@ -132,14 +152,30 @@ impl HttpIdentityProvider {
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        // Deux **applications** distinctes, pas deux identifiants de la même :
-        // le portail de GitHub n'admet qu'une adresse de retour par
-        // application, et celle de l'app la prend.
-        let credentials = match origine {
-            Origine::App => self.config.github.as_ref(),
-            Origine::Webapp => self.config.github_web.as_ref(),
-        }
-        .ok_or(DomainError::ProviderNotConfigured)?;
+        // **Une seconde application GitHub est possible, elle n'est pas
+        // nécessaire.**
+        //
+        // Ce code exigeait `github_web`, sur une prémisse écrite ici même : « le
+        // portail de GitHub n'admet qu'une adresse de retour par application ».
+        // C'est faux. Le champ s'appelle « Authorization callback URLs », au
+        // pluriel, et porte un bouton « Add more ». La session du site l'a
+        // relevé sur le portail ; la rectification n'était jamais arrivée
+        // jusqu'ici, où la contrainte avait déjà servi de fondation.
+        //
+        // Le site tombait donc sur un 503 « fournisseur non configuré » pour un
+        // secret que personne n'avait de raison de créer — et le lecteur, lui,
+        // partait chez GitHub, autorisait, revenait, et se trouvait devant une
+        // erreur où il ne pouvait rien faire.
+        //
+        // On garde le champ et l'on perd l'obligation : `github_web` sert s'il
+        // est posé — quotas séparés, marque séparée le jour venu —, et l'on
+        // retombe sur l'application unique sinon. Ce qui reste vrai des deux
+        // côtés, c'est que l'adresse de retour du site doit figurer dans la
+        // liste de l'application employée : GitHub compare, et refuse ce qu'il
+        // ne connaît pas.
+        let credentials = self
+            .identifiants_github(origine)
+            .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -441,34 +477,85 @@ mod tests {
         }
     }
 
-    /// **Configuré pour l'app ne veut pas dire configuré pour le site.**
+    /// **Apple : configuré pour l'app ne veut pas dire configuré pour le site.**
     ///
-    /// Sans ce partage, le site présenterait l'App ID d'Apple ou l'application
-    /// GitHub de l'app, et recevrait un `invalid_grant` — une erreur de
-    /// fournisseur pour une clé qu'on n'a simplement pas encore créée. Il
-    /// chercherait la faute chez lui, et elle serait chez nous.
+    /// Sans ce partage, le site présenterait l'App ID d'Apple et recevrait un
+    /// `invalid_grant` — une erreur de fournisseur pour une clé qu'on n'a
+    /// simplement pas encore créée. Il chercherait la faute chez lui, et elle
+    /// serait chez nous.
     ///
     /// Le réseau n'est pas atteint : la vérification précède l'appel.
     #[tokio::test]
-    async fn le_site_se_dit_non_configure_tant_que_ses_identites_manquent() {
+    async fn apple_se_dit_non_configure_tant_que_le_services_id_manque() {
         let providers = HttpIdentityProvider::new(seulement_l_app());
 
-        for fournisseur in [Provider::Apple, Provider::Github] {
-            let erreur = providers
-                .exchange(
-                    fournisseur,
-                    Origine::Webapp,
-                    "un-code",
-                    "https://ontbible.com/fr/compte/retour",
-                    None,
-                )
-                .await
-                .expect_err("le site n'a pas encore d'identité chez ce fournisseur");
+        let erreur = providers
+            .exchange(
+                Provider::Apple,
+                Origine::Webapp,
+                "un-code",
+                "https://ontbible.com/fr/compte/retour",
+                None,
+            )
+            .await
+            .expect_err("le site n'a pas encore d'identité chez Apple");
 
-            assert!(
-                matches!(erreur, DomainError::ProviderNotConfigured),
-                "{fournisseur:?} devrait dire au site qu'il n'est pas configuré : {erreur:?}",
-            );
-        }
+        assert!(
+            matches!(erreur, DomainError::ProviderNotConfigured),
+            "Apple devrait dire au site qu'il n'est pas configuré : {erreur:?}",
+        );
+    }
+
+    /// **GitHub, lui, n'a pas besoin d'une seconde identité.**
+    ///
+    /// Le contraire était écrit ici et reposait sur une inexactitude : le
+    /// portail admet plusieurs adresses de retour par application. Le site
+    /// tombait donc sur un 503 pour un secret que personne n'avait de raison de
+    /// créer.
+    #[test]
+    fn le_site_emploie_l_application_de_l_app_a_defaut_de_la_sienne() {
+        let providers = HttpIdentityProvider::new(seulement_l_app());
+
+        let choisis = providers
+            .identifiants_github(Origine::Webapp)
+            .expect("le site retombe sur l'application de l'app");
+        assert_eq!(choisis.client_id, "app");
+    }
+
+    /// Et quand la seconde application existe, c'est elle qui sert : le repli
+    /// ne doit pas devenir un plafond.
+    #[test]
+    fn une_seconde_application_github_reste_prioritaire_pour_le_site() {
+        let config = Config {
+            github_web: Some(crate::infrastructure::config::OAuthCredentials {
+                client_id: "site".into(),
+                client_secret: "secret-du-site".into(),
+            }),
+            ..seulement_l_app()
+        };
+        let providers = HttpIdentityProvider::new(config);
+
+        assert_eq!(
+            providers
+                .identifiants_github(Origine::Webapp)
+                .unwrap()
+                .client_id,
+            "site"
+        );
+        assert_eq!(
+            providers
+                .identifiants_github(Origine::App)
+                .unwrap()
+                .client_id,
+            "app"
+        );
+    }
+
+    /// Un déploiement sans aucun identifiant GitHub le dit encore.
+    #[test]
+    fn sans_application_github_le_site_n_a_rien_a_presenter() {
+        let providers = HttpIdentityProvider::new(sans_identifiants());
+        assert!(providers.identifiants_github(Origine::Webapp).is_none());
+        assert!(providers.identifiants_github(Origine::App).is_none());
     }
 }
