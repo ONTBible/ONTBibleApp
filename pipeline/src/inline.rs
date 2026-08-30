@@ -316,10 +316,7 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
         //
         // On laisse donc l'emphase prendre le premier : `find_em_end` saute
         // déjà les paires `**`, il a été écrit pour ce cas.
-        if c == b'*'
-            && bytes.get(i + 1) == Some(&b'*')
-            && bytes.get(i + 2) != Some(&b'*')
-        {
+        if c == b'*' && bytes.get(i + 1) == Some(&b'*') && bytes.get(i + 2) != Some(&b'*') {
             if let Some(rel) = src[i + 2..].find("**") {
                 let end = i + 2 + rel;
                 if end > i + 2 {
@@ -766,7 +763,10 @@ mod tests {
         let Inline::Term { v, lemma } = &children[0] else {
             panic!("attendu un intraduisible");
         };
-        assert_eq!(v, "Elohim", "l'astérisque de l'emphase n'appartient pas au terme");
+        assert_eq!(
+            v, "Elohim",
+            "l'astérisque de l'emphase n'appartient pas au terme"
+        );
         assert_eq!(lemma, "elohim");
 
         let rendu = plain_text(&nodes, PlainOptions::default());
