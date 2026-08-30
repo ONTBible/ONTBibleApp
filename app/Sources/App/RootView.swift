@@ -73,6 +73,39 @@ struct RootView: View {
         //
         // On repose donc le thème là où il manque, plutôt que de déplacer celui
         // qui marche.
+        // **Sur le Mac, une fiche est un panneau, pas une feuille.**
+        //
+        // Une feuille modale couvre le texte et interdit d'y revenir sans la
+        // fermer. C'est le bon geste sur un téléphone, où il n'y a de place que
+        // pour une chose à la fois. Sur un bureau, la place existe : on consulte
+        // un nom **sans perdre sa ligne**, et l'on compare la fiche au verset
+        // qui l'a fait ouvrir.
+        //
+        // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
+        // même chose nommée deux fois, c'est un autre geste. Le code doit
+        // montrer qu'on a décidé.
+        #if os(macOS)
+            .inspector(isPresented: Binding(
+                get: { router.openedLemma != nil },
+                set: { if !$0 { router.openedLemma = nil } }
+            )) {
+                if let selection = router.openedLemma {
+                    TermSheet(lemma: selection.id)
+                        .ontTheme(from: reading.preferences)
+                        .inspectorColumnWidth(min: 320, ideal: 400, max: 560)
+                }
+            }
+            .inspector(isPresented: Binding(
+                get: { router.openedShem != nil },
+                set: { if !$0 { router.openedShem = nil } }
+            )) {
+                if let selection = router.openedShem {
+                    ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
+                        .ontTheme(from: reading.preferences)
+                        .inspectorColumnWidth(min: 320, ideal: 400, max: 560)
+                }
+            }
+        #else
         .sheet(item: $router.openedLemma) { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
@@ -85,6 +118,7 @@ struct RootView: View {
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }
+        #endif
     }
 
     /// Le seul endroit qui connaît `UserNotifications`.
