@@ -38,6 +38,21 @@ public sealed interface Inline {
     public data class Term(public val value: String, public val lemma: String) : Inline
 
     /**
+     * Un **Shem** — un nom propre, balisé `[[Ainsi]]` dans le vault.
+     *
+     * Ce n'est pas un intraduisible : `chesed` est en hébreu parce que « bonté »
+     * rate quelque chose, `Avraham` est simplement **non traduit**. Les
+     * confondre promettrait une fiche de concept là où il y a un porteur.
+     *
+     * Ce n'est pas un lien non plus. Le pipeline émet un type propre pour que
+     * les liseuses n'aient jamais à reconnaître un nom à la forme de son
+     * `href` — une règle qui casse au premier `Na'amah` ou `Tuval-Qayin`.
+     *
+     * [value] s'affiche, [lemma] ouvre la fiche.
+     */
+    public data class Shem(public val value: String, public val lemma: String) : Inline
+
+    /**
      * `(*chasdo* / חַסְדּוֹ)`.
      *
      * Les deux parts sont séparées parce qu'elles ne se composent pas de la
@@ -150,7 +165,11 @@ private fun kotlin.collections.List<Inline>.brut(
     for (node in this@brut) {
         when (node) {
             is Inline.Text -> append(node.value)
+            // Un Shem est du corps de texte : le nom **est** ce que la phrase
+            // dit. L'éteindre laisserait la phrase sans sujet — au contraire de
+            // l'appareil, qu'on retire sans rien perdre.
             is Inline.Term -> append(node.value)
+            is Inline.Shem -> append(node.value)
             is Inline.Hebrew -> if (level3) append(node.value)
             is Inline.Translit ->
                 if (level3) append("(${node.translit} / ${node.hebrew})")
@@ -169,6 +188,10 @@ public val kotlin.collections.List<Inline>.lemmas: kotlin.collections.List<Strin
     get() = flatMap { node ->
         when (node) {
             is Inline.Term -> listOf(node.lemma)
+            // Les Shemot n'y entrent pas : `lemmas` alimente le lexique des
+            // **intraduisibles**, et un nom propre n'en est pas un. Les mêler
+            // ferait promettre une fiche de concept là où il y a un porteur.
+            is Inline.Shem -> emptyList()
             is Inline.Gloss -> node.children.lemmas
             is Inline.Emphasis -> node.children.lemmas
             is Inline.Accentuation -> node.children.lemmas

@@ -95,9 +95,75 @@ public enum ONTColors {
         }
     }
 
+    /// La terre brûlée des **Shemot** — les noms propres.
+    ///
+    /// Une troisième couche de marquage, à côté de l'or des intraduisibles et
+    /// du bordeaux de l'accentuation. Le choix de la teinte est celui de
+    /// l'auteur, parmi cinq candidats rendus sur *Bereshit* 4:17 dans les
+    /// quatre thèmes.
+    ///
+    /// **Un vieil or était impossible** : l'espace chaud est occupé. Bronze à
+    /// ΔE 11 de l'or, brun doré à 17, cuivre à 20 — le lecteur n'aurait plus
+    /// distingué un concept d'un nom.
+    ///
+    /// `#603518` le jour, remonté à teinte constante sur fond sombre comme le
+    /// bordeaux devient rose.
+    ///
+    /// **Trois valeurs se sont succédé, et chacune tombait sur une mesure que
+    /// la précédente n'avait pas faite** :
+    ///
+    ///     #A3704D   4,33:1   sous AA — mesuré contre les autres marquages,
+    ///                        jamais contre le fond
+    ///     #AA7550   4,66:1   au-dessus d'AA, mais le marquage le plus faible
+    ///                        du thème sombre — l'or y est à 9,8, le bordeaux
+    ///                        à 6,15
+    ///     #BA8C6C   6,17:1   ici. À hauteur du bordeaux, qui est le seuil que
+    ///                        ce projet s'est donné en le remontant lui-même
+    ///
+    /// Le commentaire de `accentuation` dit du rose qu'il tient « 6,1:1 sur le
+    /// fond — au-delà du seuil AA ». **Le projet a donc un standard plus haut
+    /// qu'AA**, écrit nulle part et tenu partout ; le Shem s'y range.
+    ///
+    /// `ContrastesTests` mesure maintenant tout ça au lieu de le commenter.
+    public static func shem(_ theme: ReadingTheme) -> Color {
+        theme.isDark
+            ? Color(red: 0.729, green: 0.549, blue: 0.424)
+            : Color(red: 0.376, green: 0.208, blue: 0.094)
+    }
+
     /// L'or lisible sur le fond du thème — sur parchemin l'or pur passe mal.
     public static func accent(_ theme: ReadingTheme) -> Color {
         theme.isDark ? gold : goldDeep
+    }
+
+    /// L'or du **numéro de verset, quand son verset est surligné**.
+    ///
+    /// Le numéro de verset est le seul rôle doré qui s'affiche par-dessus un
+    /// surlignage — les autres (brouillon, puces, pied d'unité) sont hors du
+    /// corps du texte. Et le sol change sous lui : ce n'est plus la page, c'est
+    /// la page voilée à 0,38 par la teinte que le lecteur a posée.
+    ///
+    /// Sur les thèmes clairs, l'or n'a pas de quoi encaisser ce voile :
+    ///
+    ///     parchemin   page nue 3,11   sous voile 2,53
+    ///     clair       page nue 3,39   sous voile 2,68
+    ///
+    /// **Le seuil de 3:1 n'est pas en cause — la valeur l'est.** Que l'or se
+    /// repère au lieu de se lire est une décision inscrite, et elle tient. Mais
+    /// elle a été prise en regardant la page nue, un sol où l'or a 0,11 de
+    /// marge ; elle n'a jamais examiné celui-ci. Tenir la décision, c'est donc
+    /// bouger la valeur là où le sol a changé — pas abaisser la barre.
+    ///
+    /// D'où `#967A48` sous voile, sur les thèmes clairs seulement : la même
+    /// opération de clarté à teinte constante qui a donné le rose du bordeaux,
+    /// la terre brûlée du Shem et la palette de nuit des surlignages. Elle rend
+    /// 3,02:1 au pire voile. La marque du projet, elle, ne bouge pas d'un cran
+    /// partout où elle s'affiche aujourd'hui.
+    ///
+    /// Sur les thèmes sombres, `accent` tient déjà par-dessus la palette de
+    /// nuit — rien à corriger, donc rien à changer.
+    public static func accentSurSurlignage(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? accent(theme) : Color(red: 0.588, green: 0.478, blue: 0.282)
     }
 
     /// L'encre d'un **titre** — plus vive que celle du corps.
@@ -278,7 +344,51 @@ public enum ONTColors {
     /// Cinq teintes tirées vers le pastel plutôt que le fluo d'écolier : un
     /// surlignage se pose sur un texte qu'on lit longtemps, il ne doit pas
     /// crier ni rendre le texte illisible.
-    public static func highlight(_ color: HighlightColor) -> Color {
+    /// La teinte d'un surlignage, **sur le thème où elle se pose**.
+    ///
+    /// ## Le seul jeton qui ignorait le thème
+    ///
+    /// `ink`, `accent`, `accentuation`, `shem`, `surface`, `separator` — tous
+    /// prennent `ReadingTheme`. Le surlignage, non : il posait cinq pastels
+    /// choisis pour du parchemin sur une nuit aubergine.
+    ///
+    /// **Ce que ça donnait**, voile à 0,38 sur fond sombre :
+    ///
+    ///     encre 5,5   or 4,1   bordeaux 2,6   Shem 1,9
+    ///
+    /// Le voile éclaircit le fond ; le texte, lui, avait été choisi pour du
+    /// noir. Un intraduisible en or sur un surlignage or ne se distinguait plus
+    /// du texte ordinaire — c'est-à-dire précisément le mot que le lecteur
+    /// avait voulu retenir.
+    ///
+    /// ## Ce qui a été écarté
+    ///
+    /// **Baisser l'opacité ne marche pas.** Mesuré : sur fond clair on plafonne
+    /// à 2,9 même à 0,12, parce que le coupable y est l'or à 3,11 *sans aucun
+    /// surlignage*. Et sur fond sombre, où ça marcherait, il faut 0,12 — à ce
+    /// niveau le surlignage ne se détache plus du fond que de 1,25:1. On aurait
+    /// un surlignage invisible pour sauver un mot lisible.
+    ///
+    /// ## La palette de nuit
+    ///
+    /// Même teinte, clarté descendue jusqu'à ce que **tous** les marquages
+    /// tiennent 4,6:1 sur **les deux** fonds sombres — pas seulement le plus
+    /// clément. La saturation est conservée : c'est elle qui fait qu'on
+    /// reconnaît « le bleu » et « le rose » l'un de l'autre à travers cinq
+    /// surlignages.
+    public static func highlight(_ color: HighlightColor, _ theme: ReadingTheme) -> Color {
+        guard theme.isDark else { return highlightDeJour(color) }
+        return switch color {
+            case .gold: Color(red: 0.413, green: 0.323, blue: 0.068)
+            case .olive: Color(red: 0.303, green: 0.347, blue: 0.163)
+            case .sky: Color(red: 0.161, green: 0.358, blue: 0.469)
+            case .rose: Color(red: 0.672, green: 0.168, blue: 0.168)
+            case .violet: Color(red: 0.415, green: 0.257, blue: 0.593)
+        }
+    }
+
+    /// Les cinq pastels d'origine, pour le parchemin et le blanc.
+    private static func highlightDeJour(_ color: HighlightColor) -> Color {
         switch color {
         case .gold: Color(red: 0.91, green: 0.79, blue: 0.45)
         case .olive: Color(red: 0.72, green: 0.78, blue: 0.53)
