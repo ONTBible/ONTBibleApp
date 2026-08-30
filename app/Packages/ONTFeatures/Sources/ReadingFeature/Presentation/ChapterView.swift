@@ -252,6 +252,44 @@ struct ChapterView: View {
         // en grande partie cette animation elle-même. Assez court pour suivre
         // le doigt, assez long pour qu'on voie d'où la barre vient.
         .animation(.snappy(duration: 0.14), value: selection.isEmpty)
+        // **Chaque verset se sent, et les trois moments ne se ressemblent pas.**
+        //
+        // On désigne un verset en regardant le texte, pas la barre qui monte du
+        // bas de l'écran. Sans retour tactile, le seul signe que quelque chose
+        // a changé est hors du regard — et il l'est d'autant plus quand le
+        // corps est réglé grand et que la barre sort du champ.
+        //
+        // Le déclencheur est le **`Set` lui-même** et non son `isEmpty`. Un
+        // booléen ne bascule qu'aux frontières du mode : ajouter un deuxième,
+        // un troisième verset ne le changeait pas, donc rien ne se sentait
+        // au-delà du premier. C'est l'écart que l'auteur a senti sur Android
+        // avant de le demander ici.
+        //
+        // Trois sensations, pour savoir **sans regarder** ce qu'on vient de
+        // faire :
+        //
+        // * **on entre** — un choc net, medium. C'est un mode qui s'ouvre, et
+        //   c'est le seul des trois moments qui change ce que l'écran fait ;
+        // * **on ajoute ou on retire** — `.selection`, le retour qu'iOS réserve
+        //   au déplacement d'une poignée de sélection de texte. Étendre une
+        //   sélection est exactement ça ;
+        // * **on sort** — un choc léger, plus discret que l'entrée. La
+        //   dissymétrie est voulue : entrer demande de l'attention, sortir
+        //   rend la page.
+        //
+        // Android en a deux là où nous en avons trois — `LongPress` puis
+        // `TextHandleMove`, sa sortie se confondant avec un retrait. C'est un
+        // écart connu et assumé, pas un oubli.
+        .sensoryFeedback(trigger: selection) { avant, apres in
+            switch (avant.isEmpty, apres.isEmpty) {
+            case (true, false): .impact(weight: .medium, intensity: 0.5)
+            case (false, true): .impact(weight: .light, intensity: 0.35)
+            // Le `Set` a changé sans franchir de frontière : un verset de plus
+            // ou de moins. Et s'il n'a pas changé du tout, SwiftUI ne nous
+            // appelle pas — le déclencheur est `Equatable`.
+            default: .selection
+            }
+        }
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
@@ -511,7 +549,9 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
+            Text(ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil))
                 .lineSpacing(theme.lineSpacing)
 
             if let note = highlight?.note {
@@ -530,7 +570,7 @@ private struct VerseRow: View {
             // fond, qui ferait croire qu'on vient de surligner.
             if let color = highlight?.color {
                 RoundedRectangle(cornerRadius: ONTRadius.highlight)
-                    .fill(ONTColors.highlight(color).opacity(ONTColors.highlightOpacity))
+                    .fill(ONTColors.highlight(color, theme.mode).opacity(ONTColors.highlightOpacity))
             }
         }
         // Toute la boîte répond, pas seulement les lettres : viser un mot pour
@@ -713,7 +753,7 @@ private struct VerseActionBar: View {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(ONTColors.highlight(color))
+                        .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -768,7 +808,19 @@ private struct VerseActionBar: View {
                 .frame(maxWidth: .infinity)
             }
             ActionTile(title: "Copier", icon: "doc.on.doc") {
-                UIPasteboard.general.string = shareText
+                // **Le lien vient aussi.**
+                //
+                // Le partage l'emportait, le presse-papier non — et rien ne le
+                // disait. Le lecteur qui allume la bascule du lien la croit
+                // vraie partout ; il colle son verset dans un message, et le
+                // lien manque sans qu'aucun écran ne lui ait annoncé
+                // l'exception.
+                //
+                // Une seule chaîne ici, et non deux objets comme au partage :
+                // un presse-papier n'a qu'un contenu, et la ligne à part fait
+                // que le destinataire peut citer le texte sans traîner
+                // l'adresse.
+                UIPasteboard.general.string = texteACopier
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -827,17 +879,25 @@ private struct VerseActionBar: View {
     /// translittérations, ni hébreu. L'appareil critique appartient à la
     /// liseuse, pas à une capture qui part dans une conversation.
     private var shareText: String {
-        let body = chapterVerses
-            .filter { selection.contains($0.n) }
-            .map { verse in
-                verse.nodes.plainText()
-                    .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespaces)
-            }
-            .joined(separator: " ")
-
-        return "\(body)\n\n— \(reference), La Bible ONT"
+        // Le repli des espaces est fait par `plainText()` depuis qu'il écrit
+        // au fil — et mieux : retours à la ligne préservés, ponctuation
+        // française respectée. Le `{2,}` qui traînait ici écrasait tout.
+        Partage.composer(
+            chapterVerses
+                .filter { selection.contains($0.n) }
+                .map { Partage.Morceau(numero: $0.n, texte: $0.nodes.plainText()) },
+            reference: reference,
+            reglages: model.preferences.partage
+        )
     }
+
+    /// Ce que le bouton « Copier » met dans le presse-papier.
+    ///
+    /// Le même texte que le partage, plus le lien sur sa propre ligne quand la
+    /// bascule l'allume. Séparé par une ligne blanche, comme la signature, et
+    /// pour la même raison : ce qui se cite doit pouvoir se détacher de ce qui
+    /// l'accompagne.
+    private var texteACopier: String { Partage.avecLien(shareText, lien) }
 
     /// Le lien public du passage, s'il existe un domaine.
     ///
@@ -846,7 +906,8 @@ private struct VerseActionBar: View {
     /// pour qui n'a pas l'app. Mieux vaut partager sans lien que partager une
     /// adresse morte.
     private var lien: URL? {
-        Router.webLink(
+        guard model.preferences.partage.lien else { return nil }
+        return Router.webLink(
             book: chapter.bookId,
             chapter: chapter.id,
             verses: VerseRange.label(selection)
@@ -1059,7 +1120,7 @@ private struct FlowingVerses: View {
     private var surlignages: [Int: Color] {
         verses.reduce(into: [:]) { table, verse in
             guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
-            table[verse.n] = ONTColors.highlight(marque.color)
+            table[verse.n] = ONTColors.highlight(marque.color, theme.mode)
                 .opacity(ONTColors.highlightOpacity)
         }
     }

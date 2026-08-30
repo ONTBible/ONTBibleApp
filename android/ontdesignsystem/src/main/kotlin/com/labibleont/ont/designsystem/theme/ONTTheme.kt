@@ -7,6 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import android.app.Activity
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.kit.reader.ReadingTheme
 
@@ -37,6 +41,32 @@ public val LocalReadingTheme: ProvidableCompositionLocal<ReadingTheme> =
  * l'app aux teintes du fond d'écran du lecteur ; ces couleurs-ci viennent du
  * logo et de `main.css` du site, et les trois dépôts les partagent. Un lecteur
  * qui ouvre l'ONT doit y trouver l'ONT.
+ *
+ * ## Ce refus est daté, et la porte reste ouverte
+ *
+ * Gloire l'a tranché le 25 août 2026 : on garde le refus **pour l'instant**,
+ * et le lecteur pourra choisir plus tard. C'est le seul des chemins possibles
+ * qui soit réversible — rester au refus ne ferme rien, tandis qu'ouvrir puis
+ * refermer oblige à retrouver des ratios de contraste qu'on aura cessé de
+ * mesurer.
+ *
+ * Si ce choix est un jour offert, il ne portera **pas** sur la surface de
+ * lecture. Le parchemin et la nuit ne sont pas de la décoration : ce sont des
+ * conditions de lecture, dont les contrastes sont mesurés plus bas dans ce
+ * fichier. Une palette dérivée d'un fond d'écran est imprévisible par
+ * construction — elle annulerait ces mesures sans que rien ne le signale, et
+ * c'est un texte qu'on lit des heures.
+ *
+ * L'écriture ci-dessous s'y prête déjà : le schéma part de `darkColorScheme()`
+ * ou `lightColorScheme()` puis surcharge. Un jour, la base pourra venir de
+ * `dynamicColorScheme` sans que la liste des surcharges bouge — c'est
+ * exactement ce qu'il faudrait pour n'ouvrir que le mobilier.
+ *
+ * ## Ce que Material reçoit désormais en plus
+ *
+ * `typography` et `shapes`, qui manquaient. Sans elles, tout composant Material
+ * posé dans l'app repartait des valeurs de la bibliothèque — Roboto et les
+ * arrondis par défaut — pendant qu'un design system complet dormait à côté.
  */
 @Composable
 public fun ONTTheme(
@@ -113,7 +143,39 @@ public fun ONTTheme(
         onErrorContainer = encre,
     )
 
+    // ## Les icônes de la barre d'état suivent le thème de lecture
+    //
+    // `enableEdgeToEdge()` sans argument règle leur polarité sur le mode
+    // clair/sombre **du système**, pas sur celui de l'app. Les deux
+    // coïncidaient tant qu'on ne les faisait pas diverger — mais un lecteur
+    // dont le téléphone est en sombre et qui lit sur parchemin recevait des
+    // icônes blanches sur fond crème. L'heure et la batterie disparaissaient.
+    //
+    // C'est ici que ça se règle et pas dans l'activité : le seul endroit qui
+    // sache si l'on est sur parchemin ou sur la nuit, c'est le thème.
+    //
+    // `SideEffect` plutôt qu'un appel direct : on écrit dans la fenêtre, qui
+    // est hors de la composition. Le faire pendant la composition la rendrait
+    // dépendante d'un effet de bord, et le résultat varierait selon le nombre
+    // de recompositions.
+    val vue = LocalView.current
+    if (!vue.isInEditMode) {
+        val fenetre = (vue.context as? Activity)?.window
+        if (fenetre != null) {
+            SideEffect {
+                val controleur = WindowCompat.getInsetsController(fenetre, vue)
+                controleur.isAppearanceLightStatusBars = !theme.isDark
+                controleur.isAppearanceLightNavigationBars = !theme.isDark
+            }
+        }
+    }
+
     CompositionLocalProvider(LocalReadingTheme provides theme) {
-        MaterialTheme(colorScheme = schema, content = content)
+        MaterialTheme(
+            colorScheme = schema,
+            typography = ONTChromeTypography,
+            shapes = ONTShapes,
+            content = content,
+        )
     }
 }

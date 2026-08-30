@@ -4,6 +4,7 @@ import com.labibleont.ont.data.schema.Block as DtoBlock
 import com.labibleont.ont.data.schema.Book as DtoBook
 import com.labibleont.ont.data.schema.BookOutline as DtoBookOutline
 import com.labibleont.ont.data.schema.Chapter as DtoChapter
+import com.labibleont.ont.data.schema.ShemEntry as DtoShemEntry
 import com.labibleont.ont.data.schema.ChapterKind as DtoChapterKind
 import com.labibleont.ont.data.schema.CorpusOutline as DtoCorpusOutline
 import com.labibleont.ont.data.schema.DailyVerse as DtoDailyVerse
@@ -21,6 +22,7 @@ import com.labibleont.ont.data.schema.Subtitle as DtoSubtitle
 import com.labibleont.ont.data.schema.TermLevel as DtoTermLevel
 import com.labibleont.ont.data.schema.Verse as DtoVerse
 import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.BookOutline
@@ -79,6 +81,7 @@ import com.labibleont.ont.kit.search.SearchRecord
 internal fun DtoInline.versDomaine(): Inline = when (this) {
     is DtoInline.Text -> Inline.Text(v)
     is DtoInline.Term -> Inline.Term(v, lemma)
+    is DtoInline.Shem -> Inline.Shem(v, lemma)
     is DtoInline.Translit -> Inline.Translit(translit, hebrew)
     is DtoInline.Heb -> Inline.Hebrew(v)
     is DtoInline.Gloss -> Inline.Gloss(children.versDomaine())
@@ -90,6 +93,9 @@ internal fun DtoInline.versDomaine(): Inline = when (this) {
 
 internal fun kotlin.collections.List<DtoInline>.versDomaine(): kotlin.collections.List<Inline> =
     map { it.versDomaine() }
+
+internal fun DtoShemEntry.versDomaine(): ShemEntry =
+    ShemEntry(lemma = lemma, title = title, definition = definition.map { it.versDomaine() })
 
 internal fun DtoVerse.versDomaine(): Verse = Verse(n = n, nodes = nodes.versDomaine())
 
@@ -182,6 +188,7 @@ internal fun DtoBookOutline.versDomaine(): BookOutline = BookOutline(
     slot = slot,
     title = title,
     french = french,
+    glose = glose,
     hebrew = hebrew,
     groupId = groupId,
     empty = empty,

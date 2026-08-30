@@ -77,6 +77,14 @@ struct RootView: View {
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
         }
+        // **Deux feuilles et non une.** Un nom propre et un intraduisible ne
+        // vivent pas dans le même fichier, et une feuille commune devrait
+        // deviner lequel des deux on vient de toucher — elle se tromperait pour
+        // tout nom dont un concept porte le lemme.
+        .sheet(item: $router.openedShem) { selection in
+            ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
+                .ontTheme(from: reading.preferences)
+        }
     }
 
     /// Le seul endroit qui connaît `UserNotifications`.

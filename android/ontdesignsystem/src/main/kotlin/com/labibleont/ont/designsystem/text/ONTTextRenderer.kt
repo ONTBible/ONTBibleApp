@@ -15,6 +15,7 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTTypography
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.corpus.Verse
+import androidx.compose.ui.graphics.Color
 
 /**
  * Le rendu du texte ONT — les trois niveaux en typographie.
@@ -41,6 +42,9 @@ public object ONTTextRenderer {
     /** L'étiquette portée par le lien d'un intraduisible. */
     public const val TAG_TERME: String = "ont:term"
 
+    /** L'étiquette portée par le lien d'un **Shem** — un nom propre. */
+    public const val TAG_SHEM: String = "ont:shem"
+
     /** L'étiquette portée par le lien d'un verset, en lecture continue. */
     public const val TAG_VERSET: String = "ont:verse"
 
@@ -56,9 +60,10 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onShem: ((String) -> Unit)? = null,
     ): AnnotatedString = buildAnnotatedString {
         val prepares = nodes.prepared(showGloss = showGloss, showLevel3 = showLevel3)
-        ajouter(prepares, typo, inGloss = false, onTerme = onTerme)
+        ajouter(prepares, typo, inGloss = false, onTerme = onTerme, onShem = onShem)
     }
 
     /**
@@ -74,6 +79,7 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onShem: ((String) -> Unit)? = null,
         onVerset: ((Int) -> Unit)? = null,
         /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
         fond: androidx.compose.ui.graphics.Color? = null,
@@ -97,7 +103,7 @@ public object ONTTextRenderer {
     ): AnnotatedString = buildAnnotatedString {
         val corps = buildAnnotatedString {
             append(numeroDeVerset(verse.n, typo))
-            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme, onShem))
         }
 
         // ## L'estompage se calcule, il ne s'applique pas
@@ -212,11 +218,42 @@ public object ONTTextRenderer {
         typo: ONTTypography,
         inGloss: Boolean,
         onTerme: ((String) -> Unit)?,
+        onShem: ((String) -> Unit)?,
+        /**
+         * La teinte d'une accentuation englobante, s'il y en a une.
+         *
+         * ## Pourquoi elle descend au lieu d'être posée au-dessus
+         *
+         * `withStyle` empile : le style du parent est **sous** celui des
+         * enfants, et un enfant qui fixe sa propre couleur l'écrase. Or
+         * `Inline.Text` pose `corpus`, qui fixe l'encre — donc une accentuation
+         * peinte au niveau du parent était repeinte en noir par son propre
+         * contenu, aussitôt.
+         *
+         * Le symptôme trompait : l'italique d'une emphase **survivait**, parce
+         * que `corpus` ne touche pas au style de fonte. On voyait donc une
+         * mise en forme fonctionner et l'autre non, au même endroit, ce qui ne
+         * ressemblait pas à un défaut d'empilement.
+         *
+         * iOS n'a pas ce problème parce qu'il **repeint après coup** : il
+         * compose les enfants, puis parcourt les plages obtenues et leur impose
+         * la couleur. Compose ne construit pas ainsi ; la teinte doit donc
+         * voyager vers le bas.
+         */
+        accentuation: Color? = null,
     ) {
         for (node in nodes) {
             when (node) {
-                is Inline.Text ->
-                    withStyle(if (inGloss) typo.gloss else typo.corpus) { append(node.value) }
+                is Inline.Text -> {
+                    val base = if (inGloss) typo.gloss else typo.corpus
+                    withStyle(
+                        if (accentuation == null) {
+                            base
+                        } else {
+                            base.copy(color = accentuation, fontWeight = FontWeight.SemiBold)
+                        },
+                    ) { append(node.value) }
+                }
 
                 is Inline.Term -> {
                     // Dans une glose, l'intraduisible garde sa couleur d'or mais
@@ -256,6 +293,35 @@ public object ONTTextRenderer {
                     }
                 }
 
+                is Inline.Shem -> {
+                    // Même règle que l'intraduisible dans une glose : le Shem
+                    // garde sa terre brûlée et prend la taille du niveau 2.
+                    val style = if (inGloss) {
+                        typo.shem.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.shem
+                    }
+                    if (onShem == null) {
+                        withStyle(style) { append(node.value) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "$TAG_SHEM/${node.lemma}",
+                                // Sans soulignement, pour la même raison que
+                                // l'intraduisible : la teinte dit déjà la
+                                // couche, et un trait de plus ferait ressembler
+                                // le corps de la traduction à une page web.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { onShem(node.lemma) },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.value) }
+                        }
+                    }
+                }
+
                 is Inline.Hebrew ->
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 
@@ -269,7 +335,7 @@ public object ONTTextRenderer {
 
                 is Inline.Gloss -> {
                     withStyle(typo.apparatus) { append("[") }
-                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme)
+                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, onShem = onShem, accentuation = accentuation)
                     withStyle(typo.apparatus) { append("]") }
                 }
 
@@ -281,23 +347,23 @@ public object ONTTextRenderer {
                     // La couleur et la graisse se posent **par-dessus** les
                     // styles des enfants, sans les écraser : une accentuation
                     // peut contenir de l'hébreu, dont la fonte doit survivre.
-                    withStyle(
-                        SpanStyle(
-                            color = ONTColors.accentuation(typo.theme),
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                    ) {
-                        ajouter(node.children, typo, inGloss, onTerme)
-                    }
+                    ajouter(
+                        node.children,
+                        typo,
+                        inGloss,
+                        onTerme,
+                        onShem,
+                        accentuation = ONTColors.accentuation(typo.theme),
+                    )
 
                 is Inline.Emphasis ->
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                        ajouter(node.children, typo, inGloss, onTerme)
+                        ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
                     }
 
                 // Le lien du vault ne mène nulle part dans la liseuse : on en
                 // garde le texte, pas la cible.
-                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme)
+                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
 
                 Inline.LineBreak -> append("\n")
             }

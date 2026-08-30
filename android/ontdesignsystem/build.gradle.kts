@@ -98,6 +98,9 @@ dependencies {
     api(libs.compose.ui)
     api(libs.compose.ui.graphics)
     api(libs.compose.material3)
+    // `WindowCompat`, pour que le thème règle lui-même la polarité des
+    // icônes de barre système — voir `ONTTheme`.
+    implementation(libs.core.ktx)
     implementation(libs.compose.material.icons)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)

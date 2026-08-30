@@ -5,6 +5,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * L'échelle d'espacement.
@@ -55,10 +56,63 @@ public class ONTSpacing internal constructor(private val facteur: Float) {
     public operator fun invoke(points: Int): Dp = points.dp * facteur
 }
 
-/** L'échelle d'espacement du moment, suivant le curseur système. */
+/**
+ * L'échelle d'espacement, mesurée sur le texte qu'elle accompagne.
+ *
+ * ## Pourquoi pas `fontScale`
+ *
+ * On multipliait les `dp` par `LocalDensity.current.fontScale`. C'était juste
+ * jusqu'à Android 14, qui a rendu la mise à l'échelle du texte **non
+ * linéaire** — et pas d'une seule façon : le facteur dépend de la taille.
+ * Mesuré sur `ONT-Pixel9`, curseur système au maximum :
+ *
+ * ```
+ * fontScale=2.00  |  11sp ×2.000  13sp ×1.923  16sp ×1.750  22sp ×1.591  34sp ×1.222
+ * fontScale=1.50  |  11sp ×1.500  13sp ×1.538  16sp ×1.438  22sp ×1.227  34sp ×1.000
+ * ```
+ *
+ * Un petit texte grossit pleinement, un grand titre presque pas — à 1,5, un
+ * titre de 34 sp ne bouge pas d'un point. C'est délibéré : au bout du curseur,
+ * ce qui doit devenir lisible est le corps, pas les titres, et l'échelle
+ * typographique se comprime.
+ *
+ * Conséquence : `fontScale` annonce 2,0 quand le corps ne grossit que de 1,75.
+ * Des marges multipliées par 2,0 autour d'un texte grossi de 1,75 se
+ * désaccordent de 14 % — précisément au réglage employé par ceux qui montent
+ * le curseur parce qu'ils ne voient pas autrement. La documentation d'Android
+ * le dit sans détour : `fontScale` n'est plus qu'indicatif.
+ *
+ * ## Ce qu'on fait à la place
+ *
+ * On ne modélise pas la courbe — ni logarithme, ni table recopiée, qui
+ * divergeraient à la première révision d'Android. **On demande.**
+ * `taille.sp.toDp()` fait passer la conversion réelle, courbe comprise, et le
+ * rapport obtenu est le facteur exact appliqué à ce texte-là.
+ *
+ * Sous Android 14 la conversion est linéaire, et le rapport rend `fontScale` :
+ * aucun test de version à écrire.
+ *
+ * @param taille la taille du texte, en `sp`, que cet espacement entoure.
+ */
+@Composable
+@ReadOnlyComposable
+public fun ontSpacingPour(taille: Float): ONTSpacing {
+    val densite = LocalDensity.current
+    val rendu = with(densite) { taille.sp.toDp().value }
+    return ONTSpacing(rendu / taille)
+}
+
+/**
+ * L'échelle d'espacement du mobilier.
+ *
+ * Calée sur 16 sp — `bodyLarge`, le corps du mobilier. Une page de lecture
+ * doit employer [ontSpacingPour] avec la taille choisie par le lecteur : ses
+ * marges accompagnent son texte à lui, qui peut être à deux fois cette
+ * taille-ci.
+ */
 public val ontSpacing: ONTSpacing
     @Composable @ReadOnlyComposable
-    get() = ONTSpacing(LocalDensity.current.fontScale)
+    get() = ontSpacingPour(16f)
 
 /** Les rayons de courbure. */
 public object ONTRadius {

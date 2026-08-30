@@ -55,7 +55,7 @@ public fun LexiconTab(
         OutlinedTextField(
             value = model.requete,
             onValueChange = { model.requete = it },
-            placeholder = { Text("Chercher un intraduisible") },
+            placeholder = { Text("Un terme, un mot français, de l'hébreu…") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             colors = TextFieldDefaults.colors(

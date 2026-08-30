@@ -47,6 +47,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +65,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.remote.CorpusUpdater
+import com.labibleont.ont.data.remote.DiskCorpusRepository
+import com.labibleont.ont.data.remote.DiskGlossaryRepository
+import com.labibleont.ont.data.remote.DiskShemotRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
@@ -72,6 +79,9 @@ import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
+import com.labibleont.ont.data.bundle.AssetShemotRepository
+import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.features.lexicon.ShemSheet
 import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.qahal.QahalModel
 import com.labibleont.ont.features.qahal.QahalTab
@@ -89,9 +99,29 @@ import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
+import com.labibleont.ont.kit.reader.LienPublic
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.compose.runtime.collectAsState
+import com.labibleont.ont.kit.reader.LienProfond
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.labibleont.ont.features.reading.GlissementDUnite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItemColors
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import com.labibleont.ont.kit.reader.ReadingTheme
 
 /** Les quatre onglets, dans l'ordre de la liseuse iOS. */
 private enum class Onglet(val titre: String) {
@@ -100,6 +130,18 @@ private enum class Onglet(val titre: String) {
     LEXIQUE("Lexique"),
     VOUS("Vous"),
 }
+
+/**
+ * L'onglet se range par son **nom**, jamais par son rang.
+ *
+ * Un `ordinal` enregistré désignerait un autre onglet le jour où l'ordre
+ * changerait — et l'ordre est justement ce qu'on discute, puisqu'il suit
+ * aujourd'hui celui de la liseuse iOS. Un nom inconnu retombe sur Bible.
+ */
+private val OngletSaver: Saver<Onglet, Any> = Saver(
+    save = { it.name },
+    restore = { nom -> Onglet.entries.firstOrNull { it.name == nom } },
+)
 
 /**
  * Où l'on est, au-dessus des onglets.
@@ -118,6 +160,56 @@ private sealed interface Ecran {
 }
 
 /**
+ * De quoi faire survivre [Ecran] à une rotation et à la mort du processus.
+ *
+ * `rememberSaveable` passe par un `Bundle`, qui ne sait pas ranger une
+ * interface scellée. On dit donc comment : une étiquette, et l'argument quand
+ * il y en a un.
+ *
+ * ## Pourquoi la restauration ne lève jamais
+ *
+ * L'état rendu peut avoir été écrit par une **version antérieure de l'app** —
+ * le système garde le `Bundle` par-dessus une mise à jour. Une étiquette
+ * inconnue, ou un `DestinationVous` qui n'existe plus, ne doit donc pas faire
+ * planter au retour. `valueOf` aurait levé.
+ *
+ * On rend alors `null`, et non l'état de départ écrit à la main. Les deux
+ * donnent aujourd'hui le même écran, mais ils ne disent pas la même chose :
+ * `null` déclare « je n'ai pas su relire » et laisse la valeur initiale
+ * jouer, quelle qu'elle devienne. Écrire `Ecran.Onglets` ici, ce serait
+ * réaffirmer une valeur par défaut à un second endroit — et le jour où le
+ * premier changerait, celui-ci resterait en arrière sans que rien ne le
+ * signale.
+ *
+ * Un état restauré **faux** est pire qu'un état perdu : le lecteur ne peut
+ * pas savoir qu'il a été déplacé.
+ */
+private val EcranSaver: Saver<Ecran, Any> = listSaver(
+    save = { ecran ->
+        when (ecran) {
+            Ecran.Onglets -> listOf("onglets", null)
+            Ecran.Lecture -> listOf("lecture", null)
+            Ecran.Recherche -> listOf("recherche", null)
+            is Ecran.Selecteur -> listOf("selecteur", ecran.livre)
+            is Ecran.Reglage -> listOf("reglage", ecran.ou.name)
+        }
+    },
+    restore = { enregistre ->
+        val argument = enregistre.getOrNull(1)
+        when (enregistre.getOrNull(0)) {
+            "onglets" -> Ecran.Onglets
+            "lecture" -> Ecran.Lecture
+            "recherche" -> Ecran.Recherche
+            "selecteur" -> Ecran.Selecteur(argument)
+            "reglage" ->
+                DestinationVous.entries.firstOrNull { it.name == argument }
+                    ?.let { Ecran.Reglage(it) }
+            else -> null
+        }
+    },
+)
+
+/**
  * L'unique activité, et la racine de composition.
  *
  * C'est **ici** que les implémentations rencontrent les ports : `ontfeatures`
@@ -126,17 +218,67 @@ private sealed interface Ecran {
  */
 public class MainActivity : ComponentActivity() {
 
+    /**
+     * L'adresse qu'on nous demande d'ouvrir, s'il y en a une.
+     *
+     * ## Pourquoi un flux et pas une lecture de `intent` dans la composition
+     *
+     * Une `Intent` peut arriver alors que l'activité **existe déjà** — c'est
+     * même le cas courant : la notification du verset du jour ou le widget
+     * réveillent une app déjà lancée. `onCreate` ne s'exécute alors pas, et un
+     * lien lu là ne marcherait qu'à froid. D'où `onNewIntent`, et un flux que
+     * la composition observe au lieu d'un champ qu'elle relirait sans savoir
+     * qu'il a changé.
+     *
+     * `null` après consommation : sans ça, revenir sur l'app rejouerait le
+     * dernier lien et arracherait le lecteur à sa page.
+     */
+    private val adresseRecue = MutableStateFlow<String?>(null)
+
+    /**
+     * L'app était déjà là, et on lui demande d'ouvrir autre chose.
+     *
+     * `super` d'abord : sans lui, `getIntent()` continue de rendre l'ancienne
+     * et le lien suivant rouvrirait le précédent.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        adresseRecue.value = intent.dataString
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        adresseRecue.value = intent?.dataString
 
-        val corpus = AssetCorpusRepository(applicationContext)
-        val glossaire = AssetGlossaryRepository(applicationContext)
+        // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
+        // un corpus complet — elle marche au premier lancement, sans réseau — et
+        // ce qui a été téléchargé le recouvre morceau par morceau.
+        val corpus = DiskCorpusRepository(applicationContext)
+        val glossaire = DiskGlossaryRepository(applicationContext)
+        val shemot = DiskShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val lecteur = FileReaderStore(applicationContext)
 
+        // **La mise à jour du corpus, en fond, à chaque lancement.**
+        //
+        // Une correction de traduction ne devrait pas attendre une revue de
+        // Play. Le vault bouge tous les jours ; l'app, bien plus rarement.
+        //
+        // Sans attendre, et sans rien bloquer : ce qui arrive sera lu au
+        // prochain lancement. Recharger l'écran en cours de lecture déplacerait
+        // le texte sous les yeux de quelqu'un — le prix est plus élevé que le
+        // délai qu'on économise.
+        //
+        // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
+        Thread { runCatching { CorpusUpdater(applicationContext).synchroniser() } }
+            .apply { isDaemon = true }
+            .start()
+
         setContent {
+            val adresse by adresseRecue.collectAsState()
             val lecture: ReadingModel = viewModel(
                 key = "lecture",
                 factory = fabrique { ReadingModel(corpus, lecteur, lecteur, lecteur) },
@@ -163,14 +305,19 @@ public class MainActivity : ComponentActivity() {
             val preferences = lecture.preferences
 
             ONTTheme(theme = preferences.theme) {
+                AvecOuverture {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
+                    shemot = shemot,
                     recherche = recherche,
                     qahal = qahal,
                     preferences = preferences,
                     onPreferences = { lecture.changerLesPreferences(it) },
+                    adresse = adresse,
+                    onAdresseSuivie = { adresseRecue.value = null },
                 )
+                }
             }
         }
     }
@@ -184,8 +331,11 @@ public class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Racine(
+    adresse: String?,
+    onAdresseSuivie: () -> Unit,
     lecture: ReadingModel,
     lexique: LexiconModel,
+    shemot: ShemotRepository,
     recherche: SearchModel,
     qahal: QahalModel,
     preferences: ReadingPreferences,
@@ -193,14 +343,98 @@ private fun Racine(
 ) {
     val theme = LocalReadingTheme.current
     val contexte = LocalContext.current
-    var onglet by remember { mutableStateOf(Onglet.BIBLE) }
-    var ecran: Ecran by remember { mutableStateOf(Ecran.Onglets) }
-    var terme: String? by remember { mutableStateOf(null) }
-    var reglagesOuverts by remember { mutableStateOf(false) }
+    val haptique = LocalHapticFeedback.current
+    // `rememberSaveable` et non `remember` : `configChanges` n'est pas déclaré,
+    // donc l'activité est recréée à chaque changement de configuration. Avec un
+    // simple `remember`, tourner le téléphone renvoyait le lecteur à l'onglet
+    // Bible, en haut de page, quel que soit l'endroit où il lisait.
+    //
+    // Et ça ne va pas s'arranger tout seul : en `targetSdk 36`, au-delà de
+    // 600 dp de large, les fenêtres se redimensionnent librement et chaque
+    // redimensionnement recrée l'activité. Ce qui ne se voyait qu'en tournant
+    // le téléphone deviendrait une perte ordinaire sur tablette.
+    //
+    // L'onglet se range par son nom plutôt que par son rang : un `ordinal`
+    // enregistré désignerait un autre onglet le jour où l'ordre changerait.
+    var onglet by rememberSaveable(stateSaver = OngletSaver) {
+        mutableStateOf(Onglet.BIBLE)
+    }
+    var ecran: Ecran by rememberSaveable(stateSaver = EcranSaver) {
+        mutableStateOf(Ecran.Onglets)
+    }
+    var terme: String? by rememberSaveable { mutableStateOf(null) }
+    // Le Shem touché — un état distinct de `terme`. Les deux feuilles ne se
+    // remplacent pas : elles ne parlent pas de la même chose, et un lecteur qui
+    // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
+    // fermant.
+    var shem: String? by rememberSaveable { mutableStateOf(null) }
+    var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
     val portee = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
+
+    // ## Suivre une adresse reçue
+    //
+    // Elle vient d'une notification, d'un widget, ou d'une conversation. On la
+    // consomme une fois — `onAdresseSuivie` la remet à null — sinon revenir sur
+    // l'app rejouerait le dernier lien et arracherait le lecteur à sa page.
+    //
+    // La sélection est posée après `ouvrir`, jamais avant : `ouvrir` charge
+    // l'unité et remet la sélection à zéro. L'ordre inverse désignait des
+    // versets puis les oubliait aussitôt.
+    LaunchedEffect(adresse) {
+        val lien = adresse?.let { LienProfond.lire(it) } ?: return@LaunchedEffect
+        when (lien) {
+            is LienProfond.Lecture -> {
+                onglet = Onglet.BIBLE
+                ecran = Ecran.Onglets
+            }
+            is LienProfond.Livre -> {
+                onglet = Onglet.BIBLE
+                ecran = Ecran.Onglets
+                lecture.ouvrir(lien.livreId)
+            }
+            is LienProfond.Unite -> {
+                onglet = Onglet.BIBLE
+                lecture.ouvrir(lien.livreId, lien.uniteId)
+                ecran = Ecran.Lecture
+
+                // ## Les versets demandés sont bornés à ceux qui existent
+                //
+                // Une adresse vient du dehors : elle peut avoir été retapée,
+                // tronquée, ou bricolée. Sans cette borne, `?v=999` désignait
+                // un verset absent — et la position de lecture retenue s'en
+                // trouvait empoisonnée : la carte « Reprendre » aurait affiché
+                // un renvoi qui n'existe pas, et le lancement suivant aurait
+                // visé le vide.
+                //
+                // Le défaut a été trouvé côté iOS, à la faveur d'une question
+                // qu'on s'est posée en accordant le format. Il ne se voit pas
+                // dans le cas nominal — c'est exactement ce qu'un portage
+                // recopie sans le remarquer.
+                if (lien.versets.isNotEmpty()) {
+                    // `ouvrir` charge dans une coroutine : lire `chapitre` tout
+                    // de suite rendrait celui d'avant, ou `null`. On attend que
+                    // l'unité demandée soit là — avec une borne de temps, faute
+                    // de quoi un identifiant inconnu suspendrait l'effet pour
+                    // toujours et la sélection ne viendrait jamais.
+                    val arrivee = withTimeoutOrNull(5_000) {
+                        snapshotFlow { lecture.chapitre }
+                            .filterNotNull()
+                            .first { it.id == lien.uniteId }
+                    }
+                    val reels = arrivee?.verses?.map { it.n }?.toSet().orEmpty()
+                    val retenus = lien.versets.filter { it in reels }
+                    if (retenus.isNotEmpty()) {
+                        lecture.deselectionner()
+                        retenus.forEach { lecture.basculer(it) }
+                    }
+                }
+            }
+        }
+        onAdresseSuivie()
+    }
     LaunchedEffect(onglet) {
         if (onglet == Onglet.LEXIQUE) lexique.charger()
         if (onglet == Onglet.QAHAL) qahal.choisir()
@@ -239,6 +473,54 @@ private fun Racine(
         Ecran.Onglets -> null
     }
 
+    // ## La barre devient un rail quand l'écran s'élargit
+    //
+    // C'est le comportement d'iOS, qui pose `.tabViewStyle(.sidebarAdaptable)`
+    // et voit sa barre d'onglets se muer en barre latérale sur iPad. Android
+    // n'avait **rien** : la barre du bas restait la barre du bas, y compris sur
+    // une tablette ou une fenêtre redimensionnée, où elle mange de la hauteur
+    // pour rien alors que la largeur abonde.
+    //
+    // `NavigationSuiteScaffold` décide seul selon la largeur de fenêtre — et
+    // c'est bien la **fenêtre**, pas l'écran : sous `targetSdk 36`, au-delà de
+    // 600 dp, le lecteur redimensionne librement, et une mesure prise sur
+    // l'écran mentirait à chaque poignée déplacée.
+    //
+    // `None` hors des onglets : en lecture ou dans un sélecteur, il n'y a pas
+    // de destination à proposer, et un rail vide sur le côté d'un chapitre
+    // n'est qu'une bande perdue.
+    val couleursDeSuite = suiteCouleurs(theme)
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            if (ecran == Ecran.Onglets) {
+                for (o in Onglet.entries) {
+                    item(
+                        selected = onglet == o,
+                        onClick = { onglet = o },
+                        icon = {
+                            Icon(
+                                when (o) {
+                                    Onglet.QAHAL -> Icons.Filled.Groups
+                                    Onglet.BIBLE -> Icons.AutoMirrored.Filled.MenuBook
+                                    Onglet.LEXIQUE -> Icons.Filled.Translate
+                                    Onglet.VOUS -> Icons.Filled.Person
+                                },
+                                contentDescription = o.titre,
+                            )
+                        },
+                        label = { Text(o.titre) },
+                        colors = couleursDeSuite,
+                    )
+                }
+            }
+        },
+        layoutType = if (ecran == Ecran.Onglets) {
+            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        } else {
+            NavigationSuiteType.None
+        },
+        containerColor = ONTColors.background(theme),
+    ) {
     Scaffold(
         // Transparent : le fond et son grain sont posés par `ontScreen`, en un
         // seul endroit, pour qu'ils ne puissent ni manquer ni se doubler.
@@ -344,38 +626,29 @@ private fun Racine(
                             ?.filter { it.n in lecture.selection }
                             ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
+                        // **Le lien manquait, et il ne manquait que chez le
+                        // destinataire.** Le texte partagé semblait complet
+                        // depuis l'app ; celui qui le recevait n'avait aucun
+                        // moyen d'ouvrir ce qu'on lui citait. iOS en pose un
+                        // depuis toujours — c'est lui qui produit la carte
+                        // d'aperçu avec la vignette de la marque.
+                        val lien = lecture.chapitre?.let {
+                            LienPublic.passage(it.bookId, it.id, lecture.selection)
+                        }
+                        partager(
+                            contexte,
+                            buildString {
+                                append("« ")
+                                append(passage)
+                                append(" »\n\n")
+                                append(lecture.renvoi())
+                                append(" — La Bible ONT")
+                                lien?.let { append("\n").append(it) }
+                            },
+                        )
                     },
                     onFermer = lecture::deselectionner,
                 )
-            } else if (ecran == Ecran.Onglets) {
-                NavigationBar(containerColor = ONTColors.surface(theme)) {
-                    for (o in Onglet.entries) {
-                        NavigationBarItem(
-                            selected = onglet == o,
-                            onClick = { onglet = o },
-                            icon = {
-                                Icon(
-                                    when (o) {
-                                        Onglet.QAHAL -> Icons.Filled.Groups
-                                        Onglet.BIBLE -> Icons.AutoMirrored.Filled.MenuBook
-                                        Onglet.LEXIQUE -> Icons.Filled.Translate
-                                        Onglet.VOUS -> Icons.Filled.Person
-                                    },
-                                    contentDescription = o.titre,
-                                )
-                            },
-                            label = { Text(o.titre) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = ONTColors.onBrand(theme),
-                                selectedTextColor = ONTColors.brandInk(theme),
-                                indicatorColor = ONTColors.brandInk(theme),
-                                unselectedIconColor = ONTColors.inkSoft(theme),
-                                unselectedTextColor = ONTColors.inkSoft(theme),
-                            ),
-                        )
-                    }
-                }
             }
         },
     ) { marges ->
@@ -436,20 +709,60 @@ private fun Racine(
                         )
                     } else {
                         @Suppress("UNUSED_EXPRESSION") lecture.revisionDesMarques
+                        GlissementDUnite(
+                            peutAllerAvant = lecture.precedente() != null,
+                            peutAllerApres = lecture.suivante() != null,
+                            uniteCourante = chapitre.id,
+                            // Le numéro montré dans le creux, comme sur iOS :
+                            // il dit **où l'on va** avant d'y aller.
+                            numeroAvant = lecture.precedente()?.n,
+                            numeroApres = lecture.suivante()?.n,
+                            onAvant = { lecture.precedente()?.let { lecture.aller(it) } },
+                            onApres = { lecture.suivante()?.let { lecture.aller(it) } },
+                        ) {
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
                             selection = lecture.selection,
                             onVerset = { n ->
+                                // Désigner un verset ouvre le mode sélection,
+                                // l'étend, ou le referme. **Trois** sensations
+                                // distinctes, pas deux : le système réserve
+                                // `LongPress` à l'entrée dans un mode,
+                                // `TextHandleMove` au déplacement d'une poignée
+                                // de sélection de texte — ce qu'étendre la
+                                // sélection est exactement —, et `ToggleOff` à
+                                // ce qu'on éteint.
+                                //
+                                // La troisième vient d'iOS, qui l'a posée avant
+                                // nous et pour une raison qui vaut ici :
+                                // **entrer dans un mode demande de l'attention,
+                                // en sortir rend la page.** Tant que fermer et
+                                // retirer un verset se sentaient pareil, c'était
+                                // le seul geste qu'on ne pouvait pas distinguer
+                                // sans regarder — or savoir sans regarder est
+                                // tout l'objet de ces vibrations.
+                                val dernier =
+                                    lecture.selection.size == 1 && n in lecture.selection
+                                haptique.performHapticFeedback(
+                                    when {
+                                        lecture.selection.isEmpty() -> HapticFeedbackType.LongPress
+                                        dernier -> HapticFeedbackType.ToggleOff
+                                        else -> HapticFeedbackType.TextHandleMove
+                                    },
+                                )
                                 lecture.basculer(n)
                                 lecture.retenir(n)
                             },
+                            onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
+                            onShem = { lemme -> shem = lemme },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
                             },
                         )
+                        }
                     }
                 }
 
@@ -501,6 +814,7 @@ private fun Racine(
             }
         }
     }
+    }
 
     if (reglagesOuverts) {
         ModalBottomSheet(
@@ -513,6 +827,18 @@ private fun Racine(
                 preferences = preferences,
                 onChange = onPreferences,
             )
+        }
+    }
+
+    shem?.let { lemme ->
+        shemot.fiche(lemme)?.let { entree ->
+            ModalBottomSheet(
+                onDismissRequest = { shem = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ONTColors.surface(theme),
+            ) {
+                ShemSheet(entree = entree, preferences = preferences)
+            }
         }
     }
 
@@ -562,6 +888,51 @@ private fun partager(contexte: android.content.Context, texte: String) {
                 putExtra(Intent.EXTRA_TEXT, texte)
             },
             null,
+        ),
+    )
+}
+
+/**
+ * Les couleurs des entrées de navigation, quelle que soit la forme.
+ *
+ * `NavigationSuiteScaffold` rend une barre, un rail ou un tiroir selon la
+ * largeur, et chacun a son propre jeu de couleurs. Les poser une fois ici
+ * garantit que le rail d'une tablette ressemble à la barre d'un téléphone —
+ * sans quoi la même app aurait deux peaux selon l'appareil.
+ *
+ * La capsule reste teintée sur fond clair et pleine sur fond sombre, pour la
+ * raison mesurée ailleurs : sur la nuit, l'icône et la capsule sont la même
+ * couleur, et aucune opacité ne les distingue toutes les deux.
+ */
+@Composable
+private fun suiteCouleurs(theme: ReadingTheme): NavigationSuiteItemColors {
+    val capsule = if (theme.isDark) {
+        ONTColors.brandInk(theme)
+    } else {
+        ONTColors.accent(theme).copy(alpha = 0.28f)
+    }
+    val icone = if (theme.isDark) ONTColors.onBrand(theme) else ONTColors.brandInk(theme)
+    return NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            indicatorColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            indicatorColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
+        ),
+        navigationDrawerItemColors = NavigationDrawerItemDefaults.colors(
+            selectedIconColor = icone,
+            selectedTextColor = ONTColors.brandInk(theme),
+            selectedContainerColor = capsule,
+            unselectedIconColor = ONTColors.inkSoft(theme),
+            unselectedTextColor = ONTColors.inkSoft(theme),
         ),
     )
 }

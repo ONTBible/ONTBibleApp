@@ -9,7 +9,7 @@ use crate::domain::ports::{
 };
 use crate::domain::sync::{resolve, PullResponse, PushRequest};
 use crate::domain::token::{RefreshToken, TokenIssuer, UserId, REFRESH_TTL};
-use crate::domain::{DomainError, Provider};
+use crate::domain::{DomainError, Origine, Provider};
 
 /// Ce qu'une connexion réussie rend au client.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -21,6 +21,17 @@ pub struct Session {
     /// Vrai si le compte vient d'être créé — le client peut alors proposer
     /// de téléverser les annotations déjà prises hors ligne.
     pub created: bool,
+    /// L'adresse rendue par le fournisseur, quand il en donne une.
+    ///
+    /// **On la rend, on ne la garde pas.** Le compte est identifié par le
+    /// `subject` du fournisseur, jamais par l'adresse : celle-ci change, se
+    /// masque — Apple propose un relais —, et n'a de valeur que pour dire au
+    /// lecteur *sous quel compte il est connecté*.
+    ///
+    /// Absente au rafraîchissement, où l'on n'a pas réinterrogé le
+    /// fournisseur. Le client conserve alors celle qu'il avait.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 #[derive(Clone)]
@@ -49,13 +60,14 @@ impl App {
     pub async fn sign_in(
         &self,
         provider: Provider,
+        origine: Origine,
         code: &str,
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<Session, DomainError> {
         let identity = self
             .identity
-            .exchange(provider, code, redirect_uri, verifier)
+            .exchange(provider, origine, code, redirect_uri, verifier)
             .await?;
 
         let (user, created) = match self.users.find_by_identity(&identity).await? {
@@ -63,7 +75,7 @@ impl App {
             None => (self.users.create(&identity).await?, true),
         };
 
-        self.open_session(user, created).await
+        self.open_session(user, created, identity.email).await
     }
 
     /// Rafraîchissement : un jeton long contre une nouvelle paire.
@@ -74,10 +86,15 @@ impl App {
     pub async fn refresh(&self, token: &str) -> Result<Session, DomainError> {
         let digest = RefreshToken(token.to_string()).digest();
         let user = self.users.consume_refresh(&digest).await?;
-        self.open_session(user, false).await
+        self.open_session(user, false, None).await
     }
 
-    async fn open_session(&self, user: UserId, created: bool) -> Result<Session, DomainError> {
+    async fn open_session(
+        &self,
+        user: UserId,
+        created: bool,
+        email: Option<String>,
+    ) -> Result<Session, DomainError> {
         let now = self.clock.now();
 
         let access = self
@@ -96,6 +113,7 @@ impl App {
             refresh_token: refresh.0,
             expires_in: crate::domain::token::ACCESS_TTL.whole_seconds(),
             created,
+            email,
         })
     }
 
@@ -108,6 +126,12 @@ impl App {
         Ok(PullResponse {
             highlights: self.sync.highlights(user, since).await?,
             position: self.sync.position(user).await?,
+            // **Le profil ne suit pas `since`.** Il n'y en a qu'un, minuscule,
+            // et un client qui l'a déjà ne perd rien à le relire ; en revanche
+            // un client qui vient de se connecter sur un appareil neuf a
+            // `since` à jour pour tout le reste et repartirait sans son propre
+            // nom.
+            profil: self.sync.profil(user).await?,
             server_time: millis(self.clock.now()),
         })
     }
@@ -118,6 +142,29 @@ impl App {
     /// serveur : un appareil resté longtemps hors ligne ne doit pas écraser
     /// en bloc ce qu'un autre a fait entre-temps.
     pub async fn push(&self, user: &UserId, request: PushRequest) -> Result<(), DomainError> {
+        // Le profil d'abord, et arbitré comme un surlignage : dernier écrit
+        // gagné. Un appareil resté longtemps hors ligne ne doit pas réimposer
+        // un nom qu'on a changé ailleurs entre-temps.
+        if let Some(entrant) = &request.profil {
+            if !entrant.portrait_tient() {
+                // **Refusé, et nommé.** Laisser DynamoDB échouer rendrait une
+                // erreur de stockage, que le client lit comme une panne — et il
+                // réessaierait indéfiniment avec la même image.
+                tracing::warn!(
+                    taille = entrant.portrait.as_ref().map(|p| p.len()),
+                    "portrait trop grand — profil refusé"
+                );
+                return Err(DomainError::PortraitTropGrand);
+            }
+            let accepte = match self.sync.profil(user).await? {
+                Some(serveur) => entrant.updated_at > serveur.updated_at,
+                None => true,
+            };
+            if accepte {
+                self.sync.set_profil(user, entrant).await?;
+            }
+        }
+
         let existing = self.sync.highlights(user, None).await?;
 
         for incoming in &request.highlights {

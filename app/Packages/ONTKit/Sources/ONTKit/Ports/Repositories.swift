@@ -47,6 +47,16 @@ public protocol GlossaryRepository: Sendable {
     func occurrences(of lemma: String) -> [Occurrence]
 }
 
+/// Les fiches des **Shemot**.
+///
+/// **Un port distinct de `GlossaryRepository`**, et pas par symétrie : les deux
+/// populations vivent dans deux fichiers, et un port commun ferait chercher un
+/// nom propre dans le glossaire — où il n'est pas, et où la jointure échouerait
+/// sans rien dire.
+public protocol ShemotRepository: Sendable {
+    func entries() throws -> [ShemEntry]
+}
+
 // MARK: - Recherche
 
 /// L'index de recherche.
@@ -89,4 +99,20 @@ public protocol PreferencesRepository: AnyObject {
 /// charger un arbre de 750 Ko pour afficher trois lignes.
 public protocol DailyVerseRepository: Sendable {
     func pool() -> [DailyVerse]
+}
+
+/// Le profil du lecteur.
+///
+/// Un port à part et non un champ des réglages : le profil se **supprime**
+/// avec le compte, là où les réglages de lecture survivent à une
+/// déconnexion. Les mêmes données dans le même dépôt finiraient par partir
+/// ensemble, ou par rester ensemble — et l'une des deux serait fausse.
+public protocol ProfilRepository: AnyObject {
+    var profil: Profil { get set }
+    /// Écrit le portrait et rend le nom du fichier.
+    func enregistrerLePortrait(_ donnees: Data) throws -> String
+    /// Les octets du portrait, ou `nil` s'il n'y en a pas.
+    func portrait() -> Data?
+    /// Tout effacer — appelé par l'effacement du compte.
+    func oublier()
 }

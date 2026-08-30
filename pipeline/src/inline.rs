@@ -363,23 +363,56 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
             continue;
         }
 
-        // 4a. Le lien Obsidian — `[[cible]]`
+        // 4a. Le Shem — `[[Nom]]`, le lien natif d'Obsidian
+        //
+        // ## La marque est le discriminant, pas la forme de la cible
+        //
+        // On aurait pu émettre un `Link` et laisser chaque liseuse reconnaître
+        // un Shem à ce que son `href` n'a « ni schéma ni barre oblique ». C'est
+        // une règle qui casse au premier cas particulier — et il y en a :
+        // l'apostrophe de `Na'amah`, le composé de `Tuval-Qayin`, un jour un
+        // renvoi interne écrit en relatif.
+        //
+        // Elle casserait de trois manières différentes, aussi, puisque trois
+        // liseuses la referaient chacune de son côté. Mesuré avant de trancher :
+        // le site classe extérieur tout `href` qui ne commence pas par son
+        // adresse, et un Shem y devenait un lien souligné ouvrant un onglet neuf
+        // vers une page inexistante.
+        //
+        // La syntaxe `[[…]]` **est** la marque du Shem. Rien à interpréter.
+        //
+        // ## Les vrais liens gardent la leur
+        //
+        // Les renvois s'écrivent `[texte](url)` — étape 4b — et le corpus n'en
+        // compte que trois, tous vers l'extérieur. Les deux notations ne se
+        // disputent rien.
+        //
+        // ## Une fiche absente ne dégrade pas
+        //
+        // Le Shem est émis même sans fiche. Le §2.10 veut qu'une fiche dise ce
+        // qui reste à venir, et le vault porte des renvois vers des porteurs
+        // pas encore écrits : ce sont des marques de travail à faire, pas des
+        // erreurs. C'est au contrôle de les nommer, et il le fait — dégrader en
+        // texte nu ferait disparaître la liste de ce qui manque.
         if c == b'[' && bytes.get(i + 1) == Some(&b'[') {
             if let Some(rel) = src[i + 2..].find("]]") {
                 let end = i + 2 + rel;
                 if end > i + 2 {
                     let target = &src[i + 2..end];
-                    let (href, label) = match target.split_once('|') {
-                        Some((h, l)) => (h, Some(l)),
-                        None => (target, None),
+                    // `[[cible|libellé]]` — la cible joint, le libellé s'affiche.
+                    let (cible, libelle) = match target.split_once('|') {
+                        Some((c, l)) => (c.trim(), l.trim()),
+                        None => (target.trim(), target.trim()),
                     };
-                    flush!();
-                    out.push(Inline::Link {
-                        href: href.trim().to_string(),
-                        children: parse_inline(label.unwrap_or(href).trim()),
-                    });
-                    i = end + 2;
-                    continue;
+                    if !cible.is_empty() {
+                        flush!();
+                        out.push(Inline::Shem {
+                            v: libelle.to_string(),
+                            lemma: slugify(cible),
+                        });
+                        i = end + 2;
+                        continue;
+                    }
                 }
             }
         }
@@ -454,7 +487,10 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
     for node in nodes {
         match node {
             Inline::Text { v } => out.push_str(v),
-            Inline::Term { v, .. } => out.push_str(v),
+            // Un Shem est du corps de texte : le nom **est** ce que la phrase
+            // dit. L'éteindre laisserait un trou là où le lecteur attend un
+            // sujet — au contraire de l'appareil, qu'on retire sans rien perdre.
+            Inline::Term { v, .. } | Inline::Shem { v, .. } => out.push_str(v),
             Inline::Heb { v } => {
                 if options.level3 {
                     out.push_str(v);
@@ -588,6 +624,72 @@ pub fn collect_terms(nodes: &[Inline], level: TermLevel, into: &mut Vec<FoundTer
 mod tests {
     use super::*;
 
+    #[test]
+    fn le_shem_naît_de_la_marque_obsidian() {
+        let n = parse_inline("Et [[Qayin]] connut sa femme");
+        assert_eq!(types(&n), ["text", "shem", "text"]);
+        match &n[1] {
+            Inline::Shem { v, lemma } => {
+                assert_eq!(v, "Qayin");
+                assert_eq!(lemma, "qayin");
+            }
+            autre => panic!("attendu un Shem, obtenu {autre:?}"),
+        }
+    }
+
+    #[test]
+    fn le_shem_garde_la_casse_et_normalise_la_clé() {
+        // `v` s'affiche, `lemma` joint — et la clé passe par la même
+        // normalisation que les intraduisibles : l'apostrophe tombe.
+        let n = parse_inline("[[Na'amah]]");
+        match &n[0] {
+            Inline::Shem { v, lemma } => {
+                assert_eq!(v, "Na'amah");
+                assert_eq!(lemma, "naamah");
+            }
+            autre => panic!("attendu un Shem, obtenu {autre:?}"),
+        }
+    }
+
+    #[test]
+    fn le_composé_reste_distinct() {
+        // `Tuval-Qayin` ne doit pas se confondre avec `Tuval` ni avec `Qayin` :
+        // le tiret est porteur, comme pour `el-elyon`.
+        match &parse_inline("[[Tuval-Qayin]]")[0] {
+            Inline::Shem { lemma, .. } => assert_eq!(lemma, "tuval-qayin"),
+            autre => panic!("attendu un Shem, obtenu {autre:?}"),
+        }
+    }
+
+    #[test]
+    fn le_libellé_s_affiche_et_la_cible_joint() {
+        match &parse_inline("[[Qayin|son frère]]")[0] {
+            Inline::Shem { v, lemma } => {
+                assert_eq!(v, "son frère");
+                assert_eq!(lemma, "qayin");
+            }
+            autre => panic!("attendu un Shem, obtenu {autre:?}"),
+        }
+    }
+
+    #[test]
+    fn le_renvoi_markdown_reste_un_lien() {
+        // Les deux notations ne se disputent rien : `[[…]]` est un Shem,
+        // `[texte](url)` est un renvoi. Le corpus en compte trois, tous
+        // extérieurs.
+        let n = parse_inline("voir [la source](https://example.org)");
+        assert_eq!(types(&n), ["text", "link"]);
+    }
+
+    #[test]
+    fn le_shem_est_du_corps_de_texte() {
+        // Il ne s'éteint pas avec l'appareil : le nom **est** ce que la phrase
+        // dit, et l'ôter laisserait la phrase sans sujet.
+        let n = parse_inline("[[Qayin]] bâtit une ville");
+        let nu = plain_text(&n, PlainOptions::default());
+        assert_eq!(nu, "Qayin bâtit une ville");
+    }
+
     /// Le type d'un nœud, en un mot — pour comparer des formes d'arbre sans
     /// écrire la structure entière.
     fn types(nodes: &[Inline]) -> Vec<&'static str> {
@@ -601,6 +703,7 @@ mod tests {
                 Inline::Gloss { .. } => "gloss",
                 Inline::Accentuation { .. } => "accentuation",
                 Inline::Em { .. } => "em",
+                Inline::Shem { .. } => "shem",
                 Inline::Link { .. } => "link",
                 Inline::Break => "break",
             })

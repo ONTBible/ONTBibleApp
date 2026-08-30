@@ -134,7 +134,7 @@ public actor APIClient {
 
         let task = Task { [auth, store] () throws -> Session in
             do {
-                let renewed = try await auth.refresh(current.refreshToken)
+                let renewed = try await auth.refresh(current)
                 store.session = renewed
                 return renewed
             } catch {
