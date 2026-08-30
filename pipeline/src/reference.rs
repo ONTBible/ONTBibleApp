@@ -492,7 +492,19 @@ fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
     })
 }
 
-pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
+/// Une fiche du dossier `lexique/`.
+///
+/// Le **titre** est le nom du fichier tel qu'il est écrit — `Tuval-Qayin`,
+/// `Na'amah` — et non le lemme normalisé. Il porte la casse et l'apostrophe, que
+/// `slugify` retire pour joindre. Sans lui, la liseuse afficherait `naamah` en
+/// tête d'une fiche dont le texte dit `Na'amah`.
+#[derive(Debug, Clone)]
+pub struct Fiche {
+    pub titre: String,
+    pub blocs: Vec<Block>,
+}
+
+pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
     let mut fiches = HashMap::new();
     let dossier = racine.join(crate::config::LEXIQUE);
     let Ok(entrées) = std::fs::read_dir(&dossier) else {
@@ -510,10 +522,11 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
         let Ok(texte) = std::fs::read_to_string(&chemin) else {
             continue;
         };
-        let lemme = chemin
+        let nom = chemin
             .file_stem()
-            .map(|s| slugify(&s.to_string_lossy()))
+            .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let lemme = slugify(&nom);
         let blocs: Vec<Block> = texte
             .split("\n\n")
             .map(str::trim)
@@ -521,7 +534,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
             .filter_map(bloc_de_fiche)
             .collect();
         if !blocs.is_empty() {
-            fiches.insert(lemme, blocs);
+            fiches.insert(lemme, Fiche { titre: nom, blocs });
         }
     }
     fiches

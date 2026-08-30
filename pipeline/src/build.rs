@@ -4,6 +4,7 @@
 //! dist/corpus.json        l'arborescence de navigation, les 70 slots
 //! dist/books/<id>.json    le contenu complet d'un livre
 //! dist/glossary.json      le lexique des intraduisibles
+//! dist/shemot.json        les fiches des noms propres
 //! dist/occurrences.json   lemme → toutes ses occurrences
 //! dist/search.json        l'index de recherche
 //! dist/daily.json         le vivier du verset du jour
@@ -29,7 +30,8 @@ use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, ShemEntry, ShemotFile, Status, Stub,
+    TermLevel,
 };
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
@@ -591,6 +593,24 @@ pub struct BuildResult {
     /// texte : une fiche ne passe pas par l'indexation des chapitres, et sa
     /// faute restait donc muette.
     pub ors_morts: usize,
+    /// Les `[[…]]` du corpus qui ne mènent à aucune fiche.
+    ///
+    /// Ce ne sont **pas des erreurs** : le §2.10 veut qu'une fiche dise ce qui
+    /// reste à venir, et le vault porte des renvois vers des porteurs pas encore
+    /// écrits. C'est la liste de ce qui manque, et c'est pour ça qu'on ne
+    /// dégrade pas le Shem en texte nu — dégrader ferait disparaître la liste.
+    pub shemot_sans_fiche: usize,
+    /// Les intraduisibles **déclarés au §2.5 et jamais définis au §3**.
+    ///
+    /// Le trou que ce compteur bouche : `neshamah`, `emunah`, `tsadiq`,
+    /// `tsedaqah` et `mabbul` étaient balisés dans tout le corpus, affichés en
+    /// or et touchables, et le §3 ne disait rien d'eux. Trois gardes les ont
+    /// laissés passer — celle du site, et les deux d'ici.
+    ///
+    /// Aucune ne se trompait. Toutes vérifiaient que le mot **mène** quelque
+    /// part, jamais que ce quelque part **dise** quelque chose. C'est plus
+    /// facile à écrire, et c'est ce qui reste faux.
+    pub sans_definition: usize,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -627,7 +647,8 @@ pub fn build() -> Result<BuildResult, String> {
         .collect();
     fiches_orphelines.sort();
     for entry in glossary.iter_mut() {
-        if let Some(blocs) = fiches.get(&entry.lemma) {
+        if let Some(fiche) = fiches.get(&entry.lemma) {
+            let blocs = &fiche.blocs;
             entry.definition = Some(blocs.clone());
         }
     }
@@ -671,6 +692,16 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.sort();
     ors_morts.dedup();
 
+    // **Déclaré n'est pas défini.** `tagged` dit que le terme est balisé (§2.5),
+    // `definition` qu'il a un champ sémantique (§3). Un terme peut avoir l'un
+    // sans l'autre : il paraît alors en or, il est touchable, et sa fiche
+    // n'apprend rien.
+    let sans_definition: Vec<String> = glossary
+        .iter()
+        .filter(|e| e.tagged && e.definition.is_none())
+        .map(|e| e.title.clone())
+        .collect();
+
     let lu = read_chapters(&racine);
     let mut corpora = assemble(&skeleton, &lu.chapters, &book_names);
 
@@ -694,6 +725,84 @@ pub fn build() -> Result<BuildResult, String> {
         }
     }
     let corpora = corpora;
+
+    // **Les Shemot sans fiche**, relevés sur le corpus assemblé — donc sur ce
+    // que le lecteur verra, et non sur ce que le vault contient. Un renvoi dans
+    // une unité non publiée ne doit pas figurer dans la liste de travail.
+    let noms_de_fiches: HashSet<String> = fiches.keys().cloned().collect();
+    let mut shemot_sans_fiche: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in &livre.chapters {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shemot_sans_fiche(
+                                    nodes,
+                                    &noms_de_fiches,
+                                    &mut shemot_sans_fiche,
+                                )
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shemot_sans_fiche(
+                                        &v.nodes,
+                                        &noms_de_fiches,
+                                        &mut shemot_sans_fiche,
+                                    )
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_sans_fiche.sort();
+    shemot_sans_fiche.dedup();
+
+    // **On ne publie que les porteurs que le corpus nomme.** Le vault tient 305
+    // fiches, le corpus publié en emploie 205 : embarquer les cent autres
+    // ferait payer au lecteur des noms qu'aucune unité écrite ne prononce.
+    // Elles arriveront avec leurs unités.
+    let mut shemot_employes: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in &livre.chapters {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shem_lemmes(nodes, &mut shemot_employes)
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shem_lemmes(&v.nodes, &mut shemot_employes)
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_employes.sort();
+    shemot_employes.dedup();
+
+    let shemot: Vec<ShemEntry> = shemot_employes
+        .iter()
+        .filter_map(|lemme| {
+            fiches.get(lemme).map(|fiche| ShemEntry {
+                lemma: lemme.clone(),
+                title: fiche.titre.clone(),
+                definition: fiche.blocs.clone(),
+            })
+        })
+        .collect();
+
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -747,6 +856,15 @@ pub fn build() -> Result<BuildResult, String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    bytes += write_json(
+        &sortie.join("shemot.json"),
+        &ShemotFile {
+            schema: 1,
+            entries: shemot.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
 
     bytes += write_json(
         &sortie.join("glossary.json"),
@@ -916,10 +1034,48 @@ pub fn build() -> Result<BuildResult, String> {
         issues: lu.issues.len(),
         bytes,
         ors_morts: ors_morts.len(),
+        shemot_sans_fiche: shemot_sans_fiche.len(),
+        sans_definition: sans_definition.len(),
     })
 }
 
 /// Descend dans un arbre d'inline et relève les termes sans entrée.
+/// Récolte les lemmes de tous les Shemot rencontrés.
+fn collect_shem_lemmes(nodes: &[Inline], out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { lemma, .. } => out.push(lemma.clone()),
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shem_lemmes(children, out),
+            _ => {}
+        }
+    }
+}
+
+/// Récolte les Shemot dont la fiche manque.
+///
+/// Le pendant de [`collect_or_morts`] pour la troisième couche. Il ne dit pas
+/// « ce nom est faux » mais « ce porteur n'a pas encore sa fiche » — c'est une
+/// liste de travail, pas une liste d'erreurs.
+fn collect_shemot_sans_fiche(nodes: &[Inline], fiches: &HashSet<String>, out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { v, lemma } => {
+                if !fiches.contains(lemma) {
+                    out.push(format!("**{v}** — `lexique/{lemma}.md`"));
+                }
+            }
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shemot_sans_fiche(children, fiches, out),
+            _ => {}
+        }
+    }
+}
+
 fn collect_or_morts(
     nodes: &[Inline],
     connus: &HashSet<String>,

@@ -549,7 +549,9 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
+            Text(ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil))
                 .lineSpacing(theme.lineSpacing)
 
             if let note = highlight?.note {
@@ -568,7 +570,7 @@ private struct VerseRow: View {
             // fond, qui ferait croire qu'on vient de surligner.
             if let color = highlight?.color {
                 RoundedRectangle(cornerRadius: ONTRadius.highlight)
-                    .fill(ONTColors.highlight(color).opacity(ONTColors.highlightOpacity))
+                    .fill(ONTColors.highlight(color, theme.mode).opacity(ONTColors.highlightOpacity))
             }
         }
         // Toute la boîte répond, pas seulement les lettres : viser un mot pour
@@ -751,7 +753,7 @@ private struct VerseActionBar: View {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(ONTColors.highlight(color))
+                        .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -806,7 +808,19 @@ private struct VerseActionBar: View {
                 .frame(maxWidth: .infinity)
             }
             ActionTile(title: "Copier", icon: "doc.on.doc") {
-                UIPasteboard.general.string = shareText
+                // **Le lien vient aussi.**
+                //
+                // Le partage l'emportait, le presse-papier non — et rien ne le
+                // disait. Le lecteur qui allume la bascule du lien la croit
+                // vraie partout ; il colle son verset dans un message, et le
+                // lien manque sans qu'aucun écran ne lui ait annoncé
+                // l'exception.
+                //
+                // Une seule chaîne ici, et non deux objets comme au partage :
+                // un presse-papier n'a qu'un contenu, et la ligne à part fait
+                // que le destinataire peut citer le texte sans traîner
+                // l'adresse.
+                UIPasteboard.general.string = texteACopier
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -865,17 +879,25 @@ private struct VerseActionBar: View {
     /// translittérations, ni hébreu. L'appareil critique appartient à la
     /// liseuse, pas à une capture qui part dans une conversation.
     private var shareText: String {
-        let body = chapterVerses
-            .filter { selection.contains($0.n) }
-            .map { verse in
-                verse.nodes.plainText()
-                    .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespaces)
-            }
-            .joined(separator: " ")
-
-        return "\(body)\n\n— \(reference), La Bible ONT"
+        // Le repli des espaces est fait par `plainText()` depuis qu'il écrit
+        // au fil — et mieux : retours à la ligne préservés, ponctuation
+        // française respectée. Le `{2,}` qui traînait ici écrasait tout.
+        Partage.composer(
+            chapterVerses
+                .filter { selection.contains($0.n) }
+                .map { Partage.Morceau(numero: $0.n, texte: $0.nodes.plainText()) },
+            reference: reference,
+            reglages: model.preferences.partage
+        )
     }
+
+    /// Ce que le bouton « Copier » met dans le presse-papier.
+    ///
+    /// Le même texte que le partage, plus le lien sur sa propre ligne quand la
+    /// bascule l'allume. Séparé par une ligne blanche, comme la signature, et
+    /// pour la même raison : ce qui se cite doit pouvoir se détacher de ce qui
+    /// l'accompagne.
+    private var texteACopier: String { Partage.avecLien(shareText, lien) }
 
     /// Le lien public du passage, s'il existe un domaine.
     ///
@@ -884,7 +906,8 @@ private struct VerseActionBar: View {
     /// pour qui n'a pas l'app. Mieux vaut partager sans lien que partager une
     /// adresse morte.
     private var lien: URL? {
-        Router.webLink(
+        guard model.preferences.partage.lien else { return nil }
+        return Router.webLink(
             book: chapter.bookId,
             chapter: chapter.id,
             verses: VerseRange.label(selection)
@@ -1097,7 +1120,7 @@ private struct FlowingVerses: View {
     private var surlignages: [Int: Color] {
         verses.reduce(into: [:]) { table, verse in
             guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
-            table[verse.n] = ONTColors.highlight(marque.color)
+            table[verse.n] = ONTColors.highlight(marque.color, theme.mode)
                 .opacity(ONTColors.highlightOpacity)
         }
     }

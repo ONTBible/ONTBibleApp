@@ -131,7 +131,7 @@ private struct LigneDeSurlignage: View {
             // rapprochent du trait d'un marqueur, et l'éloignent d'une bordure
             // de tableau.
             Capsule()
-                .fill(ONTColors.highlight(situe.surlignage.color))
+                .fill(ONTColors.highlight(situe.surlignage.color, theme.mode))
                 .frame(width: 4)
                 .accessibilityHidden(true)
 
@@ -209,7 +209,7 @@ private struct Pastille: View {
             HStack(spacing: 6) {
                 if let couleur {
                     Circle()
-                        .fill(ONTColors.highlight(couleur))
+                        .fill(ONTColors.highlight(couleur, theme.mode))
                         .frame(width: 9, height: 9)
                 }
                 Text(titre).font(.caption)
