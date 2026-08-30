@@ -76,3 +76,50 @@ struct EchelleDeLInterfaceTests {
         #expect(TaillesAuClavier.facteur(99) == TaillesAuClavier.interface.last)
     }
 }
+
+/// **Le texte qui n'écrit aucune fonte suit-il le facteur ?**
+///
+/// L'écran « Vous » ne déclare pas une seule fonte — ses dix-huit `Text`
+/// prennent celle de l'environnement. C'est exactement le cas que l'auteur
+/// signale trois fois : « l'UI bouge mais pas le texte ». On le mesure ici
+/// plutôt que de le supposer une quatrième fois.
+@MainActor
+struct FonteDeLInterfaceTests {
+    private func hauteur(_ vue: some View) -> CGFloat {
+        ImageRenderer(content: vue.frame(width: 320)).nsImage?.size.height ?? 0
+    }
+
+    @Test("Un texte sans fonte déclarée suit le facteur")
+    func leTexteNu() {
+        let depart = ONTEchelleUI.partage.facteur
+        defer { ONTEchelleUI.partage.facteur = depart }
+
+        ONTEchelleUI.partage.facteur = 1
+        let petit = hauteur(AvecLaFonteDeLInterface { Text("Continuer avec Apple") })
+        ONTEchelleUI.partage.facteur = 1.5
+        let grand = hauteur(AvecLaFonteDeLInterface { Text("Continuer avec Apple") })
+
+        #expect(petit > 0)
+        #expect(grand > petit, "le texte nu ne suit pas : \(petit) → \(grand)")
+    }
+
+    @Test("Un texte dans un Form aussi — c'est la feuille de ⌘,")
+    func leTexteDansUnFormulaire() {
+        let depart = ONTEchelleUI.partage.facteur
+        defer { ONTEchelleUI.partage.facteur = depart }
+
+        ONTEchelleUI.partage.facteur = 1
+        let petit = hauteur(
+            AvecLaFonteDeLInterface {
+                Form { Label("Continuer avec Apple", systemImage: "apple.logo") }
+            })
+        ONTEchelleUI.partage.facteur = 1.5
+        let grand = hauteur(
+            AvecLaFonteDeLInterface {
+                Form { Label("Continuer avec Apple", systemImage: "apple.logo") }
+            })
+
+        #expect(petit > 0)
+        #expect(grand > petit, "le texte du formulaire ne suit pas : \(petit) → \(grand)")
+    }
+}
