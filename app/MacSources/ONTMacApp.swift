@@ -44,6 +44,14 @@ import YouFeature
 struct ONTMacApp: App {
     @State private var composition = Composition()
     @State private var vault = ModeVault()
+    /// La taille de l'interface, gardée d'une session à l'autre.
+    ///
+    /// Dans `AppStorage` et non dans `ReadingPreferences` : celles-ci
+    /// traversent le compte et valent pour les trois plateformes, alors que
+    /// cette taille-ci ne veut rien dire sur un téléphone, où le système la
+    /// donne déjà.
+    @AppStorage("tailleDeLInterface") private var tailleInterface =
+        TaillesAuClavier.interfaceParDefaut
 
     var body: some Scene {
         WindowGroup {
@@ -61,6 +69,9 @@ struct ONTMacApp: App {
                 // La colonne de lecture a besoin d'une largeur ; en dessous,
                 // les gloses se hachent et le texte cesse d'être lisible —
                 // ce que cette app existe précisément pour éviter.
+                .dynamicTypeSize(
+                    TaillesAuClavier.interface[
+                        min(max(tailleInterface, 0), TaillesAuClavier.interface.count - 1)])
                 .frame(minWidth: 720, minHeight: 520)
                 .environment(vault)
                 // L'état du mode vault, en bas de fenêtre et non en alerte :
@@ -84,6 +95,41 @@ struct ONTMacApp: App {
                     Button("Cesser de suivre") { vault.arreter() }
                 }
             }
+            // **Deux tailles, deux gestes.** ⌘± règle l'interface ; ⌘⌥± le
+            // corps du texte, et rien d'autre. Les confondre serait un
+            // contresens : on monte le corps très haut pour lire, sans vouloir
+            // qu'une barre latérale enfle et mange la place de ce texte.
+            //
+            // **Un seul bouton par action, lié à `+`.** J'avais d'abord doublé
+            // chaque commande avec une variante liée à `=`, parce que « ⌘+ » se
+            // tape ⌘⇧= sur la plupart des claviers. Mais SwiftUI fait déjà cette
+            // équivalence, et le doublon se voyait : deux fois « Agrandir
+            // l'interface » dans le menu, l'une répondant et l'autre non selon
+            // la touche pressée.
+            //
+            // Un menu qui montre deux fois la même chose est pire qu'un
+            // raccourci imparfait : il donne à croire que ce sont deux gestes.
+            CommandGroup(after: .toolbar) {
+                Divider()
+                Button("Agrandir l'interface") {
+                    tailleInterface = TaillesAuClavier.interfaceDeplacee(tailleInterface, de: 1)
+                }
+                .keyboardShortcut("+", modifiers: .command)
+                Button("Réduire l'interface") {
+                    tailleInterface = TaillesAuClavier.interfaceDeplacee(tailleInterface, de: -1)
+                }
+                .keyboardShortcut("-", modifiers: .command)
+                Button("Taille d'interface par défaut") {
+                    tailleInterface = TaillesAuClavier.interfaceParDefaut
+                }
+                .keyboardShortcut("0", modifiers: .command)
+
+                Divider()
+                Button("Agrandir le texte") { corps(de: 1) }
+                    .keyboardShortcut("+", modifiers: [.command, .option])
+                Button("Réduire le texte") { corps(de: -1) }
+                    .keyboardShortcut("-", modifiers: [.command, .option])
+            }
             CommandGroup(after: .toolbar) {
                 Divider()
                 Button("Thème suivant") {
@@ -97,6 +143,16 @@ struct ONTMacApp: App {
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
+    }
+
+    /// Le corps du texte, d'un cran — **le même réglage que le curseur**.
+    ///
+    /// `preferences.textSize` et pas une valeur parallèle : le raccourci doit
+    /// bouger le curseur, sinon les deux divergent et le lecteur voit un
+    /// curseur qui ment sur ce qu'il lit.
+    private func corps(de pas: Double) {
+        composition.reading.preferences.textSize = TaillesAuClavier.corpsDeplace(
+            composition.reading.preferences.textSize, de: pas)
     }
 
     /// Demande le dossier du vault, et le suit.
