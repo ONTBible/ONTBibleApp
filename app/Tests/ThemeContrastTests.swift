@@ -188,6 +188,62 @@ struct ThemeContrastTests {
             "\(theme.label) : Shem à \(arrondi(shem)):1 quand le bordeaux tient \(arrondi(bordeaux)):1")
     }
 
+    /// **Le cas qui manquait le plus, et par lequel un défaut a vécu.**
+    ///
+    /// Un verset surligné n'est plus sur le fond de la page : il est sur le
+    /// fond **voilé** par la teinte du surlignage. Aucun test ne mesurait ça,
+    /// et `highlight` était le seul jeton du système à ignorer le thème — cinq
+    /// pastels choisis pour du parchemin, posés sur une nuit aubergine.
+    ///
+    /// Ce que ça donnait, voile à 0,38 sur fond sombre :
+    ///
+    ///     encre 5,5   or 4,1   bordeaux 2,6   Shem 1,9
+    ///
+    /// C'est la même forme que « la marque employée comme encre sur une
+    /// surface » ci-dessus : **un rôle mesuré sur le seul fond de page passe et
+    /// reste illisible là où il s'affiche vraiment.**
+    @Test(
+        "chaque marquage se détache d'un verset surligné",
+        arguments: ReadingTheme.allCases, HighlightColor.allCases
+    )
+    func marquageSurUnSurlignage(_ theme: ReadingTheme, _ surlignage: HighlightColor) {
+        let assise = voile(
+            ONTColors.highlight(surlignage, theme),
+            sur: ONTColors.background(theme),
+            opacite: ONTColors.highlightOpacity
+        )
+        // L'or garde son seuil de 3:1 — il se repère, il ne se lit pas —, le
+        // reste tient AA.
+        for (nom, couleur, seuil) in [
+            ("encre", ONTColors.ink(theme), 4.5),
+            ("accentuation", ONTColors.accentuation(theme), 4.5),
+            ("Shem", ONTColors.shem(theme), 4.5),
+            // L'or que porte le numéro **sur un surlignage** — pas celui de
+            // la page nue, qui ne s'affiche jamais ici.
+            ("or du numéro", ONTColors.accentSurSurlignage(theme), 3.0),
+        ] {
+            let mesure = contraste(couleur, sur: assise)
+            #expect(
+                mesure >= seuil,
+                "\(theme.label), surlignage \(surlignage.label) : \(nom) à \(arrondi(mesure)):1, seuil \(seuil)")
+        }
+    }
+
+    /// Compose un voile sur un fond, comme le rendu le fait.
+    private func voile(_ teinte: Color, sur fond: Color, opacite: Double) -> Color {
+        func composantes(_ c: Color) -> [Double] {
+            (UIColor(c).cgColor.components ?? [0, 0, 0]).map(Double.init)
+        }
+        let t = composantes(teinte)
+        let f = composantes(fond)
+        func canal(_ i: Int) -> Double {
+            let tc = t.count > 2 ? t[i] : t[0]
+            let fc = f.count > 2 ? f[i] : f[0]
+            return fc * (1 - opacite) + tc * opacite
+        }
+        return Color(red: canal(0), green: canal(1), blue: canal(2))
+    }
+
     @Test("l'accentuation se détache du fond", arguments: ReadingTheme.allCases)
     func accentuationOnBackground(_ theme: ReadingTheme) {
         let mesure = contraste(ONTColors.accentuation(theme), sur: ONTColors.background(theme))
