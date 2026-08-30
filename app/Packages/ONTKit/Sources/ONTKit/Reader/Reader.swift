@@ -248,6 +248,17 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     /// `Codable` avec une valeur par défaut : un réglage enregistré avant
     /// l'arrivée de ce champ doit se relire sans erreur.
     public var french: Bool
+    /// Couper les mots en fin de ligne.
+    ///
+    /// **Éteinte par défaut**, et c'est une décision de l'auteur. La césure
+    /// resserre la justification et supprime les lézardes blanches d'une prose
+    /// étroite — mais elle hache les mots, et un lecteur qui grossit le texte
+    /// pour le voir se retrouve avec plus de coupures, pas moins.
+    ///
+    /// Quand elle est allumée, la langue est déclarée avec elle : sans ça, un
+    /// téléphone réglé en anglais coupe la prose française avec les motifs
+    /// anglais — « pro-blème » au lieu de « pro-blè-me ».
+    public var hyphenation: Bool
     /// Le rappel quotidien.
     ///
     /// Ici plutôt que dans un second magasin, parce qu'il n'y a qu'un port de
@@ -271,12 +282,14 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         // fatalité.
         continuous: Bool = true,
         french: Bool = true,
+        hyphenation: Bool = false,
         daily: DailyVerseSchedule = .default
     ) {
         self.showGloss = showGloss
         self.showLevel3 = showLevel3
         self.partage = partage
         self.french = french
+        self.hyphenation = hyphenation
         self.textSize = textSize
         self.lineSpacing = lineSpacing
         self.theme = theme
@@ -301,6 +314,8 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         bodyFont = try c.decodeIfPresent(ReadingFont.self, forKey: .bodyFont) ?? defauts.bodyFont
         continuous = try c.decodeIfPresent(Bool.self, forKey: .continuous) ?? defauts.continuous
         french = try c.decodeIfPresent(Bool.self, forKey: .french) ?? defauts.french
+        hyphenation = try c.decodeIfPresent(Bool.self, forKey: .hyphenation)
+            ?? defauts.hyphenation
         daily = try c.decodeIfPresent(DailyVerseSchedule.self, forKey: .daily) ?? defauts.daily
     }
 

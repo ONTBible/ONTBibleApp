@@ -141,7 +141,10 @@ public enum ONTTextRenderer {
 
             // Une espace pleine entre deux versets, jamais un retour à la
             // ligne : c'est toute la différence entre les deux modes.
+            // Le corps seul reçoit la césure — jamais le numéro, qui est en
+            // exposant et n'a rien à couper.
             var corps = compose(verse.nodes, theme: theme)
+                .cesuree(theme.preferences.hyphenation)
             corps += run(" ", type.corpus)
 
             if let fond = highlight(verse.n) {
