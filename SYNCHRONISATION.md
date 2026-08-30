@@ -1629,3 +1629,97 @@ sur le geste le plus courant de l'app.
 **Ce qui traverse** : rien de technique. C'est une manière de tenir les
 relevés, et elle vaut pour les trois dépôts — le vault mesure des corpus, le
 site des temps de rendu, l'app des images par seconde.
+
+---
+
+## 30 août 2026 — le corpus publié écrasait le corpus embarqué, plus neuf
+
+**Traverse les trois dépôts.** Le vault date le contenu, le pipeline l'estampille,
+le site le publie, les deux apps le lisent. Le maillon manquant tenait en un
+champ vide.
+
+### Ce qui se serait passé
+
+L'app iOS lit son corpus **du disque quand il existe, du bundle sinon** — et le
+disque est rempli par ce que le site publie. Tant que le publié est le plus
+récent des deux, tout va bien. C'est faux **à chaque livraison TestFlight**, où
+un build part avant que le site redéploie.
+
+Mesuré sur simulateur en voulant simplement montrer le rendu des Shemot :
+
+    bundle de l'app : 1913 occurrences de "shem"
+    disque de l'app :  217   ← ce que l'app lit vraiment
+
+Le dossier effacé, l'app le recréait au lancement en retéléchargeant l'ancien.
+La couche des noms propres serait arrivée chez tous les testeurs **sans un seul
+nom affiché**. Aucun test ne pouvait l'attraper : ils mesurent tous le corpus du
+bundle, que personne ne lit.
+
+### La forme du défaut
+
+`genere` traverse toute la chaîne depuis le début, et vaut `""`. Il n'a pas été
+oublié : `build.rs` le laisse vide **délibérément**, pour que deux exécutions
+sur le même vault produisent le même octet — donc la même empreinte, donc aucun
+retéléchargement inutile. Le déterminisme était tenu ; l'ordre entre deux corpus
+n'existait nulle part, et personne n'en avait eu besoin jusqu'ici.
+
+Côté site, `corpus-publie.py` reportait bien le champ, mais avec un
+`.get(…, "")` : il publiait un manifeste **bien formé et indatable**. Un défaut
+par valeur par défaut est plus discret qu'un défaut par oubli, parce que sa
+sortie a l'air correcte.
+
+### Le remède, et pourquoi il n'est pas une horloge
+
+La date porte celle du **contenu source** — le dernier commit du vault —, pas
+celle du build. Déterministe pour un vault donné, croissante quand il change :
+l'ordre qui manquait, sans sacrifier ce que le pipeline tenait.
+
+Elle est **passée en entrée** au pipeline, jamais lue par lui : un binaire qui
+ouvre `.git` tombe sur un export d'archive, un `--depth 1`, un vault copié sans
+son dépôt. Et le repli sur la mtime des fichiers est un piège — un clone frais
+leur donne la mtime du `checkout`, c'est-à-dire l'heure du build déguisée, et
+non déterministe en CI où personne ne regarde.
+
+### Le format, qui n'est pas une préférence
+
+    %Y-%m-%dT%H:%M:%SZ en UTC   →   2026-08-30T00:14:00Z
+
+L'app compare ces dates **comme des chaînes**. Deux écritures du *même instant*
+s'ordonnent alors à l'envers :
+
+    "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"
+
+L'app garderait le plus vieux des deux corpus **en croyant garder le plus
+neuf** — le même défaut, sous une date bien formée, donc bien plus difficile à
+voir qu'un champ vide. Pas de `to_rfc3339()` : il rend l'offset de la machine de
+build et des fractions de seconde, ce qui casse aussi le déterminisme entre la
+CI en UTC et une machine en `+02:00`.
+
+### Ce que chaque dépôt en porte
+
+| | |
+|---|---|
+| **pipeline** | `generated_at` reçoit la date du vault, en entrée |
+| **site** | refuse de publier un corpus indatable ; le report existait déjà |
+| **app iOS** | `CorpusUpdater.Estampille` — n'accepte que ce qu'il peut prouver plus récent |
+| **app Android** | n'avait aucun dépôt disque : le défaut n'y existait pas, l'actualiseur s'y porte avec la garde |
+
+**Refuser quand l'ordre est indécidable.** Un corpus figé se voit et se répare ;
+un corpus silencieusement remplacé par du plus vieux ne se voit pas. C'est le
+défaut qu'on corrige — l'accepter « au cas où » serait le reproduire dans sa
+correction.
+
+**Ordre de livraison, sinon on se bloque en rond** : pipeline, site, app.
+
+### Ce qu'on en retient au-delà du cas
+
+Trois fois dans la même soirée, une mesure exacte a répondu à une autre question
+que celle qu'on posait. Le rendu montrait du rose : le moteur, sondé plutôt
+qu'accusé, rendait `#B98B6C` — c'était la donnée qui était vieille. Une session
+cherchait le même défaut sur Android, ne l'a pas trouvé, et a trouvé à la place
+une fiche Play qui promettait la fonctionnalité absente. Et les quatre tests de
+la nouvelle garde passaient **sans elle**, leurs manifestes ne listant aucun
+fichier — un instrument dont la panne ressemble au résultat attendu.
+
+La parade, à chaque fois, est la même : vérifier que l'épreuve **échoue** quand
+on retire ce qu'elle garde.
