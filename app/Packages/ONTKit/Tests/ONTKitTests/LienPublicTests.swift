@@ -111,3 +111,58 @@ struct LienPublicTests {
         #expect(r.pendingSelection == [1, 2, 3])
     }
 }
+
+/// Un passage, un seul lien.
+///
+/// La session Android l'a relevé en portant la construction du lien chez elle :
+/// `VerseRange.label` joint par « , » — espace comprise, typographie française
+/// du renvoi — et cette espace devenait `%20` dans l'URL.
+///
+/// Les deux formes se lisent pareil côté site. Mais ce sont deux chaînes pour
+/// un seul passage, donc deux entrées de cache et deux aperçus — précisément ce
+/// que le site a voulu éviter en rendant la sélection idempotente.
+@MainActor
+struct LienCanoniqueTests {
+    /// **Le domaine s'impose avant d'appeler.**
+    ///
+    /// `webLink` part de `webBase`, qui se lit dans `Bundle.main` — absent d'un
+    /// paquet de test. Sans cette ligne la fonction rend `nil` **avant** de
+    /// composer quoi que ce soit, et les deux attentes ci-dessous échouent
+    /// sans rien dire de l'espace qu'elles prétendent mesurer.
+    ///
+    /// C'est ce que `LienPublicTests` fait dans son fabricant de routeur ; ces
+    /// épreuves-ci appellent la fonction en statique et ne passaient donc
+    /// jamais par là. Le mécanisme existait, le chemin ne l'empruntait pas.
+    @Test("l'espace du renvoi ne passe pas dans l'URL")
+    func lEspaceNePassePas() {
+        Router.webBaseImpose = URL(string: "https://ontbible.com")
+        let lien = Router.webLink(
+            book: "bereshit", chapter: "bereshit-19",
+            verses: VerseRange.label([1, 2, 3, 7]))
+
+        #expect(lien?.absoluteString.hasSuffix("?v=1-3,7") == true)
+        #expect(lien?.absoluteString.contains("%20") == false)
+    }
+
+    /// **Le renvoi affiché, lui, garde son espace.** On corrige le lien, pas la
+    /// typographie : la lui ôter dégraderait tous les écrans pour arranger une
+    /// URL.
+    @Test("le renvoi affiché garde sa typographie")
+    func leRenvoiGardeSonEspace() {
+        #expect(VerseRange.label([1, 2, 3, 7]) == "1-3, 7")
+        #expect(
+            VerseRange.reference([1, 2, 3, 7], chapterTitle: "Bereshit 19")
+                == "Bereshit 19:1-3, 7")
+    }
+
+    /// Deux lecteurs qui désignent le même passage produisent le même lien.
+    @Test("le même passage rend le même lien")
+    func lIdempotence() {
+        let a = Router.webLink(
+            book: "bereshit", chapter: "bereshit-19", verses: VerseRange.label([7, 3, 1, 2]))
+        let b = Router.webLink(
+            book: "bereshit", chapter: "bereshit-19", verses: VerseRange.label([1, 2, 3, 7]))
+
+        #expect(a == b)
+    }
+}
