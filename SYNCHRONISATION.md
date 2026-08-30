@@ -1785,3 +1785,60 @@ fichier — un instrument dont la panne ressemble au résultat attendu.
 
 La parade, à chaque fois, est la même : vérifier que l'épreuve **échoue** quand
 on retire ce qu'elle garde.
+
+---
+
+## 30 août 2026 — une déclaration sans la chose, deux fois le même mois
+
+Le réglage « Le français reçu » d'Android décrivait son effet dans son propre
+texte d'aide — « Apocalypse », « la Loi », « **Chapitre 7** » — et aucun écran
+de lecture ne le produisait. La pastille disait `Bereshit 2` dans les deux
+registres ; le sélecteur aussi ; sa sortie courte proposait « Toute l'unité »,
+un troisième mot hors des deux registres.
+
+C'est **le deuxième cas du même genre en quelques jours**. La fiche du Play
+Store annonçait la mise à jour du corpus avant qu'Android sache la faire ; la
+correction n'était pas d'amender la phrase mais d'écrire l'actualiseur. Gloire
+l'avait dit en une ligne : *« il faut pas fixer la déclaration, il faut
+implémenter ce qu'il manque »*.
+
+Le motif mérite d'être nommé, parce qu'il ne ressemble pas à un défaut : rien
+n'est faux dans le code, rien ne plante, aucun test ne rougit. C'est un texte
+qui décrit une intention, et la distance entre l'intention et le fait n'est
+mesurée nulle part. **Une phrase d'aide, une fiche de magasin, un `README` : ce
+sont des affirmations sur le logiciel que le logiciel ne vérifie pas.**
+
+### L'état des trois, sur ce point précis
+
+| | ce qu'il fait du registre |
+|---|---|
+| **site** | complet, et **au-delà** : en glose ONT, `Parashah` est un intraduisible en or, touchable, qui ouvre sa fiche |
+| **app iOS** | complet — `LibelleDUnite`, cinq formes, trois points d'appel |
+| **app Android** | l'annonçait dans ses réglages, ne le produisait nulle part → #153 |
+
+Le site était **en avance sur les deux apps**, ce qui n'est pas l'ordre
+habituel. Le porter d'iOS a suffi pour Android ; son traitement du mot comme
+intraduisible touchable reste, lui, à porter — et c'est à iOS d'en décider.
+
+### Le pluriel qui ne se francise pas
+
+*parashah* fait *parashiot*, jamais « parashahs » : le §2.5 le fixe, et la
+marque hébraïque est le seul détail du lot qu'un point d'appel pressé règle
+avec un `+ "s"`. Franciser l'intraduisible **déferait exactement ce que le
+réglage vient de faire**. Les trois dépôts portent maintenant le cas dans un
+test.
+
+### Et une méthode qui a servi deux fois
+
+Une branche en retard ne demande pas un rebasage, elle demande qu'on vérifie
+**si elle a encore quelque chose à dire**. Appliquée à deux PR le même soir,
+elle a donné des verdicts opposés : #144 était entièrement dépassée et s'est
+fermée ; #95 était 38 commits derrière et portait pourtant deux choses vivantes
+— le libellé d'unité, et le skill de l'émulateur — qui sont dans #153.
+
+Le reste de #95 posait la **bonne** question — en prose continue, le rang de
+l'item ne bouge jamais — avec le mauvais remède : sa fraction de défilement
+*estimait* la position, là où `SuiviDeLecture` la *mesure* par
+`TextLayoutResult`. Vérifié sur l'appareil avant de fermer, parce qu'une
+session qui ne peut pas éprouver du Kotlin avait refusé de trancher à
+l'aveugle sur un terrain qui n'était pas le sien.
