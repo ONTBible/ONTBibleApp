@@ -127,7 +127,11 @@ private struct VerseOfTheDayCard: View {
         // l'onglet, le livre, l'unité, et désigne le verset — qui est déjà
         // surligné à l'arrivée.
         Button {
-            router.open(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
+            // `designer` et non `open` : cette carte montre **un** verset, et y
+            // toucher dit « celui-ci ». Il doit être sélectionné à l'arrivée,
+            // comme lorsqu'on vient du widget — sinon on atterrit dans un
+            // chapitre et l'on cherche des yeux ce qu'on venait de lire.
+            router.designer(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
         } label: {
             carte
         }

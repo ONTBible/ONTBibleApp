@@ -26,7 +26,11 @@ struct ChapterView: View {
 
     @State private var showingSettings = false
     @State private var showingPicker = false
-    @State private var noteTarget: VerseSelection?
+    /// Le bloc que la vue doit atteindre, quand un lien ou une reprise en
+    /// désigne un. Les blocs sont les enfants directs de la pile, donc les
+    /// seules cibles que `scrollPosition` sait viser.
+    @State private var blocVise: Int?
+        @State private var noteTarget: VerseSelection?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -155,8 +159,31 @@ struct ChapterView: View {
                     }
                     // Ce qui désigne les cibles que `.scrollPosition(id:)` peut
                     // viser : les enfants directs de cette pile, donc les blocs.
+                    //
+                    // **Ce commentaire était orphelin.** Il décrivait un
+                    // modificateur qui n'a jamais existé dans ce fichier — le
+                    // relevé de `git log -S` est sans appel. Le mécanisme qu'il
+                    // annonçait manquait donc, et avec lui le seul moyen
+                    // d'atteindre une ligne que la pile n'a pas encore montée.
+                    .scrollTargetLayout()
                 }
             }
+            // **`scrollPosition` et non `scrollTo`, à cause de la paresse.**
+            //
+            // `proxy.scrollTo` ne peut atteindre qu'une ligne **déjà réalisée**.
+            // Dans une `LazyVStack`, un verset profond ne l'est pas : l'appel
+            // ne produit alors ni erreur ni mouvement. Mesuré au simulateur —
+            // six passes sur le verset 20 de Bereshit 1, ancre trouvée, page
+            // immobile.
+            //
+            // Ce qui rendait le défaut invisible, c'est qu'il **marche quand la
+            // cible est haute** : un verset des premières lignes est déjà monté.
+            // On croyait donc que le widget fonctionnait et que le Qahal non,
+            // alors que les deux dépendent de la profondeur du verset visé.
+            //
+            // `.scrollPosition(id:)` vise par identité dans la pile de cibles,
+            // et la pile paresseuse sait s'y rendre sans avoir tout monté.
+            .scrollPosition(id: $blocVise, anchor: .top)
             // `.task(id:)` et non `.onAppear` : la tâche est **annulée** quand
             // la vue disparaît, donc un défilement en cours ne poursuit pas
             // une page qu'on vient de quitter.
@@ -439,7 +466,7 @@ struct ChapterView: View {
             return
         }
 
-        guard let ancre = anchor(for: vise) else { return }
+        guard let bloc = blocContenant(vise) else { return }
 
         // Plusieurs passes, échelonnées au-delà de l'animation de navigation.
         //
@@ -449,11 +476,14 @@ struct ChapterView: View {
         //
         // Les passes après 0,6 s ne coûtent rien quand la première a visé
         // juste : viser une position déjà atteinte ne déplace rien.
-        for delai in [Duration.zero, .milliseconds(250), .milliseconds(600), .seconds(1)] {
-            if delai > .zero { try? await Task.sleep(for: delai) }
-            guard !Task.isCancelled else { return }
-            proxy.scrollTo(VerseAnchor(n: ancre), anchor: .top)
-        }
+        // Deux passes suffisent désormais, et la seconde ne sert qu'au cas où
+        // la pile n'a pas encore ses cibles au premier instant. Les quatre
+        // passes échelonnées d'avant compensaient l'échec de `scrollTo`, pas
+        // une lenteur — elles ne réparaient rien, elles répétaient.
+        blocVise = bloc
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        blocVise = bloc
     }
 
     /// Les blocs tels qu'ils sont rendus.
@@ -474,6 +504,22 @@ struct ChapterView: View {
     /// texte : la cible existe donc, et il n'y a plus lieu de rabattre le
     /// repère sur le début du bloc comme on le faisait.
     private func anchor(for verse: Int) -> Int? { verse }
+
+    /// Le rang du bloc qui porte ce verset, parmi ceux réellement rendus.
+    ///
+    /// **Parmi `blocs` et non `chapter.blocks`** : en lecture suivie les
+    /// versets consécutifs sont fusionnés, et les rangs ne coïncident plus. Un
+    /// rang pris sur la liste d'origine viserait un autre endroit du texte
+    /// dès que le lecteur allume la prose continue — c'est-à-dire sans qu'il
+    /// puisse relier les deux.
+    private func blocContenant(_ verse: Int) -> Int? {
+        blocs.firstIndex { bloc in
+            if case .verses(let versets) = bloc {
+                return versets.contains { $0.n == verse }
+            }
+            return false
+        }
+    }
 
     /// L'opacité de ce qui n'est pas sélectionné.
     ///

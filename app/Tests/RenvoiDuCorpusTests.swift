@@ -46,3 +46,54 @@ struct RenvoiDuCorpusTests {
         #expect(router.pendingVerse == 10, "le verset désigné doit être repris")
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// **Viser n'est pas désigner**, et la distinction s'était perdue.
+///
+/// Le widget composait `?v=<n>`, qui désigne le verset ; la carte du verset du
+/// jour, dans le Qahal, appelait `open(book:chapter:verse:)`, qui ne fait que
+/// viser. Deux gestes identiques à l'écran, deux comportements — l'auteur l'a
+/// relevé ainsi : « ça fonctionne depuis le widget, le verset est même
+/// sélectionné ».
+///
+/// La distinction reste voulue : un résultat de recherche amène à un verset
+/// sans prétendre que c'est **celui-là** qu'on voulait, puisqu'il en a rendu
+/// vingt. Une carte qui montre un seul verset, elle, dit « celui-ci ».
+@MainActor
+struct ViserOuDesignerTests {
+    @Test("Désigner sélectionne le verset")
+    func designerLeSelectionne() {
+        let router = Router()
+        router.designer(book: "bereshit", chapter: "bereshit-1", verse: 20)
+
+        #expect(router.pendingVerse == 20)
+        #expect(router.pendingSelection == [20], "le verset doit arriver désigné")
+    }
+
+    /// La recherche garde son geste : elle amène sans élire.
+    @Test("Viser ne sélectionne rien")
+    func viserNeSelectionnePas() {
+        let router = Router()
+        router.open(book: "bereshit", chapter: "bereshit-1", verse: 20)
+
+        #expect(router.pendingVerse == 20)
+        #expect(router.pendingSelection.isEmpty)
+    }
+
+    /// Le widget et la carte doivent produire **le même état**, puisqu'ils font
+    /// le même geste. C'est cette égalité qui manquait, et rien ne la tenait.
+    @Test("La carte du Qahal et le widget mènent au même endroit")
+    func lesDeuxPortesSeRejoignent() throws {
+        let parLeWidget = Router()
+        parLeWidget.open(try #require(URL(string: "ont://read/bereshit/bereshit-1?v=20")))
+
+        let parLaCarte = Router()
+        parLaCarte.designer(book: "bereshit", chapter: "bereshit-1", verse: 20)
+
+        #expect(parLeWidget.tab == parLaCarte.tab)
+        #expect(parLeWidget.biblePath == parLaCarte.biblePath)
+        #expect(parLeWidget.pendingVerse == parLaCarte.pendingVerse)
+        #expect(parLeWidget.pendingSelection == parLaCarte.pendingSelection)
+    }
+}
