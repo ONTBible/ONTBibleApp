@@ -291,6 +291,26 @@ jobs:
         if: failure()
         working-directory: ONTBibleApp
         run: |
+          # **D'abord les épreuves, quand il y en a.**
+          #
+          # Un échec qui ne nomme pas l'attente déçue protège sans rien
+          # apprendre : le suivant doit refaire l'enquête depuis zéro. Le job
+          # iOS rend « Expectation failed » et le nom du test ; celui-ci ne
+          # rendait qu'`exit 65`.
+          echo "── les épreuves qui ont échoué ──"
+          if [ -d resultats-mac.xcresult ] \
+            && xcrun xcresulttool get test-results summary \
+                 --path resultats-mac.xcresult > resume-mac.json 2>/dev/null; then
+            python3 scripts/lire-echecs.py resume-mac.json
+          else
+            echo "  aucun paquet de résultats : les épreuves n'ont pas été atteintes"
+          fi
+
+          # **Puis le brut, pour ce qui tombe avant elles.**
+          #
+          # C'est ce qui est arrivé au premier passage : `actool` plantait, et
+          # `xcbeautify` ne rendait que « failed with a nonzero exit code ».
+          echo
           echo "── les lignes d'erreur du log brut ──"
           grep -iE "error:|failed|\*\* [A-Z]+ FAILED" brut-mac.log | tail -40 || true
 

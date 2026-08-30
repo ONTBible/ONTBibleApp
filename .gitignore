@@ -48,6 +48,7 @@ DerivedData/
 # pour que les diagnostics d'`actool` ne se perdent pas. Rejouer la commande à
 # la main le dépose ici.
 brut-mac.log
+resume-mac.json
 
 # Artefacts de compilation Swift Package Manager — 15 955 fichiers, tous
 # régénérés au premier build. Ils étaient la quasi-totalité de ce que git
