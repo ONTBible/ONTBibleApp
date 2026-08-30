@@ -1963,3 +1963,115 @@ discours collés sur une ligne.
 **Sortir une décision au bon endroit ne suffit pas si on en profite pour en
 ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
 personne ne relit.
+
+### 30 août 2026 — une fonte qui ne se charge pas ne dit rien, et une garde peut mentir dans le sens rassurant
+
+**Source : l'app, cible macOS. Conséquence pour le site et pour Android.**
+
+La liseuse du Mac n'inscrivait aucune de ses fontes. iOS les déclare par
+`UIAppFonts` dans l'`Info.plist` ; **macOS ne lit pas cette clé** — il lit
+`ATSApplicationFontsPath`. La cible `ONTMac` ne déclarait ni l'une ni l'autre :
+les `.ttf` étaient copiés dans le bundle, et personne ne les inscrivait.
+
+Mesuré dans l'hôte de test réel : `Literata-Regular`, `-Italic` et `-SemiBold`
+**ne se résolvaient pas**. Toute la typographie de lecture du Mac retombait sur
+la fonte système. Literata est choisie pour la lecture longue, et c'est le
+lecteur au kératocône qui la payait.
+
+#### Pourquoi personne ne l'a vu pendant des semaines
+
+Deux silences empilés, et c'est ça qui vaut d'être retenu.
+
+**Le premier est dans l'API.** `Font.custom("Literata-Regular", size:)` avec un
+nom qui ne se résout pas ne lève pas, ne prévient pas, ne journalise pas : il
+rend la fonte système. Un nom de fonte est une chaîne, et une chaîne qui ne
+désigne rien n'est pas une erreur pour le compilateur.
+
+**Le second est dans la machine de l'auteur.** `EzraSIL`, elle, *se résolvait* —
+non depuis le bundle, mais depuis `~/Library/Fonts/SILEOT.ttf`, Gloire ayant
+installé Ezra SIL à titre personnel. **L'hébreu s'affichait donc juste sur sa
+machine et sur aucune autre.** Le défaut le plus difficile à voir n'est pas
+celui qui se cache : c'est celui qui ne se produit pas chez celui qui regarde.
+
+#### La garde qui aurait dû l'attraper rendait « oui » sans regarder
+
+`ONTFonts.hebrewAvailable`, `isAvailable(_:)` et `bodyAvailable` vérifiaient
+sous `#if canImport(UIKit)` et **retombaient sur `true`** ailleurs. Le catalogue
+du design system affichait « embarquée », en vert, sur la seule plateforme où
+c'était faux.
+
+C'est le même motif qu'une garde paraphrasée relevée le même jour côté backend,
+et il mérite un nom : **une garde qui ne sait pas ne doit pas rassurer.** Le
+repli d'une plateforme inconnue est désormais `false`, non `true`. Un « je ne
+sais pas » rendu comme un « oui » est pire que l'absence de garde — l'absence,
+au moins, ne fait pas fermer la question.
+
+#### Ce que ça dit au site
+
+Le site **n'a pas** ce défaut-là : `style/main.css` déclare bien sa `@font-face`
+pour « Ezra SIL », avec un `unicode-range` borné aux blocs hébreux pour que le
+navigateur ne la télécharge pas afin de dessiner du latin. Vérifié, pas supposé.
+
+Mais il partage l'autre trouvaille de la journée, et par construction.
+`src/interface/design/verset.rs` rend l'hébreu dans une course en ligne à
+`text-[1.08em]` — le même `ONTFonts.hebrewScale`, commenté comme tel. Or
+`body { line-height: 1.68 }` est **sans unité**, donc hérité comme un *nombre* :
+chaque élément le recalcule contre sa propre taille, et la course hébraïque
+s'en donne `1,68 × 1,08 = 1,814em` là où le reste de la ligne tient `1,68em`.
+
+**Ceci est déduit de la cascade, non mesuré** — et la journée a montré ce que
+valent les causes plausibles non mesurées. La vérification tient en une ligne
+dans l'inspecteur : comparer la hauteur d'une ligne portant de l'hébreu à celle
+de ses voisines, sur une unité qui en contient.
+
+Si l'écart est là, **le remède y est trivial** là où il ne l'est pas dans l'app :
+une `line-height` explicite sur la course hébraïque, ou une valeur en `rem` sur
+le paragraphe. CSS sait faire en une déclaration ce que SwiftUI ne sait pas
+faire du tout.
+
+#### Ce que ça dit à Android
+
+Deux choses, et la première est la plus urgente au vu du portage en cours.
+
+**Les fontes se déclarent encore autrement.** Ni `UIAppFonts` ni
+`ATSApplicationFontsPath` : `res/font/` et le nom de ressource, ou
+`FontFamily`/`Font` en Compose. Une troisième plateforme est une troisième
+occasion de croire que copier le fichier suffit. **La garde est ce qui
+transporte**, pas la clé : une épreuve qui charge chaque fonte par son nom et
+échoue si l'une ne répond pas vaut sur les trois, et c'est ce qui manquait ici.
+
+**Et le même mécanisme d'interligne s'y retrouvera.** La cause n'est pas qu'une
+fonte soit plus haute que l'autre — mesurées, leurs boîtes se valent à taille
+égale, rapport 0,995. C'est que **la ligne mêlée prend l'ascendante la plus
+haute et la descendante la plus basse parmi deux fontes différentes** :
+l'ascendante de Literata, la descendante d'EzraSIL.
+
+    Literata 23,54 + EzraSIL 8,72 = 32,26   contre 29,70   → +2,56 pt
+
+Tout moteur qui compose une ligne à partir de plusieurs fontes fait ce calcul —
+TextKit, le navigateur, et Android aussi. Ce n'est pas un défaut d'Apple, c'est
+la définition d'une ligne.
+
+#### Le geste, plus que le résultat
+
+Cinq bancs de mesure ont été écrits dans la journée pour cette question.
+**Quatre ont répondu à côté, et aucun n'a échoué** : deux composaient une
+écriture avec la fonte système sans le dire, un comparait EzraSIL au système
+plutôt qu'à Literata, un concluait d'un seul point de mesure.
+
+Les deux garde-fous qui distinguent le cinquième sont dans
+`scripts/banc-interligne.swift`, et ils valent pour les trois dépôts :
+
+1. **inscrire les fontes**, puis **vérifier qu'elles répondent**, et s'arrêter
+   sinon. Un banc qui mesure la fonte de repli rend des nombres plausibles ;
+2. **balayer plutôt que mesurer un point.** Un seul point ne distingue pas « ça
+   répond » de « ça a bougé pour une autre raison ». C'est ce qui a fait prendre
+   un `45 → 38` réel pour la preuve d'une propriété qui n'existe pas : `SwiftUI.Text`
+   **ignore** le style de paragraphe, balayé de 20 à 90 points sans qu'un point
+   bouge.
+
+`scripts/banc-chapitre.swift` mesure l'autre moitié, et renverse la crainte qui
+retenait le portage : **c'est l'architecture qui coûte, pas le moteur.** Une vue
+par verset vaut 8× une vue unique côté SwiftUI, 5,6× côté TextKit — le choix
+qu'on croyait secondaire pèse plus que celui qu'on croyait risqué. Vrai des
+trois plateformes, où la même alternative se posera.
