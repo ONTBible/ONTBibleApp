@@ -249,6 +249,10 @@ public actor CorpusUpdater {
         }
 
         if remplaces > 0 {
+            // Après les fichiers, comme le registre et pour la même raison :
+            // une estampille écrite d'avance promettrait un corpus qu'une
+            // coupure aurait laissé à moitié posé.
+            try? publiee.texte.write(to: estampilleDuDisque, atomically: true, encoding: .utf8)
             // Écrit **après** les fichiers, et c'est tout le sujet — voir
             // ci-dessous.
             try? enregistrerLesEmpreintes(connus)
@@ -305,6 +309,60 @@ public actor CorpusUpdater {
     }
 
     private var registre: URL { dossier.appendingPathComponent("empreintes.json") }
+
+    /// L'estampille du corpus **posé sur le disque**.
+    ///
+    /// Écrite à côté de lui, et pas dans le registre d'empreintes : celui-ci
+    /// dit *quels fichiers* on tient, celle-là dit *de quand ils datent*. Deux
+    /// questions, deux fichiers — mêler les deux ferait qu'une réponse
+    /// partielle à l'une abîmerait l'autre.
+    private var estampilleDuDisque: URL {
+        dossier.appendingPathComponent("estampille.txt")
+    }
+
+    /// **Écarte le corpus du disque quand celui du bundle est plus récent.**
+    ///
+    /// ## Le trou que la garde de `synchroniser` laissait
+    ///
+    /// Refuser un corpus publié plus vieux empêche d'en *poser* un mauvais. Ça
+    /// ne fait rien à celui qui est **déjà là**. Or le disque recouvre le
+    /// bundle, fichier par fichier et sans condition : une copie téléchargée
+    /// avant la garde continue donc de gagner sur un bundle plus neuf, et
+    /// indéfiniment — jusqu'au jour où le site publie plus récent qu'elle.
+    ///
+    /// Constaté sur l'appareil de l'auteur : la 1.0.5 embarquait la couche des
+    /// Shemot, et **aucun nom ne s'affichait**. Le disque portait le corpus de
+    /// l'avant-veille, sans un seul nœud `shem`, et il répondait à sa place.
+    ///
+    /// La correction précédente avait donc arrêté la cause et laissé
+    /// l'effet — c'est le même défaut que le corpus publié qui écrase le
+    /// bundle, une couche plus loin.
+    ///
+    /// ## Ce que la purge coûte, et pourquoi ce n'est rien
+    ///
+    /// Le corpus est **entièrement retéléchargeable**, et le bundle répond en
+    /// attendant : l'app n'est jamais sans texte, même une seconde. Rien de ce
+    /// que le lecteur a écrit ne vit ici — surlignages, notes et position sont
+    /// dans `lecteur.json`, ailleurs.
+    ///
+    /// ## Une estampille absente vaut « plus vieux »
+    ///
+    /// Toutes les installations d'aujourd'hui sont dans ce cas : elles ont un
+    /// corpus sur le disque et aucune estampille, puisque personne n'en
+    /// écrivait. Les traiter comme périmées est exact — il date forcément
+    /// d'avant cette version — et c'est ce qui rend la réparation automatique
+    /// au premier lancement.
+    public static func purgerSiLeBundleEstPlusNeuf(
+        dossier: URL = dossierParDefaut(),
+        bundle: Foundation.Bundle = .main
+    ) {
+        guard let embarquee = estampilleEmbarquee(bundle) else { return }
+        let fichier = dossier.appendingPathComponent("estampille.txt")
+        let surDisque = (try? String(contentsOf: fichier, encoding: .utf8))
+            .flatMap { Estampille($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        if let surDisque, !(surDisque < embarquee) { return }
+        try? FileManager.default.removeItem(at: dossier)
+    }
 
     private func empreintesConnues() -> [String: String] {
         guard let octets = try? Data(contentsOf: registre),
