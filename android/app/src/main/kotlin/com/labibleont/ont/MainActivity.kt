@@ -90,6 +90,7 @@ import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -436,7 +437,11 @@ private fun Racine(
         onAdresseSuivie()
     }
     LaunchedEffect(onglet) {
-        if (onglet == Onglet.LEXIQUE) lexique.charger()
+        // Vous aussi : sa section « Le corpus » compte les entrées du lexique,
+        // et sans ce chargement elle afficherait zéro à qui n'a jamais ouvert
+        // l'onglet Lexique. `charger()` est idempotent — il rend la main tout
+        // de suite si les entrées sont déjà là.
+        if (onglet == Onglet.LEXIQUE || onglet == Onglet.VOUS) lexique.charger()
         if (onglet == Onglet.QAHAL) qahal.choisir()
     }
 
@@ -537,9 +542,32 @@ private fun Racine(
                             // et de Bible Strong. Sans elle, aller de
                             // Bereshit 1 à Bereshit 18 demandait de revenir au
                             // sommaire, replier le livre, le déplier, viser.
+                            //
+                            // ## Elle suit le registre, et c'est ici que ça
+                            // compte le plus
+                            //
+                            // Elle portait `chapitre.title` — « Bereshit 2 »,
+                            // le nom ONT, identique dans les deux registres.
+                            // Or c'est le seul endroit où le lecteur croise le
+                            // mot **pendant** qu'il lit : le sommaire et le
+                            // sélecteur se traversent, celle-ci reste sous les
+                            // yeux. Si le réglage doit se voir quelque part,
+                            // c'est ici.
+                            //
+                            // Une introduction garde son titre : elle n'a pas
+                            // de rang à traduire.
                             PastilleDeRenvoi(
-                                renvoi = lecture.chapitre?.title
-                                    ?: lecture.livre?.title.orEmpty(),
+                                renvoi = lecture.chapitre?.let { u ->
+                                    if (u.n > 0) {
+                                        LibelleDUnite.situe(
+                                            lecture.livre?.title.orEmpty(),
+                                            u.n,
+                                            lecture.preferences.french,
+                                        )
+                                    } else {
+                                        u.title
+                                    }
+                                } ?: lecture.livre?.title.orEmpty(),
                                 onClick = { ecran = Ecran.Selecteur() },
                             )
                         } else {
@@ -800,6 +828,7 @@ private fun Racine(
                     slotsRediges = lecture.slotsRediges,
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,
+                    entreesDeLexique = lexique.entrees.size,
                     onAller = { ecran = Ecran.Reglage(it) },
                     enDeveloppement = BuildConfig.DEBUG,
                     onPasEncore = {
