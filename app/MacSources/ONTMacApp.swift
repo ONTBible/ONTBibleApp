@@ -42,30 +42,25 @@ import YouFeature
 /// raison qu'on croit qu'elle a, et l'on découvre qu'elle en avait une autre.
 @main
 struct ONTMacApp: App {
-    @State private var composition = Composition()
+    /// L'état partagé — voir `EtatMac` : les fermetures de `.commands` ne
+    /// voient pas la même instance que la fenêtre, donc rien de mutable ne
+    /// vit dans cette structure.
+    private let etat = EtatMac.partage
     @State private var vault = ModeVault()
-    /// La taille de l'interface, gardée d'une session à l'autre.
-    ///
-    /// Dans `AppStorage` et non dans `ReadingPreferences` : celles-ci
-    /// traversent le compte et valent pour les trois plateformes, alors que
-    /// cette taille-ci ne veut rien dire sur un téléphone, où le système la
-    /// donne déjà.
-    @AppStorage("tailleDeLInterface") private var tailleInterface =
-        TaillesAuClavier.interfaceParDefaut
 
     var body: some Scene {
         WindowGroup {
-            AvecOuverture(theme: composition.reading.preferences.theme) {
+            AvecOuverture(theme: etat.composition.reading.preferences.theme) {
                 RootView()
             }
-                .environment(composition.router)
-                .environment(composition.reading)
-                .environment(composition.lexicon)
-                .environment(composition.search)
-                .environment(composition.qahal)
-                .environment(composition.you)
-                .environment(composition.account)
-                .environment(composition)
+                .environment(etat.composition.router)
+                .environment(etat.composition.reading)
+                .environment(etat.composition.lexicon)
+                .environment(etat.composition.search)
+                .environment(etat.composition.qahal)
+                .environment(etat.composition.you)
+                .environment(etat.composition.account)
+                .environment(etat.composition)
                 // La colonne de lecture a besoin d'une largeur ; en dessous,
                 // les gloses se hachent et le texte cesse d'être lisible —
                 // ce que cette app existe précisément pour éviter.
@@ -79,10 +74,11 @@ struct ONTMacApp: App {
                 //
                 // iOS ne pose pas la question : il n'a pas d'accent système
                 // qu'une app hérite sans le demander.
-                .tint(ONTColors.accent(composition.reading.preferences.theme))
+                .tint(ONTColors.accent(etat.composition.reading.preferences.theme))
                 .dynamicTypeSize(
                     TaillesAuClavier.interface[
-                        min(max(tailleInterface, 0), TaillesAuClavier.interface.count - 1)])
+                        min(max(etat.tailleInterface, 0),
+                            TaillesAuClavier.interface.count - 1)])
                 .frame(minWidth: 720, minHeight: 520)
                 .environment(vault)
                 // L'état du mode vault, en bas de fenêtre et non en alerte :
@@ -124,51 +120,27 @@ struct ONTMacApp: App {
             // n'existe nulle part.
             CommandGroup(after: .toolbar) {
                 Divider()
-                Button("Agrandir l'interface") {
-                    tailleInterface = TaillesAuClavier.interfaceDeplacee(tailleInterface, de: 1)
-                }
+                Button("Agrandir l'interface") { etat.interface(de: 1) }
                 .keyboardShortcut("+", modifiers: .command)
-                Button("Réduire l'interface") {
-                    tailleInterface = TaillesAuClavier.interfaceDeplacee(tailleInterface, de: -1)
-                }
+                Button("Réduire l'interface") { etat.interface(de: -1) }
                 .keyboardShortcut("-", modifiers: .command)
-                Button("Taille d'interface par défaut") {
-                    tailleInterface = TaillesAuClavier.interfaceParDefaut
-                }
+                Button("Taille d'interface par défaut") { etat.interfaceParDefaut() }
                 .keyboardShortcut("0", modifiers: .command)
 
                 Divider()
                 // **⌃ et non ⌥.** `⌘⌥+` est pris par le zoom d'accessibilité du
                 // système sur bien des machines : le raccourci partait au
                 // zoom d'écran au lieu d'arriver ici.
-                Button("Agrandir le texte") { corps(de: 1) }
+                Button("Agrandir le texte") { etat.corps(de: 1) }
                     .keyboardShortcut("+", modifiers: [.command, .control])
-                Button("Réduire le texte") { corps(de: -1) }
+                Button("Réduire le texte") { etat.corps(de: -1) }
                     .keyboardShortcut("-", modifiers: [.command, .control])
 
                 Divider()
-                Button("Thème suivant") {
-
-                    let ordre = ReadingTheme.allCases
-                    let actuel = composition.reading.preferences.theme
-                    let suivant = ordre.firstIndex(of: actuel).map {
-                        ordre[($0 + 1) % ordre.count]
-                    }
-                    if let suivant { composition.reading.preferences.theme = suivant }
-                }
+                Button("Thème suivant") { etat.themeSuivant() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
-    }
-
-    /// Le corps du texte, d'un cran — **le même réglage que le curseur**.
-    ///
-    /// `preferences.textSize` et pas une valeur parallèle : le raccourci doit
-    /// bouger le curseur, sinon les deux divergent et le lecteur voit un
-    /// curseur qui ment sur ce qu'il lit.
-    private func corps(de pas: Double) {
-        composition.reading.preferences.textSize = TaillesAuClavier.corpsDeplace(
-            composition.reading.preferences.textSize, de: pas)
     }
 
     /// Demande le dossier du vault, et le suit.

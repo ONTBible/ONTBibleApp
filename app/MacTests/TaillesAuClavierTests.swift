@@ -1,3 +1,4 @@
+import ONTKit
 import SwiftUI
 import Testing
 
@@ -63,5 +64,50 @@ struct TaillesAuClavierTests {
     @Test("le départ est la taille du système")
     func leDepartEstCeluiDuSysteme() {
         #expect(TaillesAuClavier.interface[TaillesAuClavier.interfaceParDefaut] == .large)
+    }
+}
+
+/// Que le geste atteigne bien le réglage que la fenêtre affiche.
+///
+/// **Le défaut rapporté était là, et aucune épreuve ne le voyait :** « je vois
+/// le menu clignoter mais l'app n'est pas impactée ». L'action partait, la
+/// valeur changeait — dans un objet que personne n'affichait, parce que les
+/// fermetures de `.commands` ne voient pas la même instance d'`App` que la
+/// scène.
+///
+/// Ces épreuves-ci passent par `EtatMac.partage`, l'exemplaire unique, et
+/// vérifient qu'un geste laisse une trace là où on ira la lire.
+@Suite("Les gestes atteignent le réglage")
+@MainActor
+struct EtatMacTests {
+
+    @Test("agrandir le texte bouge la préférence que le curseur montre")
+    func leCorpsBouge() {
+        let etat = EtatMac.partage
+        etat.composition.reading.preferences.textSize = 19
+        etat.corps(de: 1)
+        #expect(etat.composition.reading.preferences.textSize == 20)
+        etat.corps(de: -1)
+        #expect(etat.composition.reading.preferences.textSize == 19)
+    }
+
+    @Test("agrandir l'interface bouge le cran, et s'arrête au bout")
+    func lInterfaceBouge() {
+        let etat = EtatMac.partage
+        etat.interfaceParDefaut()
+        let depart = etat.tailleInterface
+        etat.interface(de: 1)
+        #expect(etat.tailleInterface == depart + 1)
+        for _ in 0..<20 { etat.interface(de: 1) }
+        #expect(etat.tailleInterface == TaillesAuClavier.interface.count - 1)
+        etat.interfaceParDefaut()
+    }
+
+    @Test("le thème tourne en boucle et revient")
+    func leThemeTourne() {
+        let etat = EtatMac.partage
+        let depart = etat.composition.reading.preferences.theme
+        for _ in ReadingTheme.allCases { etat.themeSuivant() }
+        #expect(etat.composition.reading.preferences.theme == depart)
     }
 }
