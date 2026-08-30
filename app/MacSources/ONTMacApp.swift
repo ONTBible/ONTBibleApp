@@ -5,6 +5,7 @@ import ONTKit
 import QahalFeature
 import ReadingFeature
 import SearchFeature
+import AppKit
 import SwiftUI
 import YouFeature
 
@@ -34,6 +35,7 @@ import YouFeature
 @main
 struct ONTMacApp: App {
     @State private var composition = Composition()
+    @State private var vault = ModeVault()
 
     var body: some Scene {
         WindowGroup {
@@ -50,6 +52,13 @@ struct ONTMacApp: App {
                 // les gloses se hachent et le texte cesse d'être lisible —
                 // ce que cette app existe précisément pour éviter.
                 .frame(minWidth: 720, minHeight: 520)
+                .environment(vault)
+                // L'état du mode vault, en bas de fenêtre et non en alerte :
+                // il change à chaque sauvegarde, et une alerte par phrase
+                // rendrait l'app inutilisable pendant qu'on écrit.
+                .safeAreaInset(edge: .bottom) {
+                    if vault.vault != nil { BandeauDuVault(mode: vault) }
+                }
         }
         .windowResizability(.contentMinSize)
         .commands {
@@ -57,6 +66,14 @@ struct ONTMacApp: App {
             // avec un kératocône, on en change souvent, selon la lumière de
             // la pièce. Le réglage existe déjà dans l'écran de lecture ; ce
             // raccourci le double, il ne le remplace pas.
+            CommandGroup(after: .newItem) {
+                Divider()
+                Button("Suivre un vault…") { choisirLeVault() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
+                if vault.vault != nil {
+                    Button("Cesser de suivre") { vault.arreter() }
+                }
+            }
             CommandGroup(after: .toolbar) {
                 Divider()
                 Button("Thème suivant") {
@@ -69,6 +86,64 @@ struct ONTMacApp: App {
                 }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
             }
+        }
+    }
+
+    /// Demande le dossier du vault, et le suit.
+    ///
+    /// `NSOpenPanel` plutôt qu'un chemin dans les réglages : c'est lui qui
+    /// donne à l'app le **droit** de lire hors de son bac à sable. Un chemin
+    /// tapé à la main ne le donnerait pas, et l'app échouerait à la lecture
+    /// sans que rien n'explique pourquoi.
+    private func choisirLeVault() {
+        let panneau = NSOpenPanel()
+        panneau.canChooseDirectories = true
+        panneau.canChooseFiles = false
+        panneau.allowsMultipleSelection = false
+        panneau.prompt = "Suivre"
+        panneau.message = "Le dossier du vault — celui qui contient les brouillons."
+        if panneau.runModal() == .OK, let url = panneau.url {
+            vault.suivre(url)
+        }
+    }
+}
+
+/// L'état du mode vault, discret et permanent.
+private struct BandeauDuVault: View {
+    let mode: ModeVault
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbole)
+            Text(libelle).font(.footnote.monospacedDigit())
+            Spacer()
+            if let vault = mode.vault {
+                Text(vault.lastPathComponent)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.bar)
+    }
+
+    private var symbole: String {
+        switch mode.etat {
+        case .eteint, .enAttente: "eye"
+        case .enCours: "arrow.triangle.2.circlepath"
+        case .fait: "checkmark.circle"
+        case .echec: "exclamationmark.triangle"
+        }
+    }
+
+    private var libelle: String {
+        switch mode.etat {
+        case .eteint: "—"
+        case .enAttente: "en attente d'une pause dans l'écriture"
+        case .enCours: "reconstruction…"
+        case .fait(let unites, let versets): "\(unites) unités, \(versets) versets"
+        case .echec(let raison): raison
         }
     }
 }

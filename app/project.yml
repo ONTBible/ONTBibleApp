@@ -356,6 +356,19 @@ targets:
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
 
+  # Les épreuves de ce qui n'existe que sur le Mac.
+  ONTMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: MacTests
+    dependencies:
+      - target: ONTMac
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
   ONTTests:
     type: bundle.unit-test
     platform: iOS
