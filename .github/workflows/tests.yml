@@ -241,6 +241,21 @@ jobs:
       #
       # Pas de simulateur ici : la destination est le runner lui-même.
       #
+      # **Sans icône, et ce n'est pas un goût.** `ASSETCATALOG_COMPILER_APPICON_NAME`
+      # est vidé parce que l'`actool` d'Xcode 26.3 — celui du runner — **plante**
+      # en composant le bundle Icon Composer pour macOS. Pas une erreur de
+      # validation : un plantage, `IBAbstractPlatformToolProxy` et une attente de
+      # rapport de crash, sans un mot sur ce qu'il reproche. La même icône passe
+      # pour iOS dans le job d'à côté, et pour macOS sous l'Xcode 27 de la
+      # machine de développement.
+      #
+      # Une app d'épreuve n'a que faire d'une icône : on la retire ici plutôt
+      # que de retenir tout le job sur un outil qui tombe. **Mais la limite est
+      # réelle** — le jour où le Mac se livre, le runner de livraison devra
+      # tourner sur un Xcode dont l'`actool` ne plante pas, sans quoi la fiche
+      # partirait grise. C'est écrit ici pour que ce ne se découvre pas ce
+      # jour-là.
+      #
       # **Sans signature, et c'est une limite qu'il faut connaître.** Le runner
       # n'a pas de compte développeur, donc pas de profil, donc rien à signer
       # avec. Les droits d'`ONTMac.entitlements` sont alors absents du binaire :
@@ -258,6 +273,7 @@ jobs:
             -resultBundlePath ../resultats-mac.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
             2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
 
       # **Ce que `xcbeautify` avale.**
