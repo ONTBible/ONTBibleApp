@@ -120,8 +120,35 @@ struct ONTMacApp: App {
             // n'existe nulle part.
             CommandGroup(after: .toolbar) {
                 Divider()
+                // **La barre latérale, par l'action du système.**
+                //
+                // Elle n'est pas à nous : `TabView(.sidebarAdaptable)` la
+                // fabrique, et aucun état de la vue ne la commande. On demande
+                // donc au répondeur de faire ce qu'il sait faire — c'est le
+                // même chemin que le bouton de la barre d'outils emprunte.
+                //
+                // ⌘B plutôt que le ⌃⌘S d'AppKit : c'est le geste que les apps
+                // de lecture ont adopté, et le lecteur le connaît d'ailleurs.
+                Button("Masquer ou afficher la barre latérale") {
+                    NSApp.keyWindow?.firstResponder?.tryToPerform(
+                        Selector(("toggleSidebar:")), with: nil)
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Divider()
                 Button("Agrandir l'interface") { etat.interface(de: 1) }
-                .keyboardShortcut("+", modifiers: .command)
+                // **`=` et non `+`, et ce n'est pas un détail de forme.**
+                //
+                // Sur un clavier français, `+` s'obtient par Maj+`=`. Un
+                // raccourci déclaré `⌘+` **sans** Maj ne peut donc correspondre
+                // à aucune frappe réelle : le système livre « + » avec Maj, la
+                // déclaration attend « + » sans, et rien ne se produit jamais.
+                //
+                // C'est ce que l'auteur constatait — « ⌘+ ne marche toujours
+                // pas ». Le raccourci n'était pas cassé, il était **intypable**.
+                //
+                // `⌘=` se tape directement, et le menu l'affiche tel quel.
+                .keyboardShortcut("=", modifiers: .command)
                 Button("Réduire l'interface") { etat.interface(de: -1) }
                 .keyboardShortcut("-", modifiers: .command)
                 Button("Taille d'interface par défaut") { etat.interfaceParDefaut() }
@@ -131,10 +158,15 @@ struct ONTMacApp: App {
                 // **⌃ et non ⌥.** `⌘⌥+` est pris par le zoom d'accessibilité du
                 // système sur bien des machines : le raccourci partait au
                 // zoom d'écran au lieu d'arriver ici.
+                // Le corps du texte sur **⌘⇧**, à la demande de l'auteur.
+                //
+                // `=` là aussi : `⌘⇧+` demanderait Maj **deux fois**, ce qui ne
+                // se tape pas. `⌘⇧=` est la frappe qui produit ce que tout le
+                // monde appelle « ⌘⇧+ ».
                 Button("Agrandir le texte") { etat.corps(de: 1) }
-                    .keyboardShortcut("+", modifiers: [.command, .control])
+                    .keyboardShortcut("=", modifiers: [.command, .shift])
                 Button("Réduire le texte") { etat.corps(de: -1) }
-                    .keyboardShortcut("-", modifiers: [.command, .control])
+                    .keyboardShortcut("-", modifiers: [.command, .shift])
 
                 Divider()
                 Button("Thème suivant") { etat.themeSuivant() }
