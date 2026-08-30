@@ -60,6 +60,36 @@ vert=$'\033[32m'; fin=$'\033[0m'
 VAULT="${ONT_VAULT:-$(cd "$(dirname "$0")/../../ONTBibleTranslation" && pwd)}"
 ONT_GENERE="$(TZ=UTC git -C "$VAULT" log -1 \
   --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd 2>/dev/null || true)"
+
+# **Le recoupement, et il n'est pas décoratif.**
+#
+# Ce qui précède est juste aujourd'hui. Le jour où quelqu'un retire `TZ=UTC`, ou
+# revient à `--date=format:` en trouvant `format-local` obscur — ce que j'ai
+# failli faire moi-même —, la commande rend l'heure **du commit** avec un `Z`
+# collé dessus. Vingt signes, secondes présentes, `Z` final : la garde de forme
+# du pipeline la laisse passer, celle des liseuses aussi, et la chaîne publie
+# une date fausse de deux heures.
+#
+# On recalcule donc par un chemin qui ne connaît aucun fuseau — l'horodatage
+# brut du commit — et on refuse si les deux ne concordent pas. Le défaut devient
+# impossible au lieu d'être évité par un commentaire.
+if [ -n "$ONT_GENERE" ]; then
+  EPOCH="$(git -C "$VAULT" log -1 --format=%ct)"
+  # BSD et GNU ne prennent pas le même drapeau ; on essaie les deux.
+  TEMOIN="$(date -u -r "$EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+         || date -u -d "@$EPOCH" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
+  if [ -z "$TEMOIN" ]; then
+    echo "✗ impossible de recouper l'estampille — ni date -r ni date -d" >&2
+    exit 1
+  fi
+  if [ "$ONT_GENERE" != "$TEMOIN" ]; then
+    echo "✗ l'estampille ne concorde pas avec l'horodatage du commit :" >&2
+    echo "    calculée : $ONT_GENERE" >&2
+    echo "    attendue : $TEMOIN" >&2
+    echo "  La date porte un « Z » sans être en UTC. Vérifier TZ et format-local." >&2
+    exit 1
+  fi
+fi
 export ONT_GENERE
 if [ -n "$ONT_GENERE" ]; then
   echo "→ le corpus — vault du $ONT_GENERE"
