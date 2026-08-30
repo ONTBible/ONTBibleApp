@@ -66,6 +66,7 @@ public struct DailyVerseSettings: View {
                 RecoursNotificationsRefusees()
             }
         }
+        .ontFormulaire()
         .navigationTitle("Verset du jour")
         .ontTitreCompact()
         .ontRow()

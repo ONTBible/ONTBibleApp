@@ -32,7 +32,10 @@ struct RootView: View {
         @Bindable var router = router
 
         TabView(selection: $router.tab) {
-            OngletsFixes(appliquer: appliquer, appliquerParutions: appliquerParutions)
+            OngletsFixes(
+                enBarreLaterale: largeur == .regular,
+                appliquer: appliquer,
+                appliquerParutions: appliquerParutions)
             ForEach(corpusEnBarreLatérale) { corpus in
                 RayonDeLivres(titre: corpus.title, livres: livresRédigés(de: corpus))
             }
@@ -73,6 +76,17 @@ struct RootView: View {
         //
         // On repose donc le thème là où il manque, plutôt que de déplacer celui
         // qui marche.
+        // **Sur le Mac, une fiche est un panneau, pas une feuille.**
+        //
+        // Une feuille modale couvre le texte et interdit d'y revenir sans la
+        // fermer. C'est le bon geste sur un téléphone, où il n'y a de place que
+        // pour une chose à la fois. Sur un bureau, la place existe : on consulte
+        // un nom **sans perdre sa ligne**, et l'on compare la fiche au verset
+        // qui l'a fait ouvrir.
+        //
+        // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
+        // même chose nommée deux fois, c'est un autre geste. Le code doit
+        // montrer qu'on a décidé.
         .sheet(item: $router.openedLemma) { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
@@ -144,6 +158,16 @@ struct RootView: View {
     /// Ramène une sélection de livre dans l'onglet Bible quand la barre
     /// latérale n'est plus là pour la porter.
     private func rabattreLOngletLivre() {
+        // **« Reprendre » disparaît avec la barre latérale.**
+        //
+        // Passer d'un iPad à une Split View étroite retire l'onglet sous les
+        // pieds du lecteur : la `TabView` n'aurait plus rien à afficher pour la
+        // sélection enregistrée. On le ramène sur la Bible, où la carte
+        // « Reprendre » l'attend de toute façon.
+        if router.tab == .reprendre, largeur == .compact {
+            router.tab = .bible
+            return
+        }
         guard let livre = router.tab.bookId else { return }
         // `.compact` explicitement, jamais `!= .regular` : au premier passage
         // la classe de largeur est encore `nil`, et rabattre là-dessus, c'est
@@ -175,10 +199,34 @@ struct RootView: View {
 /// chaque morceau est résolu pour lui-même, jamais dans le même souffle que
 /// les autres.
 private struct OngletsFixes: TabContent {
+    /// Vrai quand la barre latérale est déployée — l'iPad, pas l'iPhone.
+    let enBarreLaterale: Bool
     let appliquer: (DailyVerseSchedule) async -> Bool
     let appliquerParutions: (Bool) async -> Bool
 
     var body: some TabContent<Router.TabID> {
+        // **« Reprendre » en tête, et seulement en barre latérale.**
+        //
+        // Sur un iPhone, c'est une carte en tête de la Bible : la barre
+        // flottante n'a de place que pour quatre onglets, et le cinquième
+        // rétrécirait les autres. Sur un iPad, la barre est verticale et n'a pas
+        // cette contrainte — le geste le plus fréquent y mérite la première
+        // place, comme sur le Mac.
+        //
+        // Une `TabSection` sans titre plutôt qu'un `Tab` isolé : c'est elle qui
+        // pose le filet entre « Reprendre » et le reste. Ce trait n'est pas
+        // décoratif — il dit que reprendre sa lecture n'est pas une
+        // destination de plus, c'est le retour à celle qu'on avait quittée.
+        if enBarreLaterale {
+            TabSection {
+                Tab(
+                    "Reprendre", systemImage: "bookmark.fill",
+                    value: Router.TabID.reprendre
+                ) {
+                    RepriseDeLecture()
+                }
+            }
+        }
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
             QahalTab()
         }

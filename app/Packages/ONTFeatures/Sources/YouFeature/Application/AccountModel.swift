@@ -130,6 +130,7 @@ public final class AccountModel {
                 verifier: grant.verifier
             )
             store.session = session
+            amorcerLeProfil(depuis: grant)
             state = .signedIn
         } catch AccountError.cancelled {
             // Annuler n'est pas une erreur.
@@ -145,6 +146,60 @@ public final class AccountModel {
             let lisible = AccountError.lisible(error, for: provider)
             state = .failed(lisible.localizedDescription)
         }
+    }
+
+    /// Pose le nom qu'Apple vient de confier, **et seulement s'il y a la place**.
+    ///
+    /// ## Pourquoi le client s'en charge pour Apple seul
+    ///
+    /// Google et GitHub disent le nom au serveur, qui amorce le profil
+    /// lui-même. Apple ne le dit **qu'au client**, et **qu'à la toute première
+    /// autorisation** : il accompagne l'autorisation, pas l'`id_token`, et une
+    /// seconde connexion ne le redonne à personne — pas même après une
+    /// désinstallation. Si on ne l'écrit pas ici, il est perdu pour toujours.
+    ///
+    /// ## Une seule garde, et pourquoi la seconde serait de trop
+    ///
+    /// On n'écrit que dans un champ **vide**. J'avais d'abord ajouté « et
+    /// seulement si le compte est neuf » — `created`, que le serveur rend. Deux
+    /// raisons de l'avoir retiré :
+    ///
+    /// - **elle n'apporte rien.** Apple ne donne le nom qu'une fois dans la vie
+    ///   du couple app-lecteur. Recevoir un nom *est* la preuve qu'on est à
+    ///   cette première fois ;
+    /// - **elle coûtait un champ transitoire sur `Session`**, qui est persistée.
+    ///   Un drapeau vrai une seconde puis relu faux à chaque lancement est un
+    ///   piège qu'on se tend.
+    ///
+    /// La garde du champ vide, elle, est indispensable et le reste : entre la
+    /// création du compte et cet instant, la synchronisation a pu descendre un
+    /// profil écrit sur un autre appareil. On n'écrase donc jamais rien —
+    /// d'autant que le nom d'Apple est souvent celui de la fiche du système,
+    /// que le lecteur n'a pas choisi pour cette app.
+    /// Interne et non privée : `SignInFlow` est un type concret qui parle à
+    /// `ASAuthorizationController`, donc on ne peut pas lui faire rendre un
+    /// accord d'Apple depuis une épreuve. C'est ce geste-ci qu'on éprouve, et
+    /// il est celui qui peut effacer le nom d'un lecteur.
+    func amorcerLeProfil(depuis grant: AuthorizationGrant) {
+        guard grant.prenom != nil || grant.nom != nil else { return }
+
+        var neuf = profil
+        var change = false
+        if let prenom = grant.prenom, neuf.prenom.isEmpty {
+            neuf.prenom = prenom
+            change = true
+        }
+        if let nom = grant.nom, neuf.nom.isEmpty {
+            neuf.nom = nom
+            change = true
+        }
+        guard change else { return }
+
+        // La date suit l'écriture, comme partout ailleurs : c'est elle qui
+        // arbitre entre deux appareils, et un profil modifié sans elle perdrait
+        // sa fusion au prochain échange.
+        neuf.updatedAt = Date()
+        profil = neuf
     }
 
     /// Déconnecte l'appareil.

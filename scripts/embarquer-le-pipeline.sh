@@ -23,7 +23,7 @@ cd "$(dirname "$0")/.."
 echo "→ le pipeline, en release"
 cargo build --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
 
-CIBLE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/ONTMac.app 2>/dev/null | head -1)"
+CIBLE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/*.app 2>/dev/null | head -1)"
 if [ -z "$CIBLE" ]; then
   echo "✗ ONTMac.app introuvable — compiler la cible ONTMac d'abord" >&2
   exit 1

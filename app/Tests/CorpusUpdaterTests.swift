@@ -68,10 +68,28 @@ struct CorpusUpdaterTests {
             guard let (octets, _) = try? await URLSession.shared.data(from: url),
                 let manifeste = try? JSONDecoder().decode(
                     CorpusUpdater.Manifest.self, from: octets),
-                CorpusUpdater.Estampille(manifeste.genere) != nil,
-                CorpusUpdater.estampilleEmbarquee() != nil
+                let publiee = CorpusUpdater.Estampille(manifeste.genere),
+                let embarquee = CorpusUpdater.estampilleEmbarquee()
             else { return false }
-            return true
+            // **Lisibles ne suffit pas : il faut que le publié soit le plus
+            // neuf.**
+            //
+            // La garde vérifiait que les deux dates existent, alors que ce que
+            // `synchroniser()` exige est `publiee > embarquee`. Deux dates
+            // lisibles dont la publiée est la plus vieille passaient donc la
+            // garde et rendaient zéro fichier — « rien n'a été téléchargé »,
+            // sur une branche qui n'avait pas touché au corpus.
+            //
+            // Ça arrive à chaque fois que le vault avance avant que le site ne
+            // republie : le paquet construit par l'intégration continue porte
+            // alors une date plus récente que ce qui est en ligne. Autrement
+            // dit, **toutes les PR tombaient jusqu'à la prochaine publication**,
+            // pour une raison qui n'était dans aucune d'elles.
+            //
+            // Une garde doit répéter la condition qu'elle garde, mot pour mot.
+            // Écrite « à peu près », elle laisse passer précisément les cas
+            // qu'elle existait pour écarter.
+            return publiee > embarquee
         }
     }
 

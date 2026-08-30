@@ -59,7 +59,7 @@ public struct QahalTab: View {
     private var comingSoon: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("À venir")
-                .font(.caption.smallCaps())
+                .font(ONTUI.caption.smallCaps())
                 .foregroundStyle(.secondary)
 
             ForEach(
@@ -74,7 +74,7 @@ public struct QahalTab: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                         Text(subtitle)
-                            .font(.caption)
+                            .font(ONTUI.caption)
                             .foregroundStyle(.tertiary)
                     }
                 } icon: {
@@ -88,7 +88,7 @@ public struct QahalTab: View {
                 "Ces fonctions demandent un serveur. La lecture, elle, fonctionne "
                     + "entièrement hors ligne."
             )
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(.tertiary)
             .padding(.top, 4)
         }

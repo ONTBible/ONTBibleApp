@@ -27,13 +27,13 @@ struct EnTeteDuProfil: View {
                 VStack(alignment: .leading, spacing: 3) {
                     if let nom = account.profil.nomAffiche {
                         Text(nom)
-                            .font(.headline)
+                            .font(ONTUI.headline)
                             .foregroundStyle(theme.ink)
                     } else {
                         // **Pas un espace réservé vide.** Un nom manquant est
                         // une invitation, pas un défaut d'affichage.
                         Text("Ajouter votre nom")
-                            .font(.headline)
+                            .font(ONTUI.headline)
                             .foregroundStyle(theme.accent)
                     }
 
@@ -42,7 +42,7 @@ struct EnTeteDuProfil: View {
                     // est un.
                     if let arobase = account.profil.arobase {
                         Text(arobase)
-                            .font(.subheadline)
+                            .font(ONTUI.subheadline)
                             .foregroundStyle(theme.accent)
                     }
 
@@ -56,7 +56,7 @@ struct EnTeteDuProfil: View {
                         HStack(spacing: 5) {
                             if let fournisseur = session.provider {
                                 Image(systemName: logo(fournisseur))
-                                    .font(.caption2)
+                                    .font(ONTUI.caption2)
                                     .accessibilityLabel("Connecté avec \(fournisseur.label)")
                             }
                             if let adresse = session.email {
@@ -69,14 +69,14 @@ struct EnTeteDuProfil: View {
                                 Text(fournisseur.label)
                             }
                         }
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.secondary)
                     }
 
                     let bio = account.profil.bio.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !bio.isEmpty {
                         Text(bio)
-                            .font(.footnote)
+                            .font(ONTUI.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
@@ -176,13 +176,13 @@ struct EditeurDuProfil: View {
                             HStack(spacing: 18) {
                                 PhotosPicker(selection: $choix, matching: .images) {
                                     Label("Photothèque", systemImage: "photo.on.rectangle")
-                                        .font(.footnote)
+                                        .font(ONTUI.footnote)
                                 }
                                 Button {
                                     parcourtLesFichiers = true
                                 } label: {
                                     Label("Fichiers", systemImage: "folder")
-                                        .font(.footnote)
+                                        .font(ONTUI.footnote)
                                 }
                             }
                         }
@@ -190,11 +190,11 @@ struct EditeurDuProfil: View {
                             Button("Retirer", role: .destructive) {
                                 account.profil.portrait = nil
                             }
-                            .font(.footnote)
+                            .font(ONTUI.footnote)
                         }
                         if let refus {
                             Text(refus)
-                                .font(.caption)
+                                .font(ONTUI.caption)
                                 .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
                         }
@@ -273,7 +273,7 @@ struct EditeurDuProfil: View {
                 Text("Bio")
             } footer: {
                 Text("\(account.profil.bio.count) / \(bornDeLaBio)")
-                    .font(.caption2.monospacedDigit())
+                    .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
             .ontRow()
@@ -287,7 +287,7 @@ struct EditeurDuProfil: View {
                             + "votre compte, et deviendront votre profil le jour où le "
                             + "Qahal — le rassemblement des lecteurs — ouvrira."
                     )
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
                 } icon: {
                     Image(systemName: "lock.fill")
@@ -296,6 +296,7 @@ struct EditeurDuProfil: View {
             }
             .ontRow()
         }
+        .ontFormulaire()
         .navigationTitle("Profil")
         .ontTitreCompact()
         .ontScreen()

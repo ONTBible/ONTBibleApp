@@ -52,7 +52,7 @@ public struct ONTSegments<Valeur: Hashable>: View {
                     withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
                 } label: {
                     Text(segment.libelle)
-                        .font(.subheadline.weight(choisi ? .semibold : .regular))
+                        .font(ONTUI.subheadline.weight(choisi ? .semibold : .regular))
                         .foregroundStyle(
                             choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
                         )
