@@ -983,11 +983,32 @@ pub fn build() -> Result<BuildResult, String> {
         &sortie.join("manifest.json"),
         &Manifest {
             schema: 1,
-            // Sans dépendance de date : l'empreinte du contenu suffit à savoir
-            // si le corpus a changé, et un horodatage rendrait deux builds du
-            // même vault différents pour rien.
-            generated_at: String::new(),
-            vault: racine.to_string_lossy().to_string(),
+            // L'estampille du **contenu**, pas de la compilation — la date du
+            // dernier commit du vault, passée par `ONT_GENERE`.
+            //
+            // Le déterminisme est intact : deux exécutions sur le même vault
+            // rendent la même date, donc le même octet, donc aucun
+            // retéléchargement inutile. Un horodatage de build l'aurait rompu.
+            //
+            // Elle n'a servi à rien jusqu'au jour où un bundle est devenu plus
+            // récent que le corpus publié. Une empreinte dit que deux corpus
+            // diffèrent ; elle ne dit jamais lequel vient après.
+            generated_at: crate::config::genere(),
+            // **Le nom du vault, pas son chemin.**
+            //
+            // Le chemin absolu de la machine qui bâtit se retrouvait dans un
+            // fichier committé : il basculait d'un contributeur à l'autre —
+            // `ONTBibleApp/` chez l'un, `ONTBibleApp-android/` chez l'autre —
+            // et faisait diverger la sortie de deux builds du même vault, ce qui
+            // contredit le déterminisme que tout le reste tient. Il révélait
+            // aussi l'arborescence du disque de qui publie.
+            //
+            // Personne ne le lit — ni les liseuses, ni le site. Il sert à dire
+            // **de quel vault** un corpus vient, et le nom du dossier suffit.
+            vault: racine
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
             stats: stats.clone(),
         },
     )

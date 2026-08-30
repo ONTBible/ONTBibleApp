@@ -70,8 +70,26 @@ public object ONTColors {
      */
     public val burntEarth: Color = Color(0xFF603518)
 
-    /** La même, éclaircie pour un fond sombre — **#A3704D**, teinte constante. */
-    public val burntEarthLight: Color = Color(0xFFA3704D)
+    /**
+     * La même, éclaircie pour un fond sombre — **#BA8C6C**.
+     *
+     * `#A3704D` d'abord, choisi sur l'écart entre marquages : ΔE 34 de l'or, 33
+     * du bordeaux, 29 de l'encre. Cette mesure répond à « distingue-t-on un nom
+     * d'un concept ? » — et **pas** à « lit-on le nom ? ». Le contraste contre le
+     * fond n'avait été mesuré par personne.
+     *
+     * ```
+     * #A3704D   4,33:1 sur la page nue — sous AA
+     * #BA8C6C   6,17:1 — à hauteur du bordeaux
+     * ```
+     *
+     * Le troisième palier vient du commentaire du bordeaux, qui note « 6,1:1 —
+     * au-delà du seuil AA ». Ce projet tient un standard plus haut qu'AA, écrit
+     * nulle part ; le Shem s'y range plutôt que de rester seul en bas.
+     *
+     * La teinte est intacte — seule la clarté monte, et seulement de nuit.
+     */
+    public val burntEarthLight: Color = Color(0xFFBA8C6C)
 
     // ─────────────────────────────────────────────────────────────────────
     // La nuit du site
@@ -276,7 +294,46 @@ public object ONTColors {
      * surlignage se pose sur un texte qu'on lit longtemps, il ne doit ni crier
      * ni rendre le texte illisible.
      */
-    public fun highlight(color: HighlightColor): Color = when (color) {
+    /**
+     * La couleur d'un surlignage, **selon la peau**.
+     *
+     * ## Le seul jeton qui ignorait le thème
+     *
+     * Cinq pastels choisis pour du parchemin étaient posés tels quels sur la
+     * nuit aubergine. Mesuré sous le voile de 0,38, en thème Mystique :
+     *
+     * ```
+     * encre        5,87:1   ✓
+     * or du terme  5,37:1   ✓
+     * Shem         2,37:1   ✗
+     * ```
+     *
+     * Le Shem n'était pas le coupable — il était **le plus exposé**. Le défaut
+     * était le jeton lui-même, et personne ne le mesurait : un surlignage est ce
+     * que le lecteur pose de sa main, sur le passage qui lui importe le plus.
+     *
+     * Avec la palette de nuit, le pire cas passe à 8,40 pour l'encre et 7,68
+     * pour le terme. Le relevé et les valeurs viennent d'iOS, qui a trouvé le
+     * défaut en portant la couche des Shemot.
+     *
+     * ## Pourquoi pas simplement baisser l'opacité
+     *
+     * Mesuré et rejeté là-bas : il faudrait descendre à 0,12 sur la nuit, où le
+     * surlignage n'est alors plus visible qu'à 1,25:1. **On effacerait la marque
+     * du lecteur pour lire son texte.**
+     */
+    public fun highlight(color: HighlightColor, theme: ReadingTheme): Color =
+        if (theme.isDark) highlightDeNuit(color) else highlightDeJour(color)
+
+    private fun highlightDeNuit(color: HighlightColor): Color = when (color) {
+        HighlightColor.GOLD -> Color(0xFF695211)
+        HighlightColor.OLIVE -> Color(0xFF4D582A)
+        HighlightColor.SKY -> Color(0xFF295B78)
+        HighlightColor.ROSE -> Color(0xFFAB2B2B)
+        HighlightColor.VIOLET -> Color(0xFF6A4297)
+    }
+
+    private fun highlightDeJour(color: HighlightColor): Color = when (color) {
         HighlightColor.GOLD -> Color(0xFFE8C973)
         HighlightColor.OLIVE -> Color(0xFFB8C787)
         HighlightColor.SKY -> Color(0xFF9EC7DE)

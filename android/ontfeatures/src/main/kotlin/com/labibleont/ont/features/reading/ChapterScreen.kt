@@ -388,7 +388,7 @@ private fun BlocDeTexte(
                                 onTerme = onTerme,
                 onShem = onShem,
                                 onVerset = onVerset,
-                                fond = fondDe(marque(verset.n)),
+                                fond = fondDe(marque(verset.n), theme),
                                 estompe = selection.isNotEmpty() && verset.n !in selection,
                                 fondDuTheme = ONTColors.background(theme),
                             ),
@@ -448,7 +448,7 @@ private fun BlocDeTexte(
                         showLevel3 = preferences.showLevel3,
                         onTerme = onTerme,
                 onShem = onShem,
-                        fond = fondDe(marque(verset.n)),
+                        fond = fondDe(marque(verset.n), theme),
                     )
                     Text(
                         texte,
@@ -567,9 +567,12 @@ private fun BlocDeTexte(
  * system, ce qui permet de retoucher la palette sans migrer les surlignages
  * déjà enregistrés chez les lecteurs.
  */
-private fun fondDe(couleur: HighlightColor?): androidx.compose.ui.graphics.Color? =
+private fun fondDe(
+    couleur: HighlightColor?,
+    theme: com.labibleont.ont.kit.reader.ReadingTheme,
+): androidx.compose.ui.graphics.Color? =
     couleur?.let {
-        ONTColors.highlight(it).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
+        ONTColors.highlight(it, theme).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
     }
 
 /**
