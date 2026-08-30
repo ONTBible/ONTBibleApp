@@ -142,6 +142,10 @@ final class Composition {
         // `BGTaskScheduler`, et la mise à jour à l'ouverture — juste en
         // dessous, et commune aux deux — lui suffit.
         #if os(iOS)
+            // Le consentement aux parutions sans inscription au serveur est
+            // un silence : on redemande un jeton. Voir `PushDistant`.
+            PushDistant.reprendreSiBesoin()
+
             CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, reading, lexicon] in
                 corpusSurDisque.oublier()
                 lexiqueSurDisque.oublier()
