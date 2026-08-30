@@ -123,8 +123,19 @@ struct LienPublicTests {
 /// que le site a voulu éviter en rendant la sélection idempotente.
 @MainActor
 struct LienCanoniqueTests {
+    /// **Le domaine s'impose avant d'appeler.**
+    ///
+    /// `webLink` part de `webBase`, qui se lit dans `Bundle.main` — absent d'un
+    /// paquet de test. Sans cette ligne la fonction rend `nil` **avant** de
+    /// composer quoi que ce soit, et les deux attentes ci-dessous échouent
+    /// sans rien dire de l'espace qu'elles prétendent mesurer.
+    ///
+    /// C'est ce que `LienPublicTests` fait dans son fabricant de routeur ; ces
+    /// épreuves-ci appellent la fonction en statique et ne passaient donc
+    /// jamais par là. Le mécanisme existait, le chemin ne l'empruntait pas.
     @Test("l'espace du renvoi ne passe pas dans l'URL")
     func lEspaceNePassePas() {
+        Router.webBaseImpose = URL(string: "https://ontbible.com")
         let lien = Router.webLink(
             book: "bereshit", chapter: "bereshit-19",
             verses: VerseRange.label([1, 2, 3, 7]))
