@@ -138,9 +138,17 @@ private struct BarreLateraleONT: View {
 
     var body: some View {
         List {
+            // **« Reprendre » dans sa propre section.**
+            //
+            // Le filet qui la sépare du reste n'est pas décoratif : il dit que
+            // reprendre sa lecture n'est pas une destination de plus, c'est le
+            // retour à celle qu'on avait quittée. Les trois suivantes sont des
+            // lieux ; celle-ci est un signet.
             Section {
                 LigneDeBarre(
                     cible: .reprendre, titre: "Reprendre", symbole: "bookmark.fill")
+            }
+            Section {
                 LigneDeBarre(cible: .qahal, titre: "Qahal", symbole: "person.2.fill")
                 LigneDeBarre(cible: .bible, titre: "Bible", symbole: "book.closed.fill")
                 LigneDeBarre(
