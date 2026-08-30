@@ -368,6 +368,18 @@ targets:
         # Un troisième endroit, après la barre des menus et le Finder, où le
         # même nom se déclare autrement. C'est ce qui rend ce genre de défaut
         # tenace : on en corrige un, on croit avoir fini.
+        # **L'accent de la marque, lu par AppKit et non par SwiftUI.**
+        #
+        # `.tint()` teinte ce que SwiftUI dessine. La barre latérale d'un
+        # `TabView(.sidebarAdaptable)` est dessinée par AppKit, qui ne le lit
+        # pas : sa sélection restait au rose vif des Réglages du lecteur, sur
+        # une peau or et bordeaux.
+        #
+        # `AccentColor` dans le catalogue est le seul endroit qu'AppKit
+        # consulte. L'or profond le jour, l'or clair la nuit — les deux valeurs
+        # de `ONTColors.accent`, recopiées ici parce qu'un catalogue ne sait pas
+        # appeler du Swift.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         PRODUCT_NAME: La Bible ONT
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
