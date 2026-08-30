@@ -161,9 +161,9 @@ struct RootView: View {
         // **« Reprendre » disparaît avec la barre latérale.**
         //
         // Passer d'un iPad à une Split View étroite retire l'onglet sous les
-        // pieds du lecteur : la `TabView` n'aurait plus rien à afficher pour la
-        // sélection enregistrée. On le ramène sur la Bible, où la carte
-        // « Reprendre » l'attend de toute façon.
+        // pieds du lecteur, et le réglage enregistré peut aussi la désigner en
+        // venant du Mac. Dans les deux cas la `TabView` n'aurait rien à
+        // afficher. On la ramène sur la Bible, où la carte l'attend.
         if router.tab == .reprendre, largeur == .compact {
             router.tab = .bible
             return
@@ -205,26 +205,29 @@ private struct OngletsFixes: TabContent {
     let appliquerParutions: (Bool) async -> Bool
 
     var body: some TabContent<Router.TabID> {
-        // **« Reprendre » en tête, et seulement en barre latérale.**
+        // **« Reprendre » en tête — un `Tab` nu, jamais une `TabSection`.**
         //
-        // Sur un iPhone, c'est une carte en tête de la Bible : la barre
-        // flottante n'a de place que pour quatre onglets, et le cinquième
-        // rétrécirait les autres. Sur un iPad, la barre est verticale et n'a pas
-        // cette contrainte — le geste le plus fréquent y mérite la première
-        // place, comme sur le Mac.
+        // Elle a été rendue **cinquième** une soirée durant, alors qu'elle était
+        // déclarée la première. La cause n'était pas l'onglet : c'était la
+        // `TabSection` sans titre qui l'enveloppait, pour poser un filet.
+        // `.sidebarAdaptable` hisse les `Tab` isolés **au-dessus** des sections,
+        // quel que soit l'ordre d'écriture — et la section dessinait en prime
+        // son bouton de repli, un chevron nu flottant sous « Vous ».
         //
-        // Une `TabSection` sans titre plutôt qu'un `Tab` isolé : c'est elle qui
-        // pose le filet entre « Reprendre » et le reste. Ce trait n'est pas
-        // décoratif — il dit que reprendre sa lecture n'est pas une
-        // destination de plus, c'est le retour à celle qu'on avait quittée.
+        // Sans elle, l'ordre déclaré est l'ordre rendu : les cinq onglets sont
+        // alors du même rang. On perd le filet, et c'est le prix — cette barre
+        // appartient au système, on ne lui dicte pas sa mise en ordre. On peut
+        // seulement cesser de la contrarier.
+        //
+        // **En largeur régulière seulement.** Sur un iPhone, la barre flottante
+        // n'a de place que pour quatre onglets ; un cinquième rétrécirait les
+        // autres, et « Reprendre » y est déjà une carte en tête de la Bible.
         if enBarreLaterale {
-            TabSection {
-                Tab(
-                    "Reprendre", systemImage: "bookmark.fill",
-                    value: Router.TabID.reprendre
-                ) {
-                    RepriseDeLecture()
-                }
+            Tab(
+                "Reprendre", systemImage: "bookmark.fill",
+                value: Router.TabID.reprendre
+            ) {
+                RepriseDeLecture()
             }
         }
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
