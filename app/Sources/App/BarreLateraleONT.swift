@@ -189,12 +189,12 @@ struct LigneDeBarre: View {
     /// L'aplat de marque quand la ligne est choisie ; un voile d'encre au
     /// survol, qui dit « on peut cliquer » sans annoncer une sélection.
     private var fond: Color {
-        if choisie { return ONTColors.brandInk(theme.mode) }
+        if choisie { return theme.ink.opacity(0.14) }
         if survolée { return theme.ink.opacity(0.07) }
         return .clear
     }
 
     private var encre: Color {
-        choisie ? ONTColors.onBrand(theme.mode) : theme.ink
+        theme.ink
     }
 }
