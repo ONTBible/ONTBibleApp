@@ -111,15 +111,17 @@ struct ONTMacApp: App {
             // contresens : on monte le corps très haut pour lire, sans vouloir
             // qu'une barre latérale enfle et mange la place de ce texte.
             //
-            // **Un seul bouton par action, lié à `+`.** J'avais d'abord doublé
-            // chaque commande avec une variante liée à `=`, parce que « ⌘+ » se
-            // tape ⌘⇧= sur la plupart des claviers. Mais SwiftUI fait déjà cette
-            // équivalence, et le doublon se voyait : deux fois « Agrandir
-            // l'interface » dans le menu, l'une répondant et l'autre non selon
-            // la touche pressée.
+            // **Deux tailles, deux gestes, un seul groupe de menu.**
             //
-            // Un menu qui montre deux fois la même chose est pire qu'un
-            // raccourci imparfait : il donne à croire que ce sont deux gestes.
+            // ⌘± règle l'interface ; ⌘⌃± le corps du texte, et rien d'autre.
+            // Les confondre serait un contresens : on monte le corps très haut
+            // pour lire, sans vouloir qu'une barre latérale enfle et mange la
+            // place de ce texte.
+            //
+            // **Un seul `CommandGroup`**, et non trois : deux groupes déclarés
+            // au même emplacement se disputent la place, et l'un des deux peut
+            // ne pas paraître du tout — un raccourci qu'on croit posé et qui
+            // n'existe nulle part.
             CommandGroup(after: .toolbar) {
                 Divider()
                 Button("Agrandir l'interface") {
@@ -136,14 +138,17 @@ struct ONTMacApp: App {
                 .keyboardShortcut("0", modifiers: .command)
 
                 Divider()
+                // **⌃ et non ⌥.** `⌘⌥+` est pris par le zoom d'accessibilité du
+                // système sur bien des machines : le raccourci partait au
+                // zoom d'écran au lieu d'arriver ici.
                 Button("Agrandir le texte") { corps(de: 1) }
-                    .keyboardShortcut("+", modifiers: [.command, .option])
+                    .keyboardShortcut("+", modifiers: [.command, .control])
                 Button("Réduire le texte") { corps(de: -1) }
-                    .keyboardShortcut("-", modifiers: [.command, .option])
-            }
-            CommandGroup(after: .toolbar) {
+                    .keyboardShortcut("-", modifiers: [.command, .control])
+
                 Divider()
                 Button("Thème suivant") {
+
                     let ordre = ReadingTheme.allCases
                     let actuel = composition.reading.preferences.theme
                     let suivant = ordre.firstIndex(of: actuel).map {
