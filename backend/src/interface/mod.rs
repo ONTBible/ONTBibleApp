@@ -161,12 +161,23 @@ async fn diffuser(
     for empreinte in &morts {
         let _ = appareils.oublier(empreinte).await;
     }
-    tracing::info!(
-        joints = liste.len() - morts.len(),
-        retires = morts.len(),
-        "diffusion"
-    );
-    (StatusCode::NO_CONTENT, ()).into_response()
+    let joints = liste.len() - morts.len();
+    tracing::info!(joints, retires = morts.len(), "diffusion");
+
+    // **Dire ce qu'on a joint, et pas seulement qu'on a fini.**
+    //
+    // Cette route rendait `204` quoi qu'il arrive : zéro appareil joint ou
+    // mille, la réponse était identique. Le compte n'allait que dans les
+    // journaux du serveur, invisibles de qui appelle.
+    //
+    // Le 30 août 2026, le déploiement du site a écrit « diffusé, code 204 » et
+    // l'auteur n'a rien reçu — sa parution était partie vers personne, et rien
+    // dans la réponse ne pouvait le dire. Une réponse qui ne distingue pas la
+    // réussite du vide ne mesure rien.
+    //
+    // `200` avec les comptes plutôt que `204` : c'est la seule différence, et
+    // elle rend l'appelant capable de s'étonner.
+    Json(serde_json::json!({ "joints": joints, "retires": morts.len() })).into_response()
 }
 
 /// Comparaison à durée constante.
