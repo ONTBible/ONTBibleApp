@@ -2078,3 +2078,79 @@ retenait le portage : **c'est l'architecture qui coûte, pas le moteur.** Une vu
 par verset vaut 8× une vue unique côté SwiftUI, 5,6× côté TextKit — le choix
 qu'on croyait secondaire pèse plus que celui qu'on croyait risqué. Vrai des
 trois plateformes, où la même alternative se posera.
+
+### 30 août 2026 — l'instrument qui répond à une autre question
+
+**Source : les trois dépôts, dans la même soirée.**
+
+Douze fois dans la journée, une mesure exacte a répondu à côté. Le compte n'est
+pas une curiosité : **aucune des douze n'a été attrapée par plus de rigueur dans
+la mesure.** Elles l'ont été par un second regard, ou par une contradiction entre
+deux sources.
+
+#### Ce qui a coûté le plus cher
+
+**Une garde paraphrasée a bloqué tout le dépôt.** `corpusDatable` vérifiait que
+les deux estampilles du corpus *existent* ; ce que le téléchargement exige, c'est
+que la publiée soit *plus récente*. Deux dates lisibles dont la publiée est la
+plus vieille passaient donc la garde et rendaient zéro fichier. Ça se déclenche
+dès que le vault avance avant que le site ne republie — et **toutes** les PR de
+`ONTBibleApp` tombaient depuis, en attendant une publication que personne n'avait
+de raison de faire.
+
+Le nom même était le glissement : « le corpus est-il datable » n'est pas « le
+téléchargement va-t-il avoir lieu ». **Une garde doit répéter sa condition mot
+pour mot, ou déléguer au même code.** Quand elle a son propre nom, elle a déjà
+commencé à s'en éloigner.
+
+Corollaire trouvé le même soir, dans les épreuves du Mac : une épreuve qui
+mesurait un `Form` promettait d'établir le comportement d'une `List`. Elle
+passait au vert et ne couvrait rien.
+
+#### Ce que ça change pour les trois dépôts
+
+**Une garde qui rassure est pire qu'une garde absente.** L'absente laisse la
+question ouverte ; la paraphrasée la fait croire close. À relire dans chaque
+dépôt : est-ce que le *nom* de la garde nomme la condition, ou sa conséquence ?
+
+**Une sonde contre le déployé est la seule chose qui mesure ce qui tourne** ;
+tout le reste mesure ce qu'on a écrit. Aucune garde du site ne pouvait voir la
+configuration de la Lambda qu'il appelle. Quand on allume un fournisseur, la
+sonde fait partie de l'allumage, pas de la vérification d'après.
+
+**Une contradiction entre deux sources est un instrument**, et c'est le seul qui
+attrape une erreur de *méthode* et non d'état. Elle a servi trois fois : un
+`grep` qui contredisait une session voisine et qui a révélé un arbre de travail
+717 lignes en retard ; une mesure d'interligne refaite par une seconde session,
+qui a montré que la première attribuait un effet réel à la mauvaise cause ; et un
+plan de déploiement dont une troisième session a vu la course, pas les chiffres.
+
+#### Le backend est déployé
+
+Depuis un worktree sur `origin/main`, l'arbre principal étant en retard. L'état
+Terraform est local : il a été copié, employé, puis recopié **sous garde du
+`serial`** — 56 au départ, vérifié inchangé avant d'écrire, 58 après. Sans cette
+garde, un `apply` concurrent aurait vu son état écrasé par un plus ancien, en
+silence : le motif du corpus publié qui recouvre le paquet plus récent,
+transposé sur un `.tfstate`.
+
+Sondé sur le déployé, pas annoncé : Apple passe de 503 à 401 sur l'origine web —
+il marche. GitHub reste à 503 tant que le repli de #164 n'a pas franchi
+`dev → staging → main`.
+
+#### Et une treizième, mesurée le soir même
+
+La liseuse du Mac ne suivait pas ⌘= sur son écran « Vous ». Trois captures n'ont
+rien prouvé : le facteur d'échelle **n'était pas celui qu'on croyait avoir posé**
+— 0,9 au lieu de 1,5 —, si bien qu'on mesurait un écran qui avait raison de ne
+pas bouger.
+
+Ce qui a tranché, en un seul build : **une sonde qui affiche ses propres
+conditions** à côté de ce qu'elle mesure. `f=1.5 cran=1 reglage=1` disait à la
+fois le résultat et l'état, et l'incohérence entre les deux derniers a nommé la
+cause. Une mesure qui n'affiche pas ses conditions ne mesure rien — c'est la
+même leçon que les fontes non inscrites, prise par l'autre bout.
+
+Le défaut réel, une fois le facteur vraiment posé : **une `List` de macOS ne
+transmet pas `\.font` à ses lignes.** Vaut pour les trois dépôts au titre de la
+méthode, et pour le seul Mac au titre du remède.
