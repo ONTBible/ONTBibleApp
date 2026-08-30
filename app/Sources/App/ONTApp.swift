@@ -148,6 +148,13 @@ final class Composition {
     /// Les lecteurs de disque, gardés pour qu'on puisse leur dire d'oublier.
     private let corpusSurDisque: DiskCorpusRepository
     private let lexiqueSurDisque: DiskGlossaryRepository
+    /// Les fiches des noms propres.
+    ///
+    /// **Depuis le bundle seul, sans doublure de disque.** Les mises à jour de
+    /// corpus n'en portent pas encore ; le jour où elles le feront, ce champ
+    /// prendra son `DiskShemotRepository` comme le glossaire a le sien, et rien
+    /// d'autre ne bougera.
+    let shemotSurDisque: BundleShemotRepository
 
     var dailyPool: [DailyVerse] { daily.pool() }
 
@@ -185,6 +192,7 @@ final class Composition {
         let glossary = DiskGlossaryRepository()
         self.corpusSurDisque = corpus
         self.lexiqueSurDisque = glossary
+        self.shemotSurDisque = BundleShemotRepository()
         let index = BundleSearchIndex()
         let store = FileReaderStore()
         // Un fichier à part : le profil se supprime avec le compte, les

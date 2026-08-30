@@ -43,6 +43,8 @@ extension Inline {
             self = .text(v)
         case .term(let v, let lemma):
             self = .term(v, lemma: lemma)
+        case .shem(let v, let lemma):
+            self = .shem(v, lemma: lemma)
         case .translit(let translit, let hebrew):
             self = .translit(translit, hebrew: hebrew)
         case .heb(let v):
@@ -299,5 +301,15 @@ extension SearchRecord {
 extension DailyVerse {
     init(_ dto: ONTSchema.DailyVerse) {
         self.init(b: dto.b, c: dto.c, n: dto.n, r: dto.r, t: dto.t)
+    }
+}
+
+extension ShemEntry {
+    init(_ dto: ONTSchema.ShemEntry) {
+        self.init(
+            lemma: dto.lemma,
+            title: dto.title,
+            definition: dto.definition.map(Block.init)
+        )
     }
 }
