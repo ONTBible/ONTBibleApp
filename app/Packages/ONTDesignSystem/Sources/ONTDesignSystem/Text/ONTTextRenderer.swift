@@ -217,6 +217,28 @@ public enum ONTTextRenderer {
             .joined(separator: " ")
     }
 
+    /// Compose une **fiche de lexique**, hébreu compris quel que soit le
+    /// réglage de lecture.
+    ///
+    /// Le niveau 3 est un réglage de la **surface de lecture**, où l'hébreu à
+    /// côté de chaque intraduisible encombrerait le fil. Une fiche est l'endroit
+    /// où l'on vient précisément *pour voir le mot* : l'y masquer la vide de ce
+    /// qu'elle est.
+    ///
+    /// **La fiche se contredisait déjà elle-même.** Son en-tête montre le mot
+    /// hébreu sans condition — `אָדָם` en haut de l'écran — pendant que sa prose
+    /// le perdait dès que le lecteur éteignait le niveau 3. Cent une
+    /// translittérations et sept passages hébreux disparaissaient ainsi des
+    /// cent huit fiches, sous un en-tête qui les montrait.
+    ///
+    /// La glose, elle, reste au choix du lecteur : c'est une voix du texte, pas
+    /// le sujet de la fiche.
+    public static func composeFiche(_ nodes: [Inline], theme: ONTTheme) -> AttributedString {
+        var complet = theme
+        complet.preferences.showLevel3 = true
+        return compose(nodes, theme: complet)
+    }
+
     /// Compose le corps seul — ce qu'on partage ou ce qu'on met en exergue.
     public static func composeBare(
         _ nodes: [Inline],

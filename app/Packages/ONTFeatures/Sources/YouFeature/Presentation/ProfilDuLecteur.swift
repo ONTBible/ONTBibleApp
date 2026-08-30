@@ -46,6 +46,33 @@ struct EnTeteDuProfil: View {
                             .foregroundStyle(theme.accent)
                     }
 
+                    // **Par quoi on s'est connecté**, dit par son logo.
+                    //
+                    // Sur la même ligne que l'adresse et non au-dessus : c'est
+                    // une **qualification** de cette adresse — celle-ci vient
+                    // d'Apple —, pas un renseignement de plus. Séparés, ils se
+                    // liraient comme deux faits sans rapport.
+                    if let session = account.session {
+                        HStack(spacing: 5) {
+                            if let fournisseur = session.provider {
+                                Image(systemName: logo(fournisseur))
+                                    .font(.caption2)
+                                    .accessibilityLabel("Connecté avec \(fournisseur.label)")
+                            }
+                            if let adresse = session.email {
+                                Text(adresse)
+                            } else if let fournisseur = session.provider {
+                                // L'adresse n'arrive qu'avec le serveur
+                                // déployé. Le nom du fournisseur tient lieu
+                                // d'information en attendant — il est vrai, et
+                                // c'est ce que la question demandait.
+                                Text(fournisseur.label)
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
                     let bio = account.profil.bio.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !bio.isEmpty {
                         Text(bio)
@@ -59,6 +86,19 @@ struct EnTeteDuProfil: View {
             .padding(.vertical, 4)
         }
         .accessibilityHint("Modifie votre profil")
+    }
+}
+
+/// Le glyphe du fournisseur.
+///
+/// Les symboles du système plutôt que des logos de marque : Apple interdit de
+/// redessiner le sien, et embarquer trois images pour trois glyphes qui
+/// existent déjà coûterait la moitié d'un mégaoctet et une revue de licence.
+private func logo(_ provider: AuthProvider) -> String {
+    switch provider {
+    case .apple: "apple.logo"
+    case .google: "g.circle.fill"
+    case .github: "chevron.left.forwardslash.chevron.right"
     }
 }
 

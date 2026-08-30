@@ -207,6 +207,14 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     public var showGloss: Bool
     /// Niveau 3 — translittération et hébreu.
     public var showLevel3: Bool
+    /// Ce qu'un passage partagé emporte.
+    ///
+    /// **Rangé avec les réglages de lecture, et pas ailleurs.** Ce n'en est pas
+    /// un — il ne change rien à ce qu'on lit —, mais il partage tout le reste
+    /// avec eux : il vit sur l'appareil, survit à une déconnexion, et se relit
+    /// au même endroit. Lui donner son propre fichier ferait un second
+    /// mécanisme identique pour cinq booléens.
+    public var partage: ReglagesDePartage
     /// Le corps du texte, en points, avant mise à l'échelle Dynamic Type.
     public var textSize: Double
     /// L'interligne, en multiple de la taille du corps.
@@ -251,6 +259,7 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     public init(
         showGloss: Bool = true,
         showLevel3: Bool = true,
+        partage: ReglagesDePartage = .default,
         textSize: Double = 19,
         lineSpacing: Double = 0.5,
         theme: ReadingTheme = .parchment,
@@ -266,6 +275,7 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     ) {
         self.showGloss = showGloss
         self.showLevel3 = showLevel3
+        self.partage = partage
         self.french = french
         self.textSize = textSize
         self.lineSpacing = lineSpacing
@@ -282,6 +292,8 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         let defauts = ReadingPreferences.default
         showGloss = try c.decodeIfPresent(Bool.self, forKey: .showGloss) ?? defauts.showGloss
         showLevel3 = try c.decodeIfPresent(Bool.self, forKey: .showLevel3) ?? defauts.showLevel3
+        partage =
+            try c.decodeIfPresent(ReglagesDePartage.self, forKey: .partage) ?? defauts.partage
         textSize = try c.decodeIfPresent(Double.self, forKey: .textSize) ?? defauts.textSize
         lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing)
             ?? defauts.lineSpacing
