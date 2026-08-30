@@ -79,7 +79,7 @@ enum PushDistant {
         guard UserDefaults.standard.bool(forKey: cleConsentement) else { return }
         guard !UserDefaults.standard.bool(forKey: cleEnregistre) else { return }
         log.info("consentement sans inscription — on redemande un jeton")
-        UIApplication.shared.registerForRemoteNotifications()
+        sInscrireAuprèsDApple()
     }
 
     static func activer() async -> Bool {
