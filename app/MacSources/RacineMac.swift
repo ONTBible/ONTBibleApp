@@ -56,6 +56,12 @@ struct RacineMac: View {
                     max: 460)
         } detail: {
             Detail()
+                // Les listes du détail reprennent la fonte du système à leurs
+                // lignes ; ces deux styles la leur rendent. Mesuré au pixel —
+                // voir `FonteDesListes`. Posé sur le détail et non sur toute la
+                // racine : la barre latérale déclare déjà ses fontes, et lui
+                // imposer un style de libellé changerait ce qu'elle a réglé.
+                .fonteDesListes()
                 .panneauDeFiche(shemot: composition.shemotSurDisque)
         }
         .navigationSplitViewStyle(.automatic)
