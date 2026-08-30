@@ -103,7 +103,46 @@ struct FonteDeLInterfaceTests {
         #expect(grand > petit, "le texte nu ne suit pas : \(petit) → \(grand)")
     }
 
-    @Test("Un texte dans un Form aussi — c'est la feuille de ⌘,")
+    /// **Un `Form`, et rien d'autre. Surtout pas une `List`.**
+    ///
+    /// Cette épreuve s'appelait « un texte dans un Form aussi — c'est la
+    /// feuille de ⌘, ». La seconde moitié était fausse, et c'est la moitié qui
+    /// rassurait : l'écran « Vous » n'emploie pas de `Form`, il emploie une
+    /// `List`. L'épreuve mesurait donc quelque chose qui passe pour établir
+    /// quelque chose qui échoue.
+    ///
+    /// Ce qu'une mesure dans la vraie fenêtre a montré, facteur forcé à 1,5 —
+    /// 32 px valent 13 pt, 48 px valent 19,5, soit 13 × 1,5 :
+    ///
+    ///     Text nu, hors d'une List                 48 px   suit
+    ///     Text nu, dans une List                   32 px   ne suit pas
+    ///     .font(ONTUI.body) sur la ligne           48 px   suit
+    ///     .font(ONTUI.body) posé sur la List       32 px   ne suit pas
+    ///     .environment(\.font, …) sur la List      32 px   ne suit pas
+    ///     Label .font(…) dans une List             32 px   ne suit pas
+    ///     Label sous un LabelStyle                 48 px   suit
+    ///
+    /// **Une `List` de macOS ne transmet pas `\.font` à ses lignes** : elle leur
+    /// pose la fonte système de son style. L'environnement n'est pas perdu — la
+    /// même vue posée à côté de la liste grossit — il est **écrasé au passage**,
+    /// et rien de ce qu'on met au-dessus ne franchit la barrière. Pour un
+    /// `Label`, même `.font()` sur la ligne ne suffit pas : c'est son *style*
+    /// qui compose son titre.
+    ///
+    /// Le nom dit donc maintenant ce que l'épreuve tient, et pas ce qu'on
+    /// espérait qu'elle établisse.
+    ///
+    /// ## Pourquoi la `List` n'est pas éprouvée ici
+    ///
+    /// `ImageRenderer` rend **0 × 0** pour une `List`, qui n'a pas de taille
+    /// propre ; `NSHostingView.fittingSize` aussi. Une épreuve écrite ainsi
+    /// échouerait sur « 0,0 → 0,0 », ce qui ne dit rien du sujet. Il faut
+    /// mesurer sur une capture de la vraie fenêtre, et ça ne se fait pas sans
+    /// écran.
+    ///
+    /// Ce qui garde la `List`, c'est donc le style posé dans `FonteDesListes` et
+    /// l'œil. On l'écrit plutôt que de laisser croire qu'une épreuve le couvre.
+    @Test("Un texte dans un Form suit le facteur — et un Form n'est pas une List")
     func leTexteDansUnFormulaire() {
         let depart = ONTEchelleUI.partage.facteur
         defer { ONTEchelleUI.partage.facteur = depart }
@@ -121,5 +160,8 @@ struct FonteDeLInterfaceTests {
 
         #expect(petit > 0)
         #expect(grand > petit, "le texte du formulaire ne suit pas : \(petit) → \(grand)")
+
+        // Rappel de ce que cette épreuve **ne** dit pas : la `List` de
+        // « Vous » n'obéit pas au même contrat, et rien ici ne la couvre.
     }
 }
