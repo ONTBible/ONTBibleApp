@@ -34,24 +34,51 @@ extension View {
         #endif
     }
 
-    /// La hauteur d'une feuille, quand la plateforme en propose une.
+    /// La taille d'une feuille de lecture.
     ///
-    /// Sur le Mac, une feuille se dimensionne d'elle-même ; le paramètre est
-    /// donc ignoré plutôt que traduit en une fenêtre de taille fixe, qui
-    /// contraindrait ce qu'iOS laisse libre.
+    /// **Sur le Mac, ne rien faire ne suffit pas.** Une feuille macOS se
+    /// dimensionne sur l'idéal de son contenu, et un `List` n'en propose aucun :
+    /// la fiche d'un Shem s'affichait en bandeau — titre, sous-titre, un
+    /// intertitre, et rien de ses vingt-six blocs.
+    ///
+    /// `presentationSizing(.page)` demande une feuille de la taille d'une page,
+    /// ce qu'une fiche est. Borné par `available` et non par le plancher du
+    /// paquet : celui-ci reste à macOS 14, que d'autres cibles emploient, et le
+    /// monter entier pour une feuille exclurait des machines pour rien.
+    ///
+    /// ## Ce que ce défaut a coûté, et pourquoi c'est écrit ici
+    ///
+    /// Je l'ai cru corrigé, puis inexistant, puis réel — deux revirements.
+    /// L'`osascript quit` n'aboutissait pas contre une feuille modale ouverte,
+    /// donc `open` rattachait la fenêtre du processus déjà en place : quatre
+    /// correctifs mesurés sur un binaire vieux de vingt minutes, tous jugés
+    /// sans effet. Puis un lancement enfin propre a montré la fiche entière —
+    /// et j'en ai conclu qu'il n'y avait rien à corriger, en oubliant que ce
+    /// lancement-là portait **aussi** les correctifs.
+    ///
+    /// La leçon tient en une ligne : **une capture identique au pixel près à
+    /// travers plusieurs changements de code n'est pas un défaut tenace, c'est
+    /// un instrument mort** — et quand l'instrument revit, il faut refaire les
+    /// mesures, pas relire les anciennes.
+    ///
+    /// Pour tuer l'app entre deux essais : `pkill -x ONTMac`, jamais
+    /// `osascript quit`.
     public func ontHauteurDeFeuille(_ fractions: Set<PresentationDetent>) -> some View {
         #if os(iOS)
-            return presentationDetents(fractions)
+            return AnyView(presentationDetents(fractions))
         #else
-            return self
+            if #available(macOS 15.0, *) {
+                return AnyView(presentationSizing(.page))
+            }
+            return AnyView(frame(minWidth: 560, minHeight: 460))
         #endif
     }
 
     /// Cache la barre d'état, là où il y en a une.
     ///
     /// Le Mac n'en a pas : sa barre de menus appartient au système et une app
-    /// ne la masque que si elle passe en plein écran, ce qu'une liseuse ne
-    /// fait pas de sa propre initiative.
+    /// ne la masque que si elle passe en plein écran, ce qu'une liseuse ne fait
+    /// pas de sa propre initiative.
     public func ontSansBarreDEtat(_ cachee: Bool) -> some View {
         #if os(iOS)
             return statusBarHidden(cachee)

@@ -95,5 +95,6 @@ public struct ShemSheet: View {
                 }
             }
         }
+        .ontHauteurDeFeuille([.medium, .large])
     }
 }

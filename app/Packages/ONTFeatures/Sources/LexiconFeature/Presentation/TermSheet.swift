@@ -48,6 +48,7 @@ public struct TermSheet: View {
                 }
             }
         }
+        .ontHauteurDeFeuille([.medium, .large])
     }
 
     @ViewBuilder
