@@ -296,6 +296,7 @@ struct EditeurDuProfil: View {
             }
             .ontRow()
         }
+        .ontFormulaire()
         .navigationTitle("Profil")
         .ontTitreCompact()
         .ontScreen()

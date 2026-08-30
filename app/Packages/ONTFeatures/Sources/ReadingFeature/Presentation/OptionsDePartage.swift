@@ -88,6 +88,7 @@ public struct OptionsDePartage: View {
             }
             .ontRow()
         }
+        .ontFormulaire()
         .navigationTitle("Options de partage")
         .ontTitreCompact()
         .ontScreen()

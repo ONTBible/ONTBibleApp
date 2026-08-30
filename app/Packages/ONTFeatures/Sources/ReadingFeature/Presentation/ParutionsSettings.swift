@@ -80,6 +80,7 @@ public struct ParutionsSettings: View {
                 RecoursNotificationsRefusees()
             }
         }
+        .ontFormulaire()
         .navigationTitle("Parutions")
         .ontTitreCompact()
         .ontRow()

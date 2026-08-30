@@ -1478,6 +1478,7 @@ private struct NoteEditor: View {
                 }
                 .ontRow()
             }
+            .ontFormulaire()
             .navigationTitle("Note")
             .ontTitreCompact()
             .toolbar {
@@ -1656,6 +1657,7 @@ public struct ReadingSettingsSheet: View {
                 }
                 .ontRow()
         }
+        .ontFormulaire()
         // Une confirmation, parce que le geste est court et la perte réelle :
         // qui a réglé sa taille de texte pour y voir ne veut pas la retrouver
         .ontRow()

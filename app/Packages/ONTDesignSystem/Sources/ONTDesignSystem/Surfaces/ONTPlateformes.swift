@@ -74,6 +74,35 @@ extension View {
         #endif
     }
 
+    /// Un formulaire de réglages, rendu comme sa plateforme l'entend.
+    ///
+    /// **Sans ça, un `Form` d'iOS ne rend pas sur le Mac** — et pas « moins
+    /// bien » : il perd sa structure. Le style par défaut y aligne les libellés
+    /// en colonnes, ce qui convient à un panneau d'inspecteur ; pour un écran
+    /// de réglages écrit en sections, le résultat est celui-ci :
+    ///
+    /// - les en-têtes — « Disposition », « Corps », « Fonte » — deviennent du
+    ///   **texte ordinaire**, indiscernables du contenu ;
+    /// - les pieds explicatifs se collent sous la dernière ligne, sans marge,
+    ///   et se lisent comme la suite du réglage plutôt que comme son
+    ///   commentaire ;
+    /// - les groupes perdent leur fond et leurs arrondis, donc l'écran n'a plus
+    ///   de rythme : c'est une colonne de lignes.
+    ///
+    /// `.grouped` rend au Mac ce qu'`insetGrouped` donne à iOS — des groupes
+    /// détachés, des en-têtes qui en sont, des pieds à leur place.
+    ///
+    /// Aucun effet sur iOS, dont les `Form` sont déjà groupés : l'appel est
+    /// donc sûr partout, et c'est ce qui permet de le poser sur les six sans
+    /// se demander à chaque fois.
+    public func ontFormulaire() -> some View {
+        #if os(macOS)
+            return formStyle(.grouped)
+        #else
+            return self
+        #endif
+    }
+
     /// Cache la barre d'état, là où il y en a une.
     ///
     /// Le Mac n'en a pas : sa barre de menus appartient au système et une app

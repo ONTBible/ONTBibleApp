@@ -69,6 +69,17 @@ struct ONTMacApp: App {
                 // La colonne de lecture a besoin d'une largeur ; en dessous,
                 // les gloses se hachent et le texte cesse d'être lisible —
                 // ce que cette app existe précisément pour éviter.
+                // **La teinte de l'app, et non celle du système.**
+                //
+                // Sans elle, le Mac colore les symboles de la barre latérale,
+                // les coches et les curseurs avec l'accent choisi dans les
+                // Réglages du lecteur — rose vif sur cette machine. Une liseuse
+                // dont la peau est or et bordeaux se retrouve alors piquée
+                // d'une couleur qui n'est ni l'une ni l'autre.
+                //
+                // iOS ne pose pas la question : il n'a pas d'accent système
+                // qu'une app hérite sans le demander.
+                .tint(ONTColors.accent(composition.reading.preferences.theme))
                 .dynamicTypeSize(
                     TaillesAuClavier.interface[
                         min(max(tailleInterface, 0), TaillesAuClavier.interface.count - 1)])
