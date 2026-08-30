@@ -187,6 +187,17 @@ final class Composition {
         // C'est ce qui permet à une correction de verset d'atteindre les
         // lecteurs en minutes, sans compilation, sans envoi à Apple, sans
         // revue, et sans qu'ils aient à installer quoi que ce soit.
+        // **Avant de lire le disque, on écarte ce qui y est périmé.**
+        //
+        // Le disque recouvre le bundle sans condition. Une copie téléchargée
+        // avant que l'estampille existe gagnerait donc sur un bundle plus
+        // neuf, et pour toujours : la 1.0.5 embarquait les Shemot et n'en
+        // affichait aucun, parce que le corpus de l'avant-veille répondait à
+        // sa place.
+        //
+        // Ici et pas plus tard : après la construction, le dépôt aurait déjà
+        // ouvert des fichiers qu'on s'apprête à retirer.
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf()
         let corpus = DiskCorpusRepository(socle: BundleCorpusRepository(bundle: source))
         daily = BundleDailyVerseRepository()
         let glossary = DiskGlossaryRepository()

@@ -121,6 +121,84 @@ struct EstampilleTests {
         #expect(try await m.synchroniser() == 1)
     }
 
+    // MARK: - La purge du corpus périmé
+
+    /// Un dossier de corpus, avec ou sans estampille.
+    private func dossierAvec(_ estampille: String?) -> URL {
+        let d = FileManager.default.temporaryDirectory
+            .appendingPathComponent("purge-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        try? Data("{}".utf8).write(to: d.appendingPathComponent("corpus.json"))
+        if let estampille {
+            try? estampille.write(
+                to: d.appendingPathComponent("estampille.txt"),
+                atomically: true, encoding: .utf8)
+        }
+        return d
+    }
+
+    /// Un bundle de test qui déclare l'estampille qu'on lui donne.
+    private func bundleEstampille(_ valeur: String) -> Foundation.Bundle {
+        let d = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bundle-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        try? Data(#"{"generatedAt":"\#(valeur)"}"#.utf8)
+            .write(to: d.appendingPathComponent("manifest.json"))
+        return Foundation.Bundle(url: d) ?? .main
+    }
+
+    /// **Le cas de l'appareil de l'auteur, le 30 août 2026.**
+    ///
+    /// La 1.0.5 embarquait la couche des Shemot et n'en affichait aucun : le
+    /// disque portait le corpus de l'avant-veille, sans un seul nœud `shem`, et
+    /// il répondait à la place du bundle.
+    ///
+    /// Refuser un corpus publié plus vieux empêche d'en *poser* un mauvais ; ça
+    /// ne fait rien à celui qui est déjà là. La cause était arrêtée, l'effet
+    /// restait.
+    ///
+    /// Une estampille **absente** vaut « plus vieux » : c'est le cas de toutes
+    /// les installations existantes, et le traiter ainsi est exact — leur
+    /// corpus date forcément d'avant la version qui écrit l'estampille.
+    @Test("un disque sans estampille est écarté par un bundle daté")
+    func leDisqueSansEstampilleEstEcarte() throws {
+        let dossier = dossierAvec(nil)
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(
+            dossier: dossier, bundle: bundleEstampille("2026-08-30T00:14:00Z"))
+        #expect(!FileManager.default.fileExists(atPath: dossier.path))
+    }
+
+    @Test("un disque plus vieux que le bundle est écarté")
+    func leDisqueVieuxEstEcarte() throws {
+        let dossier = dossierAvec("2026-08-27T09:00:00Z")
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(
+            dossier: dossier, bundle: bundleEstampille("2026-08-30T00:14:00Z"))
+        #expect(!FileManager.default.fileExists(atPath: dossier.path))
+    }
+
+    /// **Et surtout : une purge qui purge toujours n'est pas une purge.**
+    ///
+    /// Sans ce cas, un `removeItem` inconditionnel passerait les deux épreuves
+    /// ci-dessus en fanfare — et jetterait à chaque lancement un corpus
+    /// téléchargé, donc vingt méga par ouverture d'app.
+    @Test("un disque plus récent que le bundle est gardé")
+    func leDisqueNeufEstGarde() throws {
+        let dossier = dossierAvec("2026-08-30T00:14:00Z")
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(
+            dossier: dossier, bundle: bundleEstampille("2026-08-27T09:00:00Z"))
+        #expect(FileManager.default.fileExists(atPath: dossier.path))
+    }
+
+    /// Et un bundle sans estampille ne juge personne : il ne sait pas ce qu'il
+    /// porte, donc il n'a rien à dire de ce que le disque porte.
+    @Test("un bundle sans estampille ne purge rien")
+    func leBundleMuetNePurgePas() throws {
+        let dossier = dossierAvec("2026-08-27T09:00:00Z")
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(
+            dossier: dossier, bundle: bundleEstampille(""))
+        #expect(FileManager.default.fileExists(atPath: dossier.path))
+    }
+
     /// Et l'app qui ne sait pas ce qu'elle porte ne prend rien non plus : une
     /// estampille embarquée illisible est le même aveu d'ignorance qu'une
     /// estampille publiée illisible.
