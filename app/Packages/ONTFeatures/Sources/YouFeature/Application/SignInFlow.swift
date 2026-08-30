@@ -16,6 +16,37 @@ public struct AuthorizationGrant: Sendable {
     public let verifier: String?
     /// L'adresse de retour déclarée, à renvoyer telle quelle au fournisseur.
     public let redirectURI: String
+    /// Le nom que le fournisseur a confié **au client**, quand il l'a fait.
+    ///
+    /// ## Pourquoi il passe par ici et non par le serveur
+    ///
+    /// Google et GitHub disent le nom au serveur, qui interroge leur API après
+    /// l'échange : il amorce le profil lui-même, et le client n'a rien à faire.
+    ///
+    /// **Apple ne le dit qu'au client, et qu'à la toute première
+    /// autorisation.** Il accompagne l'autorisation, pas l'`id_token` ; le
+    /// serveur ne le voit jamais, et une seconde connexion ne le redonne à
+    /// personne — pas même après une désinstallation.
+    ///
+    /// Il n'y a donc pas de symétrie à rétablir : l'information n'arrive pas au
+    /// même endroit selon le fournisseur, et prétendre le contraire obligerait
+    /// à faire transiter par le serveur une donnée qu'il n'a pas.
+    ///
+    /// `nil` pour Google et GitHub, et pour Apple à toute connexion sauf la
+    /// première.
+    public let prenom: String?
+    public let nom: String?
+
+    public init(
+        code: String, verifier: String?, redirectURI: String,
+        prenom: String? = nil, nom: String? = nil
+    ) {
+        self.code = code
+        self.verifier = verifier
+        self.redirectURI = redirectURI
+        self.prenom = prenom
+        self.nom = nom
+    }
 }
 
 /// Les flux de connexion, côté système.
@@ -60,24 +91,35 @@ public struct SignInFlow {
 
     private func apple() async throws -> AuthorizationGrant {
         let request = ASAuthorizationAppleIDProvider().createRequest()
-        // On ne demande rien de plus que l'identité. Apple ne transmet le nom
-        // et l'adresse qu'à la toute première autorisation — le backend s'en
-        // passe, il ne garde que l'identifiant stable.
-        request.requestedScopes = []
+        // **On demande le nom, et lui seul.**
+        //
+        // Apple ne le transmet qu'à la toute première autorisation, et
+        // seulement si on l'a demandé. Ne pas le demander, c'est le perdre pour
+        // toujours : il n'y a pas de seconde chance, pas même après une
+        // désinstallation.
+        //
+        // Pas l'adresse : le backend n'en garde aucune — il identifie par le
+        // `subject` du fournisseur —, et Apple propose un relais qui la rend de
+        // toute façon peu parlante. Demander ce dont on n'a pas l'usage est une
+        // collecte, pas une fonctionnalité.
+        request.requestedScopes = [.fullName]
 
         let delegate = AppleDelegate()
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = delegate
         controller.presentationContextProvider = delegate
 
-        let code: String = try await withCheckedThrowingContinuation { continuation in
+        let accord: AppleDelegate.Accord = try await withCheckedThrowingContinuation {
+            continuation in
             delegate.continuation = continuation
             controller.performRequests()
         }
 
         // Ni redirection ni PKCE : l'autorisation a été accordée à l'app
         // elle-même, et c'est son identifiant que le backend présentera.
-        return AuthorizationGrant(code: code, verifier: nil, redirectURI: "")
+        return AuthorizationGrant(
+            code: accord.code, verifier: nil, redirectURI: "",
+            prenom: accord.prenom, nom: accord.nom)
     }
 
     // MARK: - Google et GitHub
@@ -197,7 +239,14 @@ extension Data {
 
 private final class AppleDelegate: NSObject, ASAuthorizationControllerDelegate,
     ASAuthorizationControllerPresentationContextProviding {
-    var continuation: CheckedContinuation<String, Error>?
+    /// Ce qu'Apple rend : le code, et le nom s'il le donne.
+    struct Accord: Sendable {
+        let code: String
+        let prenom: String?
+        let nom: String?
+    }
+
+    var continuation: CheckedContinuation<Accord, Error>?
 
     func authorizationController(
         controller: ASAuthorizationController,
@@ -211,7 +260,28 @@ private final class AppleDelegate: NSObject, ASAuthorizationControllerDelegate,
             continuation?.resume(throwing: AccountError.providerRefused)
             return
         }
-        continuation?.resume(returning: code)
+        // `fullName` est nul à toute connexion sauf la première. Ce n'est pas
+        // une erreur à signaler : c'est le contrat d'Apple, et le profil est
+        // déjà amorcé depuis longtemps quand ça arrive.
+        let composantes = credential.fullName
+        continuation?.resume(
+            returning: Accord(
+                code: code,
+                prenom: sansEspaces(composantes?.givenName),
+                nom: sansEspaces(composantes?.familyName)))
+    }
+
+    /// Une chaîne vide n'est pas un nom.
+    ///
+    /// Apple rend parfois `""` plutôt que `nil` quand le lecteur a effacé un
+    /// champ dans sa fiche. Écrire cette chaîne dans le profil poserait une
+    /// date de mise à jour sur un contenu vide, et la fusion — dernier écrit
+    /// gagné — ferait alors effacer un nom saisi ailleurs.
+    private func sansEspaces(_ valeur: String?) -> String? {
+        guard let coupe = valeur?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !coupe.isEmpty
+        else { return nil }
+        return coupe
     }
 
     func authorizationController(

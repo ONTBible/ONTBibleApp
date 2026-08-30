@@ -65,12 +65,19 @@ struct TokenResponse {
 struct GoogleUser {
     sub: String,
     email: Option<String>,
+    /// Google sépare les deux, ce qui nous épargne de deviner où couper.
+    given_name: Option<String>,
+    family_name: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct GithubUser {
     id: u64,
     email: Option<String>,
+    /// GitHub ne rend qu'une chaîne, et n'a aucune idée de ce qui est le
+    /// prénom — voir `couper_le_nom`.
+    name: Option<String>,
+    bio: Option<String>,
 }
 
 /// Les revendications d'un `id_token` Apple.
@@ -78,6 +85,48 @@ struct GithubUser {
 struct AppleClaims {
     sub: String,
     email: Option<String>,
+}
+
+/// Une chaîne vide vaut « rien dit ».
+///
+/// GitHub rend `""` pour une biographie jamais remplie, là où Google omet le
+/// champ. Sans cette réduction, un compte GitHub arriverait avec une biographie
+/// vide *présente*, qui écraserait celle que le lecteur aurait écrite ailleurs
+/// — la fusion de profils arbitre sur la date, pas sur le contenu.
+fn vide_en_none(valeur: Option<String>) -> Option<String> {
+    valeur.filter(|texte| !texte.trim().is_empty())
+}
+
+/// Coupe le nom entier de GitHub en prénom et nom.
+///
+/// **La coupe est une convention, pas une vérité.** GitHub ne rend qu'une
+/// chaîne libre — « Gloire Bikouta », « bikouta », « G. Bikouta », ou un pseudo
+/// sans rapport. On coupe à la **première** espace : le premier mot au prénom,
+/// tout le reste au nom, ce qui traite correctement « Marie-Claire de la
+/// Fontaine » là où couper à la dernière espace l'aurait défiguré.
+///
+/// Un seul mot part en prénom et laisse le nom vide. C'est le bon défaut : un
+/// écran qui affiche « prénom nom » rendra ce mot-là, et le lecteur
+/// corrigera s'il le souhaite. Le mettre au nom rendrait un affichage qui
+/// commence par une espace.
+fn couper_le_nom(entier: Option<&str>) -> (Option<String>, Option<String>) {
+    let Some(entier) = entier.map(str::trim).filter(|texte| !texte.is_empty()) else {
+        return (None, None);
+    };
+    match entier.split_once(char::is_whitespace) {
+        Some((premier, reste)) => {
+            let reste = reste.trim();
+            (
+                Some(premier.to_string()),
+                if reste.is_empty() {
+                    None
+                } else {
+                    Some(reste.to_string())
+                },
+            )
+        }
+        None => (Some(entier.to_string()), None),
+    }
 }
 
 #[async_trait]
@@ -204,10 +253,14 @@ impl HttpIdentityProvider {
             .await
             .map_err(|_| DomainError::ProviderRejected)?;
 
+        let (prenom, nom) = couper_le_nom(user.name.as_deref());
         Ok(ExternalIdentity {
             provider: Provider::Github,
             subject: user.id.to_string(),
             email: user.email,
+            prenom,
+            nom,
+            bio: vide_en_none(user.bio),
         })
     }
 
@@ -255,6 +308,11 @@ impl HttpIdentityProvider {
             provider: Provider::Google,
             subject: user.sub,
             email: user.email,
+            prenom: vide_en_none(user.given_name),
+            nom: vide_en_none(user.family_name),
+            // Google n'a pas de biographie à donner : son `userinfo` n'en
+            // porte pas. Ne rien rendre plutôt que d'inventer un équivalent.
+            bio: None,
         })
     }
 
@@ -313,10 +371,21 @@ impl HttpIdentityProvider {
         // (Ce raccourci serait faux si le jeton nous arrivait du client.)
         let claims = decode_jwt_claims::<AppleClaims>(&id_token)?;
 
+        // **Apple ne donne le nom qu'au client, et qu'une fois.**
+        //
+        // Il accompagne l'autorisation, pas l'`id_token` : le serveur ne le
+        // voit jamais, et une seconde connexion ne le redonne à personne. C'est
+        // donc au client de le retenir et de le poser lui-même dans le profil.
+        //
+        // Rendre `None` ici n'est pas un manque à combler plus tard : c'est
+        // l'état exact de ce que le serveur sait.
         Ok(ExternalIdentity {
             provider: Provider::Apple,
             subject: claims.sub,
             email: claims.email,
+            prenom: None,
+            nom: None,
+            bio: None,
         })
     }
 }
@@ -557,5 +626,55 @@ mod tests {
         let providers = HttpIdentityProvider::new(sans_identifiants());
         assert!(providers.identifiants_github(Origine::Webapp).is_none());
         assert!(providers.identifiants_github(Origine::App).is_none());
+    }
+
+    /// **La coupe du nom de GitHub est une convention, et elle a des bords.**
+    ///
+    /// GitHub ne rend qu'une chaîne libre. On coupe à la **première** espace,
+    /// ce qui traite correctement les noms composés — couper à la dernière
+    /// aurait mis « Marie-Claire de la » au prénom.
+    #[test]
+    fn le_nom_entier_se_coupe_a_la_premiere_espace() {
+        assert_eq!(
+            couper_le_nom(Some("Gloire Bikouta")),
+            (Some("Gloire".into()), Some("Bikouta".into()))
+        );
+        assert_eq!(
+            couper_le_nom(Some("Marie-Claire de la Fontaine")),
+            (Some("Marie-Claire".into()), Some("de la Fontaine".into()))
+        );
+    }
+
+    /// Un seul mot part au **prénom**, pas au nom.
+    ///
+    /// Un écran qui compose « prénom nom » rendra ce mot-là. Le mettre au nom
+    /// produirait un affichage qui commence par une espace.
+    #[test]
+    fn un_seul_mot_est_un_prenom() {
+        assert_eq!(
+            couper_le_nom(Some("bikouta")),
+            (Some("bikouta".into()), None)
+        );
+    }
+
+    /// Rien dit reste rien dit — y compris quand GitHub dit `""`.
+    #[test]
+    fn le_vide_ne_devient_pas_un_nom() {
+        assert_eq!(couper_le_nom(None), (None, None));
+        assert_eq!(couper_le_nom(Some("")), (None, None));
+        assert_eq!(couper_le_nom(Some("   ")), (None, None));
+    }
+
+    /// **Une chaîne vide n'est pas une valeur.**
+    ///
+    /// GitHub rend `""` pour une biographie jamais remplie, là où Google omet
+    /// le champ. Sans cette réduction, un compte GitHub arriverait avec une
+    /// biographie vide *présente*, qui écraserait celle écrite ailleurs — la
+    /// fusion arbitre sur la date, pas sur le contenu.
+    #[test]
+    fn une_chaine_vide_vaut_rien_dit() {
+        assert_eq!(vide_en_none(Some(String::new())), None);
+        assert_eq!(vide_en_none(Some("  \n ".into())), None);
+        assert_eq!(vide_en_none(Some("lecteur".into())), Some("lecteur".into()));
     }
 }
