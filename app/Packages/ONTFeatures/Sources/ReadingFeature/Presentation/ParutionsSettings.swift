@@ -80,6 +80,7 @@ public struct ParutionsSettings: View {
                 RecoursNotificationsRefusees()
             }
         }
+        .ontFormulaire()
         .navigationTitle("Parutions")
         .ontTitreCompact()
         .ontRow()
@@ -107,7 +108,7 @@ struct RecoursNotificationsRefusees: View {
             } icon: {
                 Image(systemName: "bell.slash")
             }
-            .font(.footnote)
+            .font(ONTUI.footnote)
             .foregroundStyle(theme.ink.opacity(0.7))
         }
         .ontRow()

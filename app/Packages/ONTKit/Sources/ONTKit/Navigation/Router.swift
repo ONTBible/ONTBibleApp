@@ -25,10 +25,22 @@ public final class Router {
     /// dernier onglet reste une seule chaîne dans les réglages.
     public enum TabID: RawRepresentable, Hashable, Sendable {
         case qahal, bible, lexicon, you
+        /// **Où l'on en était** — un onglet du Mac seulement.
+        ///
+        /// Sur un téléphone, « Reprendre » est une carte en tête de la Bible :
+        /// l'écran est petit, et un onglet de plus mangerait la barre. Sur un
+        /// bureau, la barre latérale est verticale et n'a pas cette contrainte —
+        /// le geste le plus fréquent mérite d'y être le premier.
+        ///
+        /// Le cas existe dans `ONTKit` et non côté Mac : `rawValue` doit savoir
+        /// le relire, sinon un état enregistré par la liseuse du Mac reviendrait
+        /// `nil` et l'app rouvrirait ailleurs.
+        case reprendre
         case book(String)
 
         public init?(rawValue: String) {
             switch rawValue {
+            case "reprendre": self = .reprendre
             case "qahal": self = .qahal
             case "bible": self = .bible
             case "lexicon": self = .lexicon
@@ -41,6 +53,7 @@ public final class Router {
 
         public var rawValue: String {
             switch self {
+            case .reprendre: "reprendre"
             case .qahal: "qahal"
             case .bible: "bible"
             case .lexicon: "lexicon"

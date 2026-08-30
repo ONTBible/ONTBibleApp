@@ -79,7 +79,7 @@ public struct StatusPill: View {
 
     public var body: some View {
         Text(label)
-            .font(.caption2)
+            .font(ONTUI.caption2)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(tint.opacity(0.3), in: Capsule())
@@ -98,7 +98,7 @@ public struct SectionCaption: View {
 
     public var body: some View {
         Text(label)
-            .font(.caption.smallCaps())
+            .font(ONTUI.caption.smallCaps())
             .foregroundStyle(tint)
             // **Un en-tête s'annonce.**
             //

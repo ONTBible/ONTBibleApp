@@ -96,6 +96,30 @@ pub struct ExternalIdentity {
     /// Facultatif — Apple ne le donne qu'à la toute première autorisation, et
     /// GitHub seulement si l'adresse est publique.
     pub email: Option<String>,
+    /// Ce que le fournisseur dit de la personne, quand il le dit.
+    ///
+    /// ## Pourquoi tout est facultatif, et le restera
+    ///
+    /// Les trois fournisseurs ne donnent pas la même chose, et surtout pas au
+    /// même endroit :
+    ///
+    /// - **Google** rend `given_name` et `family_name` dans son `userinfo`,
+    ///   que le serveur interroge déjà ;
+    /// - **GitHub** rend `name` — une seule chaîne — et `bio` dans son
+    ///   `/user`, que le serveur interroge déjà aussi ;
+    /// - **Apple** ne les rend **qu'au client**, et **qu'à la toute première
+    ///   autorisation**. Jamais au serveur, jamais une seconde fois.
+    ///
+    /// Le serveur amorce donc le profil pour les deux premiers, et le client
+    /// s'en charge pour Apple. Ce n'est pas une inélégance : l'information
+    /// n'arrive pas au même endroit, et prétendre le contraire obligerait à
+    /// faire transiter par le serveur une donnée qu'il n'a pas.
+    ///
+    /// Rien de tout ceci n'est exigé : un compte sans nom est un compte
+    /// valide. Le lecteur le remplira s'il veut, ou jamais.
+    pub prenom: Option<String>,
+    pub nom: Option<String>,
+    pub bio: Option<String>,
 }
 
 impl ExternalIdentity {
