@@ -299,7 +299,24 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
         }
 
         // 3. L'intraduisible — `** … **`
-        if c == b'*' && bytes.get(i + 1) == Some(&b'*') {
+        //
+        // **Trois astérisques ne sont pas un intraduisible.** `***Elohim**`
+        // ouvre une emphase *puis* un intraduisible — c'est ce qu'écrivent les
+        // pieds d'unité : « `- ***Elohim** / אֱלֹהִים — laissé en hébreu*` ».
+        //
+        // Sans cette garde, la branche mordait au **premier** astérisque,
+        // cherchait le `**` suivant, et capturait `*Elohim` comme **valeur**
+        // du terme. Le lemme, lui, restait juste — `slugify` écarte
+        // l'astérisque —, donc la fiche s'ouvrait bien : seul l'affichage était
+        // atteint. L'astérisque de fermeture de l'emphase, restée orpheline,
+        // s'imprimait telle quelle en fin de ligne.
+        //
+        // Le défaut se voyait dans les trois consommateurs du corpus, et nulle
+        // part il ne ressemblait à une panne — juste à une coquille du vault.
+        //
+        // On laisse donc l'emphase prendre le premier : `find_em_end` saute
+        // déjà les paires `**`, il a été écrit pour ce cas.
+        if c == b'*' && bytes.get(i + 1) == Some(&b'*') && bytes.get(i + 2) != Some(&b'*') {
             if let Some(rel) = src[i + 2..].find("**") {
                 let end = i + 2 + rel;
                 if end > i + 2 {
@@ -723,6 +740,48 @@ mod tests {
             panic!("ce doit être une glose")
         };
         assert_eq!(types(children), ["text", "em", "text", "term"]);
+    }
+
+    /// Une emphase qui **enveloppe** un intraduisible — la forme des pieds
+    /// d'unité.
+    ///
+    /// `- ***Elohim** / … *` : trois astérisques, deux grammaires imbriquées.
+    /// La branche de l'intraduisible mordait au premier, capturait `*Elohim`
+    /// comme lemme, et laissait l'astérisque de fermeture orpheline en fin de
+    /// ligne — visible telle quelle dans les trois consommateurs du corpus.
+    #[test]
+    fn une_emphase_peut_envelopper_un_intraduisible() {
+        let nodes = parse_inline("***Elohim** — laissé en hébreu*");
+
+        assert_eq!(types(&nodes), ["em"], "toute la ligne est en emphase");
+
+        let Inline::Em { children } = &nodes[0] else {
+            panic!("attendu une emphase");
+        };
+        assert_eq!(types(children), ["term", "text"]);
+
+        let Inline::Term { v, lemma } = &children[0] else {
+            panic!("attendu un intraduisible");
+        };
+        assert_eq!(
+            v, "Elohim",
+            "l'astérisque de l'emphase n'appartient pas au terme"
+        );
+        assert_eq!(lemma, "elohim");
+
+        let rendu = plain_text(&nodes, PlainOptions::default());
+        assert!(
+            !rendu.contains('*'),
+            "aucune astérisque ne doit survivre au rendu : {rendu}"
+        );
+    }
+
+    /// Et l'intraduisible seul continue de marcher — la garde ne doit pas
+    /// l'emporter avec elle.
+    #[test]
+    fn un_intraduisible_seul_reste_un_intraduisible() {
+        let nodes = parse_inline("le **chesed** de YHWH");
+        assert_eq!(types(&nodes), ["text", "term", "text"]);
     }
 
     #[test]
