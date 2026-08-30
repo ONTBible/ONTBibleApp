@@ -21,20 +21,10 @@ public struct LexiconTab: View {
 
     public var body: some View {
         NavigationStack {
+            ScrollViewReader { defilement in
             List {
                 Section {
-                    ForEach(filtered) { entry in                    Button {
-                        selected = LemmaSelection(entry.lemma)
-                    } label: {
-                        EntryRow(entry: entry)
-                            // Toute la rangée répond, pas seulement les
-                            // lettres : un `HStack` ne définit aucune forme
-                            // tactile, seul le dessin des glyphes est touché.
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .ontRow()
-                    }
+                    EmptyView()
                 } header: {
                     // En-tête de section plutôt que `safeAreaInset` : une
                     // `List` simple épingle ses en-têtes, et le grand titre
@@ -47,8 +37,64 @@ public struct LexiconTab: View {
                     .textCase(nil)
                     .listRowInsets(.init(top: 0, leading: 16, bottom: 0, trailing: 16))
                 }
+
+                // **Une section par lettre**, et non une seule liste plate.
+                //
+                // Le rail a besoin d'une cible pour chaque lettre, et les
+                // en-têtes de section en font une que `scrollTo` sait viser.
+                // Ils rendent en prime l'index lisible à VoiceOver, qui
+                // parcourt les sections — ce que le rail, lui, ne peut pas
+                // offrir à un doigt glissé.
+                ForEach(tranches) { tranche in
+                    Section {
+                        ForEach(tranche.entrees) { entry in
+                            Button {
+                                selected = LemmaSelection(entry.lemma)
+                            } label: {
+                                EntryRow(entry: entry)
+                                    // Toute la rangée répond, pas seulement les
+                                    // lettres : un `HStack` ne définit aucune
+                                    // forme tactile, seul le dessin des glyphes
+                                    // est touché.
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                            .ontRow()
+                        }
+                    } header: {
+                        Text(tranche.lettre)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(theme.accent)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    .id(tranche.lettre)
+                }
             }
             .listStyle(.plain)
+            // **La liste recule pour le rail.**
+            //
+            // Sans ça les compteurs de la colonne de droite viennent toucher
+            // les lettres — relevé à l'écran : « 214 » à deux points du « D ».
+            // Le rail se pose *par-dessus* la liste ; c'est donc à la liste de
+            // lui céder la place, pas au rail de se serrer.
+            .safeAreaPadding(.trailing, railVisible ? 20 : 0)
+            // **Le rail ne paraît qu'à la liste entière.**
+            //
+            // Sur un résultat de recherche il mentirait : ses lettres
+            // porteraient sur le lexique complet, la liste sur autre chose.
+            // Et sous vingt entrées il ne sert à rien — le pouce en fait
+            // autant en défilant.
+            .overlay(alignment: .trailing) {
+                if railVisible {
+                    ONTRailDeLettres(lettres: tranches.map(\.lettre)) { lettre in
+                        // Sans animation : un saut d'index doit être
+                        // instantané. Animé, le pouce descend plus vite que la
+                        // liste et l'on vise une lettre qu'on a déjà passée.
+                        defilement.scrollTo(lettre, anchor: .top)
+                    }
+                    .padding(.trailing, 2)
+                }
+            }
             .ontScreen()
             .navigationTitle("Lexique")
             .searchable(
@@ -63,12 +109,27 @@ public struct LexiconTab: View {
                     ContentUnavailableView.search(text: search)
                 }
             }
+            }
         }
         .ontColumn()
     }
 
     private var filtered: [GlossaryEntry] {
         model.filtered(scope: scope, search: search)
+    }
+
+    /// Le rail ne paraît qu'à la liste entière, et seulement si elle est assez
+    /// longue pour qu'un pouce y gagne quelque chose.
+    ///
+    /// Sur un résultat de recherche il mentirait : ses lettres porteraient sur
+    /// le lexique complet, la liste sur autre chose.
+    private var railVisible: Bool {
+        search.isEmpty && tranches.count > 1 && filtered.count >= 20
+    }
+
+    /// Les entrées découpées par lettre, dans l'ordre où le modèle les rend.
+    private var tranches: [TrancheAlphabetique<GlossaryEntry>] {
+        IndexAlphabetique.trancher(filtered) { $0.title }
     }
 }
 

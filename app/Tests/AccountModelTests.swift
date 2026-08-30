@@ -19,7 +19,7 @@ struct AccountModelTests {
         ) async throws -> Session {
             .init(accessToken: "a", refreshToken: "r", expiresAt: .distantFuture)
         }
-        func refresh(_ refreshToken: String) async throws -> Session {
+        func refresh(_ precedente: Session) async throws -> Session {
             .init(accessToken: "a2", refreshToken: "r2", expiresAt: .distantFuture)
         }
     }
