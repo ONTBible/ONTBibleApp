@@ -96,8 +96,6 @@ struct RacineMac: View {
     /// lecteur n'aurait aucun moyen de comprendre pourquoi.
     private func rabattreCeQuiNExistePas() {
         switch router.tab {
-        case .you:
-            router.tab = .bible
         case .book(let id) where !reading.writtenBooks.contains(where: { $0.id == id }):
             router.tab = .bible
             if reading.outline(id) != nil { router.biblePath = [.book(id)] }
@@ -114,144 +112,16 @@ struct RacineMac: View {
             switch router.tab {
             case .reprendre: RepriseDeLecture()
             case .qahal: QahalTab()
-            case .bible, .you: BibleTab { SearchView() }
+            case .bible: BibleTab { SearchView() }
+            // Le compte, désigné par la ligne du bas ou par ⌘,. Les deux
+            // fermetures rendent des valeurs fixes : le Mac ne programme pas de
+            // verset quotidien et ne s'inscrit pas aux parutions — ce sont des
+            // notifications d'appareil, et sa liseuse n'en pose pas.
+            case .you:
+                YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
             case .lexicon: LexiconTab()
             case .book(let id): BookTab(bookId: id)
             }
         }
-    }
-}
-
-// MARK: - La barre latérale
-
-/// La barre latérale de la liseuse, dessinée par l'app.
-///
-/// Une `List` et des lignes à nous, plutôt qu'une `List(selection:)` : la
-/// sélection d'une liste système est peinte par AppKit avec l'accent du
-/// système, ce qui est précisément ce qu'on vient de quitter. Le prix est de
-/// dessiner soi-même l'état sélectionné et le survol ; le gain est que la barre
-/// porte enfin la peau de l'app, et qu'elle suit le corps réglé au clavier.
-private struct BarreLateraleONT: View {
-    @Environment(Router.self) private var router
-    @Environment(ReadingModel.self) private var reading
-    @Environment(\.ontTheme) private var theme
-
-    var body: some View {
-        List {
-            // **« Reprendre » dans sa propre section.**
-            //
-            // Le filet qui la sépare du reste n'est pas décoratif : il dit que
-            // reprendre sa lecture n'est pas une destination de plus, c'est le
-            // retour à celle qu'on avait quittée. Les trois suivantes sont des
-            // lieux ; celle-ci est un signet.
-            Section {
-                LigneDeBarre(
-                    cible: .reprendre, titre: "Reprendre", symbole: "bookmark.fill")
-            }
-            Section {
-                LigneDeBarre(cible: .qahal, titre: "Qahal", symbole: "person.2.fill")
-                LigneDeBarre(cible: .bible, titre: "Bible", symbole: "book.closed.fill")
-                LigneDeBarre(
-                    cible: .lexicon, titre: "Lexique",
-                    symbole: "character.book.closed.fill")
-            }
-            // Seulement les corpus qui ont un livre à proposer : un en-tête
-            // « Berit Hadashah » suivi de rien annoncerait un rayon vide.
-            ForEach(corpusPeuplés) { corpus in
-                Section(corpus.title) {
-                    ForEach(livresRédigés(de: corpus)) { livre in
-                        LigneDeBarre(
-                            cible: .book(livre.id), titre: livre.title,
-                            symbole: "book.pages")
-                    }
-                }
-            }
-        }
-        .listStyle(.sidebar)
-        // Le fond de la liseuse, et non celui du système : une barre grise
-        // contre un parchemin ferait deux apps dans une fenêtre.
-        .scrollContentBackground(.hidden)
-        .background(theme.background)
-    }
-
-    private var corpusPeuplés: [Corpus] {
-        reading.corpora.filter { !livresRédigés(de: $0).isEmpty }
-    }
-
-    private func livresRédigés(de corpus: Corpus) -> [BookOutline] {
-        corpus.modes
-            .sorted { $0.order < $1.order }
-            .flatMap(\.books)
-            .filter { !$0.empty }
-    }
-}
-
-/// Une ligne de la barre latérale.
-///
-/// Le libellé est en Jost, la fonte de titraille et de navigation du projet —
-/// c'est la règle du site, que la barre d'AppKit ne pouvait pas suivre. Elle
-/// vaut ici doublement : `Font.custom(_:size:)` suit Dynamic Type d'office,
-/// là où un `.system(size:)` reste figé. La barre grandit donc avec ⌘=, ce
-/// qu'on lui demandait depuis le début.
-private struct LigneDeBarre: View {
-    let cible: Router.TabID
-    let titre: String
-    let symbole: String
-
-    @Environment(Router.self) private var router
-    @Environment(\.ontTheme) private var theme
-    @State private var survolée = false
-    private var espace = ONTSpacing()
-    private var échelle = ONTScaled()
-
-    init(cible: Router.TabID, titre: String, symbole: String) {
-        self.cible = cible
-        self.titre = titre
-        self.symbole = symbole
-    }
-
-    private var choisie: Bool { router.tab == cible }
-
-    var body: some View {
-        Button {
-            router.tab = cible
-        } label: {
-            HStack(spacing: espace.s) {
-                Image(systemName: symbole)
-                    .font(.system(size: échelle(13)))
-                    .frame(width: échelle(20))
-                Text(titre)
-                    .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(encre)
-            .padding(.horizontal, espace.s)
-            .padding(.vertical, espace.xs + 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(fond, in: .rect(cornerRadius: ONTRadius.highlight + 2))
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .onHover { survolée = $0 }
-        // Le survol se pose vite et se retire vite : au-delà, la barre traîne
-        // derrière le curseur et donne l'impression que l'app rame.
-        .animation(.easeOut(duration: 0.12), value: survolée)
-        .animation(.easeOut(duration: 0.14), value: choisie)
-    }
-
-    /// L'aplat de marque quand la ligne est choisie ; un voile d'encre au
-    /// survol, qui dit « on peut cliquer » sans annoncer une sélection.
-    private var fond: Color {
-        if choisie { return ONTColors.brandInk(theme.mode) }
-        if survolée { return theme.ink.opacity(0.07) }
-        return .clear
-    }
-
-    private var encre: Color {
-        choisie ? ONTColors.onBrand(theme.mode) : theme.ink
     }
 }

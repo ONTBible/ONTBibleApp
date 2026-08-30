@@ -116,25 +116,20 @@ struct ONTMacApp: App {
         // comportement voulu — on propose, on n'impose pas.
         .defaultSize(width: 1240, height: 960)
         .windowResizability(.contentMinSize)
-        // **Les réglages où le Mac les attend.** `Settings` reçoit ⌘, du
-        // système, apparaît dans le menu de l'app, et se ferme comme une
-        // fenêtre de réglages — trois choses qu'un onglet ne peut pas donner.
-        Settings {
-            AvecLaFonteDeLInterface {
-                YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
-                .environment(etat.composition.router)
-                .environment(etat.composition.reading)
-                .environment(etat.composition.lexicon)
-                .environment(etat.composition.search)
-                .environment(etat.composition.qahal)
-                .environment(etat.composition.you)
-                .environment(etat.composition.account)
-                .environment(etat.composition)
-                .ontTheme(from: etat.composition.reading.preferences)
-                .frame(minWidth: 620, minHeight: 520)
-            }
-        }
-
+        // **Plus de scène `Settings`.**
+        //
+        // Le compte vivait dans une fenêtre à part, ouverte par ⌘,. Deux
+        // raisons de l'avoir ramené dans la barre latérale, en bas :
+        //
+        // - **c'est la place qu'Apple Music lui donne**, et l'auteur l'a
+        //   demandée. Le compte n'est pas une destination parmi les livres,
+        //   c'est *qui regarde* ;
+        // - **une fenêtre à part est un second environnement**, et il divergeait.
+        //   Sa fonte d'interface ne suivait pas ⌘= — trois relances pour s'en
+        //   convaincre. Un écran de moins est une divergence de moins.
+        //
+        // ⌘, reste : il désigne maintenant la ligne du bas au lieu d'ouvrir une
+        // fenêtre. Le geste que le lecteur connaît mène au même endroit.
         .commands {
             // Le Mac attend qu'on puisse changer de thème au clavier — et
             // avec un kératocône, on en change souvent, selon la lumière de
@@ -175,6 +170,10 @@ struct ONTMacApp: App {
                 //
                 // ⌘B plutôt que le ⌃⌘S d'AppKit : c'est le geste que les apps
                 // de lecture ont adopté, et le lecteur le connaît d'ailleurs.
+                Button("Le compte") { etat.composition.router.tab = .you }
+                    .keyboardShortcut(",", modifiers: .command)
+
+                Divider()
                 Button("Masquer ou afficher la barre latérale") {
                     NSApp.keyWindow?.firstResponder?.tryToPerform(
                         Selector(("toggleSidebar:")), with: nil)
