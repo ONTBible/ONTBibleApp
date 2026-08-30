@@ -65,6 +65,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.remote.CorpusUpdater
+import com.labibleont.ont.data.remote.DiskCorpusRepository
+import com.labibleont.ont.data.remote.DiskGlossaryRepository
+import com.labibleont.ont.data.remote.DiskShemotRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
@@ -248,12 +252,30 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         adresseRecue.value = intent?.dataString
 
-        val corpus = AssetCorpusRepository(applicationContext)
-        val glossaire = AssetGlossaryRepository(applicationContext)
-        val shemot = AssetShemotRepository(applicationContext)
+        // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
+        // un corpus complet — elle marche au premier lancement, sans réseau — et
+        // ce qui a été téléchargé le recouvre morceau par morceau.
+        val corpus = DiskCorpusRepository(applicationContext)
+        val glossaire = DiskGlossaryRepository(applicationContext)
+        val shemot = DiskShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val lecteur = FileReaderStore(applicationContext)
+
+        // **La mise à jour du corpus, en fond, à chaque lancement.**
+        //
+        // Une correction de traduction ne devrait pas attendre une revue de
+        // Play. Le vault bouge tous les jours ; l'app, bien plus rarement.
+        //
+        // Sans attendre, et sans rien bloquer : ce qui arrive sera lu au
+        // prochain lancement. Recharger l'écran en cours de lecture déplacerait
+        // le texte sous les yeux de quelqu'un — le prix est plus élevé que le
+        // délai qu'on économise.
+        //
+        // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
+        Thread { runCatching { CorpusUpdater(applicationContext).synchroniser() } }
+            .apply { isDaemon = true }
+            .start()
 
         setContent {
             val adresse by adresseRecue.collectAsState()
