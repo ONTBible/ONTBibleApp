@@ -376,7 +376,22 @@ targets:
               - ont
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.mac
+        # **Le même identifiant que l'iOS, et c'est délibéré.**
+        #
+        # C'est l'achat universel d'Apple : une seule fiche à l'App Store, une
+        # seule revue, et le lecteur qui a l'app sur iPhone a celle du Mac.
+        #
+        # Ce n'est pas qu'une commodité de distribution. Sign in with Apple
+        # délivre son code **au bundle qui l'a demandé**, et le backend n'échange
+        # que les codes émis pour `com.labibleont.ONT`. Sous `…ONT.mac`, Apple
+        # aurait refusé l'échange même avec le droit posé — il aurait fallu un
+        # App ID de plus, groupé chez Apple, et une troisième origine côté
+        # serveur. Beaucoup d'ouvrage pour une fiche séparée dont une liseuse
+        # gratuite n'a que faire.
+        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT
+        # Les droits du Mac — voir `ONTMac.entitlements`. Sans eux, la connexion
+        # Apple échoue avant de partir.
+        CODE_SIGN_ENTITLEMENTS: ONTMac.entitlements
         # **Le nom du bundle sur le disque**, et donc celui que le Dock montre
         # dans son infobulle. `CFBundleName` ne suffisait pas : il nomme les
         # menus, pas le fichier — l'app s'appelait « La Bible ONT » partout sauf
