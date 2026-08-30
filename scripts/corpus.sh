@@ -29,7 +29,29 @@ vert=$'\033[32m'; fin=$'\033[0m'
 # Unicode ; en débogage il met une trentaine de secondes là où il en met deux.
 # La compilation du binaire est mise en cache par cargo, donc on ne la paie
 # qu'une fois.
-echo "→ le corpus"
+# **L'estampille du corpus vient d'ici, pas du pipeline.**
+#
+# La date du dernier commit du vault — celle de son *contenu*, et non de sa
+# compilation. C'est elle qui permet à une liseuse de savoir si le corpus publié
+# est plus récent que celui qu'elle embarque ; une empreinte dit que deux corpus
+# diffèrent, jamais lequel vient après.
+#
+# Le pipeline ne lit pas `.git` lui-même : il resterait dépendant de la forme du
+# checkout — un export d'archive, un `--depth 1`, un vault copié sans `.git`, et
+# il tomberait. Il reste une fonction pure de ses entrées.
+#
+# Vide si le vault n'est pas un dépôt git. Les liseuses refusent alors le
+# manifeste publié, ce qui gèle la mise à jour au lieu de risquer un corpus
+# remplacé par du plus ancien. Un texte figé se voit ; un texte silencieusement
+# rajeuni à l'envers ne se voit pas.
+VAULT="${ONT_VAULT:-$(cd "$(dirname "$0")/../../ONTBibleTranslation" && pwd)}"
+ONT_GENERE="$(git -C "$VAULT" log -1 --format=%cI 2>/dev/null || true)"
+export ONT_GENERE
+if [ -n "$ONT_GENERE" ]; then
+  echo "→ le corpus — vault du $ONT_GENERE"
+else
+  echo "→ le corpus — sans estampille : la mise à jour à distance restera gelée"
+fi
 cargo run --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
 
 # Les DTO Swift, engendrés depuis `schema.rs`.

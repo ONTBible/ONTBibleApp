@@ -17,6 +17,48 @@ pub fn vault() -> PathBuf {
     }
 }
 
+/// L'estampille du corpus — la date de son **contenu**, pas de sa compilation.
+///
+/// ## Pourquoi elle vient de l'extérieur
+///
+/// Le pipeline est une fonction pure de ses entrées, et il le reste : lire
+/// `.git` lui-même le rendrait dépendant de la forme du checkout — un export
+/// d'archive, un `--depth 1`, un vault copié sans `.git`, et il tombe. C'est
+/// l'appelant qui sait trouver la date :
+///
+/// ```sh
+/// ONT_GENERE="$(git -C "$VAULT" log -1 --format=%cI)"
+/// ```
+///
+/// ## Pourquoi la date du contenu et non celle du build
+///
+/// Deux exécutions sur le même vault doivent produire le même octet — c'est ce
+/// qui garantit la même empreinte, donc aucun retéléchargement inutile chez les
+/// lecteurs. Un horodatage de compilation romprait cette garantie et republierait
+/// tout le corpus à chaque passage de CI.
+///
+/// La date du dernier commit du vault donne l'ordre qu'il faut **et** reste
+/// déterministe : le même vault rend toujours la même date.
+///
+/// ## Ce qu'elle sert à trancher
+///
+/// Rien, jusqu'à ce qu'un bundle devienne plus récent que le corpus publié. Une
+/// empreinte dit que deux corpus **diffèrent** ; elle ne dit jamais lequel vient
+/// après. Sans cet ordre, une app neuve se fait écraser au premier lancement par
+/// le corpus publié, et la fonctionnalité qu'elle apporte arrive invisible.
+///
+/// ## Vide plutôt que fausse
+///
+/// Sans `ONT_GENERE`, l'estampille reste vide, et les liseuses **refusent** un
+/// manifeste qui n'en porte pas. Un corpus figé se voit et se répare ; un corpus
+/// silencieusement remplacé par du plus ancien ne se voit pas.
+pub fn genere() -> String {
+    std::env::var("ONT_GENERE")
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
 /// Où le pipeline dépose ses données.
 pub fn out() -> PathBuf {
     match std::env::var("ONT_OUT") {
