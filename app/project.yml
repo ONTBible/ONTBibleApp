@@ -141,9 +141,17 @@ targets:
         # C'est ce qui a bloqué TestFlight du 24 au 25 août 2026 : 1.0.3 avait
         # été approuvée, et cinq livraisons de suite sont mortes ici.
         #
+        # **Deuxième fois le 30 août 2026**, 1.0.4 approuvée à son tour. Deux
+        # occurrences en six jours disent que ce n'est pas un oubli isolé mais
+        # un rythme : l'approbation arrive sans prévenir, et rien dans le dépôt
+        # ne l'apprend — c'est l'auteur qui la voit dans App Store Connect et
+        # doit y penser. Le geste reste manuel à dessein, puisqu'il engage le
+        # numéro que le public verra ; ce qui manque est un **rappel**, pas une
+        # automatisation.
+        #
         # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
         # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
-        CFBundleShortVersionString: "1.0.4"
+        CFBundleShortVersionString: "1.0.5"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -261,7 +269,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.4"
+        CFBundleShortVersionString: "1.0.5"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
