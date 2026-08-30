@@ -712,7 +712,10 @@ pub fn build() -> Result<BuildResult, String> {
         for corpus in &mut corpora {
             for mode in &mut corpus.modes {
                 for livre in &mut mode.books {
-                    for unite in &mut livre.chapters {
+                    // `intro` **et** `chapters` : un livre peut n'être qu'une
+                    // intro — `chazon-avraham` n'a aucun chapitre —, et un
+                    // renvoi écrit là n'était lié nulle part.
+                    for unite in unites_mut(livre) {
                         let origine = unite.id.clone();
                         renvois::lier(&mut unite.blocks, &index, &origine);
                     }
@@ -730,7 +733,7 @@ pub fn build() -> Result<BuildResult, String> {
     for corpus in &corpora {
         for mode in &corpus.modes {
             for livre in &mode.books {
-                for unite in &livre.chapters {
+                for unite in unites(livre) {
                     for bloc in &unite.blocks {
                         match bloc {
                             Block::Para { nodes } | Block::Heading { nodes, .. } => {
@@ -759,6 +762,18 @@ pub fn build() -> Result<BuildResult, String> {
     shemot_sans_fiche.sort();
     shemot_sans_fiche.dedup();
 
+    // **L'intro compte autant qu'un chapitre.** Trois parcours l'oubliaient —
+    // celui-ci, celui des Shemot sans fiche, et le lieur de renvois — alors que
+    // le rendu, lui, y arrivait. Deux chemins sur la même donnée, l'un complet
+    // et l'autre non : le lecteur voyait un nom en terre brûlée, le touchait,
+    // et la feuille ne trouvait rien.
+    //
+    // `Yaho'el` était le seul lemme du corpus à n'exister que dans une intro,
+    // rendu huit fois et indexé zéro. `chazon-avraham` n'a **aucun chapitre** :
+    // tout son contenu est une intro, et ses six autres Shemot n'étaient
+    // sauvés que par leurs occurrences ailleurs. Relevé par la session du
+    // vault, en comparant les lemmes rendus dans `dist/books` à l'index.
+    //
     // **On ne publie que les porteurs que le corpus nomme.** Le vault tient 305
     // fiches, le corpus publié en emploie 205 : embarquer les cent autres
     // ferait payer au lecteur des noms qu'aucune unité écrite ne prononce.
@@ -767,7 +782,7 @@ pub fn build() -> Result<BuildResult, String> {
     for corpus in &corpora {
         for mode in &corpus.modes {
             for livre in &mode.books {
-                for unite in &livre.chapters {
+                for unite in unites(livre) {
                     for bloc in &unite.blocks {
                         match bloc {
                             Block::Para { nodes } | Block::Heading { nodes, .. } => {
@@ -911,7 +926,7 @@ pub fn build() -> Result<BuildResult, String> {
     // L'index de recherche : un enregistrement par verset, titre ou paragraphe.
     let mut search_records: Vec<SearchRecord> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             search_records.extend(index_chapter(unit));
         }
     }
@@ -936,7 +951,7 @@ pub fn build() -> Result<BuildResult, String> {
     // d'inline le ferait tomber.
     let mut daily: Vec<DailyVerse> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             // Seules les unités **verrouillées** : un brouillon ne fait pas
             // référence (§12) et n'a rien à faire sur un écran d'accueil. La
             // règle vit ici, dans la fabrique du vivier, et pas dans chacun des
@@ -1355,9 +1370,114 @@ fn format_report(
     l.join("\n") + "\n"
 }
 
+/// Toutes les unités d'un livre — **l'intro comprise**.
+///
+/// Elle est une unité comme une autre : elle porte du texte, des Shemot, des
+/// intraduisibles et des renvois. `chazon-avraham` n'est *que* cela — aucun
+/// chapitre —, donc l'oublier revient à ne pas lire le livre.
+///
+/// Cette fonction existe parce que l'oubli s'est produit **trois fois**, dans
+/// trois parcours écrits à des moments différents, pendant que deux autres
+/// faisaient correctement `intro.iter().chain(chapters.iter())`. Un idiome
+/// juste mais recopié à la main se recopie mal ; celui-ci ne se recopie plus.
+///
+/// Le défaut ne se voyait pas : le rendu atteignait les intros, l'indexeur non.
+/// Deux chemins sur la même donnée, dont un seul complet. `Yaho'el` était rendu
+/// huit fois en terre brûlée et absent de `shemot.json` — on touchait le nom,
+/// la feuille ne trouvait rien.
+fn unites(livre: &Book) -> impl Iterator<Item = &Chapter> {
+    livre.intro.iter().chain(livre.chapters.iter())
+}
+
+/// La même, pour qui doit écrire dedans. Voir [`unites`].
+fn unites_mut(livre: &mut Book) -> impl Iterator<Item = &mut Chapter> {
+    livre.intro.iter_mut().chain(livre.chapters.iter_mut())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Une unité d'introduction dans un livre qui n'a que ça.
+    fn livre_sans_chapitre(lemme: &str) -> Book {
+        let unite = Chapter {
+            id: "chazon-avraham-0-intro".into(),
+            book_id: "chazon-avraham".into(),
+            kind: ChapterKind::Intro,
+            n: 0,
+            title: "Chazon Avraham — introduction".into(),
+            title_nodes: vec![],
+            subtitle: None,
+            status: Status::Brouillon,
+            blocks: vec![Block::Para {
+                nodes: vec![Inline::Shem {
+                    v: "Yaho'el".into(),
+                    lemma: lemme.into(),
+                }],
+            }],
+            footer: None,
+            verse_count: 0,
+            lemmas: vec![],
+            source: "chazon-avraham.md".into(),
+        };
+        Book {
+            id: "chazon-avraham".into(),
+            slot: 1,
+            title: "Chazon Avraham".into(),
+            french: "Apocalypse d'Abraham".into(),
+            glose: None,
+            hebrew: None,
+            corpus_id: "nistarot".into(),
+            mode_id: "nistarot".into(),
+            group_id: None,
+            chapters: vec![],
+            intro: Some(unite),
+            empty: false,
+        }
+    }
+
+    /// **Un livre peut n'être qu'une introduction, et il faut le lire.**
+    ///
+    /// `chazon-avraham` n'a aucun chapitre. Trois parcours ne regardaient que
+    /// `chapters` : l'indexeur des Shemot, le relevé de ceux sans fiche, et le
+    /// lieur de renvois. Le rendu, lui, atteignait les intros — deux chemins
+    /// sur la même donnée, dont un seul complet.
+    ///
+    /// `Yaho'el` était rendu huit fois en terre brûlée et absent de
+    /// `shemot.json` : on touchait le nom, la feuille ne trouvait rien. Et la
+    /// garde des fiches orphelines, qui s'appuie sur cette liste, l'aurait
+    /// dénoncé comme du travail perdu — on aurait supprimé une fiche valide
+    /// sur la foi du rapport.
+    ///
+    /// Relevé par la session du vault, en comparant les lemmes rendus dans
+    /// `dist/books` à ceux de l'index. Deux chemins, deux comptes : 205 et 194.
+    #[test]
+    fn un_livre_sans_chapitre_est_lu_quand_meme() {
+        let livre = livre_sans_chapitre("yahoel");
+        assert_eq!(unites(&livre).count(), 1, "l'intro n'a pas été parcourue");
+
+        let mut vus: Vec<String> = Vec::new();
+        for unite in unites(&livre) {
+            for bloc in &unite.blocks {
+                if let Block::Para { nodes } = bloc {
+                    collect_shem_lemmes(nodes, &mut vus);
+                }
+            }
+        }
+        assert_eq!(vus, ["yahoel"], "le Shem de l'intro n'est pas indexé");
+    }
+
+    /// L'intro vient **avant** les chapitres, et s'ajoute sans les remplacer.
+    #[test]
+    fn l_intro_s_ajoute_aux_chapitres_sans_les_evincer() {
+        let mut livre = livre_sans_chapitre("yahoel");
+        let mut chapitre = livre.intro.clone().unwrap();
+        chapitre.id = "chazon-avraham-1".into();
+        chapitre.n = 1;
+        livre.chapters = vec![chapitre];
+        let ids: Vec<&str> = unites(&livre).map(|u| u.id.as_str()).collect();
+        assert_eq!(ids, ["chazon-avraham-0-intro", "chazon-avraham-1"]);
+    }
 
     /// Le rapport nommait un nombre sans jamais nommer sa substance.
     ///
