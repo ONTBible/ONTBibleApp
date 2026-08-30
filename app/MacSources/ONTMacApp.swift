@@ -88,6 +88,20 @@ struct ONTMacApp: App {
                     if vault.vault != nil { BandeauDuVault(mode: vault) }
                 }
         }
+        // **La taille d'ouverture, mesurée et non choisie.**
+        //
+        // 1240 × 960, soit un rapport de **1,29** — celui de la fenêtre que
+        // l'auteur a montrée en référence, relevé au pixel sur sa capture plutôt
+        // qu'estimé à l'œil.
+        //
+        // Ce rapport n'est pas décoratif : plus large, la colonne de lecture
+        // laisse deux marges vides que rien n'occupe ; plus étroit, les gloses
+        // se hachent. C'est la forme d'une page, et c'est ce que l'app est.
+        //
+        // `defaultSize` ne s'applique qu'à la **première** ouverture : macOS
+        // restaure ensuite la taille que le lecteur a donnée, ce qui est le
+        // comportement voulu — on propose, on n'impose pas.
+        .defaultSize(width: 1240, height: 960)
         .windowResizability(.contentMinSize)
         // **Les réglages où le Mac les attend.** `Settings` reçoit ⌘, du
         // système, apparaît dans le menu de l'app, et se ferme comme une
