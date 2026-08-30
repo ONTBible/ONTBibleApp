@@ -100,6 +100,16 @@ struct ONTMacApp: App {
                 .safeAreaInset(edge: .bottom) {
                     if vault.vault != nil { BandeauDuVault(mode: vault) }
                 }
+                // Reprendre le vault de la session précédente, s'il y en
+                // avait un.
+                //
+                // Dans une vue et non dans le corps de la scène : c'est la
+                // même leçon que la fonte d'interface — ce qui est écrit hors
+                // d'un corps de vue n'est ni observé ni forcément exécuté au
+                // bon moment. `.task` s'attache au cycle de vie de la fenêtre,
+                // qui est précisément quand l'auteur peut voir le bandeau
+                // s'allumer.
+                .task { vault.reprendre() }
         }
         // **La taille d'ouverture, mesurée et non choisie.**
         //

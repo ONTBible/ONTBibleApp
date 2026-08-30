@@ -327,6 +327,50 @@ Il écrit dans `Application Support/vault-apercu`, jamais dans `dist/` : un
 aperçu de brouillon n'a rien à faire dans un arbre de travail git, ni dans un
 build par accident.
 
+Le dossier désigné est **retrouvé au lancement suivant**, par un signet à portée
+de sécurité et non par un chemin. Sous bac à sable, le droit de lire un dossier
+est accordé au *processus* par le sélecteur, et meurt avec lui : un chemin relu
+des réglages désignerait le bon dossier sans l'ouvrir, et l'app dirait « dossier
+illisible » d'un dossier parfaitement lisible. « Cesser de suivre » oublie le
+signet — cesser veut dire cesser, pas suspendre.
+
+### Le bac à sable
+
+`ONTMac.entitlements` porte `com.apple.security.app-sandbox` depuis le 30 août
+2026. Il est **obligatoire à l'App Store du Mac**, et son absence n'empêchait
+rien en distribution directe — c'est exactement le genre de manque qui ne se
+voit qu'au dépôt de la fiche.
+
+Quatre droits, et pas un de plus :
+
+| droit | pourquoi |
+|---|---|
+| `app-sandbox` | l'exigence elle-même |
+| `files.user-selected.read-only` | le vault ; **lecture seule**, l'aperçu s'écrivant dans le conteneur |
+| `files.bookmarks.app-scope` | retrouver le vault au lancement suivant |
+| `network.client` | le backend et le manifeste du corpus — le bac coupe le réseau par défaut |
+
+**Ce qui a été mesuré**, sur une app signée ad hoc : le bac s'applique — le
+conteneur apparaît sous `~/Library/Containers/com.labibleont.ONT` —, l'app
+s'ouvre, et le corpus embarqué se charge intact (864 versets, 108 entrées). Tout
+le stockage persistant étant déjà en `Application Support`, il suit dans le
+conteneur sans qu'une ligne change.
+
+**Ce qui reste à mesurer, et qui ne peut pas l'être en intégration** : le mode
+vault lance `ont-pipeline` en processus fils. Un fils hérite du bac de son père,
+mais **pas nécessairement des droits que le sélecteur a accordés à celui-ci**.
+Si le fils ne voit pas le vault, il faudra passer le contenu autrement que par
+un chemin. La question demande un dossier réellement désigné à la souris : elle
+se tranche à la main, sur une app signée, et non par un job.
+
+**Deux limites à connaître avant d'essayer.** Une signature ad hoc portant *à la
+fois* le bac et un droit restreint — `applesignin`, `associated-domains` — fait
+**échouer le lancement** (`RBSRequestErrorDomain` 5, spawn refusé) : le système
+refuse ces droits sans profil au lieu de les ignorer. Pour éprouver le bac
+localement, on signe avec les quatre clés de bac **seules**. Et le bac et Sign in
+with Apple ne peuvent donc pas être éprouvés ensemble tant que la machine n'est
+pas enregistrée dans le compte développeur.
+
 ### Pourquoi ce mode existe
 
 Relire un brouillon dans un aperçu markdown distingue le corps des gloses par

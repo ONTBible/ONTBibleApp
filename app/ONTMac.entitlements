@@ -21,5 +21,49 @@
 	<array>
 		<string>applinks:ontbible.com</string>
 	</array>
+
+	<!-- Le bac à sable.
+
+	     Obligatoire à l'App Store du Mac, et absent jusqu'ici : la liseuse
+	     tournait sans, ce qui marche en distribution directe et fait refuser
+	     la fiche.
+
+	     Il n'est pas gratuit. Le bac déplace `Application Support` dans le
+	     conteneur de l'app — c'est là que vivent `profil.json`,
+	     `lecteur.json` et le corpus publié. Une installation antérieure
+	     paraîtra donc vide au premier lancement sous bac. Sans conséquence
+	     tant que le Mac n'est pas distribué ; à traiter le jour où il l'est,
+	     par une migration, et non par la surprise du lecteur. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- Le vault, et rien d'autre.
+
+	     `read-only` et non `read-write` : le mode développeur **lit** les
+	     brouillons et écrit son aperçu dans le conteneur — voir
+	     `ModeVault.lancerLePipeline`, dont la sortie est en
+	     `Application Support/vault-apercu`. Demander l'écriture serait
+	     demander un droit dont on ne se sert pas, sur les dossiers de
+	     quelqu'un d'autre. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+
+	<!-- Retrouver le vault au lancement suivant.
+
+	     Sans ce droit, le signet enregistré ne se résout pas et l'auteur
+	     redésigne son dossier à chaque ouverture. Le droit ne donne accès à
+	     rien de neuf : il permet seulement de garder celui que le sélecteur
+	     a déjà accordé. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+
+	<!-- Le backend.
+
+	     `/auth/{fournisseur}`, `/auth/refresh` et `/sync`, plus le manifeste
+	     du corpus publié. Le bac à sable coupe le réseau par défaut : sans
+	     cette clé, la connexion et la synchronisation échouent en silence,
+	     et le premier soupçon irait au serveur. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

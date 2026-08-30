@@ -59,6 +59,32 @@ public final class ModeVault {
     private var minuterie: Task<Void, Never>?
     private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "vault")
 
+    /// Le signet du vault, d'une session à l'autre.
+    ///
+    /// Sous bac à sable, le droit de lire un dossier ne survit pas à la
+    /// fermeture de l'app : c'est le sélecteur qui l'accorde, et il l'accorde
+    /// **au processus**. Un chemin relu des réglages désignerait le bon dossier
+    /// et ne l'ouvrirait pas — l'échec dirait « dossier illisible » à propos
+    /// d'un dossier parfaitement lisible, ce qui est le pire des messages.
+    ///
+    /// Un signet à portée de sécurité garde le droit lui-même, pas le chemin.
+    private static let cleSignet = "vault.signet"
+
+    /// Le dossier dont on tient l'accès ouvert, et qu'il faut refermer.
+    ///
+    /// `nil` quand le dossier vient du sélecteur : le système a déjà ouvert
+    /// l'accès pour cette session, et il n'y a rien à refermer. Non-`nil`
+    /// seulement quand on l'a rouvert soi-même depuis un signet. Chaque
+    /// `start` veut son `stop`, et un compteur laissé ouvert fuit un droit.
+    private var accesOuvert: URL?
+
+    /// Où le signet est gardé.
+    ///
+    /// Injectable pour que les épreuves n'écrivent pas dans les réglages de
+    /// l'app installée : sans ça, lancer la suite laisserait l'auteur avec un
+    /// vault qu'il n'a pas désigné, ou lui retirerait le sien.
+    private let reglages: UserDefaults
+
     /// Le temps de silence avant de reconstruire.
     ///
     /// **Deux secondes, et c'est un choix, pas un chiffre rond.** En dessous,
@@ -70,18 +96,52 @@ public final class ModeVault {
     /// guette, pas son début.
     private let silence: Duration = .seconds(2)
 
-    public init() {}
-
-    /// Désigne un vault et commence à le suivre.
-    public func suivre(_ dossier: URL) {
-        arreter()
-        vault = dossier
-        etat = .enAttente
-        ouvrirLaSurveillance(dossier)
-        reconstruire()
+    public init(reglages: UserDefaults = .standard) {
+        self.reglages = reglages
     }
 
-    /// Éteint le mode et referme le descripteur.
+    /// Désigne un vault et commence à le suivre.
+    ///
+    /// L'URL vient du sélecteur, donc le système a déjà ouvert l'accès pour
+    /// cette session. On enregistre un signet pour les suivantes.
+    public func suivre(_ dossier: URL) {
+        arreter()
+        enregistrerLeSignet(dossier)
+        commencer(dossier, accesAFermer: nil)
+    }
+
+    /// Reprend le vault de la session précédente, s'il y en avait un.
+    ///
+    /// Sans bruit quand il n'y en a pas : le mode reste éteint, ce qui est
+    /// l'état de qui ne s'en sert pas. Ce n'est pas une erreur à signaler.
+    public func reprendre() {
+        guard let donnees = reglages.data(forKey: Self.cleSignet) else { return }
+        var perime = false
+        let resolu = try? URL(
+            resolvingBookmarkData: donnees,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &perime)
+        // Un signet qui ne se résout plus désigne un dossier déplacé, effacé,
+        // ou sur un volume démonté. On l'oublie : le retenter à chaque
+        // ouverture ferait échouer le lancement pour un dossier dont l'auteur
+        // ne se sert peut-être plus.
+        guard let dossier = resolu, dossier.startAccessingSecurityScopedResource() else {
+            journal.info("signet du vault caduc — oublié")
+            reglages.removeObject(forKey: Self.cleSignet)
+            return
+        }
+        // Périmé ne veut pas dire invalide : il s'est résolu, et il porte la
+        // bonne cible. Il faut seulement le réécrire, sans quoi il se périmera
+        // un peu plus à chaque fois jusqu'à ne plus se résoudre du tout.
+        if perime { enregistrerLeSignet(dossier) }
+        commencer(dossier, accesAFermer: dossier)
+    }
+
+    /// Éteint le mode, referme le descripteur, et oublie le vault.
+    ///
+    /// Le signet part avec : « Cesser de suivre » veut dire cesser, pas
+    /// suspendre. Le retrouver à la prochaine ouverture serait une surprise.
     public func arreter() {
         minuterie?.cancel()
         minuterie = nil
@@ -91,8 +151,36 @@ public final class ModeVault {
             close(descripteur)
             descripteur = -1
         }
+        accesOuvert?.stopAccessingSecurityScopedResource()
+        accesOuvert = nil
+        reglages.removeObject(forKey: Self.cleSignet)
         vault = nil
         etat = .eteint
+    }
+
+    private func commencer(_ dossier: URL, accesAFermer: URL?) {
+        vault = dossier
+        accesOuvert = accesAFermer
+        etat = .enAttente
+        ouvrirLaSurveillance(dossier)
+        reconstruire()
+    }
+
+    /// Garde le droit d'accès, et non le chemin.
+    ///
+    /// L'échec est silencieux à dessein : le mode marche tout de même pour la
+    /// session en cours, et l'auteur n'a rien à faire de la nouvelle qu'il
+    /// devra redésigner son dossier la prochaine fois. Le journal la porte.
+    private func enregistrerLeSignet(_ dossier: URL) {
+        do {
+            let donnees = try dossier.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil)
+            reglages.set(donnees, forKey: Self.cleSignet)
+        } catch {
+            journal.error("signet du vault non enregistré — \(error.localizedDescription)")
+        }
     }
 
     // MARK: - La surveillance
@@ -155,10 +243,19 @@ public final class ModeVault {
     nonisolated private static func lancerLePipeline(
         vault: URL
     ) -> Result<(Int, Int), Echec> {
-        let binaire = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline")
-            ?? URL(fileURLWithPath: "/usr/local/bin/ont-pipeline")
-        guard FileManager.default.isExecutableFile(atPath: binaire.path) else {
-            return .failure(Echec(raison: "pipeline introuvable — voir README, section macOS"))
+        // **Le bundle, et lui seul.**
+        //
+        // Il y avait ici un repli sur `/usr/local/bin/ont-pipeline`. Le bac à
+        // sable l'interdit — un exécutable hors du bundle n'est pas lançable —,
+        // mais ce n'est pas la seule raison de le retirer : un binaire installé
+        // à part vieillit à part, et on relirait ses brouillons avec un pipeline
+        // d'il y a trois semaines sans que rien ne le dise. C'est exactement ce
+        // qu'`embarquer-le-pipeline.sh` explique vouloir éviter, et que le repli
+        // rendait possible par la porte de derrière.
+        guard let binaire = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline"),
+            FileManager.default.isExecutableFile(atPath: binaire.path)
+        else {
+            return .failure(Echec(raison: "pipeline non embarqué — voir scripts/embarquer-le-pipeline.sh"))
         }
         let sortie = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
