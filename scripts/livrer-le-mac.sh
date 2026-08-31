@@ -217,8 +217,9 @@ fi
 if [ "$A_BLANC" -eq 1 ]; then
   printf '%s✓%s à blanc — tout ce qui précède l'"'"'archive a été exécuté\n' "$vert" "$fin"
   cat <<TEXTE
-${gris}  Vérifié : les gardes, ${XCODE}, la composition de ONT.icon, le numéro
-  ${BUILD}, la mutation de Info-Mac.plist et sa restauration par le trap.
+${gris}  Vérifié : les gardes, ${XCODE}, l'accès de codesign à la clé privée,
+  la composition de ONT.icon, le numéro ${BUILD}, la mutation de
+  Info-Mac.plist et sa restauration par le trap.
 
   **Non vérifié** : l'archive, l'export, le téléversement, et tout ce que le
   compte App Store Connect refuse ou accepte. Un « à blanc » vert ne dit rien
