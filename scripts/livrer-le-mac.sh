@@ -136,10 +136,54 @@ echo "${gris}→ $XCODE  ·  branche $BRANCHE  ·  canal $CANAL${GROUPE:+ (group
 # bundle pour macOS. Le découvrir au milieu d'une archive de plusieurs minutes
 # coûte l'archive ; le découvrir ici coûte quelques secondes. Et un `grep` sur
 # le numéro de version serait un pari : on demande à l'outil lui-même.
-echo "→ l'icône, avant tout le reste"
+# **La signature, d'abord — une seconde plutôt que cinq minutes.**
+#
+# Le 31 août 2026, la première livraison qui a compilé pour de bon a échoué au
+# bout d'une minute sur `errSecInternalComponent` : `codesign` n'obtenait pas la
+# clé privée. Ni certificat manquant ni trousseau verrouillé — la **liste de
+# partition** de la clé n'autorisait pas un appelant non interactif, et sous
+# `launchd` personne ne peut cliquer « Autoriser ».
+#
+# Le même geste réussit depuis un shell de la session, ce qui rend le défaut
+# invisible à qui essaie à la main. On le sonde donc explicitement, sur un
+# binaire jetable, avant de dépenser une archive.
+echo "→ la signature, avant tout le reste"
+SONDE=$(mktemp -d)/sonde
+cp /bin/ls "$SONDE"
+IDENTITE_ESSAI=$(security find-identity -v -p codesigning 2>/dev/null \
+                 | grep "Apple Distribution" | head -1 | awk '{print $2}')
+if [ -z "$IDENTITE_ESSAI" ]; then
+  echec "aucune identité « Apple Distribution » dans le trousseau"
+fi
+if ! codesign --force --sign "$IDENTITE_ESSAI" "$SONDE" > /tmp/ont-signature.log 2>&1; then
+  if grep -q "errSecInternalComponent" /tmp/ont-signature.log; then
+    printf '%s✗%s codesign n'"'"'obtient pas la clé privée — errSecInternalComponent\n' "$rouge" "$fin" >&2
+    cat >&2 <<AIDE
+${gris}  Le certificat est là et le trousseau est ouvert : c'est la liste de
+  partition de la clé qui refuse un appelant non interactif. Une fois pour
+  toutes, dans une session interactive :
+
+      security set-key-partition-list -S apple-tool:,apple:,codesign: \\
+              -s ~/Library/Keychains/login.keychain-db
+
+  Le geste réussit sans ça depuis un Terminal, et échoue sous launchd — c'est
+  ce qui le rend si facile à ne pas voir.${fin}
+AIDE
+    exit 1
+  fi
+  echec "codesign refuse — voir /tmp/ont-signature.log"
+fi
+rm -rf "$(dirname "$SONDE")"
+
+# **L'icône, et rien d'autre.**
+#
+# Sans signature : ce qu'on veut savoir ici est si `actool` compose le bundle
+# Icon Composer pour macOS, et la signature n'y entre pour rien. La mêler
+# faisait échouer cette étape pour une raison qu'elle nommait mal.
+echo "→ l'icône"
 if ! xcodebuild build \
       -project app/ONT.xcodeproj -scheme ONTMac -destination 'platform=macOS' \
-      -allowProvisioningUpdates > /tmp/ont-icone.log 2>&1; then
+      CODE_SIGNING_ALLOWED=NO > /tmp/ont-icone.log 2>&1; then
   if grep -q "CompileAssetCatalogVariant" /tmp/ont-icone.log; then
     echec "cet Xcode ne compose pas ONT.icon pour macOS — voir /tmp/ont-icone.log"
   fi
