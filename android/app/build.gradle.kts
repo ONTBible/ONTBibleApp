@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.Properties
+
 // La racine de composition — le seul module qui connaît tout le monde.
 //
 // C'est ici, et nulle part ailleurs, qu'une implémentation se branche sur un
@@ -8,6 +11,33 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+/**
+ * La signature de téléversement.
+ *
+ * ## Le magasin n'est jamais dans le dépôt
+ *
+ * Il vit hors de l'arbre — `~/ONTBible/.cles/` sur la machine de l'auteur, un
+ * secret GitHub en intégration. Committer une clé de signature, c'est la
+ * publier : un dépôt privé se rend public, un fork se crée, un historique se
+ * récupère. Elle ne se retire pas d'un historique git.
+ *
+ * ## Deux sources, dans cet ordre
+ *
+ * Les variables d'environnement d'abord — c'est ce que la CI fournit —, puis
+ * `cle.properties` à la racine du module Android, pour la machine de l'auteur.
+ * Aucune des deux : la configuration reste nulle et `assembleRelease` produit
+ * un paquet non signé, ce qui est le comportement voulu pour qui clone le
+ * dépôt sans avoir la clé.
+ */
+val proprietesDeCle = rootProject.file("cle.properties").let { f ->
+    if (f.exists()) Properties().apply { f.inputStream().use { load(it) } } else null
+}
+
+fun secret(nomEnv: String, nomProp: String): String? =
+    System.getenv(nomEnv) ?: proprietesDeCle?.getProperty(nomProp)
+
+val magasinDeCles: File? = secret("ANDROID_KEYSTORE_PATH", "magasin")?.let(::File)?.takeIf { it.exists() }
 
 android {
     namespace = "com.labibleont.ont"
@@ -24,14 +54,49 @@ android {
         minSdk = 26
         targetSdk = 36
 
-        versionCode = 1
+        // ## Le numéro de version ne redescend jamais
+        //
+        // Play refuse un `versionCode` déjà téléversé, **définitivement** — y
+        // compris celui d'une release de test supprimée. Le 1 a été consommé
+        // le 27 août 2026 par la première release de test interne ; il est
+        // brûlé pour toujours.
+        //
+        // À monter donc avant chaque téléversement, sans quoi la livraison
+        // échoue sur « Version code 1 has already been used » — un message
+        // qu'on cherche du côté de l'authentification quand on ne connaît pas
+        // la règle.
+        //
+        // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
+        // ne l'oblige à suivre le compteur.
+        versionCode = 2
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("televersement") {
+            // Renseignée seulement si la clé est là. Sinon Gradle garderait une
+            // configuration vide et échouerait à la signature plutôt qu'au
+            // moment clair où l'on constate qu'il n'y a pas de clé.
+            magasinDeCles?.let { fichier ->
+                storeFile = fichier
+                storePassword = secret("ANDROID_KEYSTORE_PASSWORD", "motDePasseDuMagasin")
+                keyAlias = secret("ANDROID_KEY_ALIAS", "alias")
+                keyPassword = secret("ANDROID_KEY_PASSWORD", "motDePasseDeLaCle")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Nulle quand la clé est absente : le paquet sort non signé, et on
+            // le voit au téléversement plutôt qu'au build.
+            signingConfig = if (magasinDeCles != null) {
+                signingConfigs.getByName("televersement")
+            } else {
+                null
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -81,8 +146,23 @@ tasks.register<Sync>("copierLesDonnees") {
 // fichiers sans exécuter le build.
 android.sourceSets.getByName("main").assets.directories.add(assetsEngendres.path)
 
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
-    .configureEach { dependsOn("copierLesDonnees") }
+// Tout ce qui lit ce dossier doit attendre qu'il soit rempli — pas seulement
+// la fusion des assets.
+//
+// Le lint de `release` le lit aussi, et lui ne l'attendait pas : Gradle
+// refusait le build entier avec « uses this output without declaring an
+// explicit or implicit dependency ». Invisible en `debug`, où le lint fatal ne
+// tourne pas — c'est-à-dire invisible jusqu'au jour de la livraison.
+//
+// La condition liste des noms de tâches parce que l'API propre ne s'applique
+// pas ici : `addGeneratedSourceDirectory` veut un `Provider`, et la source doit
+// rester un `File` pour qu'Android Studio sache indexer sans lancer le build —
+// c'est la raison écrite juste au-dessus. Si une version d'AGP renomme ses
+// tâches, le symptôme sera le même message, et c'est cette ligne qu'il faudra
+// élargir.
+tasks.matching {
+    (it.name.startsWith("merge") && it.name.endsWith("Assets")) || it.name.contains("lint", ignoreCase = true)
+}.configureEach { dependsOn("copierLesDonnees") }
 
 dependencies {
     implementation(project(":ontkit"))
@@ -94,6 +174,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.activity.compose)
     implementation(libs.navigation.compose)
+    implementation(libs.compose.material3.navigation.suite)
     implementation(libs.compose.material.icons)
 
     // Le verset du jour sur l'écran d'accueil, et le réveil qui le pose.

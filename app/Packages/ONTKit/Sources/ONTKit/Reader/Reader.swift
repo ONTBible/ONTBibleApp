@@ -207,6 +207,14 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     public var showGloss: Bool
     /// Niveau 3 — translittération et hébreu.
     public var showLevel3: Bool
+    /// Ce qu'un passage partagé emporte.
+    ///
+    /// **Rangé avec les réglages de lecture, et pas ailleurs.** Ce n'en est pas
+    /// un — il ne change rien à ce qu'on lit —, mais il partage tout le reste
+    /// avec eux : il vit sur l'appareil, survit à une déconnexion, et se relit
+    /// au même endroit. Lui donner son propre fichier ferait un second
+    /// mécanisme identique pour cinq booléens.
+    public var partage: ReglagesDePartage
     /// Le corps du texte, en points, avant mise à l'échelle Dynamic Type.
     public var textSize: Double
     /// L'interligne, en multiple de la taille du corps.
@@ -240,6 +248,17 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     /// `Codable` avec une valeur par défaut : un réglage enregistré avant
     /// l'arrivée de ce champ doit se relire sans erreur.
     public var french: Bool
+    /// Couper les mots en fin de ligne.
+    ///
+    /// **Éteinte par défaut**, et c'est une décision de l'auteur. La césure
+    /// resserre la justification et supprime les lézardes blanches d'une prose
+    /// étroite — mais elle hache les mots, et un lecteur qui grossit le texte
+    /// pour le voir se retrouve avec plus de coupures, pas moins.
+    ///
+    /// Quand elle est allumée, la langue est déclarée avec elle : sans ça, un
+    /// téléphone réglé en anglais coupe la prose française avec les motifs
+    /// anglais — « pro-blème » au lieu de « pro-blè-me ».
+    public var hyphenation: Bool
     /// Le rappel quotidien.
     ///
     /// Ici plutôt que dans un second magasin, parce qu'il n'y a qu'un port de
@@ -251,6 +270,7 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     public init(
         showGloss: Bool = true,
         showLevel3: Bool = true,
+        partage: ReglagesDePartage = .default,
         textSize: Double = 19,
         lineSpacing: Double = 0.5,
         theme: ReadingTheme = .parchment,
@@ -262,11 +282,14 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         // fatalité.
         continuous: Bool = true,
         french: Bool = true,
+        hyphenation: Bool = false,
         daily: DailyVerseSchedule = .default
     ) {
         self.showGloss = showGloss
         self.showLevel3 = showLevel3
+        self.partage = partage
         self.french = french
+        self.hyphenation = hyphenation
         self.textSize = textSize
         self.lineSpacing = lineSpacing
         self.theme = theme
@@ -282,6 +305,8 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         let defauts = ReadingPreferences.default
         showGloss = try c.decodeIfPresent(Bool.self, forKey: .showGloss) ?? defauts.showGloss
         showLevel3 = try c.decodeIfPresent(Bool.self, forKey: .showLevel3) ?? defauts.showLevel3
+        partage =
+            try c.decodeIfPresent(ReglagesDePartage.self, forKey: .partage) ?? defauts.partage
         textSize = try c.decodeIfPresent(Double.self, forKey: .textSize) ?? defauts.textSize
         lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing)
             ?? defauts.lineSpacing
@@ -289,6 +314,8 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         bodyFont = try c.decodeIfPresent(ReadingFont.self, forKey: .bodyFont) ?? defauts.bodyFont
         continuous = try c.decodeIfPresent(Bool.self, forKey: .continuous) ?? defauts.continuous
         french = try c.decodeIfPresent(Bool.self, forKey: .french) ?? defauts.french
+        hyphenation = try c.decodeIfPresent(Bool.self, forKey: .hyphenation)
+            ?? defauts.hyphenation
         daily = try c.decodeIfPresent(DailyVerseSchedule.self, forKey: .daily) ?? defauts.daily
     }
 

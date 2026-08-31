@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
@@ -48,7 +49,10 @@ public fun TermSheet(
     val theme = LocalReadingTheme.current
     val typo = ONTTypography(preferences.textSize.toFloat(), theme, preferences.bodyFont)
     val entree = model.entree(lemme)
-    var corpsSeulement by remember { mutableStateOf(true) }
+    // `rememberSaveable` et non `remember` : une rotation recrée l'activité,
+    // et le lecteur qui a déplié l'entrée pour lire au-delà du corps la
+    // retrouverait repliée sans avoir rien demandé.
+    var corpsSeulement by rememberSaveable { mutableStateOf(true) }
 
     Column(
         modifier = modifier
@@ -112,11 +116,63 @@ public fun TermSheet(
             Text("Premier emploi — $it", fontSize = 13.sp, color = ONTColors.inkSoft(theme))
         }
 
+        // « Dans les gloses », que la fiche taisait.
+        //
+        // Les deux pastilles plus bas comptent « dans le texte » et « partout » ;
+        // ni l'une ni l'autre ne dit **combien de fois l'ONT l'explique**. C'est
+        // pourtant la mesure qui distingue un mot que le corpus emploie d'un
+        // mot que le projet commente — iOS la nomme, il fallait la porter.
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Dans les gloses — ${entree.glossCount}",
+            fontSize = 13.sp,
+            color = ONTColors.inkSoft(theme),
+        )
+
+        // Un terme non balisé n'est pas un terme oublié : c'est un mot que la
+        // traduction a fixé et qui se lit dans le corps. Le dire évite qu'on
+        // cherche un intraduisible là où il n'y en a pas.
+        if (!entree.tagged) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Vocabulaire fixé — traduit dans le corps du texte",
+                fontSize = 13.sp,
+                color = ONTColors.inkSoft(theme).copy(alpha = 0.8f),
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
         HorizontalDivider(color = ONTColors.separator(theme))
         Spacer(Modifier.height(16.dp))
 
         entree.definition?.let { blocs ->
+            for (bloc in blocs) {
+                if (bloc is Block.Paragraph) {
+                    Text(
+                        ONTTextRenderer.compose(
+                            bloc.nodes, typo,
+                            showGloss = preferences.showGloss,
+                            showLevel3 = preferences.showLevel3,
+                        ),
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                }
+            }
+        }
+
+        // La règle de balisage — pourquoi ce mot est traité comme il l'est.
+        //
+        // C'est du texte éditorial, comme les décisions terminologiques du pied
+        // d'unité : il dit la règle, pas le mot. Android le taisait.
+        entree.taggingNote?.let { blocs ->
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Règle de balisage",
+                fontFamily = ONTFonts.display,
+                fontSize = 18.sp,
+                color = ONTColors.brandInk(theme),
+            )
+            Spacer(Modifier.height(8.dp))
             for (bloc in blocs) {
                 if (bloc is Block.Paragraph) {
                     Text(

@@ -16,6 +16,10 @@ public struct TermSheet: View {
     @Environment(LexiconModel.self) private var model
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
+    /// Posé par la présentation quand ce n'est pas une feuille — voir
+    /// `ONTFermeture`. `dismiss` ne ferme ni un panneau latéral ni un
+    /// aperçu en surimpression.
+    @Environment(\.ontFermer) private var fermer
 
     let lemma: String
 
@@ -41,13 +45,26 @@ public struct TermSheet: View {
                 }
             }
             .ontScreen()
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fermer") { dismiss() }
+                // **Seulement quand la présentation n'a pas sa propre croix.**
+                //
+                // Un `NavigationStack` posé dans une surimpression projette sa
+                // barre d'outils dans la **barre de titre de la fenêtre** sur le
+                // Mac : le « Fermer » de la fiche allait s'asseoir tout en haut à
+                // droite, loin de la carte qu'il ferme, à côté de la loupe de
+                // recherche. Vu à l'écran, et impossible à deviner d'ici.
+                //
+                // Quand `ontFermer` est posé, la présentation a déjà sa chrome —
+                // on lui laisse la place.
+                if fermer == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
             }
         }
+        .ontHauteurDeFeuille([.medium, .large])
     }
 
     @ViewBuilder
@@ -57,15 +74,15 @@ public struct TermSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let hebrew = entry.hebrew {
                         Text(hebrew)
-                            .font(.custom(ONTFonts.hebrew, size: 40))
+                            .font(.custom(ONTFonts.hebrew, size: ONTUI.points(40)))
                     }
                     Text(entry.title)
-                        .font(.custom(ONTFonts.display, size: 26))
+                        .font(.custom(ONTFonts.display, size: ONTUI.points(26)))
                         .foregroundStyle(ONTColors.brandInk(theme.mode))
 
                     if let rendering = entry.rendering, rendering != entry.title {
                         Text(rendering)
-                            .font(.callout)
+                            .font(ONTUI.callout)
                             .foregroundStyle(.secondary)
                     }
 
@@ -74,7 +91,7 @@ public struct TermSheet: View {
                             "Vocabulaire fixé — traduit dans le corps du texte",
                             systemImage: "text.quote"
                         )
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.tertiary)
                     }
                 }
@@ -90,31 +107,40 @@ public struct TermSheet: View {
             // toujours.
             .ontRow()
 
-            if let definition = entry.definition {
-                Section("Ce qu'il signifie") {
+            Section(header: Text("Ce qu'il signifie").font(ONTUI.enteteDeListe)) {
+                if entry.sansDefinition {
+                    // **Le silence était pire que l'aveu.** Sans cette section,
+                    // l'écran passait de l'en-tête aux repères sans rien entre
+                    // les deux : il avait l'air complet, et le lecteur pouvait
+                    // croire que c'était tout ce qu'il y avait à dire du mot.
+                    //
+                    // La phrase dit ce qui manque **et** ce qui reste vrai : le
+                    // terme est bien de l'ONT, il est bien balisé, seule sa
+                    // fiche n'est pas écrite.
+                    Text(
+                        "Ce terme est balisé dans le texte, mais sa définition "
+                            + "n'est pas encore écrite."
+                    )
+                    .foregroundStyle(.secondary)
+                        .font(ONTUI.ligneDeListe)
+                } else if let definition = entry.definition {
                     ForEach(Array(definition.enumerated()), id: \.offset) { _, block in
-                        if case .paragraph(let nodes) = block {
-                            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                                .lineSpacing(4)
-                        }
+                        BlocDeFiche(block: block)
                     }
                 }
-                .ontRow()
             }
+            .ontRow()
 
             if let note = entry.taggingNote {
-                Section("Règle de balisage") {
+                Section(header: Text("Règle de balisage").font(ONTUI.enteteDeListe)) {
                     ForEach(Array(note.enumerated()), id: \.offset) { _, block in
-                        if case .paragraph(let nodes) = block {
-                            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                                .lineSpacing(4)
-                        }
+                        BlocDeFiche(block: block)
                     }
                 }
                 .ontRow()
             }
 
-            Section("Repères") {
+            Section(header: Text("Repères").font(ONTUI.enteteDeListe)) {
                 if let firstUse = entry.firstUse {
                     LabeledContent("Premier emploi", value: firstUse)
                 }
@@ -124,6 +150,7 @@ public struct TermSheet: View {
                     LabeledContent("Formes") {
                         Text(entry.forms.joined(separator: " · "))
                             .multilineTextAlignment(.trailing)
+                            .font(ONTUI.ligneDeListe)
                     }
                 }
             }
@@ -142,21 +169,22 @@ public struct TermSheet: View {
             if list.isEmpty {
                 Text("Aucune occurrence dans le corpus rédigé à ce jour.")
                     .foregroundStyle(.secondary)
+                    .font(ONTUI.ligneDeListe)
             } else {
                 ForEach(Array(list.prefix(60).enumerated()), id: \.offset) { _, occurrence in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(reference(occurrence))
-                                .font(.caption.monospaced())
+                                .font(ONTUI.caption.monospaced())
                                 .foregroundStyle(ONTColors.accent(theme.mode))
                             if occurrence.level == .gloss {
                                 Text("glose")
-                                    .font(.caption2)
+                                    .font(ONTUI.caption2)
                                     .foregroundStyle(.tertiary)
                             }
                         }
                         Text(occurrence.snippet)
-                            .font(.callout)
+                            .font(ONTUI.callout)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
@@ -164,7 +192,7 @@ public struct TermSheet: View {
 
                 if list.count > 60 {
                     Text("… et \(list.count - 60) autres")
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.tertiary)
                 }
             }

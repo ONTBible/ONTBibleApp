@@ -31,6 +31,14 @@ import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.glossary.OccurrenceLevel
 import com.labibleont.ont.kit.search.SearchHit
 import com.labibleont.ont.kit.search.SearchScope
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Arrangement
+import com.labibleont.ont.kit.reader.ReadingTheme
+import androidx.compose.foundation.lazy.itemsIndexed
 
 /**
  * La recherche.
@@ -61,7 +69,7 @@ public fun SearchScreen(
         OutlinedTextField(
             value = model.requete,
             onValueChange = model::saisir,
-            placeholder = { Text("Chercher dans le corpus") },
+            placeholder = { Text("Un mot, un intraduisible, ou de l'hébreu") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             colors = TextFieldDefaults.colors(
@@ -98,8 +106,46 @@ public fun SearchScreen(
         Spacer(Modifier.height(8.dp))
 
         LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(model.resultats, key = { it.id }) { hit ->
-                LigneDeResultat(hit = hit, onOuvrir = onOuvrir)
+            // Le nombre de passages, comme sur iOS. Une liste sans son compte
+            // oblige à faire défiler pour savoir si la recherche a porté.
+            if (model.resultats.isNotEmpty()) {
+                item {
+                    Text(
+                        "${model.resultats.size} passage" +
+                            if (model.resultats.size > 1) "s" else "",
+                        fontSize = 13.sp,
+                        color = ONTColors.inkSoft(theme),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            // ## La clé porte le rang, pas seulement l'identifiant
+            //
+            // `SearchHit.id` vaut `unité-verset-niveau`, et **ce n'est pas
+            // unique** : deux correspondances dans le même verset au même
+            // niveau le partagent. Chercher « alliance » suffisait à en
+            // produire deux, et l'app tombait —
+            // `IllegalArgumentException: Key "bereshit-15-0-body" was already used`.
+            //
+            // Le défaut vient du portage initial et dormait depuis. Il ne se
+            // voit pas sur iOS : SwiftUI tolère les identifiants doublés, il
+            // avertit. Compose lève. Le même domaine, la même donnée, et une
+            // plateforme qui plante là où l'autre murmure.
+            //
+            // On ne corrige pas `id` dans `ontkit` : c'est un objet partagé,
+            // et le changer relèverait d'un arbitrage qui appartient à iOS. La
+            // clé de liste, elle, est une affaire de Compose.
+            itemsIndexed(
+                model.resultats,
+                key = { rang, hit -> "$rang-${hit.id}" },
+            ) { _, hit ->
+                LigneDeResultat(hit = hit, requete = model.requete, onOuvrir = onOuvrir)
+            }
+            // Ce qu'on peut chercher, tant qu'on n'a pas assez tapé pour
+            // chercher quoi que ce soit. Quatre exemples plutôt qu'une phrase :
+            // un moteur qui accepte l'hébreu non vocalisé ne se devine pas.
+            if (model.requete.trim().length < 2) {
+                item { Exemples() }
             }
             if (model.resultats.isEmpty() && model.requete.trim().length >= 2 && !model.cherche) {
                 item {
@@ -115,7 +161,11 @@ public fun SearchScreen(
 }
 
 @Composable
-private fun LigneDeResultat(hit: SearchHit, onOuvrir: (String, String) -> Unit) {
+private fun LigneDeResultat(
+    hit: SearchHit,
+    requete: String,
+    onOuvrir: (String, String) -> Unit,
+) {
     val theme = LocalReadingTheme.current
 
     Column(
@@ -142,7 +192,87 @@ private fun LigneDeResultat(hit: SearchHit, onOuvrir: (String, String) -> Unit) 
             )
         }
         Spacer(Modifier.height(4.dp))
-        Text(hit.snippet, fontSize = 15.sp, color = ONTColors.ink(theme), maxLines = 3)
+        Text(
+            surligne(hit.snippet, requete, theme),
+            fontSize = 15.sp,
+            color = ONTColors.ink(theme),
+            maxLines = 3,
+        )
     }
     HorizontalDivider(color = ONTColors.separator(theme))
 }
+
+/**
+ * Le terme trouvé, marqué dans l'extrait.
+ *
+ * ## L'or voilé sur fond clair, l'encre dorée sur la nuit
+ *
+ * À 45 % sur un fond clair, l'or surligne. Sur la nuit il devient un aplat
+ * lumineux sous une encre claire — c'est-à-dire un trou blanc. Sur fond sombre
+ * on marque donc **par l'encre**, l'accent doré sur le texte lui-même, plutôt
+ * que par un fond.
+ *
+ * La recherche ignore casse et diacritiques ; le marquage doit faire de même,
+ * sans quoi « chesed » trouvé ne serait pas « Chesed » marqué.
+ */
+private fun surligne(extrait: String, requete: String, theme: ReadingTheme): AnnotatedString {
+    val aiguille = requete.trim()
+    if (aiguille.length < 2) return AnnotatedString(extrait)
+
+    fun plier(t: String) = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase()
+
+    val i = plier(extrait).indexOf(plier(aiguille))
+    if (i < 0 || i + aiguille.length > extrait.length) return AnnotatedString(extrait)
+
+    return buildAnnotatedString {
+        append(extrait.substring(0, i))
+        withStyle(
+            if (theme.isDark) {
+                SpanStyle(color = ONTColors.accent(theme), fontWeight = FontWeight.Bold)
+            } else {
+                SpanStyle(
+                    background = ONTColors.gold.copy(alpha = 0.45f),
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+        ) { append(extrait.substring(i, i + aiguille.length)) }
+        append(extrait.substring(i + aiguille.length))
+    }
+}
+
+/**
+ * Ce qu'on peut chercher.
+ *
+ * Quatre exemples et non une phrase d'aide : qu'un moteur accepte l'hébreu non
+ * vocalisé et rende le texte vocalisé ne se devine pas, et personne ne lit une
+ * notice avant de taper.
+ */
+@Composable
+private fun Exemples() {
+    val theme = LocalReadingTheme.current
+    Column(
+        modifier = Modifier.padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        for ((exemple, explication) in EXEMPLES) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    exemple,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ONTColors.brandInk(theme),
+                )
+                Text(explication, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            }
+        }
+    }
+}
+
+private val EXEMPLES = listOf(
+    "chesed" to "un intraduisible — trouve aussi les passages en hébreu seul",
+    "חסד" to "de l'hébreu sans voyelles — trouve le texte vocalisé",
+    "alliance" to "un mot français du corps de la traduction",
+    "temple cosmique" to "une expression, plutôt dans les gloses",
+)

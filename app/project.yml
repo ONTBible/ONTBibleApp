@@ -141,14 +141,37 @@ targets:
         # C'est ce qui a bloqué TestFlight du 24 au 25 août 2026 : 1.0.3 avait
         # été approuvée, et cinq livraisons de suite sont mortes ici.
         #
+        # **Deuxième fois le 30 août 2026**, 1.0.4 approuvée à son tour. Deux
+        # occurrences en six jours disent que ce n'est pas un oubli isolé mais
+        # un rythme : l'approbation arrive sans prévenir, et rien dans le dépôt
+        # ne l'apprend — c'est l'auteur qui la voit dans App Store Connect et
+        # doit y penser. Le geste reste manuel à dessein, puisqu'il engage le
+        # numéro que le public verra ; ce qui manque est un **rappel**, pas une
+        # automatisation.
+        #
         # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
         # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
-        CFBundleShortVersionString: "1.0.4"
+        CFBundleShortVersionString: "1.0.5"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
         # moderne, pleine dalle.
-        UILaunchScreen: {}
+        # **La nuit, et non le noir du système.**
+        #
+        # Le dictionnaire vide déclarait une scène de lancement moderne, pleine
+        # dalle — nécessaire, sinon iOS letterboxe l'app —, mais il laissait le
+        # fond au système : noir franc en apparence sombre.
+        #
+        # Or l'app met deux secondes et demie à charger son corpus, et le
+        # lecteur regardait ce noir avant que l'ouverture ne commence. Le
+        # raccorder à la nuit de l'ouverture fait de cette attente le début du
+        # mouvement plutôt qu'une salle vide qui le précède.
+        #
+        # `NuitDeLOuverture` est un peu plus sombre que ``ONTColors/nuit`` :
+        # c'est la teinte du **bord** du dégradé, celle qui touche les bords de
+        # l'écran, donc celle qui doit se raccorder sans couture.
+        UILaunchScreen:
+          UIColorName: NuitDeLOuverture
         # L'iPhone n'a pas d'upside-down, et c'est l'usage : personne ne tient
         # un téléphone à l'envers, et le laisser tourner ferait basculer la
         # page pour rien.
@@ -246,7 +269,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.4"
+        CFBundleShortVersionString: "1.0.5"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
@@ -258,6 +281,182 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT.widget
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
+
+  # La liseuse du Mac.
+  #
+  # ## Pourquoi une cible native, et pas Catalyst
+  #
+  # Catalyst rendrait l'app iOS dans une fenêtre, avec ses gestes, ses marges
+  # de pouce et sa barre d'onglets en bas — une app iPad posée sur un bureau.
+  # C'est précisément ce qu'on ne veut pas ici, puisqu'elle s'ouvrira à côté
+  # d'un éditeur pour relire ce qu'on vient d'écrire.
+  #
+  # Une cible native partage les quatre paquets — donc le corpus, les thèmes,
+  # le moteur de rendu et les seuils de contraste — et ne diverge que là où le
+  # Mac est vraiment différent.
+  #
+  # ## Ce qu'elle n'emporte pas, et pourquoi
+  #
+  # **Pas de widget** : le Mac n'a pas d'écran d'accueil au sens d'iOS.
+  # **Pas de tâche de fond** : `BGTaskScheduler` n'existe pas ici ; la mise à
+  # jour du corpus se fait à l'ouverture et sur demande, ce qui suffit à une
+  # machine qu'on n'éteint pas.
+  # **Pas de Sentry** : on n'instrumente pas une liseuse avant qu'elle ait un
+  # seul lecteur.
+  ONTMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    dependencies:
+      - package: ONTKit
+      - package: ONTData
+      - package: ONTDesignSystem
+      - package: ONTFeatures
+        product: ReadingFeature
+      - package: ONTFeatures
+        product: LexiconFeature
+      - package: ONTFeatures
+        product: SearchFeature
+      - package: ONTFeatures
+        product: QahalFeature
+      - package: ONTFeatures
+        product: YouFeature
+    sources:
+      - path: Sources
+        excludes:
+          # Trois fichiers d'iOS, relevés et non devinés — les seuls de
+          # `Sources/` qui importent UIKit ou Sentry.
+          #
+          # `ONTApp` déclare des tâches de fond et une barre d'onglets ; le Mac
+          # a son propre point d'entrée, dans `MacSources`.
+          - "App/ONTApp.swift"
+          # Sentry n'est pas lié à cette cible : on n'instrumente pas une
+          # liseuse avant qu'elle ait un seul lecteur.
+          - "App/Observability.swift"
+          # **La racine d'iOS.** Le Mac a la sienne, `MacSources/RacineMac.swift`,
+          # et ce n'est pas une duplication : `RootView` monte une
+          # `TabView(.sidebarAdaptable)` dont AppKit dessine la barre latérale —
+          # sa teinte, sa taille de texte et sa largeur échappent alors à l'app.
+          # Le contenu, lui, reste partagé : ce sont les mêmes onglets.
+          - "App/RootView.swift"
+      - path: MacSources
+      - path: Resources
+        buildPhase: resources
+    info:
+      path: Info-Mac.plist
+      properties:
+        LSApplicationCategoryType: public.app-category.reference
+        ITSAppUsesNonExemptEncryption: false
+        # **Les fontes, qui n'étaient inscrites nulle part sur le Mac.**
+        #
+        # iOS les déclare par `UIAppFonts`. macOS ne connaît pas cette clé : il
+        # lit `ATSApplicationFontsPath`, un chemin relatif à `Resources/`. La
+        # cible ne déclarait ni l'une ni l'autre — les `.ttf` étaient copiés
+        # dans le bundle, et personne ne les inscrivait.
+        #
+        # Le défaut était invisible ici et seulement ici : `Font.custom`
+        # retombe en silence sur la fonte système, et l'auteur a Ezra SIL
+        # installée à titre personnel — `~/Library/Fonts/SILEOT.ttf`. L'hébreu
+        # s'affichait donc correctement **sur sa machine et sur aucune autre**,
+        # pendant que Literata, elle, ne s'affichait nulle part.
+        #
+        # « . » et non « Fonts » : la phase de ressources aplatit
+        # `Resources/Fonts/` dans `Contents/Resources/`.
+        ATSApplicationFontsPath: "."
+
+        # **`CFBundleName` en plus de `CFBundleDisplayName`.**
+        #
+        # Le Mac prend son nom de menu dans `CFBundleName`, qui retombe sur le
+        # nom de la cible quand il manque : la barre affichait « ONTMac ».
+        # `CFBundleDisplayName` ne sert qu'au Finder et au Dock, où le nom était
+        # juste — d'où un défaut visible partout sauf là où on l'avait vérifié.
+        CFBundleName: La Bible ONT
+        CFBundleDisplayName: La Bible ONT
+        CFBundleShortVersionString: "1.0.5"
+        CFBundleVersion: "1"
+        # Le même contrat de lien public que sur iOS.
+        ONTWebBaseURL: https://ontbible.com
+        # **Le schéma interne, qu'il manquait ici.**
+        #
+        # `RacineMac` appelle `onOpenURL` et `Router.open` depuis le premier
+        # jour, mais rien ne déclarait `ont://` au système : le Mac répondait
+        # « aucune application ne sait ouvrir cette adresse ». Le code était
+        # prêt, la déclaration non — et rien ne pouvait le dire, puisque le
+        # défaut est dans un fichier que le compilateur ne lit pas.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.labibleont.ONT.mac.term
+            CFBundleURLSchemes:
+              - ont
+    settings:
+      base:
+        # **Le même identifiant que l'iOS, et c'est délibéré.**
+        #
+        # C'est l'achat universel d'Apple : une seule fiche à l'App Store, une
+        # seule revue, et le lecteur qui a l'app sur iPhone a celle du Mac.
+        #
+        # Ce n'est pas qu'une commodité de distribution. Sign in with Apple
+        # délivre son code **au bundle qui l'a demandé**, et le backend n'échange
+        # que les codes émis pour `com.labibleont.ONT`. Sous `…ONT.mac`, Apple
+        # aurait refusé l'échange même avec le droit posé — il aurait fallu un
+        # App ID de plus, groupé chez Apple, et une troisième origine côté
+        # serveur. Beaucoup d'ouvrage pour une fiche séparée dont une liseuse
+        # gratuite n'a que faire.
+        PRODUCT_BUNDLE_IDENTIFIER: com.labibleont.ONT
+        # Les droits du Mac — voir `ONTMac.entitlements`. Sans eux, la connexion
+        # Apple échoue avant de partir.
+        CODE_SIGN_ENTITLEMENTS: ONTMac.entitlements
+        # **Le nom du bundle sur le disque**, et donc celui que le Dock montre
+        # dans son infobulle. `CFBundleName` ne suffisait pas : il nomme les
+        # menus, pas le fichier — l'app s'appelait « La Bible ONT » partout sauf
+        # au survol de son icône, où elle restait « ONTMac ».
+        #
+        # Un troisième endroit, après la barre des menus et le Finder, où le
+        # même nom se déclare autrement. C'est ce qui rend ce genre de défaut
+        # tenace : on en corrige un, on croit avoir fini.
+        # **L'accent de la marque, lu par AppKit et non par SwiftUI.**
+        #
+        # `.tint()` teinte ce que SwiftUI dessine. La barre latérale d'un
+        # `TabView(.sidebarAdaptable)` est dessinée par AppKit, qui ne le lit
+        # pas : sa sélection restait au rose vif des Réglages du lecteur, sur
+        # une peau or et bordeaux.
+        #
+        # `AccentColor` dans le catalogue est le seul endroit qu'AppKit
+        # consulte. L'or profond le jour, l'or clair la nuit — les deux valeurs
+        # de `ONTColors.accent`, recopiées ici parce qu'un catalogue ne sait pas
+        # appeler du Swift.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        PRODUCT_NAME: La Bible ONT
+        # Le nom du **module**, que `PRODUCT_NAME` entraînerait sinon :
+        # « La Bible ONT » devient `La_Bible_ONT`, et les épreuves qui
+        # écrivent `@testable import ONTMac` ne le trouvent plus. Le nom
+        # affiché et le nom de code n'ont aucune raison d'être le même.
+        PRODUCT_MODULE_NAME: ONTMac
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: YES
+
+  # Les épreuves de ce qui n'existe que sur le Mac.
+  ONTMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: MacTests
+    dependencies:
+      - target: ONTMac
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        # **L'hôte se nomme par son `PRODUCT_NAME`, pas par sa cible.**
+        #
+        # XcodeGen déduit `TEST_HOST` du nom de la cible — « ONTMac.app » —, or
+        # le produit s'appelle « La Bible ONT.app » depuis qu'on l'a renommé
+        # pour le Dock. Le chemin pointait donc sur une app qui n'existe pas, et
+        # `xcodebuild test` refusait de démarrer.
+        #
+        # Conséquence qu'on n'avait pas vue : les épreuves du Mac n'ont jamais
+        # tourné. Elles étaient écrites, compilées, et injoignables.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/La Bible ONT.app/Contents/MacOS/La Bible ONT"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
   ONTTests:
     type: bundle.unit-test
@@ -324,3 +523,21 @@ schemes:
       config: Debug
       targets:
         - ONTTests
+
+  # Le Mac, avec ses épreuves.
+  #
+  # Sans ce schéma, `xcodebuild test -scheme ONTMac` répond « not currently
+  # configured for the test action » : la cible d'épreuves existait, rien ne la
+  # rattachait. Des tests qu'aucune commande ne lance sont des tests qui
+  # n'existent pas.
+  ONTMac:
+    build:
+      targets:
+        ONTMac: all
+        ONTMacTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ONTMacTests

@@ -4,6 +4,7 @@
 //! dist/corpus.json        l'arborescence de navigation, les 70 slots
 //! dist/books/<id>.json    le contenu complet d'un livre
 //! dist/glossary.json      le lexique des intraduisibles
+//! dist/shemot.json        les fiches des noms propres
 //! dist/occurrences.json   lemme → toutes ses occurrences
 //! dist/search.json        l'index de recherche
 //! dist/daily.json         le vivier du verset du jour
@@ -29,7 +30,8 @@ use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, ShemEntry, ShemotFile, Status, Stub,
+    TermLevel,
 };
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
@@ -591,6 +593,24 @@ pub struct BuildResult {
     /// texte : une fiche ne passe pas par l'indexation des chapitres, et sa
     /// faute restait donc muette.
     pub ors_morts: usize,
+    /// Les `[[…]]` du corpus qui ne mènent à aucune fiche.
+    ///
+    /// Ce ne sont **pas des erreurs** : le §2.10 veut qu'une fiche dise ce qui
+    /// reste à venir, et le vault porte des renvois vers des porteurs pas encore
+    /// écrits. C'est la liste de ce qui manque, et c'est pour ça qu'on ne
+    /// dégrade pas le Shem en texte nu — dégrader ferait disparaître la liste.
+    pub shemot_sans_fiche: usize,
+    /// Les intraduisibles **déclarés au §2.5 et jamais définis au §3**.
+    ///
+    /// Le trou que ce compteur bouche : `neshamah`, `emunah`, `tsadiq`,
+    /// `tsedaqah` et `mabbul` étaient balisés dans tout le corpus, affichés en
+    /// or et touchables, et le §3 ne disait rien d'eux. Trois gardes les ont
+    /// laissés passer — celle du site, et les deux d'ici.
+    ///
+    /// Aucune ne se trompait. Toutes vérifiaient que le mot **mène** quelque
+    /// part, jamais que ce quelque part **dise** quelque chose. C'est plus
+    /// facile à écrire, et c'est ce qui reste faux.
+    pub sans_definition: usize,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -619,15 +639,12 @@ pub fn build() -> Result<BuildResult, String> {
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
     let fiches = read_fiches(&racine);
-    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
-    let mut fiches_orphelines: Vec<String> = fiches
-        .keys()
-        .filter(|l| !lemmes.contains(l.as_str()))
-        .cloned()
-        .collect();
-    fiches_orphelines.sort();
+    // `fiches_orphelines` se calcule plus bas, une fois les Shemot connus : le
+    // dossier `lexique/` porte deux espèces de fiches depuis la troisième
+    // couche, et il fallait les deux pour savoir laquelle est orpheline.
     for entry in glossary.iter_mut() {
-        if let Some(blocs) = fiches.get(&entry.lemma) {
+        if let Some(fiche) = fiches.get(&entry.lemma) {
+            let blocs = &fiche.blocs;
             entry.definition = Some(blocs.clone());
         }
     }
@@ -671,6 +688,16 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.sort();
     ors_morts.dedup();
 
+    // **Déclaré n'est pas défini.** `tagged` dit que le terme est balisé (§2.5),
+    // `definition` qu'il a un champ sémantique (§3). Un terme peut avoir l'un
+    // sans l'autre : il paraît alors en or, il est touchable, et sa fiche
+    // n'apprend rien.
+    let sans_definition: Vec<String> = glossary
+        .iter()
+        .filter(|e| e.tagged && e.definition.is_none())
+        .map(|e| e.title.clone())
+        .collect();
+
     let lu = read_chapters(&racine);
     let mut corpora = assemble(&skeleton, &lu.chapters, &book_names);
 
@@ -685,7 +712,10 @@ pub fn build() -> Result<BuildResult, String> {
         for corpus in &mut corpora {
             for mode in &mut corpus.modes {
                 for livre in &mut mode.books {
-                    for unite in &mut livre.chapters {
+                    // `intro` **et** `chapters` : un livre peut n'être qu'une
+                    // intro — `chazon-avraham` n'a aucun chapitre —, et un
+                    // renvoi écrit là n'était lié nulle part.
+                    for unite in unites_mut(livre) {
                         let origine = unite.id.clone();
                         renvois::lier(&mut unite.blocks, &index, &origine);
                     }
@@ -694,6 +724,124 @@ pub fn build() -> Result<BuildResult, String> {
         }
     }
     let corpora = corpora;
+
+    // **Les Shemot sans fiche**, relevés sur le corpus assemblé — donc sur ce
+    // que le lecteur verra, et non sur ce que le vault contient. Un renvoi dans
+    // une unité non publiée ne doit pas figurer dans la liste de travail.
+    let noms_de_fiches: HashSet<String> = fiches.keys().cloned().collect();
+    let mut shemot_sans_fiche: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in unites(livre) {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shemot_sans_fiche(
+                                    nodes,
+                                    &noms_de_fiches,
+                                    &mut shemot_sans_fiche,
+                                )
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shemot_sans_fiche(
+                                        &v.nodes,
+                                        &noms_de_fiches,
+                                        &mut shemot_sans_fiche,
+                                    )
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_sans_fiche.sort();
+    shemot_sans_fiche.dedup();
+
+    // **L'intro compte autant qu'un chapitre.** Trois parcours l'oubliaient —
+    // celui-ci, celui des Shemot sans fiche, et le lieur de renvois — alors que
+    // le rendu, lui, y arrivait. Deux chemins sur la même donnée, l'un complet
+    // et l'autre non : le lecteur voyait un nom en terre brûlée, le touchait,
+    // et la feuille ne trouvait rien.
+    //
+    // `Yaho'el` était le seul lemme du corpus à n'exister que dans une intro,
+    // rendu huit fois et indexé zéro. `chazon-avraham` n'a **aucun chapitre** :
+    // tout son contenu est une intro, et ses six autres Shemot n'étaient
+    // sauvés que par leurs occurrences ailleurs. Relevé par la session du
+    // vault, en comparant les lemmes rendus dans `dist/books` à l'index.
+    //
+    // **On ne publie que les porteurs que le corpus nomme.** Le vault tient 305
+    // fiches, le corpus publié en emploie 205 : embarquer les cent autres
+    // ferait payer au lecteur des noms qu'aucune unité écrite ne prononce.
+    // Elles arriveront avec leurs unités.
+    let mut shemot_employes: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in unites(livre) {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shem_lemmes(nodes, &mut shemot_employes)
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shem_lemmes(&v.nodes, &mut shemot_employes)
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_employes.sort();
+    shemot_employes.dedup();
+
+    // **Une fiche orpheline, maintenant qu'il y a deux espèces de fiches.**
+    //
+    // Le contrôle demandait « ce nom de fichier est-il un lemme du
+    // glossaire ? ». C'était la bonne question tant que `lexique/` ne contenait
+    // que des intraduisibles. Depuis la troisième couche il y tient aussi les
+    // fiches de Shemot, **qui n'ont pas d'entrée de glossaire par
+    // construction** — un porteur n'est pas un concept, et c'est toute la
+    // raison d'être de la couche.
+    //
+    // La section listait donc les cent quatre-vingt-dix-sept fiches de noms
+    // propres, toutes fausses. À ce taux elle n'est pas seulement inutile :
+    // elle **noie le signal qu'elle portait**, puisqu'une vraie fiche
+    // d'intraduisible orpheline y serait devenue invisible. Une garde qui crie
+    // toujours ne garde plus rien.
+    //
+    // Un critère par espèce, donc : un lemme du glossaire, ou un Shem que le
+    // corpus nomme. Ce qui n'est ni l'un ni l'autre est bien du travail perdu
+    // — y compris une fiche de Shem écrite pour un nom qu'aucune unité publiée
+    // ne prononce, qui est le même défaut sous l'autre espèce.
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let porteurs: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()) && !porteurs.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
+
+    let shemot: Vec<ShemEntry> = shemot_employes
+        .iter()
+        .filter_map(|lemme| {
+            fiches.get(lemme).map(|fiche| ShemEntry {
+                lemma: lemme.clone(),
+                title: fiche.titre.clone(),
+                definition: fiche.blocs.clone(),
+            })
+        })
+        .collect();
+
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -749,6 +897,15 @@ pub fn build() -> Result<BuildResult, String> {
     }
 
     bytes += write_json(
+        &sortie.join("shemot.json"),
+        &ShemotFile {
+            schema: 1,
+            entries: shemot.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+
+    bytes += write_json(
         &sortie.join("glossary.json"),
         &GlossaryFile {
             schema: 1,
@@ -769,7 +926,7 @@ pub fn build() -> Result<BuildResult, String> {
     // L'index de recherche : un enregistrement par verset, titre ou paragraphe.
     let mut search_records: Vec<SearchRecord> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             search_records.extend(index_chapter(unit));
         }
     }
@@ -794,7 +951,7 @@ pub fn build() -> Result<BuildResult, String> {
     // d'inline le ferait tomber.
     let mut daily: Vec<DailyVerse> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             // Seules les unités **verrouillées** : un brouillon ne fait pas
             // référence (§12) et n'a rien à faire sur un écran d'accueil. La
             // règle vit ici, dans la fabrique du vivier, et pas dans chacun des
@@ -865,11 +1022,32 @@ pub fn build() -> Result<BuildResult, String> {
         &sortie.join("manifest.json"),
         &Manifest {
             schema: 1,
-            // Sans dépendance de date : l'empreinte du contenu suffit à savoir
-            // si le corpus a changé, et un horodatage rendrait deux builds du
-            // même vault différents pour rien.
-            generated_at: String::new(),
-            vault: racine.to_string_lossy().to_string(),
+            // L'estampille du **contenu**, pas de la compilation — la date du
+            // dernier commit du vault, passée par `ONT_GENERE`.
+            //
+            // Le déterminisme est intact : deux exécutions sur le même vault
+            // rendent la même date, donc le même octet, donc aucun
+            // retéléchargement inutile. Un horodatage de build l'aurait rompu.
+            //
+            // Elle n'a servi à rien jusqu'au jour où un bundle est devenu plus
+            // récent que le corpus publié. Une empreinte dit que deux corpus
+            // diffèrent ; elle ne dit jamais lequel vient après.
+            generated_at: crate::config::genere(),
+            // **Le nom du vault, pas son chemin.**
+            //
+            // Le chemin absolu de la machine qui bâtit se retrouvait dans un
+            // fichier committé : il basculait d'un contributeur à l'autre —
+            // `ONTBibleApp/` chez l'un, `ONTBibleApp-android/` chez l'autre —
+            // et faisait diverger la sortie de deux builds du même vault, ce qui
+            // contredit le déterminisme que tout le reste tient. Il révélait
+            // aussi l'arborescence du disque de qui publie.
+            //
+            // Personne ne le lit — ni les liseuses, ni le site. Il sert à dire
+            // **de quel vault** un corpus vient, et le nom du dossier suffit.
+            vault: racine
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
             stats: stats.clone(),
         },
     )
@@ -884,6 +1062,7 @@ pub fn build() -> Result<BuildResult, String> {
             superseded: &lu.superseded,
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
+            shemot_sans_fiche: &shemot_sans_fiche,
         },
         &racine,
     );
@@ -895,10 +1074,48 @@ pub fn build() -> Result<BuildResult, String> {
         issues: lu.issues.len(),
         bytes,
         ors_morts: ors_morts.len(),
+        shemot_sans_fiche: shemot_sans_fiche.len(),
+        sans_definition: sans_definition.len(),
     })
 }
 
 /// Descend dans un arbre d'inline et relève les termes sans entrée.
+/// Récolte les lemmes de tous les Shemot rencontrés.
+fn collect_shem_lemmes(nodes: &[Inline], out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { lemma, .. } => out.push(lemma.clone()),
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shem_lemmes(children, out),
+            _ => {}
+        }
+    }
+}
+
+/// Récolte les Shemot dont la fiche manque.
+///
+/// Le pendant de [`collect_or_morts`] pour la troisième couche. Il ne dit pas
+/// « ce nom est faux » mais « ce porteur n'a pas encore sa fiche » — c'est une
+/// liste de travail, pas une liste d'erreurs.
+fn collect_shemot_sans_fiche(nodes: &[Inline], fiches: &HashSet<String>, out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { v, lemma } => {
+                if !fiches.contains(lemma) {
+                    out.push(format!("**{v}** — `lexique/{lemma}.md`"));
+                }
+            }
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shemot_sans_fiche(children, fiches, out),
+            _ => {}
+        }
+    }
+}
+
 fn collect_or_morts(
     nodes: &[Inline],
     connus: &HashSet<String>,
@@ -932,6 +1149,15 @@ struct Anomalies<'a> {
     superseded: &'a [String],
     fiches_orphelines: &'a [String],
     ors_morts: &'a [String],
+    /// Les Shemot que le corpus nomme et pour lesquels aucune fiche n'existe.
+    ///
+    /// **Ils étaient comptés, triés, dédoublonnés — puis seul `.len()`
+    /// survivait**, et le `Vec` était jeté. Le rapport annonçait « 10 Shemot
+    /// sans fiche » sans dire lesquels, ce qui ne permet à personne d'agir :
+    /// il faut alors refaire à la main le relevé que le pipeline venait de
+    /// faire. Les trois autres compteurs ont tous leur section ; celui-ci
+    /// était le seul à n'avoir qu'un nombre.
+    shemot_sans_fiche: &'a [String],
 }
 
 fn format_report(
@@ -946,6 +1172,7 @@ fn format_report(
         superseded,
         fiches_orphelines,
         ors_morts,
+        shemot_sans_fiche,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1050,6 +1277,22 @@ fn format_report(
         }
     }
 
+    // Un nom propre que le texte porte sans qu'aucune fiche ne l'explique :
+    // le lecteur touche le mot et n'obtient rien.
+    if !shemot_sans_fiche.is_empty() {
+        l.extend([
+            String::new(),
+            "## Shemot sans fiche".into(),
+            String::new(),
+            "Ces noms propres sont employés dans le corpus publié et n'ont pas".into(),
+            "de fiche dans `lexique/`. Le nom du fichier doit être le lemme.".into(),
+            String::new(),
+        ]);
+        for s in shemot_sans_fiche {
+            l.push(format!("- {s}"));
+        }
+    }
+
     // Le gras d'insistance dans une fiche promet une fiche qui n'existe pas.
     if !ors_morts.is_empty() {
         l.extend([
@@ -1127,9 +1370,162 @@ fn format_report(
     l.join("\n") + "\n"
 }
 
+/// Toutes les unités d'un livre — **l'intro comprise**.
+///
+/// Elle est une unité comme une autre : elle porte du texte, des Shemot, des
+/// intraduisibles et des renvois. `chazon-avraham` n'est *que* cela — aucun
+/// chapitre —, donc l'oublier revient à ne pas lire le livre.
+///
+/// Cette fonction existe parce que l'oubli s'est produit **trois fois**, dans
+/// trois parcours écrits à des moments différents, pendant que deux autres
+/// faisaient correctement `intro.iter().chain(chapters.iter())`. Un idiome
+/// juste mais recopié à la main se recopie mal ; celui-ci ne se recopie plus.
+///
+/// Le défaut ne se voyait pas : le rendu atteignait les intros, l'indexeur non.
+/// Deux chemins sur la même donnée, dont un seul complet. `Yaho'el` était rendu
+/// huit fois en terre brûlée et absent de `shemot.json` — on touchait le nom,
+/// la feuille ne trouvait rien.
+fn unites(livre: &Book) -> impl Iterator<Item = &Chapter> {
+    livre.intro.iter().chain(livre.chapters.iter())
+}
+
+/// La même, pour qui doit écrire dedans. Voir [`unites`].
+fn unites_mut(livre: &mut Book) -> impl Iterator<Item = &mut Chapter> {
+    livre.intro.iter_mut().chain(livre.chapters.iter_mut())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Une unité d'introduction dans un livre qui n'a que ça.
+    fn livre_sans_chapitre(lemme: &str) -> Book {
+        let unite = Chapter {
+            id: "chazon-avraham-0-intro".into(),
+            book_id: "chazon-avraham".into(),
+            kind: ChapterKind::Intro,
+            n: 0,
+            title: "Chazon Avraham — introduction".into(),
+            title_nodes: vec![],
+            subtitle: None,
+            status: Status::Brouillon,
+            blocks: vec![Block::Para {
+                nodes: vec![Inline::Shem {
+                    v: "Yaho'el".into(),
+                    lemma: lemme.into(),
+                }],
+            }],
+            footer: None,
+            verse_count: 0,
+            lemmas: vec![],
+            source: "chazon-avraham.md".into(),
+        };
+        Book {
+            id: "chazon-avraham".into(),
+            slot: 1,
+            title: "Chazon Avraham".into(),
+            french: "Apocalypse d'Abraham".into(),
+            glose: None,
+            hebrew: None,
+            corpus_id: "nistarot".into(),
+            mode_id: "nistarot".into(),
+            group_id: None,
+            chapters: vec![],
+            intro: Some(unite),
+            empty: false,
+        }
+    }
+
+    /// **Un livre peut n'être qu'une introduction, et il faut le lire.**
+    ///
+    /// `chazon-avraham` n'a aucun chapitre. Trois parcours ne regardaient que
+    /// `chapters` : l'indexeur des Shemot, le relevé de ceux sans fiche, et le
+    /// lieur de renvois. Le rendu, lui, atteignait les intros — deux chemins
+    /// sur la même donnée, dont un seul complet.
+    ///
+    /// `Yaho'el` était rendu huit fois en terre brûlée et absent de
+    /// `shemot.json` : on touchait le nom, la feuille ne trouvait rien. Et la
+    /// garde des fiches orphelines, qui s'appuie sur cette liste, l'aurait
+    /// dénoncé comme du travail perdu — on aurait supprimé une fiche valide
+    /// sur la foi du rapport.
+    ///
+    /// Relevé par la session du vault, en comparant les lemmes rendus dans
+    /// `dist/books` à ceux de l'index. Deux chemins, deux comptes : 205 et 194.
+    #[test]
+    fn un_livre_sans_chapitre_est_lu_quand_meme() {
+        let livre = livre_sans_chapitre("yahoel");
+        assert_eq!(unites(&livre).count(), 1, "l'intro n'a pas été parcourue");
+
+        let mut vus: Vec<String> = Vec::new();
+        for unite in unites(&livre) {
+            for bloc in &unite.blocks {
+                if let Block::Para { nodes } = bloc {
+                    collect_shem_lemmes(nodes, &mut vus);
+                }
+            }
+        }
+        assert_eq!(vus, ["yahoel"], "le Shem de l'intro n'est pas indexé");
+    }
+
+    /// L'intro vient **avant** les chapitres, et s'ajoute sans les remplacer.
+    #[test]
+    fn l_intro_s_ajoute_aux_chapitres_sans_les_evincer() {
+        let mut livre = livre_sans_chapitre("yahoel");
+        let mut chapitre = livre.intro.clone().unwrap();
+        chapitre.id = "chazon-avraham-1".into();
+        chapitre.n = 1;
+        livre.chapters = vec![chapitre];
+        let ids: Vec<&str> = unites(&livre).map(|u| u.id.as_str()).collect();
+        assert_eq!(ids, ["chazon-avraham-0-intro", "chazon-avraham-1"]);
+    }
+
+    /// Le rapport nommait un nombre sans jamais nommer sa substance.
+    ///
+    /// Les Shemot sans fiche étaient calculés, triés, dédoublonnés — puis seul
+    /// `.len()` survivait. « 10 Shemot sans fiche » ne permet à personne
+    /// d'agir : il faut refaire à la main le relevé que le pipeline vient de
+    /// faire. C'est ce qu'a dû faire la session du vault pour les retrouver.
+    #[test]
+    fn le_rapport_nomme_les_shemot_sans_fiche() {
+        let sans = ["**Par'oh** — `lexique/paroh.md`".to_string()];
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &sans,
+            },
+            Path::new("/vault"),
+        );
+        assert!(
+            rapport.contains("## Shemot sans fiche"),
+            "la section manque"
+        );
+        assert!(rapport.contains("Par'oh"), "le nom manque : {rapport}");
+    }
+
+    /// Une section vide ne s'écrit pas — comme les trois autres.
+    #[test]
+    fn sans_shem_orphelin_la_section_ne_parait_pas() {
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &[],
+            },
+            Path::new("/vault"),
+        );
+        assert!(!rapport.contains("## Shemot sans fiche"));
+    }
 
     #[test]
     fn l_extrait_se_centre_sur_la_forme() {

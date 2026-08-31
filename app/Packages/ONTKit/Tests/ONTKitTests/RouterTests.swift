@@ -50,6 +50,6 @@ struct RouterTests {
         router.open(book: "bereshit", chapter: "bereshit-18", verse: 19)
 
         #expect(router.tab == .bible)
-        #expect(router.pendingVerse == 19)
+        #expect(router.pendingVerse?.n == 19)
     }
 }

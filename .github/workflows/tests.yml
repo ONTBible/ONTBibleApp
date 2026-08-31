@@ -50,7 +50,12 @@ jobs:
     #
     # Trente minutes : plus du double du temps observé, assez pour absorber une
     # lenteur de runner, assez court pour qu'un blocage se voie dans l'heure.
-    timeout-minutes: 30
+    #
+    # **Quarante depuis que le Mac est éprouvé ici aussi.** Le chiffre suit la
+    # règle qu'énonce le paragraphe ci-dessus — le double du temps observé — et
+    # non l'inverse : une seconde cible à bâtir allonge le run, et garder 30
+    # aurait transformé la borne en couperet sur des builds sains.
+    timeout-minutes: 40
 
     steps:
       - name: L'app
@@ -222,12 +227,111 @@ jobs:
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 
-      # Le compte réel, lu du paquet de résultats. La ligne « Executed 0 tests »
+      # **La liseuse du Mac n'était éprouvée nulle part.**
+      #
+      # `-scheme ONT` ne bâtit que la cible iOS. Les épreuves de `MacTests/` —
+      # dont `EchelleDeLInterfaceTests`, qui établit que `dynamicTypeSize` est
+      # inerte sur macOS et que le texte sans fonte déclarée suit bien le
+      # facteur d'interface — ne tournaient que sur la machine de la session
+      # qui les avait écrites. Un commit iOS pouvait casser le Mac en vert.
+      #
+      # Ce sont précisément les constats qui ont coûté le plus cher à établir :
+      # trois relevés pour comprendre que l'ancien levier était mort. Les
+      # laisser hors CI, c'était accepter de les réapprendre.
+      #
+      # Pas de simulateur ici : la destination est le runner lui-même.
+      #
+      # **Sans icône, et ce n'est pas un goût.** `ASSETCATALOG_COMPILER_APPICON_NAME`
+      # est vidé parce que l'`actool` d'Xcode 26.3 — celui du runner — **plante**
+      # en composant le bundle Icon Composer pour macOS. Pas une erreur de
+      # validation : un plantage, `IBAbstractPlatformToolProxy` et une attente de
+      # rapport de crash, sans un mot sur ce qu'il reproche. La même icône passe
+      # pour iOS dans le job d'à côté, et pour macOS sous l'Xcode 27 de la
+      # machine de développement.
+      #
+      # Une app d'épreuve n'a que faire d'une icône : on la retire ici plutôt
+      # que de retenir tout le job sur un outil qui tombe. **Mais la limite est
+      # réelle** — le jour où le Mac se livre, le runner de livraison devra
+      # tourner sur un Xcode dont l'`actool` ne plante pas, sans quoi la fiche
+      # partirait grise. C'est écrit ici pour que ce ne se découvre pas ce
+      # jour-là.
+      #
+      # **Sans signature, et c'est une limite qu'il faut connaître.** Le runner
+      # n'a pas de compte développeur, donc pas de profil, donc rien à signer
+      # avec. Les droits d'`ONTMac.entitlements` sont alors absents du binaire :
+      # ce job dit que le code du Mac tient, il ne dira **jamais** que Sign in
+      # with Apple fonctionne. Cette vérification-là se fait à la main, sur une
+      # machine enregistrée dans le compte développeur.
+      - name: Les tests du Mac
+        working-directory: ONTBibleApp/app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONTMac \
+            -destination "platform=macOS" \
+            -resultBundlePath ../resultats-mac.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
+            2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
+
+      # **Ce que `xcbeautify` avale.**
+      #
+      # Il rend la sortie lisible en ne gardant que ce qu'il sait nommer. Les
+      # diagnostics d'`actool` n'en font pas partie : au premier passage de ce
+      # job, la compilation de l'icône a échoué et le compte rendu ne portait
+      # que « Command CompileAssetCatalogVariant failed with a nonzero exit
+      # code » — l'échec sans sa raison, donc un aller-retour de CI pour
+      # apprendre ce que la première exécution savait déjà.
+      #
+      # On garde le brut à côté et on n'en montre les lignes d'erreur que
+      # lorsqu'il y en a. Rien ne s'ajoute au journal d'un run vert.
+      - name: Ce que le Mac a vraiment dit
+        if: failure()
+        working-directory: ONTBibleApp
+        run: |
+          # **D'abord les épreuves, quand il y en a.**
+          #
+          # Un échec qui ne nomme pas l'attente déçue protège sans rien
+          # apprendre : le suivant doit refaire l'enquête depuis zéro. Le job
+          # iOS rend « Expectation failed » et le nom du test ; celui-ci ne
+          # rendait qu'`exit 65`.
+          echo "── les épreuves qui ont échoué ──"
+          if [ -d resultats-mac.xcresult ] \
+            && xcrun xcresulttool get test-results summary \
+                 --path resultats-mac.xcresult > resume-mac.json 2>/dev/null; then
+            python3 scripts/lire-echecs.py resume-mac.json
+          else
+            echo "  aucun paquet de résultats : les épreuves n'ont pas été atteintes"
+          fi
+
+          # **Puis le brut, pour ce qui tombe avant elles.**
+          #
+          # C'est ce qui est arrivé au premier passage : `actool` plantait, et
+          # `xcbeautify` ne rendait que « failed with a nonzero exit code ».
+          echo
+          echo "── les lignes d'erreur du log brut ──"
+          grep -iE "error:|failed|\*\* [A-Z]+ FAILED" brut-mac.log | tail -40 || true
+
+      # Le compte réel, lu des paquets de résultats. La ligne « Executed 0 tests »
       # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
       # invisible, et l'on croirait qu'aucun test n'a tourné.
+      #
+      # Chaque paquet est compté séparément, et son absence est dite plutôt que
+      # levée : quand l'iPhone tombe, le Mac n'a pas tourné et son paquet
+      # n'existe pas. Une erreur de plus ici masquerait celle qu'on cherche.
       - name: Le compte
         if: always()
         working-directory: ONTBibleApp
         run: |
-          xcrun xcresulttool get test-results summary --path resultats.xcresult \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{d['passedTests']} réussis / {d['totalTestCount']}\")"
+          compter() {
+            if [ ! -d "$1.xcresult" ]; then
+              echo "$2 — pas de résultats : les épreuves n'ont pas tourné"
+              return
+            fi
+            xcrun xcresulttool get test-results summary --path "$1.xcresult" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"$2 — {d['passedTests']} réussis / {d['totalTestCount']}\")"
+          }
+          compter resultats "l'iPhone"
+          compter resultats-mac "le Mac"

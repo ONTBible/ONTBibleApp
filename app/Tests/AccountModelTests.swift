@@ -19,7 +19,7 @@ struct AccountModelTests {
         ) async throws -> Session {
             .init(accessToken: "a", refreshToken: "r", expiresAt: .distantFuture)
         }
-        func refresh(_ refreshToken: String) async throws -> Session {
+        func refresh(_ precedente: Session) async throws -> Session {
             .init(accessToken: "a2", refreshToken: "r2", expiresAt: .distantFuture)
         }
     }
@@ -60,9 +60,43 @@ struct AccountModelTests {
         func remember(_ position: ReadingPosition) { self.position = position }
     }
 
+    /// Un dépôt de profil **en mémoire**, portrait compris.
+    ///
+    /// Le portrait est gardé sous son nom, comme sur le disque, pour que le
+    /// test éprouve la même chorégraphie : écrire l'image, puis le profil qui
+    /// la nomme. Une doublure qui rendrait toujours les mêmes octets laisserait
+    /// passer une inversion de cet ordre.
+    final class FakeProfils: ProfilRepository {
+        var profil = Profil()
+        var portraits: [String: Data] = [:]
+        private(set) var oublie = false
+
+        func enregistrerLePortrait(_ donnees: Data) throws -> String {
+            let nom = "portrait-\(portraits.count).jpg"
+            portraits[nom] = donnees
+            return nom
+        }
+
+        func portrait() -> Data? { profil.portrait.flatMap { portraits[$0] } }
+
+        func oublier() {
+            profil = Profil()
+            portraits.removeAll()
+            oublie = true
+        }
+    }
+
     private func makeModel(
         signedIn: Bool = true,
         consent: Bool = true
+    ) -> (AccountModel, FakeSync, FakeHighlights) {
+        makeModel(signedIn: signedIn, consent: consent, profils: FakeProfils())
+    }
+
+    private func makeModel(
+        signedIn: Bool = true,
+        consent: Bool = true,
+        profils: FakeProfils
     ) -> (AccountModel, FakeSync, FakeHighlights) {
         let sync = FakeSync()
         let highlights = FakeHighlights()
@@ -78,6 +112,7 @@ struct AccountModelTests {
             store: store,
             highlights: highlights,
             positions: FakePositions(),
+            profils: profils,
             flow: SignInFlow(baseURL: URL(string: "https://exemple.test")!)
         )
         return (model, sync, highlights)
@@ -228,5 +263,85 @@ struct AccountModelTests {
     func domainErrorPassesThrough() {
         #expect(AccountError.lisible(AccountError.unauthorized, for: .apple) == .unauthorized)
         #expect(AccountError.lisible(AccountError.server(503), for: .apple) == .server(503))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// **Le nom qu'Apple confie, et ce qu'on refuse d'écraser avec.**
+///
+/// Apple ne donne le nom qu'au client, et qu'à la toute première autorisation :
+/// pas d'`id_token`, pas de seconde chance, pas même après une désinstallation.
+/// Le serveur ne le voit jamais — Google et GitHub, eux, le lui disent, et c'est
+/// lui qui amorce alors le profil.
+///
+/// Ces épreuves tiennent la seule garde qui compte : **on n'écrit que dans un
+/// champ vide.** Sans elle, un lecteur qui a corrigé son prénom chez nous le
+/// verrait remplacé par celui de sa fiche système — qu'il n'a pas choisi pour
+/// cette app.
+@MainActor
+struct ProfilAmorceParAppleTests {
+    private func modele(profil: Profil = Profil()) -> AccountModel {
+        let profils = AccountModelTests.FakeProfils()
+        profils.profil = profil
+        return AccountModel(
+            auth: AccountModelTests.FakeAuth(),
+            sync: AccountModelTests.FakeSync(),
+            store: InMemorySessionStore(session: nil, consent: .none),
+            highlights: AccountModelTests.FakeHighlights(),
+            positions: AccountModelTests.FakePositions(),
+            profils: profils,
+            flow: SignInFlow(baseURL: URL(string: "https://exemple.test")!)
+        )
+    }
+
+    private func accord(prenom: String?, nom: String?) -> AuthorizationGrant {
+        AuthorizationGrant(
+            code: "code", verifier: nil, redirectURI: "", prenom: prenom, nom: nom)
+    }
+
+    @Test("Un profil vide reçoit le nom d'Apple")
+    func leProfilVideLeRecoit() {
+        let modele = modele()
+        modele.amorcerLeProfil(depuis: accord(prenom: "Gloire", nom: "Bikouta"))
+
+        #expect(modele.profil.prenom == "Gloire")
+        #expect(modele.profil.nom == "Bikouta")
+    }
+
+    /// **La garde qui compte.** Entre la création du compte et cet instant, la
+    /// synchronisation a pu descendre un profil écrit sur un autre appareil.
+    @Test("Un nom déjà là n'est jamais écrasé")
+    func leNomDuLecteurTient() {
+        let modele = modele(profil: Profil(prenom: "Sha'eliel", nom: "Bikouta"))
+        modele.amorcerLeProfil(depuis: accord(prenom: "Gloire", nom: "Autre"))
+
+        #expect(modele.profil.prenom == "Sha'eliel")
+        #expect(modele.profil.nom == "Bikouta")
+    }
+
+    /// Champ par champ, pas tout ou rien : un lecteur qui n'a rempli que son
+    /// prénom doit recevoir son nom de famille.
+    @Test("Seul le champ vide est rempli")
+    func leRemplissageEstParChamp() {
+        let modele = modele(profil: Profil(prenom: "Sha'eliel"))
+        modele.amorcerLeProfil(depuis: accord(prenom: "Gloire", nom: "Bikouta"))
+
+        #expect(modele.profil.prenom == "Sha'eliel")
+        #expect(modele.profil.nom == "Bikouta")
+    }
+
+    /// **Rien reçu, rien écrit — et surtout pas de date.**
+    ///
+    /// Toucher `updatedAt` sans rien changer suffirait à faire gagner ce profil
+    /// vide à la fusion, qui arbitre au dernier écrit. Le nom saisi sur un autre
+    /// appareil serait effacé par une connexion qui n'a rien apporté.
+    @Test("Sans nom d'Apple, le profil n'est pas touché")
+    func leProfilResteIntact() {
+        let avant = Profil(prenom: "Sha'eliel", nom: "Bikouta")
+        let modele = modele(profil: avant)
+        modele.amorcerLeProfil(depuis: accord(prenom: nil, nom: nil))
+
+        #expect(modele.profil.updatedAt == avant.updatedAt)
     }
 }

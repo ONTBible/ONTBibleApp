@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,9 +53,11 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.ChapterStub
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.corpus.Status
 import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.search.SearchEngine
+import com.labibleont.ont.kit.corpus.Registre
 
 /**
  * Le sélecteur de renvoi — livre, unité, verset.
@@ -132,6 +135,7 @@ public fun ReferencePicker(
 
         is Etape.Versets -> EtapeDesVersets(
             unite = model.esquisse(e.livre)?.chapters?.firstOrNull { it.id == e.unite },
+            francaisRecu = model.preferences.french,
             onRetour = { etape = Etape.Unites(e.livre) },
             onToutLUnite = { onAller(e.livre, e.unite, null) },
             onVerset = { n -> onAller(e.livre, e.unite, n) },
@@ -157,7 +161,9 @@ private fun EtapeDesLivres(
 ) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
-    var recherche by remember { mutableStateOf("") }
+    // Le filtre survit à la rotation : le lecteur qui a tapé « berei » pour
+    // trouver son livre ne doit pas le retaper parce qu'il a tourné l'écran.
+    var recherche by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         ONTPage {
@@ -191,6 +197,7 @@ private fun EtapeDesLivres(
                         LigneDuSelecteur(
                             livre = livre,
                             courant = livre.id == livreCourant,
+                            francaisRecu = model.preferences.french,
                             onChoisir = { onChoisir(livre.id) },
                         )
                     }
@@ -212,11 +219,21 @@ private fun correspond(livre: BookOutline, recherche: String): Boolean {
     val cherche = SearchEngine.fold(recherche.trim())
     if (cherche.isEmpty()) return true
     return SearchEngine.fold(livre.title).contains(cherche) ||
-        SearchEngine.fold(livre.french).contains(cherche)
+        // **Les deux registres**, pas seulement celui qu'on affiche.
+        //
+        // Un lecteur en glose doit retrouver le livre en tapant « actes », et
+        // un lecteur en français reçu en tapant « gevurot ». Chercher dans le
+        // seul registre affiché rendrait introuvable ce que l'autre nomme.
+        SearchEngine.fold(Registre.cherchable(livre)).contains(cherche)
 }
 
 @Composable
-private fun LigneDuSelecteur(livre: BookOutline, courant: Boolean, onChoisir: () -> Unit) {
+private fun LigneDuSelecteur(
+    livre: BookOutline,
+    courant: Boolean,
+    francaisRecu: Boolean,
+    onChoisir: () -> Unit,
+) {
     val theme = LocalReadingTheme.current
     val espace = ontSpacing
     // Un slot vide reste **visible mais éteint** : le corpus est un chantier, et
@@ -250,7 +267,14 @@ private fun LigneDuSelecteur(livre: BookOutline, courant: Boolean, onChoisir: ()
                     else -> ONTColors.inkSoft(theme)
                 },
             )
-            Text(livre.french, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            // Le sélecteur n'appliquait le registre **nulle part** : il rendait
+            // le français en dur, quel que soit le réglage. Le même défaut
+            // qu'iOS a trouvé chez lui — une règle de trois lignes recopiée
+            // dans les vues est une règle qu'un écran finit par ne pas
+            // appliquer.
+            Registre.second(livre.french, livre.glose, francaisRecu)?.let {
+                Text(it, fontSize = 13.sp, color = ONTColors.inkSoft(theme))
+            }
         }
         if (!lisible) {
             Text("à venir", fontSize = 12.sp, color = ONTColors.inkSoft(theme))
@@ -355,6 +379,7 @@ private fun Case(unite: ChapterStub, courant: Boolean, onClick: () -> Unit) {
 @Composable
 private fun EtapeDesVersets(
     unite: ChapterStub?,
+    francaisRecu: Boolean,
     onRetour: () -> Unit,
     onToutLUnite: () -> Unit,
     onVerset: (Int) -> Unit,
@@ -363,12 +388,20 @@ private fun EtapeDesVersets(
     val espace = ontSpacing
 
     Column(modifier = modifier.fillMaxWidth()) {
-        FilDAriane(unite?.title ?: "", onRetour = onRetour)
+        // Le libellé, pas le titre : « Chapitre 2 » ou « Parashah 2 » selon le
+        // registre. Le titre du corpus ne dit qu'un seul des deux — il porte le
+        // nom ONT, « Bereshit 2 », qui restait affiché même français reçu
+        // allumé.
+        FilDAriane(unite?.label(francaisRecu) ?: "", onRetour = onRetour)
 
         // La sortie courte, en premier : neuf fois sur dix on veut l'unité, pas
         // un verset précis.
         SortieCourte(
-            intitule = "Toute l'unité",
+            // « Tout le chapitre » / « Toute la parashah ». « Toute l'unité »
+            // était un troisième mot, qui n'appartenait à aucun des deux
+            // registres et ne renvoyait donc le lecteur à rien de ce qu'il
+            // avait choisi.
+            intitule = LibelleDUnite.toutLe(francaisRecu),
             icone = Icons.AutoMirrored.Filled.Notes,
             onClick = onToutLUnite,
             modifier = Modifier.padding(horizontal = espace.l),

@@ -25,10 +25,22 @@ public final class Router {
     /// dernier onglet reste une seule chaîne dans les réglages.
     public enum TabID: RawRepresentable, Hashable, Sendable {
         case qahal, bible, lexicon, you
+        /// **Où l'on en était** — un onglet du Mac seulement.
+        ///
+        /// Sur un téléphone, « Reprendre » est une carte en tête de la Bible :
+        /// l'écran est petit, et un onglet de plus mangerait la barre. Sur un
+        /// bureau, la barre latérale est verticale et n'a pas cette contrainte —
+        /// le geste le plus fréquent mérite d'y être le premier.
+        ///
+        /// Le cas existe dans `ONTKit` et non côté Mac : `rawValue` doit savoir
+        /// le relire, sinon un état enregistré par la liseuse du Mac reviendrait
+        /// `nil` et l'app rouvrirait ailleurs.
+        case reprendre
         case book(String)
 
         public init?(rawValue: String) {
             switch rawValue {
+            case "reprendre": self = .reprendre
             case "qahal": self = .qahal
             case "bible": self = .bible
             case "lexicon": self = .lexicon
@@ -41,6 +53,7 @@ public final class Router {
 
         public var rawValue: String {
             switch self {
+            case .reprendre: "reprendre"
             case .qahal: "qahal"
             case .bible: "bible"
             case .lexicon: "lexicon"
@@ -56,10 +69,33 @@ public final class Router {
         }
     }
 
+    /// Un verset **et l'unité qui le porte**.
+    ///
+    /// Voir `pendingVerse` : sans l'unité, une vue de lecture ne peut pas savoir
+    /// si le verset qu'on lui demande est pour elle, et l'efface au passage.
+    public struct VerseVise: Hashable, Sendable {
+        public let chapitre: String
+        public let n: Int
+
+        public init(chapitre: String, n: Int) {
+            self.chapitre = chapitre
+            self.n = n
+        }
+
+        /// Rend `nil` quand il n'y a pas de verset à viser — ce qui évite au
+        /// point d'appel un `if let` par écriture.
+        init?(_ chapitre: String, _ n: Int?) {
+            guard let n else { return nil }
+            self.init(chapitre: chapitre, n: n)
+        }
+    }
+
     /// Le chemin de navigation dans l'onglet Bible.
     public enum Destination: Hashable, Sendable {
         case book(String)
         case chapter(book: String, chapter: String)
+        /// Le choix du verset avant d'ouvrir — l'étape que le sommaire offre.
+        case verses(book: String, chapter: String)
     }
 
     /// L'app rouvre là où on l'a laissée — sur la lecture au premier lancement.
@@ -71,10 +107,33 @@ public final class Router {
 
     /// Le lemme dont la fiche est soulevée par-dessus la lecture.
     public var openedLemma: LemmaSelection?
+    /// Le **Shem** qu'on vient de toucher.
+    ///
+    /// Distinct de `openedLemma`, comme les deux fiches le sont : une seule
+    /// propriété obligerait l'écran à deviner dans quel fichier chercher, et il
+    /// se tromperait pour tous les noms dont un intraduisible porte le lemme.
+    public var openedShem: LemmaSelection?
 
     /// Le verset à atteindre à l'ouverture d'une unité — posé par la
     /// recherche, consommé par la vue de lecture.
-    public var pendingVerse: Int?
+    ///
+    /// ## Il porte son unité, et ce n'est pas un ornement
+    ///
+    /// Un numéro de verset seul est **local à son unité** : « 25 » ne désigne
+    /// rien sans dire de quoi. Or la vue de lecture le consomme en le remettant
+    /// à `nil`, et plusieurs vues peuvent réagir à la fois.
+    ///
+    /// Mesuré : demander `bereshit-2?v=25` alors que `bereshit-1` est à
+    /// l'écran, et **l'ancienne vue mange le verset** avant que la nouvelle ne
+    /// se monte. Elle ne trouve pas 25 chez elle, ne défile pas — et l'efface
+    /// quand même. La nouvelle arrive et ne trouve plus rien : on atterrit sur
+    /// la bonne unité, en haut.
+    ///
+    /// C'est la troisième fois de la journée qu'un identifiant local sert là où
+    /// il en faut un global — après les modes homonymes de deux corpus et les
+    /// résultats de recherche. Le remède est le même : porter avec soi ce qui
+    /// rend unique.
+    public var pendingVerse: VerseVise?
 
     /// Les versets à **sélectionner** à l'ouverture — posés par un lien reçu.
     ///
@@ -131,6 +190,7 @@ public final class Router {
     /// l'app ne propose pas de partage de lien : mieux vaut pas de bouton
     /// qu'un bouton qui produit une adresse morte.
     public static var webBase: URL? {
+        if let impose = webBaseImpose { return impose }
         guard
             let raw = Bundle.main.object(forInfoDictionaryKey: "ONTWebBaseURL") as? String,
             !raw.isEmpty, !raw.contains("à-remplir"),
@@ -138,6 +198,19 @@ public final class Router {
         else { return nil }
         return url
     }
+
+    /// Le domaine, imposé — pour les épreuves, et rien d'autre.
+    ///
+    /// Le lien public est devenu un **contrat entre trois dépôts** : le site le
+    /// produit, les deux liseuses le lisent. Or rien ne le gardait ici, parce
+    /// que `webBase` se lisait dans `Bundle.main` — absent d'un paquet de test,
+    /// donc `openWeb` rendait `false` avant même d'analyser quoi que ce soit.
+    ///
+    /// C'est le même défaut de testabilité que le magasin qui réclamait un
+    /// `Context` là où il lui fallait un fichier : une dépendance plus large
+    /// que le besoin rend l'objet inéprouvable, et ce qui n'est pas éprouvé
+    /// dérive.
+    nonisolated(unsafe) public static var webBaseImpose: URL?
 
     /// Traite un lien. Rend `false` si l'URL ne nous concerne pas.
     ///
@@ -158,6 +231,11 @@ public final class Router {
             openedLemma = LemmaSelection(lemma)
             return true
 
+        case "shem":
+            guard let lemma = parts.first else { return false }
+            openedShem = LemmaSelection(lemma)
+            return true
+
         case "verse":
             guard let n = parts.first.flatMap(Int.init) else { return false }
             tappedVerse = VerseSelection(n)
@@ -168,7 +246,7 @@ public final class Router {
             tab = .bible
             biblePath = [.book(book), .chapter(book: book, chapter: parts[1])]
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = VerseVise(parts[1], pendingSelection.min())
             pendingShare = true
             return true
 
@@ -181,7 +259,8 @@ public final class Router {
             // Le widget passe `?v=12` : le passage arrive désigné, donc la
             // carte d'actions est déjà ouverte et « Partager » est à un doigt.
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = parts.count >= 2
+                ? VerseVise(parts[1], pendingSelection.min()) : nil
             return true
 
         default:
@@ -189,11 +268,37 @@ public final class Router {
         }
     }
 
+    /// Ouvre une unité **en désignant** un verset — ce que fait le widget, et
+    /// ce que doit faire toute carte qui montre un verset précis.
+    ///
+    /// ## Pourquoi c'est une méthode à part
+    ///
+    /// `open(book:chapter:verse:)` *vise* sans *désigner* : c'est le bon geste
+    /// pour un résultat de recherche, qui amène à un verset sans prétendre que
+    /// c'est **celui-là** qu'on voulait — la recherche a rendu vingt lignes,
+    /// elle n'en élit aucune.
+    ///
+    /// Une carte de verset du jour, elle, montre un verset et un seul. Y toucher
+    /// dit « ce verset-ci ». Le lecteur doit le retrouver **désigné** en
+    /// arrivant, comme lorsqu'il ouvre le widget — sans quoi il atterrit dans un
+    /// chapitre et doit rechercher des yeux ce qu'il venait de lire.
+    ///
+    /// C'est exactement l'écart que l'auteur a relevé : le widget composait
+    /// `?v=<n>`, qui désigne, et la carte du Qahal appelait `open(…verse:)`, qui
+    /// ne fait que viser. Deux gestes identiques à l'écran, deux comportements.
+    public func designer(book: String, chapter: String, verse: Int) {
+        open(book: book, chapter: chapter, verse: verse)
+        pendingSelection = [verse]
+    }
+
     /// Ouvre une unité à un verset donné — ce que fait un résultat de recherche.
+    ///
+    /// **Vise sans désigner.** Pour montrer le verset sélectionné à l'arrivée,
+    /// c'est `designer(book:chapter:verse:)` qu'il faut.
     public func open(book: String, chapter: String, verse: Int? = nil) {
         tab = .bible
         biblePath = [.book(book), .chapter(book: book, chapter: chapter)]
-        pendingVerse = verse
+        pendingVerse = VerseVise(chapter, verse)
     }
 
     /// Traite un lien public `https://ontbible.com/fr/lire/<livre>/<unité>?v=1-3`.
@@ -217,7 +322,7 @@ public final class Router {
             // Le renvoi entier : on rouvre là où le lien pointait, et on
             // désigne ce qu'il désignait.
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = VerseVise(parts[3], pendingSelection.min())
         } else {
             biblePath = [.book(book)]
         }
@@ -254,7 +359,25 @@ public final class Router {
             resolvingAgainstBaseURL: false
         )
         if let verses, !verses.isEmpty {
-            components?.queryItems = [URLQueryItem(name: "v", value: verses)]
+            // **Le renvoi et le paramètre ne s'écrivent pas pareil.**
+            //
+            // `VerseRange.label` joint par « , » — espace comprise, parce que
+            // c'est la typographie française d'un renvoi et que c'est ainsi
+            // qu'on le lit. Passée telle quelle, cette espace devient `%20` :
+            // `?v=1-3,%207` là où le site écrit `?v=1-3,7`.
+            //
+            // Les deux se lisent pareil — mesuré, le site rend le même aperçu
+            // pour l'une et pour l'autre. Mais ce sont **deux chaînes** pour un
+            // seul passage, donc deux entrées de cache et deux aperçus. C'est
+            // exactement ce que le site a voulu éviter en rendant la sélection
+            // idempotente : deux lecteurs qui désignent le même passage doivent
+            // produire le même lien.
+            //
+            // On retire l'espace ici et non dans `label` : le renvoi affiché la
+            // veut, et la lui ôter dégraderait tous les écrans pour arranger
+            // une URL.
+            let canonique = verses.replacingOccurrences(of: " ", with: "")
+            components?.queryItems = [URLQueryItem(name: "v", value: canonique)]
         }
         return components?.url
     }

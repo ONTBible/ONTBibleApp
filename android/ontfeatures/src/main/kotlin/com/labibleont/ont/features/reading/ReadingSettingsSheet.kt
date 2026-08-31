@@ -26,6 +26,7 @@ import com.labibleont.ont.kit.corpus.Block
 import com.labibleont.ont.kit.corpus.Chapter
 import com.labibleont.ont.kit.corpus.Verse
 import com.labibleont.ont.kit.reader.ReadingPreferences
+import com.labibleont.ont.designsystem.typography.interligne
 
 /**
  * Les réglages de lecture, atteignables **pendant** la lecture.
@@ -102,7 +103,7 @@ private fun Apercu(chapitre: Chapter, preferences: ReadingPreferences) {
             modifier = Modifier.heightIn(max = 220.dp),
         ) {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                val interligne = (1f + preferences.lineSpacing.toFloat()).em
+                val interligne = interligne(preferences.lineSpacing).em
                 if (preferences.continuous) {
                     Text(
                         androidx.compose.ui.text.buildAnnotatedString {

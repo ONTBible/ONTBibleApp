@@ -17,6 +17,12 @@ pub struct OAuthCredentials {
 /// développeur.
 #[derive(Clone)]
 pub struct AppleCredentials {
+    /// Le Services ID, pour les codes venus d'un navigateur.
+    ///
+    /// La clé `.p8`, elle, sert aux deux flux : c'est l'identifiant qui
+    /// change, pas la signature. Absent tant que le site n'est pas branché —
+    /// et son absence doit se **dire**, pas se traduire par un refus d'Apple.
+    pub services_id: Option<String>,
     /// L'identifiant de l'**app** (`com.labibleont.ONT`) — surtout pas un
     /// Services ID : le flux natif accorde l'autorisation à l'app, et Apple
     /// refuse l'échange si les deux diffèrent.
@@ -39,6 +45,12 @@ pub struct Config {
     pub apple: Option<AppleCredentials>,
     pub google: Option<OAuthCredentials>,
     pub github: Option<OAuthCredentials>,
+    /// Une seconde application GitHub pour le site, **facultative**.
+    ///
+    /// Absente, l'échange web emploie `github`. Voir `providers.rs` : la
+    /// contrainte qui l'imposait — une seule adresse de retour par application —
+    /// n'existe pas.
+    pub github_web: Option<OAuthCredentials>,
     /// De quoi signer les notifications. `None` désactive la diffusion sans
     /// empêcher le reste : lire ne dépend pas de savoir notifier.
     pub apns: Option<ApnsCredentials>,
@@ -121,6 +133,7 @@ impl Config {
             (Some(client_id), Some(team_id), Some(key_id), Some(private_key)) => {
                 Some(AppleCredentials {
                     client_id,
+                    services_id: var("APPLE_SERVICES_ID"),
                     team_id,
                     key_id,
                     // La clé passe par l'environnement avec des « \n »
@@ -138,6 +151,12 @@ impl Config {
             apple,
             google: pair("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
             github: pair("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
+            // Facultatif : sans lui, le site emploie l'application de l'app.
+            // Contrairement à `APPLE_SERVICES_ID`, qui lui n'est pas
+            // remplaçable — Apple signe le secret client avec l'identité à qui
+            // l'autorisation a été accordée, et l'App ID ne peut pas jouer ce
+            // rôle pour un code venu d'un navigateur.
+            github_web: pair("GITHUB_WEB_CLIENT_ID", "GITHUB_WEB_CLIENT_SECRET"),
             apns,
             secret_diffusion: var("SECRET_DIFFUSION"),
         })

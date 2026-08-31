@@ -454,7 +454,57 @@ pub struct Reference {
 /// Une fiche dont le nom ne retombe sur aucune entrée serait écrite, committée,
 /// publiée — et jamais lue par personne. Le pipeline la signale au lieu de la
 /// laisser tomber.
-pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
+/// Un paragraphe de fiche, avec ses titres.
+///
+/// **Les titres étaient jetés en silence.** Un `filter` écartait tout ce qui
+/// commence par `#`, et le §2.5 ter du vault documentait cette perte en disant
+/// que le reste « tombe sans rien dire ». C'était tenable tant qu'une fiche
+/// était un bloc de prose ; ça ne l'est plus depuis qu'elle en porte trois — la
+/// racine, le porteur, les renvois — que rien n'annonçait.
+///
+/// **Le niveau 1 reste écarté, lui, et pour une raison.** C'est le titre de la
+/// fiche, c'est-à-dire le lemme, que la liseuse affiche déjà en tête. Le garder
+/// ferait lire le mot deux fois de suite.
+fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
+    let para = || {
+        Some(Block::Para {
+            nodes: parse_inline(&paragraphe.replace('\n', " ")),
+        })
+    };
+
+    let diese = paragraphe.chars().take_while(|c| *c == '#').count();
+    if diese == 0 {
+        return para();
+    }
+    // `##Titre` sans espace n'est pas un titre Markdown : c'est du texte qui
+    // commence par des dièses. Il reste donc du **texte** — le jeter serait
+    // reproduire, sous une autre forme, la perte qu'on répare ici.
+    let Some(reste) = paragraphe[diese..].strip_prefix(' ') else {
+        return para();
+    };
+    let reste = reste.trim();
+    if diese == 1 || reste.is_empty() {
+        return None;
+    }
+    Some(Block::Heading {
+        level: diese as u8,
+        nodes: parse_inline(&reste.replace('\n', " ")),
+    })
+}
+
+/// Une fiche du dossier `lexique/`.
+///
+/// Le **titre** est le nom du fichier tel qu'il est écrit — `Tuval-Qayin`,
+/// `Na'amah` — et non le lemme normalisé. Il porte la casse et l'apostrophe, que
+/// `slugify` retire pour joindre. Sans lui, la liseuse afficherait `naamah` en
+/// tête d'une fiche dont le texte dit `Na'amah`.
+#[derive(Debug, Clone)]
+pub struct Fiche {
+    pub titre: String,
+    pub blocs: Vec<Block>,
+}
+
+pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
     let mut fiches = HashMap::new();
     let dossier = racine.join(crate::config::LEXIQUE);
     let Ok(entrées) = std::fs::read_dir(&dossier) else {
@@ -472,20 +522,19 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Vec<Block>> {
         let Ok(texte) = std::fs::read_to_string(&chemin) else {
             continue;
         };
-        let lemme = chemin
+        let nom = chemin
             .file_stem()
-            .map(|s| slugify(&s.to_string_lossy()))
+            .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let lemme = slugify(&nom);
         let blocs: Vec<Block> = texte
             .split("\n\n")
             .map(str::trim)
-            .filter(|p| !p.is_empty() && !p.starts_with('#'))
-            .map(|p| Block::Para {
-                nodes: parse_inline(&p.replace('\n', " ")),
-            })
+            .filter(|p| !p.is_empty())
+            .filter_map(bloc_de_fiche)
             .collect();
         if !blocs.is_empty() {
-            fiches.insert(lemme, blocs);
+            fiches.insert(lemme, Fiche { titre: nom, blocs });
         }
     }
     fiches
@@ -734,5 +783,77 @@ mod tests {
         let r = reference("## 2.5 Les intraduisibles\n\n- `**zayin**` — z\n- `**aleph**` — a\n");
         let lemmes: Vec<_> = r.glossary.iter().map(|e| e.lemma.as_str()).collect();
         assert_eq!(lemmes, ["aleph", "zayin"]);
+    }
+}
+
+#[cfg(test)]
+mod fiches {
+    use super::bloc_de_fiche;
+    use crate::schema::Block;
+
+    fn titre(bloc: &Option<Block>) -> Option<(u8, String)> {
+        match bloc {
+            Some(Block::Heading { level, nodes }) => Some((
+                *level,
+                crate::inline::plain_text(nodes, crate::inline::PlainOptions::default()),
+            )),
+            _ => None,
+        }
+    }
+
+    /// **Les titres portent la structure d'une fiche.**
+    ///
+    /// Une fiche porte trois mouvements — la racine, le porteur, les renvois —
+    /// et sans titres ils arrivent collés en un seul flot. Le « Voir aussi »
+    /// surtout devient une liste de renvois qui suit la prose sans rien pour
+    /// l'annoncer.
+    #[test]
+    fn un_titre_de_niveau_deux_est_gardé() {
+        assert_eq!(
+            titre(&bloc_de_fiche("## Voir aussi")),
+            Some((2, "Voir aussi".to_string()))
+        );
+        assert_eq!(
+            titre(&bloc_de_fiche("### Le porteur")),
+            Some((3, "Le porteur".to_string()))
+        );
+    }
+
+    /// **Le niveau 1 reste écarté**, et ce n'est pas un oubli : c'est le titre
+    /// de la fiche, donc le lemme, que la liseuse affiche déjà en tête.
+    #[test]
+    fn le_niveau_un_ne_redit_pas_le_lemme() {
+        assert!(bloc_de_fiche("# Avraham").is_none());
+    }
+
+    /// `##Titre` sans espace n'est pas un titre Markdown.
+    #[test]
+    fn des_dièses_collés_ne_font_pas_un_titre() {
+        assert!(matches!(
+            bloc_de_fiche("##pas-un-titre"),
+            Some(Block::Para { .. })
+        ));
+    }
+
+    /// Un titre vide ne laisse pas une ligne creuse dans la fiche.
+    #[test]
+    fn un_titre_sans_texte_disparaît() {
+        assert!(bloc_de_fiche("## ").is_none());
+    }
+
+    /// Et le corps reste du corps, niveau 3 compris — c'est ce qui fait vivre
+    /// l'hébreu dans les fiches.
+    #[test]
+    fn la_prose_garde_ses_nœuds() {
+        let bloc = bloc_de_fiche("La racine (*chanakh* / חָנַךְ) dit l'inauguration.");
+        let Some(Block::Para { nodes }) = bloc else {
+            panic!("un paragraphe devait rester un paragraphe");
+        };
+        assert!(
+            nodes
+                .iter()
+                .any(|n| matches!(n, crate::schema::Inline::Translit { .. })),
+            "le niveau 3 s'est perdu : {nodes:?}",
+        );
     }
 }

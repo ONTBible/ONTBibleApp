@@ -32,6 +32,8 @@ import com.labibleont.ont.designsystem.metrics.ontSpacing
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 
 /**
  * L'écran type de l'ONT.
@@ -356,10 +358,15 @@ public fun ONTLargeTitle(titre: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.SemiBold,
         fontSize = 34.sp,
         color = ONTColors.inkStrong(theme),
-        modifier = modifier.padding(
-            start = espace.l,
-            top = espace.l,
-            bottom = espace.m,
-        ),
+        // Annoncé comme un titre : TalkBack propose alors de sauter d'en-tête
+        // en en-tête, ce qui est la seule façon de traverser un écran long sans
+        // l'écouter en entier.
+        modifier = modifier
+            .semantics { heading() }
+            .padding(
+                start = espace.l,
+                top = espace.l,
+                bottom = espace.m,
+            ),
     )
 }

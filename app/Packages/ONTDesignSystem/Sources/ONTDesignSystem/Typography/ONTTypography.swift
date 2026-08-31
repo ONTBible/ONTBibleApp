@@ -1,6 +1,12 @@
 import ONTKit
 import SwiftUI
 
+#if canImport(UIKit)
+    import UIKit
+#elseif canImport(AppKit)
+    import AppKit
+#endif
+
 /// Les fontes.
 public enum ONTFonts {
     /// La fonte de l'hébreu biblique.
@@ -83,16 +89,39 @@ public enum ONTFonts {
     /// correction, les deux écritures ne s'accordent pas sur une même ligne.
     public static let hebrewScale: CGFloat = 1.08
 
+    /// Une fonte répond-elle à son nom PostScript ?
+    ///
+    /// **Écrit une fois, pour toutes les plateformes.** Les deux gardes qui
+    /// suivent posaient chacune un `#if canImport(UIKit)` et retombaient sur
+    /// `true` ailleurs — c'est-à-dire sur le Mac, où rien n'était donc vérifié.
+    /// Le catalogue y affichait « embarquée » en vert quoi qu'il arrive.
+    ///
+    /// Le défaut que ça a couvert : la cible du Mac ne déclarait aucune clé
+    /// d'inscription de fontes. Literata ne se résolvait nulle part, et l'hébreu
+    /// ne se résolvait que sur la machine de l'auteur, qui a Ezra SIL installée
+    /// à titre personnel. La garde disait vert, et elle avait raison de dire
+    /// vert : elle ne regardait pas.
+    ///
+    /// **Le repli est `false`, non `true`.** Une garde qui ne sait pas ne doit
+    /// pas rassurer : elle doit se taire bruyamment. C'est ce qui aurait fait
+    /// voir le défaut le jour où il est apparu, plutôt que trois semaines plus
+    /// tard en comparant deux captures.
+    private static func repond(_ nom: String) -> Bool {
+        #if canImport(UIKit)
+            return UIFont(name: nom, size: 12) != nil
+        #elseif canImport(AppKit)
+            return NSFont(name: nom, size: 12) != nil
+        #else
+            return false
+        #endif
+    }
+
     /// Vrai si la fonte hébraïque est bien embarquée.
     ///
     /// Sans elle, l'hébreu retomberait silencieusement sur une fonte système
     /// et le niqqud se décrocherait — un défaut qu'on préfère voir tôt.
     public static var hebrewAvailable: Bool {
-        #if canImport(UIKit)
-        UIFont(name: hebrew, size: 12) != nil
-        #else
-        true
-        #endif
+        repond(hebrew)
     }
 
     /// Vrai si toutes les coupes d'une fonte de corps sont enregistrées.
@@ -103,12 +132,9 @@ public enum ONTFonts {
     /// famille, parce qu'une famille amputée de son italique se résout quand
     /// même — en pente simulée, penchée à la main par le moteur de rendu.
     public static func isAvailable(_ font: ReadingFont) -> Bool {
-        #if canImport(UIKit)
-        if font == .georgia { return UIFont(name: family(font), size: 12) != nil }
-        return faces(font).allSatisfy { UIFont(name: $0, size: 12) != nil }
-        #else
-        return true
-        #endif
+        // Georgia vient du système et n'a pas de coupes embarquées à compter.
+        if font == .georgia { return repond(family(font)) }
+        return faces(font).allSatisfy(repond)
     }
 
     /// Vrai si les sept fontes proposées au lecteur répondent toutes.
@@ -184,6 +210,16 @@ public struct ONTTypography: Sendable {
     /// Niveau 1 — un intraduisible, touchable.
     public var term: ONTTextStyle {
         .init(font: .custom(body, size: size), color: ONTColors.accent(theme))
+    }
+
+    /// Niveau 1 — un **Shem**, touchable.
+    ///
+    /// Même graisse que le corps, comme un intraduisible : c'est la couleur
+    /// qui distingue, et le nom doit se lire dans le fil de la phrase. Un
+    /// semi-gras en ferait une insistance, alors qu'un nom propre n'insiste
+    /// pas — il désigne.
+    public var shem: ONTTextStyle {
+        .init(font: .custom(body, size: size), color: ONTColors.shem(theme))
     }
 
     /// Niveau 1 — une accentuation, qui ne se touche pas.

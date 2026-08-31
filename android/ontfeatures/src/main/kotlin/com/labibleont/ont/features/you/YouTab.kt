@@ -38,6 +38,7 @@ import com.labibleont.ont.designsystem.surfaces.ONTRow
 import com.labibleont.ont.designsystem.surfaces.ONTSectionHeader
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
+import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.reader.ReadingPreferences
 
 /** Ce vers quoi une ligne de l'onglet Vous conduit. */
@@ -75,6 +76,15 @@ public fun YouTab(
     slotsRediges: Int,
     slotsTotal: Int,
     versets: Int,
+    /**
+     * Le nombre d'entrées du lexique.
+     *
+     * Il vaut zéro tant que le lexique n'a pas été chargé — c'est pourquoi
+     * l'écran des onglets le charge aussi en arrivant ici, et pas seulement en
+     * ouvrant l'onglet Lexique. Un compteur qui affiche zéro parce que la
+     * donnée n'est pas venue ne se distingue pas d'un corpus vide.
+     */
+    entreesDeLexique: Int,
     onAller: (DestinationVous) -> Unit,
     onPasEncore: () -> Unit,
     /**
@@ -167,6 +177,52 @@ public fun YouTab(
                 ONTRow(titre = "Slots rédigés", fin = { Valeur("$slotsRediges / $slotsTotal") })
                 ONTGroupDivider()
                 ONTRow(titre = "Versets", fin = { Valeur("$versets") })
+                ONTGroupDivider()
+                ONTRow(titre = "Entrées de lexique", fin = { Valeur("$entreesDeLexique") })
+            }
+
+            // ## Le pied qui dit pourquoi les chiffres sont bas
+            //
+            // Sans lui, « 4 / 70 » se lit comme un manque. Avec lui, comme un
+            // chantier — ce qu'il est. iOS le porte depuis toujours ; Android
+            // affichait les mêmes chiffres nus.
+            //
+            // Et le mot suit le registre : « chapitres » ou « parashiot ». Le
+            // pluriel de *parashah* prend la marque hébraïque, pas le `s`
+            // français — franciser l'intraduisible ici défferait exactement ce
+            // que le réglage vient de faire.
+            Text(
+                "La Bible ONT est une restitution en cours. Le corpus s'étend " +
+                    "à mesure que les ${LibelleDUnite.noms(preferences.french)} " +
+                    "sont verrouillés.",
+                color = ONTColors.inkSoft(theme),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(
+                    start = espace.l,
+                    end = espace.l,
+                    top = espace.s,
+                ),
+            )
+
+            // ## Les crédits, que l'app taisait
+            //
+            // C'est le seul écran où le crédit paraît, donc le seul endroit où
+            // la confusion des noms se verrait : **Gloire Bikouta** en public,
+            // jamais « Sha'eliel », qui est le nom interne au vault.
+            //
+            // Et les deux licences de fontes ne sont pas une politesse : Ezra
+            // SIL et Frank Ruhl Libre sont sous OFL, qui **exige** que la
+            // mention accompagne la distribution. Une app qui les embarque sans
+            // les créditer est en défaut, et le défaut voyage avec chaque
+            // installation.
+            Spacer(Modifier.height(espace.xl))
+            ONTSectionHeader("Crédits")
+            ONTGroup {
+                ONTRow(titre = "Traduction", fin = { Valeur("Gloire Bikouta") })
+                ONTGroupDivider()
+                ONTRow(titre = "Hébreu", fin = { Valeur("Ezra SIL — SIL Open Font License") })
+                ONTGroupDivider()
+                ONTRow(titre = "Titres", fin = { Valeur("Frank Ruhl Libre — OFL") })
             }
 
             if (enDeveloppement) {

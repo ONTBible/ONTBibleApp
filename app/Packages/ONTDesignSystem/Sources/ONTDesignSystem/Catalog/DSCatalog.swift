@@ -14,17 +14,17 @@ public struct DSCatalog: View {
 
     public var body: some View {
         List {
-            Section("Jetons") {
+            Section(header: Text("Jetons").font(ONTUI.enteteDeListe)) {
                 NavigationLink("Couleurs", destination: CatalogColors())
                 NavigationLink("Typographie", destination: CatalogTypography())
                 NavigationLink("Espacement et rayons", destination: CatalogMetrics())
             }
-            Section("Composants") {
+            Section(header: Text("Composants").font(ONTUI.enteteDeListe)) {
                 NavigationLink("Surfaces", destination: CatalogSurfaces())
                 NavigationLink("Fond d'écran", destination: CatalogScreen())
                 NavigationLink("Rendu du texte ONT", destination: CatalogText())
             }
-            Section("Contrôle") {
+            Section(header: Text("Contrôle").font(ONTUI.enteteDeListe)) {
                 NavigationLink("Fontes embarquées", destination: CatalogFonts())
             }
         }
@@ -39,15 +39,19 @@ struct CatalogScreen: View {
         List {
             Section {
                 Text("Cet écran porte `.ontScreen()`.")
+                    .font(ONTUI.ligneDeListe)
                 Text("Chaque ligne porte `.ontRow()`.")
+                    .font(ONTUI.ligneDeListe)
             } header: {
                 Text("Ce que vous voyez")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text(
                     "Sans ces deux modificateurs, une List impose son propre fond système "
                         + "et l'écran cesse de ressembler au reste de l'app. C'est le défaut "
                         + "qui rendait les quatre onglets dissemblables malgré le design system."
                 )
+                    .font(ONTUI.piedDeListe)
             }
             .ontRow()
         }
@@ -63,23 +67,26 @@ struct CatalogColors: View {
 
     var body: some View {
         List {
-            Section("Marque — relevées sur le combination mark") {
+            Section(header: Text("Marque — relevées sur le combination mark").font(ONTUI.enteteDeListe)) {
                 swatch("burgundy", ONTColors.burgundy)
                 swatch("gold", ONTColors.gold)
                 swatch("goldDeep", ONTColors.goldDeep)
             }
             ForEach(ReadingTheme.allCases, id: \.self) { theme in
-                Section("Lecture — \(theme.label)") {
+                Section(header: Text("Lecture — \(theme.label)").font(ONTUI.enteteDeListe)) {
                     swatch("background", ONTColors.background(theme))
                     swatch("surface", ONTColors.surface(theme))
                     swatch("ink", ONTColors.ink(theme))
                     swatch("accent", ONTColors.accent(theme))
                     swatch("separator", ONTColors.separator(theme))
-                }
-            }
-            Section("Surlignage") {
-                ForEach(HighlightColor.allCases, id: \.self) { color in
-                    swatch(color.label, ONTColors.highlight(color))
+                    // **Les surlignages entrent dans la boucle des thèmes.**
+                    //
+                    // Ils en sortaient, et le catalogue montrait donc cinq
+                    // pastels sans dire sur quel fond — ce qui était déjà le
+                    // défaut lui-même, reproduit dans l'outil censé le montrer.
+                    ForEach(HighlightColor.allCases, id: \.self) { color in
+                        swatch("surlignage \(color.label)", ONTColors.highlight(color, theme))
+                    }
                 }
             }
         }
@@ -95,7 +102,7 @@ struct CatalogColors: View {
                     RoundedRectangle(cornerRadius: ONTRadius.highlight)
                         .stroke(.quaternary)
                 )
-            Text(name).font(.callout.monospaced())
+            Text(name).font(ONTUI.callout.monospaced())
         }
     }
 }
@@ -107,7 +114,7 @@ struct CatalogTypography: View {
 
     var body: some View {
         List {
-            Section("Les six styles, adossés aux niveaux du texte (§2.1)") {
+            Section(header: Text("Les six styles, adossés aux niveaux du texte (§2.1)").font(ONTUI.enteteDeListe)) {
                 row("display", "Bereshit 18", theme.type.display)
                 row("heading", "L'Annonce de Yitshaq", theme.type.heading)
                 row("corpus", "et il était assis à l'entrée de la tente", theme.type.corpus)
@@ -122,7 +129,7 @@ struct CatalogTypography: View {
 
     private func row(_ name: String, _ sample: String, _ style: ONTTextStyle) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(name).font(.caption.monospaced()).foregroundStyle(.tertiary)
+            Text(name).font(ONTUI.caption.monospaced()).foregroundStyle(.tertiary)
             Text(sample).font(style.font).foregroundStyle(style.color)
         }
         .padding(.vertical, 2)
@@ -146,11 +153,13 @@ struct CatalogMetrics: View {
                 bar("xxl", spacing.xxl)
             } header: {
                 Text("Espacement")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text(
                     "Ces valeurs suivent Dynamic Type : elles grandissent avec le réglage "
                         + "système de taille de police. Changez-le dans Réglages pour les voir bouger."
                 )
+                    .font(ONTUI.piedDeListe)
             }
         }
         .navigationTitle("Espacement")
@@ -158,9 +167,9 @@ struct CatalogMetrics: View {
 
     private func bar(_ name: String, _ value: CGFloat) -> some View {
         HStack {
-            Text(name).font(.callout.monospaced()).frame(width: 52, alignment: .leading)
+            Text(name).font(ONTUI.callout.monospaced()).frame(width: 52, alignment: .leading)
             Rectangle().fill(ONTColors.goldDeep).frame(width: value, height: 14)
-            Text("\(Int(value)) pt").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            Text("\(Int(value)) pt").font(ONTUI.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
 }
@@ -177,10 +186,12 @@ struct CatalogSurfaces: View {
                     VStack(alignment: .leading, spacing: spacing.s) {
                         SectionCaption("Verset du jour", tint: ONTColors.gold)
                         Text("Et il advint, et demeura conformément à ce qui avait été formulé.")
+                            .font(ONTUI.piedDeListe)
                     }
                 }
                 QuietBlock {
                     Text("Un bloc secondaire, en retrait.")
+                        .font(ONTUI.piedDeListe)
                 }
                 HStack(spacing: spacing.s) {
                     StatusPill("brouillon")
@@ -220,10 +231,10 @@ struct CatalogText: View {
 
     var body: some View {
         List {
-            Section("Les trois niveaux") {
+            Section(header: Text("Les trois niveaux").font(ONTUI.enteteDeListe)) {
                 Text(ONTTextRenderer.compose(sample, theme: theme))
             }
-            Section("Corps seul — gloses et hébreu éteints") {
+            Section(header: Text("Corps seul — gloses et hébreu éteints").font(ONTUI.enteteDeListe)) {
                 Text(ONTTextRenderer.composeBare(sample, theme: theme))
             }
         }
@@ -255,11 +266,13 @@ struct CatalogFonts: View {
                     .font(.custom(ONTFonts.hebrew, size: 34))
             } header: {
                 Text("Échantillon vocalisé")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text(
                     "Si les points-voyelles se décrochent des consonnes, la fonte n'est pas "
                         + "chargée et l'hébreu retombe sur une fonte système."
                 )
+                    .font(ONTUI.piedDeListe)
             }
         }
         .navigationTitle("Fontes")

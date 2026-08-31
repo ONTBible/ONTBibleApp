@@ -40,6 +40,7 @@ public struct ONTVerseCard: View {
             Text(text)
                 .lineSpacing(size * 0.42)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .font(ONTUI.ligneDeListe)
 
             Spacer(minLength: 0)
 
@@ -82,7 +83,6 @@ public enum ONTShareImage {
         }
     }
 
-    #if canImport(UIKit)
     /// Rend la carte en image.
     ///
     /// `@MainActor` obligé : `ImageRenderer` traverse une hiérarchie SwiftUI,
@@ -92,7 +92,7 @@ public enum ONTShareImage {
         verses: [Verse],
         reference: String,
         theme: ONTTheme
-    ) -> UIImage? {
+    ) -> ONTImage? {
         // La taille se décide sur le texte nu, avant composition : c'est elle
         // qui fixe le thème avec lequel on compose. L'inverse serait circulaire.
         let plain = verses.map { $0.nodes.plainText() }.joined(separator: " ")
@@ -124,7 +124,10 @@ public enum ONTShareImage {
         // mégaoctets que les messageries recompresseraient de toute façon.
         renderer.scale = 1
         renderer.isOpaque = true
-        return renderer.uiImage
+        #if canImport(UIKit)
+            return renderer.uiImage
+        #else
+            return renderer.nsImage
+        #endif
     }
-    #endif
 }

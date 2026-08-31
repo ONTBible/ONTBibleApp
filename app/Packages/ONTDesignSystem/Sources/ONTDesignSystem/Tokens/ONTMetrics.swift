@@ -11,20 +11,36 @@ import SwiftUI
 /// reste, `.padding()` sans argument : SwiftUI tient déjà compte de la classe
 /// de taille et du conteneur.
 public struct ONTSpacing: DynamicProperty {
+    // **Deux mises à l'échelle, une par plateforme.**
+    //
+    // `@ScaledMetric` suit le curseur du système — et ne fait rien sur macOS,
+    // qui n'a pas de Dynamic Type (mesuré, voir `ONTEchelleUI`). `ONTUI.points`
+    // rend donc la valeur telle quelle sur iOS, où elle est déjà mise à
+    // l'échelle, et la multiplie par le facteur sur le Mac, où rien ne l'a
+    // touchée. Un texte qui grandit dans des marges figées se serre contre
+    // elles ; les deux doivent bouger ensemble.
+    @ScaledMetric(relativeTo: .body) private var xsBrut: CGFloat = 4
+    @ScaledMetric(relativeTo: .body) private var sBrut: CGFloat = 8
+    @ScaledMetric(relativeTo: .body) private var mBrut: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var lBrut: CGFloat = 16
+    @ScaledMetric(relativeTo: .body) private var pageBrut: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var xlBrut: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var xxlBrut: CGFloat = 32
+
     /// 4 pt — l'écart le plus serré : icône et libellé, intérieur d'une pastille.
-    @ScaledMetric(relativeTo: .body) public var xs: CGFloat = 4
+    @MainActor public var xs: CGFloat { ONTUI.points(xsBrut) }
     /// 8 pt — un groupe lié : un titre au-dessus de son sous-titre.
-    @ScaledMetric(relativeTo: .body) public var s: CGFloat = 8
+    @MainActor public var s: CGFloat { ONTUI.points(sBrut) }
     /// 12 pt — marges d'une ligne, intérieur d'une carte.
-    @ScaledMetric(relativeTo: .body) public var m: CGFloat = 12
+    @MainActor public var m: CGFloat { ONTUI.points(mBrut) }
     /// 16 pt — la marge par défaut d'une vue.
-    @ScaledMetric(relativeTo: .body) public var l: CGFloat = 16
+    @MainActor public var l: CGFloat { ONTUI.points(lBrut) }
     /// 22 pt — les marges latérales d'une page de lecture.
-    @ScaledMetric(relativeTo: .body) public var page: CGFloat = 22
+    @MainActor public var page: CGFloat { ONTUI.points(pageBrut) }
     /// 24 pt — séparation entre sections.
-    @ScaledMetric(relativeTo: .body) public var xl: CGFloat = 24
+    @MainActor public var xl: CGFloat { ONTUI.points(xlBrut) }
     /// 32 pt — respiration en tête d'écran.
-    @ScaledMetric(relativeTo: .body) public var xxl: CGFloat = 32
+    @MainActor public var xxl: CGFloat { ONTUI.points(xxlBrut) }
 
     public init() {}
 }
@@ -57,7 +73,11 @@ public struct ONTScaled: DynamicProperty {
 
     public init() {}
 
-    public func callAsFunction(_ points: CGFloat) -> CGFloat { points * facteur }
+    /// Voir `ONTSpacing` : sur le Mac, `@ScaledMetric` ne bouge pas, et c'est
+    /// le facteur d'interface qui commande.
+    @MainActor public func callAsFunction(_ points: CGFloat) -> CGFloat {
+        ONTUI.points(points * facteur)
+    }
 }
 
 /// Les rayons de courbure.

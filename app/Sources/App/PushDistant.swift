@@ -1,8 +1,13 @@
 import CryptoKit
 import Foundation
-import UIKit
 import UserNotifications
 import os
+
+#if canImport(UIKit)
+    import UIKit
+#elseif canImport(AppKit)
+    import AppKit
+#endif
 
 /// L'enregistrement auprès d'Apple, pour être prévenu **à l'instant**.
 ///
@@ -47,6 +52,36 @@ enum PushDistant {
     /// Rend `false` si le lecteur refuse la notification : le réglage doit
     /// alors se remettre seul en position fermée, sans quoi il annoncerait un
     /// service qui ne fonctionne pas.
+    /// L'appareil est-il **réellement** inscrit chez le serveur ?
+    ///
+    /// Distinct du consentement : celui-ci dit ce que le lecteur a demandé,
+    /// celui-là ce que le serveur a accepté. Les confondre est ce qui a rendu
+    /// le défaut du 30 août invisible — interrupteur allumé, aucune inscription.
+    static let cleEnregistre = "push-distant-enregistre"
+
+    /// Vrai quand le lecteur a consenti **et** que le serveur a répondu.
+    public static var inscrit: Bool {
+        UserDefaults.standard.bool(forKey: cleConsentement)
+            && UserDefaults.standard.bool(forKey: cleEnregistre)
+    }
+
+    /// Redemande un jeton au lancement quand le consentement est là et
+    /// l'inscription non.
+    ///
+    /// **Le commentaire promettait déjà cette reprise** — « le prochain
+    /// lancement réessaiera » — et rien ne l'appelait : aucun lancement ne
+    /// redemandait de jeton. Une déclaration sans la chose, et c'est elle qui
+    /// rendait une panne de réseau définitive.
+    ///
+    /// L'appel est sans coût quand tout va bien : iOS rend le jeton déjà
+    /// connu, et le serveur reçoit une inscription qu'il a déjà.
+    public static func reprendreSiBesoin() {
+        guard UserDefaults.standard.bool(forKey: cleConsentement) else { return }
+        guard !UserDefaults.standard.bool(forKey: cleEnregistre) else { return }
+        log.info("consentement sans inscription — on redemande un jeton")
+        sInscrireAuprèsDApple()
+    }
+
     static func activer() async -> Bool {
         let centre = UNUserNotificationCenter.current()
         let etat = await centre.notificationSettings().authorizationStatus
@@ -64,9 +99,9 @@ enum PushDistant {
         guard accorde else { return false }
 
         UserDefaults.standard.set(true, forKey: cleConsentement)
-        // C'est iOS qui rend le jeton, de façon asynchrone, au délégué. On ne
-        // fait ici que le demander.
-        UIApplication.shared.registerForRemoteNotifications()
+        // C'est le système qui rend le jeton, de façon asynchrone, au délégué.
+        // On ne fait ici que le demander.
+        sInscrireAuprèsDApple()
         return true
     }
 
@@ -81,7 +116,35 @@ enum PushDistant {
             await retirer(empreinte)
             UserDefaults.standard.removeObject(forKey: cleEmpreinte)
         }
-        UIApplication.shared.unregisterForRemoteNotifications()
+        seDesinscrireDApple()
+    }
+
+    // MARK: - Les deux seules lignes qui connaissent la plateforme
+
+    /// **Tout le reste de ce fichier est neutre**, et c'est ce qui a permis au
+    /// Mac de le reprendre sans rien réécrire : le consentement, l'empreinte,
+    /// l'appel au serveur et l'ordre de retrait valent des deux côtés. APNs ne
+    /// distingue pas non plus les deux plateformes — c'est le même service, le
+    /// même format de jeton, le même registre côté backend.
+    ///
+    /// Ne diffère que **le nom de l'application** : `UIApplication` d'un côté,
+    /// `NSApplication` de l'autre, avec la même méthode. Les isoler ici plutôt
+    /// que de semer des `#if` dans la logique garde le fichier lisible et dit
+    /// où est la frontière — elle tient en deux fonctions.
+    private static func sInscrireAuprèsDApple() {
+        #if canImport(UIKit)
+            UIApplication.shared.registerForRemoteNotifications()
+        #elseif canImport(AppKit)
+            NSApplication.shared.registerForRemoteNotifications()
+        #endif
+    }
+
+    private static func seDesinscrireDApple() {
+        #if canImport(UIKit)
+            UIApplication.shared.unregisterForRemoteNotifications()
+        #elseif canImport(AppKit)
+            NSApplication.shared.unregisterForRemoteNotifications()
+        #endif
     }
 
     /// Appelé par le délégué quand iOS a rendu le jeton.
@@ -110,10 +173,27 @@ enum PushDistant {
         do {
             let (_, reponse) = try await URLSession.shared.data(for: requete)
             let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
+            // **Le code décide, et il ne décidait rien.**
+            //
+            // Cette ligne écrivait « appareil enregistré » quel que soit le
+            // code — 500, 401, 404. Un serveur en panne laissait donc le
+            // lecteur avec un interrupteur allumé, un journal rassurant, et
+            // aucun jeton dans la table.
+            //
+            // C'est ce qui est arrivé le 30 août 2026 : parution diffusée,
+            // « code 204 » côté site, et rien reçu. Ni l'app ni le serveur ne
+            // pouvaient le dire.
+            guard (200..<300).contains(code) else {
+                UserDefaults.standard.set(false, forKey: cleEnregistre)
+                log.error("le serveur a refusé l'appareil, code \(code)")
+                return
+            }
+            UserDefaults.standard.set(true, forKey: cleEnregistre)
             log.info("appareil enregistré, code \(code)")
         } catch {
-            // Une panne de réseau n'est pas une erreur à montrer : le lecteur
-            // a activé le réglage, et le prochain lancement réessaiera.
+            // Une panne de réseau n'est pas une erreur à montrer — mais elle
+            // ne doit pas non plus passer pour une réussite.
+            UserDefaults.standard.set(false, forKey: cleEnregistre)
             log.info("enregistrement remis à plus tard : \(error.localizedDescription)")
         }
     }
@@ -124,6 +204,7 @@ enum PushDistant {
             url: base.appendingPathComponent("appareils").appendingPathComponent(empreinte))
         requete.httpMethod = "DELETE"
         _ = try? await URLSession.shared.data(for: requete)
+        UserDefaults.standard.set(false, forKey: cleEnregistre)
         log.info("appareil retiré du serveur")
     }
 

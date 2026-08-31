@@ -26,6 +26,7 @@ use crate::application::App;
 use crate::domain::diffusion::{Annonce, Appareil, Environnement};
 use crate::domain::sync::PushRequest;
 use crate::domain::token::UserId;
+use crate::domain::Origine;
 use crate::domain::{DomainError, Provider};
 
 pub mod web;
@@ -185,12 +186,23 @@ async fn diffuser(
     for empreinte in &morts {
         let _ = appareils.oublier(empreinte).await;
     }
-    tracing::info!(
-        joints = liste.len() - morts.len(),
-        retires = morts.len(),
-        "diffusion"
-    );
-    (StatusCode::NO_CONTENT, ()).into_response()
+    let joints = liste.len() - morts.len();
+    tracing::info!(joints, retires = morts.len(), "diffusion");
+
+    // **Dire ce qu'on a joint, et pas seulement qu'on a fini.**
+    //
+    // Cette route rendait `204` quoi qu'il arrive : zéro appareil joint ou
+    // mille, la réponse était identique. Le compte n'allait que dans les
+    // journaux du serveur, invisibles de qui appelle.
+    //
+    // Le 30 août 2026, le déploiement du site a écrit « diffusé, code 204 » et
+    // l'auteur n'a rien reçu — sa parution était partie vers personne, et rien
+    // dans la réponse ne pouvait le dire. Une réponse qui ne distingue pas la
+    // réussite du vide ne mesure rien.
+    //
+    // `200` avec les comptes plutôt que `204` : c'est la seule différence, et
+    // elle rend l'appelant capable de s'étonner.
+    Json(serde_json::json!({ "joints": joints, "retires": morts.len() })).into_response()
 }
 
 /// Comparaison à durée constante.
@@ -257,6 +269,17 @@ struct SignInBody {
     /// le flux natif n'en a pas besoin.
     #[serde(default)]
     code_verifier: Option<String>,
+    /// D'où vient le code : `"app"` ou `"webapp"`.
+    ///
+    /// **Absent vaut `app`**, et ce n'est pas une commodité : les versions
+    /// déjà installées ne l'envoient pas et ne le pourront jamais
+    /// rétroactivement. Un défaut à `web` les casserait toutes le jour du
+    /// déploiement. Le site, lui, est mis à jour d'un coup et peut l'envoyer.
+    ///
+    /// `webapp` et non `web` : c'est déjà le nom du dépôt et celui du Services
+    /// ID d'Apple, et un nom qui traverse trois dépôts vaut mieux unique.
+    #[serde(default)]
+    origine: Origine,
 }
 
 async fn sign_in(
@@ -268,6 +291,7 @@ async fn sign_in(
     let session = app
         .sign_in(
             provider,
+            body.origine,
             &body.code,
             &body.redirect_uri,
             body.code_verifier.as_deref(),
@@ -361,6 +385,19 @@ impl IntoResponse for ApiError {
             Self::UnknownProvider => (StatusCode::BAD_REQUEST, "fournisseur inconnu"),
             Self::Domain(DomainError::ProviderRejected) => {
                 (StatusCode::UNAUTHORIZED, "connexion refusée")
+            }
+            // 503 et non 401 : rien n'a refusé quoi que ce soit. C'est le même
+            // aveu que « diffusion non configurée » plus haut, et il vaut pour
+            // la même raison — celui qui exploite doit pouvoir distinguer un
+            // secret manquant d'un code périmé.
+            // 413 et non 500 : c'est la charge du client qui est en cause, et
+            // il doit réduire son image plutôt que réessayer.
+            Self::Domain(DomainError::PortraitTropGrand) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "le portrait dépasse la taille admise",
+            ),
+            Self::Domain(DomainError::ProviderNotConfigured) => {
+                (StatusCode::SERVICE_UNAVAILABLE, "fournisseur non configuré")
             }
             Self::Domain(DomainError::SessionInvalid) => {
                 (StatusCode::UNAUTHORIZED, "session expirée")

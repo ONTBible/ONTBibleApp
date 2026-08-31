@@ -815,3 +815,1342 @@ helper :**
 pipeline. Juste, mais interne — et il donnait un **troisième** nom à la chose,
 en face du lecteur, à quatre endroits de l'app iOS. Il ne reste que dans les
 lignes de journal, où il est le bon.
+
+### 25 août 2026 — un outil qui déclare un système cassé peut s'être trompé de geste
+
+Un modèle de langage interrogé sur `ontbible.com` a répondu qu'il n'arrivait pas
+à en récupérer le texte : « Le moteur ne l'indexe pas, **et le site ne s'ouvre
+pas correctement depuis mon outil** ». La seconde moitié est fausse, et c'est
+elle qui envoyait chercher un défaut.
+
+Mesuré avant d'y croire : `robots.txt` autorise tout, chaque page porte
+`index, follow`, Googlebot, ChatGPT-User, curl et une requête sans agent
+reçoivent tous 200 et **le même octet**, le texte est en clair dans le HTML —
+27 302 caractères lisibles — et une récupération directe rend les cinq premiers
+versets de *Bereshit*, intégralement.
+
+L'outil avait **cherché**, pas **ouvert**. Il a rapporté l'échec du premier geste
+comme une panne du second. La cause réelle n'était pas dans le système : le
+domaine était en ligne depuis dix jours sans avoir été soumis à aucun index.
+
+**La règle** : quand un outil déclare qu'une de nos pièces est cassée, mesurer la
+pièce elle-même avant de la réparer. Le verdict d'un outil porte sur ce qu'il a
+tenté, qui n'est pas toujours ce qu'il croit avoir tenté.
+
+C'est la sœur d'une règle déjà écrite ici — **suspecter la mesure avant la
+donnée** — et l'inverse du piège de `apercu.py` au §7 bis du site, où c'était
+l'instrument qui montrait un défaut inexistant. Ici l'instrument annonçait la
+panne au lieu de la montrer ; dans les deux cas, ce qu'on allait corriger était
+intact.
+
+#### La parade, et elle coûte une ligne
+
+**Un instrument se valide sur un cas dont on connaît la réponse, jamais sur
+celui qu'on étudie.**
+
+Elle vient de la session Android, le même jour, sur trois instruments qui lui
+ont menti coup sur coup : `git grep -E '\bmotif\b'` rendant **0** au lieu de 2
+— `\b` n'existe pas en ERE POSIX, le moteur ne l'applique pas *et ne signale
+rien* ; le `grep` de cette machine qui n'est pas GNU mais **`ugrep`**, muet sur
+un motif finissant par une parenthèse ; `gradlew test` annonçant « BUILD
+SUCCESSFUL in 739ms » **sans exécuter un seul test**, servi par son cache.
+
+Le motif commun avec le verdict de ChatGPT est plus profond que la coïncidence :
+**le format de sortie survit à l'absence de mesure.** Un `0` bien aligné, un
+« BUILD SUCCESSFUL », un « je ne peux pas ouvrir le site » — les trois ont
+l'apparence d'un résultat, et rien dans leur forme ne dit qu'il n'y en a pas eu.
+
+C'est ce qui rend la relecture inopérante : un zéro ne donne **aucun
+appariement à regarder**, donc relire les lignes ne peut rien attraper là où il
+n'y a rien à lire. Seul un témoin dont on connaît d'avance la réponse distingue
+« rien trouvé » de « rien cherché ».
+
+#### Et elle innocente aussi souvent qu'elle accuse
+
+La forme séduisante de cette leçon est « les outils mentent ». Elle est fausse,
+et il faut l'écrire ici parce qu'elle se retient mieux que la vraie.
+
+Le jour même, `concorder-la-synchronisation.py` a annoncé le site à 709 lignes
+quand son disque en portait 763. L'écart était réel, l'accusation était prête —
+et l'instrument avait raison : sa colonne d'empreinte donne ce qui **fait foi**,
+c'est-à-dire l'état publié, et il signalait `disque ≠ origin/main` sur la même
+ligne. L'entrée manquante vivait sur une branche, donc n'était pas publiée, donc
+était à bon droit hors du compte.
+
+La règle a mordu **dans l'autre sens** : on a validé l'instrument sur un cas dont
+on connaissait la réponse, et c'est la lecture qui a cédé. Un instrument juste
+qu'on n'a pas lu jusqu'au bout se présente exactement comme un instrument
+fautif — et le réécrire aurait cassé la garde qui protège ce fichier-ci.
+
+Ce qu'on éprouve n'est donc pas la sincérité de l'outil, c'est **l'appariement
+entre ce qu'il mesure et ce qu'on lui demande**. Il tombe des deux côtés.
+
+Ce que le site en a tiré : `/llms.txt`, qui pose le cadre de lecture ONT à la
+racine plutôt que dans une page qu'il faut avoir trouvée. Il n'indexe rien — les
+soumissions à Bing et Google restent le seul geste qui fasse entrer un site dans
+un index, et elles appartiennent à Gloire.
+
+### 25 août 2026 — trois compteurs au vert, et une forme mal rangée dessous
+
+**Source : le vault**, en soldant le §13 de son `CLAUDE.md`. Rien à porter dans
+le pipeline ni dans le site — mais il faut reconstruire le corpus, et ce qui
+suit vaut pour les trois dépôts.
+
+**Ce que le vault a décidé.** Les sept termes que le pipeline signalait balisés
+sans entrée de glossaire sont réglés, et deux décisions dépassent le balisage :
+**shiphchah** devient intraduisible, et surtout la famille **chata** passe
+entière en hébreu — **chata** est le ==premier verbe intraduisible de l'ONT==,
+tous les verbes du §3.1 étaient traduits jusqu'ici. Le §2.3 reçoit par ailleurs
+l'argument d'exactitude sur le registre : « Chapitre 7 » pour une unité qui
+couvre *Bereshit* 7 et 8 est un intitulé faux, pas une commodité.
+
+#### Un compteur à zéro est un zéro, et il faut savoir ce qu'il comptait
+
+C'est ce que la journée ajoute à ce qu'elle avait déjà écrit.
+
+En déclarant un construit au §2.5, la puce de **tsedaqah** citait
+`**yirat YHWH**` comme exemple — **entre accents graves**. Or c'est exactement
+ce que le pipeline lit comme une *déclaration de forme*. `yirat YHWH` s'est
+donc retrouvé rattaché à **tsedaqah** au lieu de **yirah**.
+
+Le rapport de construction n'a rien dit. **Zéro terme inconnu, zéro marqueur
+déséquilibré, zéro mot d'or sans fiche** — les trois compteurs au vert, et une
+forme rangée sous le mauvais lemme. Un lecteur touchant le mot serait tombé sur
+la mauvaise fiche, sans qu'aucun contrôle ne s'en aperçoive.
+
+La cause n'est pas un contrôle défaillant : les trois vérifiaient exactement ce
+qu'ils annoncent — que tout terme balisé **a** une fiche. Aucun ne vérifiait
+qu'il a **la bonne**. Trouvé en ouvrant `dist/glossary.json` et en lisant les
+formes une par une, pas en lisant le rapport.
+
+**D'où la règle, qui prolonge celle du verdict qui se mesure :** un compteur à
+zéro ne dit pas que tout va bien, il dit que *ce qu'il comptait* est à zéro. Ce
+qu'il ne compte pas reste invisible, et l'aplomb du rapport ne distingue pas les
+deux. ==Lire la sortie construite, pas seulement le rapport qui la résume.==
+
+**Et ce n'est pas le même défaut que le « BUILD SUCCESSFUL » de l'entrée
+précédente — c'est un cran plus bas.** Là, la sortie survivait à une mesure qui
+n'avait pas eu lieu : il n'y avait rien derrière. Ici la mesure a bien eu lieu,
+les compteurs ont réellement compté, et ==le zéro était vrai==. C'est la
+*question* qui était à côté.
+
+La différence est pratique, pas philosophique : le premier cas se répare en
+**ajoutant une mesure**, le second ne se répare qu'en **changeant la question**.
+Aucune insistance sur la rigueur n'y mène — il fallait ouvrir la sortie et lire
+les formes une par une, c'est-à-dire faire à la main ce que le contrôle existe
+pour éviter.
+
+**La cause profonde a un nom, et elle ressortira ailleurs :** ==un langage qui
+n'a pas de citation ne peut pas distinguer *montrer* de *dire*.== Le §2.5 déclare
+ses formes entre accents graves ; il n'a donc aucun moyen d'écrire « voici à quoi
+ressemble une déclaration » sans écrire « ceci en est une ». Ce n'était pas une
+maladresse de rédaction mais une propriété du format, et tout document qui se
+lit lui-même comme configuration porte le même défaut.
+
+#### Le même motif, une fois de plus, sur le relevé qui ouvrait le chantier
+
+Le §13 annonçait « vingt-deux marqueurs déséquilibrés » dans les pieds de
+*Bereshit* 15 à 19. Le compte était relevé **par ligne** — or un `**…**` enjambe
+légitimement un retour à la ligne, et un gras ouvert en fin de ligne, fermé au
+début de la suivante, produit deux lignes « impaires » sans le moindre défaut.
+
+Mesuré **par paragraphe**, l'unité réelle du balisage : ==deux==, non
+vingt-deux. Les deux étaient réels et sont corrigés. Le balayage a ensuite été
+repassé sur tout le corpus, non sur les seuls chapitres que le §13 regardait :
+zéro.
+
+C'est le quatrième exemplaire du même motif en un jour, et il n'a rien de neuf
+sinon sa banalité : un nombre bien formé, aligné, crédible, qui mesurait autre
+chose que la question posée.
+
+#### Le contrôle de concordance n'élit plus de référence
+
+`concorder-la-synchronisation.py` retenait le contenu **majoritaire** parmi les
+dépôts. Juste contre une racine périmée, faux pendant une **fenêtre de
+propagation** : le dépôt qui vient de recevoir une entrée est minoritaire, donc
+la majorité est l'ancienne version. Il désignait le retard comme référence et
+proposait d'y figer la racine.
+
+Le refus d'aligner était déjà en place ; c'est le **verdict au-dessus** qui
+manquait, et une note sous un verdict est ce qu'on lit le moins. Quand les
+dépôts divergent, il n'existe pas de référence — le contrôle dit maintenant qui
+porte quoi, et rien d'autre.
+
+Éprouvé sur un état divergent **construit exprès**, jamais sur l'état du moment.
+C'est précisément ce qui n'avait jamais été fait, et pourquoi le défaut a
+attendu d'être rencontré pour se voir.
+
+**Ce que les trois dépôts doivent en retenir :** reconstruire le corpus après
+toute décision de balisage, et **lire la sortie**, pas seulement le résumé.
+
+### 26 août 2026 — la zone qui répond au doigt n'est pas le mot qu'on voit
+
+Un lecteur signalait devoir **viser** pour ouvrir la fiche d'un intraduisible :
+souvent, disait-il, seule la première lettre répondait. La composition était la
+suspecte évidente — et elle est innocente. Une épreuve qui relève, caractère par
+caractère, ce que porte la chaîne composée le montre : les six lettres
+d'« Elohim » portent bien le lien de leur fiche, le lien du verset ne déborde
+d'aucun caractère, et il n'y a pas de zone morte.
+
+**Ce que le doigt touche n'est pas ce que la chaîne porte.** La plage est une
+propriété du texte ; la zone tactile est une propriété de la **mise en page**,
+calculée après composition des lignes. Les deux ne coïncident pas, et aucune
+épreuve portant sur les caractères ne peut voir la seconde.
+
+Mesuré sur *Bereshit* 1 en prose continue, réglages par défaut (corps 19,
+interligne 0,5) :
+
+    encre du mot                    15,3 pt de haut
+    bande qui répond au doigt       30 à 36 pt
+    minimum recommandé (HIG)        44 pt
+
+La bande est celle de la **ligne**, donc elle suit les réglages du lecteur —
+42 pt à interligne maximal, 48 pt à corps 28. Les deux curseurs déjà offerts
+l'épaississent, aucun réglage raisonnable n'atteint 44.
+
+**La cible rétrécit avec le corps du texte**, et linéairement — mesuré sur un
+mot entouré de texte des deux côtés, interligne au défaut :
+
+    corps   encre    bande qui répond
+      11    8,3 pt      18 pt
+      15   10,3 pt      24 pt
+      19   12,7 pt      30 pt      ← le défaut
+      24   19,0 pt      42 pt
+      28   21,7 pt      48 pt
+
+Le rapport tient autour de 1,7 fois le corps. **Seuls les deux plus grands
+réglages approchent les 44 pt de la HIG** ; le réglage par défaut en offre 30,
+et le plus petit 18 — moins de la moitié.
+
+Conséquence qui oriente le correctif : le défaut n'est pas le même pour tous
+les lecteurs. Il s'aggrave pour qui lit petit et s'efface pour qui lit grand.
+Ce n'est donc pas quelques points à gagner partout, c'est un **plancher** à
+poser — que la zone ne descende jamais sous un seuil, quel que soit le corps
+choisi.
+
+
+**Ce qui rend le défaut sensible tient à la prose.** En lecture continue, le
+verset entier porte lui aussi un lien. Manquer la bande du mot ne fait donc pas
+« rien » : ça **désigne le verset**, des deux côtés. Le lecteur ne voit pas un
+raté, il voit un autre événement — une carte qu'il doit refermer — et il en
+conclut qu'il a mal visé. C'est le presque-raté qu'il faudrait rattraper, non la
+bande qu'il faudrait agrandir : chaque point autour du mot appartient déjà au
+verset, et le lui prendre demande un arbitrage.
+
+Le constat vaut sur les deux liseuses. Android mesure 35 à 42 dp pour 48 exigés
+par Material, par balayage d'appuis sur un Pixel. Même grandeur, même écart,
+deux mécanismes indépendants — et une exemption commune : les cibles en ligne
+dans une phrase échappent à la règle de taille minimale, précisément parce qu'on
+ne peut pas les agrandir sans aérer le texte d'un tiers.
+
+Travail rangé sans correctif : le relevé et son instrument sont acquis.
+
+### 26 août 2026 — trois manières pour un instrument de rendre un relevé faux
+
+La journée en avait donné le motif — *le format de sortie survit à l'absence de
+mesure*. L'enquête ci-dessus l'a fait rendre trois fois, sous trois formes
+distinctes, et c'est la distinction qui est utile.
+
+> **Il y en a six.** Trois autres ont été trouvées le 27 août, pendant le
+> rattrapage d'Android sur iOS, et sont consignées dans cette entrée-là —
+> « Trois manières de plus pour un instrument de rendre un relevé faux ». Elles
+> y sont bien rangées, puisqu'elles appartiennent à ce récit ; le renvoi est
+> ici parce que c'est ici qu'on vient chercher le sujet.
+>
+> Sans lui, on lit « trois manières », on referme, et on croit avoir fait le
+> tour. C'est le lecteur **confiant** qui se trompe, pas le distrait — la même
+> forme que le journal qui régresse, où l'on croit lire l'état de la
+> connaissance et où l'on lit celui d'avant.
+
+**Un instrument non reproductible.** Le premier balayage refermait la fiche par
+un glissement vers le bas entre deux appuis — geste qui fait aussi **défiler la
+page**. Chaque appui suivant visait le mot là où il n'était plus. Le relevé
+sortait aligné, croissant, vraisemblable. Deux exécutions de la même
+configuration ont rendu 27 pt puis 36 pt, et c'est **la répétition seule** qui
+l'a montré : relire le code ne l'aurait pas donné.
+
+**Un détecteur qui ne détecte pas.** Le relevé cherchait la fiche par le mot
+« occurrence », que toutes les fiches n'affichent pas. Il a rendu « rien » sur
+toute la bande — un faux négatif ayant exactement la forme d'un résultat. Le
+marqueur est maintenant le bouton « Fermer » de la barre, présent quel que soit
+le terme.
+
+**Un cas particulier pris pour le cas général.** La mesure portait sur le
+**premier** mot doré de la page, donc posé sous un titre. L'espace vide relevé
+au-dessus de lui était ce titre. On en avait tiré qu'il y avait de la place
+libre à ramasser, et donc un correctif sans arbitrage : il n'existe pas. Sur un
+mot entouré de texte des deux côtés, le relevé est symétrique.
+
+Les trois parades ne sont pas la même. La première demande de **refaire la
+mesure** ; la seconde, de **valider le détecteur sur un cas dont on connaît la
+réponse** ; la troisième, de **choisir le cas mesuré plutôt que de prendre le
+premier venu** — le premier élément d'une liste est presque toujours en bordure
+de quelque chose.
+
+### 26 août 2026 — `main` se déployait sans qu'aucun contrôle soit exigé
+
+Les cinq rulesets du projet portaient `pull_request`, `required_signatures`,
+`deletion` et `non_fast_forward` — mais **aucun n'exigeait que la CI ait
+répondu**. Une PR pouvait donc être fusionnée le contrôle rouge, et `main` se
+déploie seule en production.
+
+Ce n'était pas théorique. Une session a armé la fusion automatique d'une PR du
+site avant que `Éprouver` ne rende son verdict ; il a échoué ; le défaut est
+parti en ligne. Avec un `MERGED` parfaitement bien formé sur une PR au contrôle
+rouge.
+
+C'est le motif de la journée sous sa forme la plus coûteuse, et sous une
+**troisième variante**. Ailleurs, l'instrument mesurait autre chose que la
+question posée ; ici, le `MERGED` ne mentait pas — il rapportait fidèlement une
+fusion qui avait bien eu lieu. Ce qu'il ne disait pas, parce que rien ne le lui
+demandait, c'est qu'**aucun contrôle n'y était exigé**. Un verdict exact sur une
+question qu'on n'avait pas posée. Ailleurs ça coûte des heures ; ici ça met un
+défaut devant des lecteurs.
+
+État vérifié depuis l'API après correction — les cinq portent désormais un
+contrôle exigé, et les quatre autres règles sont intactes :
+
+    site/main            eprouver
+    vault/main           eprouver
+    app/main             tests, Chaîne de promotion
+    app/dev              tests
+    app/staging          tests, Chaîne de promotion
+
+**« Tous les dépôts portent le même ruleset » cesse d'être littéral ici**, et
+c'est la nuance à retenir : le *contexte* exigé est le **nom réel du job** de
+chaque dépôt — `eprouver` chez le site et le vault, `tests` chez l'app. Un nom
+deviné n'aurait pas protégé : il aurait bloqué **toutes** les PR, en attendant
+un contrôle qui ne vient jamais. La règle est la même partout ; son paramètre ne
+peut pas l'être.
+
+`strict_required_status_checks_policy` reste à **`false`** partout, et
+délibérément. À `true`, chaque fusion périme toutes les autres PR, qui doivent
+rebaser avant de pouvoir passer : à cinq sessions, c'est une file d'attente
+permanente. C'est la contradiction exacte qui a bloqué `dev → staging` la
+veille — `dev` n'autorisant que le squash pendant que `staging` exigeait
+`strict`, la fusion devenait structurellement impossible, pas seulement
+difficile.
+
+### 26 août 2026 — le rattrapage d'Android sur iOS, et ce qu'il a appris
+
+Vingt-quatre commits pour ramener la liseuse Android au niveau de l'iOS. Ce
+qu'il faut en retenir tient en trois points, et aucun n'est propre à Android.
+
+**Un portage ne se vérifie pas fichier par fichier.** Le premier audit
+comparait des **noms de fichiers** entre deux arbres — et les deux n'étaient pas
+sur la même branche : l'écran d'ouverture n'existait pas sur celle qu'on
+interrogeait. Il n'aurait de toute façon rien vu de l'essentiel : l'accentuation
+peinte puis repeinte, l'hébreu absent du sous-titre, le filet du Ḥurban rendu en
+gris. **Les fichiers existaient des deux côtés ; seuls leurs rendus
+divergeaient.** Un audit utile compare ce qui s'affiche, pas ce qui s'appelle.
+
+**Une même donnée peut plaire à une plateforme et tuer l'autre.**
+`SearchHit.id` vaut `unité-verset-niveau` et n'est pas unique. SwiftUI tolère
+les identifiants doublés — il avertit, et réutilise parfois la mauvaise vue.
+Compose lève : chercher « alliance » fermait l'app. Même domaine, même donnée,
+même requête ; une plateforme plante là où l'autre murmure. **Un défaut
+silencieux d'un côté n'est pas un défaut absent** — Android ne l'a pas
+introduit, il l'a révélé. Le portage est donc un instrument de mesure sur
+l'amont, et pas seulement du travail en aval.
+
+**Ce que la plateforme donne gratuitement à l'une, l'autre doit l'écrire.** Le
+même réglage d'interligne rendait 1,735 sur iOS et 1,500 sur Android :
+`SwiftUI.lineSpacing` **ajoute** des points à l'interligne de la fonte, Compose
+`lineHeight` **fixe** la hauteur et l'efface. Les deux courbes se croisent. De
+même, une rotation ne reconstruit pas la vue racine d'iOS mais recrée l'activité
+Android — l'ouverture y rejouait cinq secondes et demie à chaque quart de tour.
+**Porter du code, c'est porter ce que le code ne dit pas.**
+
+**Ce que ce travail change pour les voisins.**
+
+Pour le **site** : `/{langue}/lire/{livre}/{unité}?v=…` n'est plus une route de
+page, c'est un **contrat que deux apps lisent**. Le changer sans prévenir casse
+les liens partagés sur les deux plateformes. Et l'App Link Android exige
+`/.well-known/assetlinks.json` servi sans redirection — posé côté site, avec
+l'empreinte de la clé de téléversement. Une seconde empreinte s'y **ajoutera**
+après le premier envoi à Play, celle avec laquelle Google resigne : la
+remplacer ferait cesser d'être reconnues toutes les installations de test.
+
+Pour le **vault** : rien à corriger. Les astérisques des décisions
+terminologiques viennent de l'analyseur du pipeline, qui ne sait pas ouvrir une
+emphase juste avant un gras — `***Elohim** / …*` est du Markdown valide. Le
+mot d'or s'appelle alors littéralement `*Elohim`, vingt-six fois dans
+*bereshit*. Le lien de la fiche reste juste ; seul l'affichage est faux.
+
+**Et une règle nouvelle, posée par Gloire ce jour :** les initiatives viennent
+d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
+rattrapage, il remonte à iOS — jusque dans le vocabulaire des libellés, où
+inventer une meilleure formulation reviendrait à créer un second dialecte pour
+la même idée.
+
+#### Trois manières de plus pour un instrument de rendre un relevé faux
+
+L'entrée « trois manières pour un instrument de rendre un relevé faux », plus
+haut, en compte trois. La journée en a produit deux autres, et elles ne se
+recouvrent avec aucune des précédentes.
+
+**La quatrième porte sur la cadence.** Une sonde par capture d'écran a mesuré
+douze à vingt secondes pour une animation d'ouverture qui dure 5,515. L'horloge
+d'échantillonnage était plus lente que le phénomène échantillonné. Ce qui la
+rend redoutable, c'est que le résultat avait *la forme d'un blocage* : une suite
+de « toujours l'ouverture » ressemble trait pour trait à une ouverture qui ne
+finit pas. L'instrument mesurait la bonne chose, correctement, et trop lentement
+pour qu'elle existe — aucune relecture de la sonde ne l'aurait montré. Il a
+fallu une seconde mesure d'une autre nature, un journal horodaté.
+
+**La cinquième porte sur le chemin entre le rapport et la décision.** Un script
+de résolution de conflit a émis un `AssertionError` parfaitement exact, et un
+`git commit` a suivi dans la même commande, parce qu'il était après un `&&` sur
+une *autre* commande. Des marqueurs `<<<<<<<` sont partis dans le journal, et le
+build a rendu `BUILD SUCCESSFUL` par-dessus — un Markdown avec des marqueurs de
+conflit compile parfaitement.
+
+C'est la seule des cinq où aucune amélioration de l'instrument n'aurait aidé :
+il avait raison, et il parlait dans le vide. **Le contrôle porte sur le fichier,
+jamais sur le rapport de l'outil qui vient de le toucher.**
+
+Et le lendemain de cette erreur, la même heure en a produit le versant
+symétrique : accuser l'outil de concordance d'avoir écrit dans un arbre de
+travail, alors que sa seule écriture vise le dossier parent et qu'elle est
+doublement gardée. La ligne venait d'une session, qui l'avait déposée dans tous
+les exemplaires sans prévenir. Le raisonnement était cohérent et faux, et agir
+dessus aurait fait tomber une garde ajoutée la veille.
+
+Il est plus facile de soupçonner l'outil qui balaie que la session qui écrit :
+l'un est visible dans les commandes qu'on tape, l'autre non. **Ce qu'on éprouve
+n'est jamais la sincérité de l'outil, c'est l'appariement entre ce qu'il mesure
+et ce qu'on lui demande — et il tombe des deux côtés.**
+
+**La sixième porte sur le témoin lui-même**, et c'est la seule où le protocole
+était bien construit.
+
+Vérification du suivi de lecture sur l'APK de production : « avant défilement,
+aucun fichier » — juste, la garde tenait. Puis « après défilement, aucun
+fichier » — et la conclusion, fausse : R8 aurait emporté quelque chose.
+
+En réalité **`run-as` refuse tout paquet non débogable**. Il rendait vide dans
+les deux cas, quel que soit l'état de l'app. Le témoin avait été lu, il avait
+répondu juste — mais un témoin qui attend « rien » ne peut pas distinguer un
+instrument muet d'un instrument correct. **Un contrôle négatif ne contrôle rien
+quand la panne produit un négatif.**
+
+Ce qui en sort de pratique : un témoin doit attendre quelque chose de
+**positif**. Lire un fichier dont on sait qu'il existe avant de conclure d'un
+fichier absent. Et quand un doute subsiste, mesurer par un instrument qui ne
+partage pas le mode de panne du premier — ici l'interface, qui ne passe pas par
+`run-as`, et qui a rendu « Reprendre — Bereshit 1:13 ».
+
+#### Ce que le glissement a appris sur le portage d'une sensation
+
+iOS accroche ses trois retours haptiques à des **états** — `trigger: courant.id`
+pour celui du milieu, celui qui dit que l'unité a changé pour de bon. Android
+appelle `aller()`, qui lance une coroutine et rend la main avant que l'unité
+soit là. Porter le retour sur l'appel plutôt que sur l'état l'aurait fait vibrer
+avant l'événement, et aussi quand rien n'arrive.
+
+La leçon dépasse l'haptique : **ce qui se porte d'une plateforme à l'autre, ce
+n'est pas le geste d'iOS, c'est ce qu'il observe.** Un port qui recopie l'appel
+au lieu de l'état a l'air fidèle et ne l'est pas.
+
+Une divergence a été remontée à iOS comme la règle l'exige : Android vibrait à
+l'ouverture et à la fermeture de la barre de sélection, iOS non. **iOS a tranché
+en s'alignant** — `.sensoryFeedback(.selection, trigger: selection.isEmpty)`.
+
+Le motif de la décision vaut d'être gardé, parce qu'il montre à quoi sert la
+règle. iOS n'a pas ratifié une liberté prise par Android : il a constaté qu'il
+lui manquait quelque chose, et c'est le relevé d'Android qui le lui a montré. On
+désigne un verset en regardant le texte, pas la barre qui monte du bas de
+l'écran — sans retour tactile, le seul signe que le mode a changé est hors du
+regard. Et l'argument redouble ici, où le corps est réglé grand : la barre sort
+d'autant plus du champ.
+
+Le déclencheur est `selection.isEmpty` et non `selection` : la frontière du
+mode, pas le décompte. Sur `selection`, il vibrerait à chaque doigt posé.
+
+**La règle n'empêche donc pas Android de trouver — elle l'empêche de décider.**
+C'est une distinction utile : un portage regarde deux fois le même produit, et
+le second regard voit ce que le premier avait laissé passer.
+
+#### Le suivi de lecture, qui n'existait pas sur Android
+
+Le second regard a servi une deuxième fois, et sur plus gros. iOS porte un
+`SuiviDeLecture` : il retient le verset le plus haut visible **quand le
+défilement s'arrête**, et seulement si le lecteur a fait défiler quelque chose.
+
+Android ne retenait la position qu'au **toucher** d'un verset — c'est-à-dire en
+le sélectionnant. Qui lisait en faisant défiler, sans jamais rien désigner, ne
+déplaçait jamais sa reprise : la carte « Reprendre » pointait le dernier verset
+touché, parfois d'une tout autre séance. Le défaut ne se voit pas en lisant le
+code, parce que la position *existait* et *se sauvegardait* ; c'est son
+déclencheur qui était faux. Il ne s'est vu qu'en comparant les deux écrans de
+lecture ligne à ligne.
+
+Un premier correctif retenait le premier verset du **bloc** en tête d'écran,
+puisque le bloc est l'élément de liste, et l'inscrivait ici comme une différence
+assumée avec iOS. **C'était une erreur, et iOS l'a signalée.**
+
+Le suivi au bloc *est* le défaut qu'iOS avait déjà réparé : en prose continue un
+bloc est une section entière dans un seul `Text`, et « Reprendre » ramenait au
+début de la section au lieu de l'endroit qu'on lisait. Tant que les blocs
+valaient un verset, ça ne se voyait pas ; la fusion l'a révélé.
+
+La leçon vaut au-delà du cas : **inscrire un écart comme une décision le referme
+pour des années.** Quelqu'un le relira comme un choix motivé et ne le rouvrira
+pas. Un écart qu'on n'a pas encore comblé s'écrit comme un écart.
+
+Il est comblé. Le suivi est au verset des deux côtés — et Android le fait avec
+plus d'exactitude qu'iOS, non par mérite mais par ce que la plateforme donne :
+iOS estime la part de hauteur de chaque verset au prorata des signes affichés,
+faute de pouvoir demander sa mise en page au moteur de texte ; Compose la rend
+dans `TextLayoutResult`, et on lit donc les bornes réelles.
+
+La garde d'ouverture est reproduite telle quelle : ouvrir une unité, la lire
+sans bouger et la quitter ne déplace pas la reprise. C'est ce qui permet à une
+restauration de survivre à une visite.
+
+Deux pièges de plateforme, trouvés en mesurant et non en relisant :
+
+`boundsInRoot()` **rogne** aux limites visibles. Un bloc à moitié sorti par le
+haut se déclarait donc au bord de la fenêtre, tous ses versets paraissaient
+visibles, et le plus petit numéro gagnait — c'est-à-dire celui qu'on venait de
+quitter. C'est `positionInRoot()` qu'il faut.
+
+La sortie du champ n'est pas un événement, c'est une **absence** d'événements :
+`onGloballyPositioned` cesse simplement de parler. Les bornes se figeaient donc
+dans la fenêtre et le verset 1 gagnait pour toujours. iOS n'a pas ce problème,
+sa sonde signale l'entrée *et* la sortie. Ici il faut prendre la sortie là où
+elle se manifeste — la mise au rebut du composable.
+
+**Un écart reste ouvert, et il est écrit comme tel.** Android calcule où finit le
+numéro de verset dans le texte réuni pour savoir où commencer le pointillé ; iOS
+monte le numéro dans un `Text` séparé, si bien qu'il n'y a aucun offset à
+calculer. Les deux marchent, mais seule la seconde ne *peut pas* se tromper —
+et c'est justement un offset mal calculé qui a fait démarrer le pointillé dix
+signes trop loin pendant des semaines.
+
+iOS n'avait pas séparé le numéro pour cette raison : c'était le décroché du
+pointillé sous l'exposant, et la robustesse est venue en prime. C'est le sens
+habituel de ces choses. **Un défaut qu'on rend impossible vaut mieux qu'un défaut
+qu'on calcule bien**, et le jour où la composition d'Android sera rouverte, c'est
+la forme à viser.
+
+Éprouvé sur l'appareil, pas seulement compilé : aucun `lecteur.json` après
+l'ouverture, puis `Bereshit 1:9` après quatre défilements, et la carte
+« Reprendre » qui l'affiche.
+
+### 30 août 2026 — la troisième couche du texte, et ce qu'un type fait qu'un lien ne fait pas
+
+Les noms propres — les **Shemot** — ont leur couche. `[[Nom]]` dans le vault
+devient `Inline::Shem { v, lemma }` dans le pipeline, et paraît en terre brûlée,
+touchable, avec sa fiche.
+
+#### Ce que le choix du type a évité
+
+La marque est le lien natif d'Obsidian, que `inline.rs` lisait déjà. On aurait
+donc pu émettre un `Link` et laisser chaque liseuse reconnaître un Shem à ce que
+son `href` n'a « ni schéma ni barre oblique ».
+
+Le site a mesuré ce que ça donnait chez lui avant qu'on décide, au lieu de le
+déduire : il classe extérieur tout `href` qui ne commence pas par son adresse.
+Chaque Shem y serait devenu un lien souligné, `noopener`, ouvrant un onglet neuf
+vers une page inexistante. **Pas un lien mort — un lien mort qui arrache le
+lecteur de sa page.**
+
+Et sa formulation vaut mieux que la mesure : *une règle qui distingue « une
+chaîne sans schéma » d'une URL casse au premier cas particulier.* Il y en a
+déjà — l'apostrophe de `Na'amah`, le composé de `Tuval-Qayin` — et trois
+liseuses auraient refait le même arbitrage, chacune se trompant séparément.
+
+**Un type déplace la décision là où l'information existe.** Le pipeline sait
+qu'il a lu `[[…]]` ; aucune liseuse n'a à le redéduire d'une forme de chaîne.
+
+#### L'asymétrie qui n'existe plus, et une mémoire qui l'ignorait
+
+J'ai affirmé que le changement casserait iOS et Android — engendrés — en
+laissant le site se taire, puisqu'il écrit son domaine à la main.
+
+**C'était vrai jusqu'à fin août et ça ne l'est plus.** Le site dépend de
+`ont-pipeline` comme d'une caisse, son `match` porte neuf bras sans `_ =>`, et
+une variante nouvelle y produit un `error[E0004]`. Trois chemins, un contrat,
+trois refus de compiler.
+
+Je le récitais depuis une note de projet écrite le 25 août, sans aller vérifier —
+alors que le `grep` qui m'aurait détrompé prend cinq secondes, et que je l'avais
+fait : j'avais vu `pipeline::Inline::Link` dans son code et lu « il redéfinit les
+formes » au lieu de « il importe les tiennes ».
+
+**Une forme de plus : un relevé juste, conservé, et devenu faux sans que rien ne
+le signale.** Proche des deux référentiels divergents, mais décalée dans le
+*temps* plutôt que dans l'espace. Une mémoire ne se périme pas bruyamment ; elle
+attend qu'on la récite.
+
+#### Ce que le compilateur ne garde pas
+
+Le site tient une garde qui refuse tout `href` relatif dans le corpus. Elle
+n'attrape pas ce que les compilateurs attrapent — elle attrape ce qu'ils ne
+peuvent pas voir.
+
+**Les formes, jamais les contenus.** Un Shem émis en `Link` avec un `href`
+relatif est un `Link` parfaitement valide : le type juste, la valeur fausse. Le
+type `shem` transforme précisément cette valeur vérifiée à l'exécution en forme
+vérifiée à la compilation — trois compilateurs au lieu d'une garde, et la garde
+reste pour tout le reste.
+
+#### Deux contrôles qui manquaient, et le second n'était pas cherché
+
+Un Shem sans fiche **ne dégrade pas** : il est émis, et un compteur le nomme.
+Le §2.10 veut qu'une fiche dise ce qui reste à venir, et le vault porte des
+renvois vers des porteurs pas encore écrits — ce sont des marques de travail, pas
+des erreurs. Dégrader en texte nu ferait disparaître la liste de ce qui manque.
+Dix aujourd'hui, sur 1 947 Shemot et 205 porteurs.
+
+Le second est venu du vault, qui l'a trouvé **en faisant autre chose**. En
+posant l'hébreu dans les fiches, cinq intraduisibles n'avaient rien à prendre au
+glossaire : `neshamah`, `emunah`, `tsadiq`, `tsedaqah`, `mabbul` étaient
+déclarés au §2.5, balisés partout, affichés en or et touchables — et le §3 ne
+disait rien d'eux.
+
+**Trois gardes les avaient laissés passer**, une du site et deux d'ici. Aucune ne
+se trompait : toutes vérifiaient que le mot **mène** quelque part, jamais que ce
+quelque part **dise** quelque chose. C'est plus facile à écrire, et c'est ce qui
+reste faux.
+
+#### Les titres de section n'ont demandé aucun code
+
+Le vault et le site les croyaient jetés par `read_fiches`, sur la foi d'un filtre
+qui n'existe plus. `bloc_de_fiche` les gère, et n'écarte que le niveau 1 — le
+titre de la fiche, affiché par ailleurs.
+
+Ils ne paraissaient nulle part parce que **les seules fiches qui en portent sont
+celles des Shemot**, précisément celles qui n'étaient pas publiées : 197 sur 305,
+contre zéro des 108 fiches d'intraduisibles. Publier les unes fait apparaître les
+autres — 620 titres pour 1 498 paragraphes.
+
+Ce qui l'a montré : avoir mesuré la **sortie** au lieu de relire le code.
+
+#### Et le lien de partage qui manquait à Android
+
+Un passage partagé depuis Android arrivait chez le destinataire sans aucun moyen
+de l'ouvrir. iOS en pose un depuis toujours.
+
+**Je l'ai d'abord nié**, `grep ontbible.com` rendant zéro sur ses chemins de
+partage. L'URL est construite, et le domaine ne s'écrit que dans `project.yml` —
+pour qu'un changement de domaine ne demande pas de toucher au code. Chercher une
+chaîne littérale ne pouvait pas la trouver, et j'ai pris l'absence d'une chaîne
+pour l'absence d'une chose. L'erreur s'est propagée : j'ai fait douter iOS d'une
+fonctionnalité qu'elle avait.
+
+Un écart minuscule est tombé en le posant : `VerseRange.label` joint avec « , »,
+espace comprise, et iOS passe cette chaîne à `URLQueryItem`, qui la
+percent-encode. Son lien émet `?v=1-3,%207` là où le site produit `?v=1-3,7`.
+Les deux parsent — mesuré en production — mais ce sont deux chaînes pour un même
+passage, donc deux entrées de cache et deux aperçus.
+
+### 28 août 2026 — la liseuse Android sur un vrai téléphone, et ce qu'il a montré
+
+Un Galaxy S20+ sous Android 13, branché pour la première fois. Trois défauts
+sont tombés en une heure qu'aucun émulateur n'avait signalés en deux jours.
+
+#### Le glissement mangeait le défilement
+
+« Je n'arrive plus à scroller, tous les mouvements sont attrapés par le swipe. »
+
+`horizontalDrag` de Compose ne guette **aucun seuil**. Appelé juste après
+`awaitFirstDown`, il happe le premier mouvement venu, quelle qu'en soit la
+direction — et comme la suite le consomme, un doigt qui montait pour lire était
+pris par le glissement de parashah.
+
+Ce que le portage avait laissé passer : **SwiftUI arbitre seul entre deux gestes
+concurrents.** `.simultaneousGesture` laisse le défilement et le glissement se
+disputer le doigt, et le système tranche. Compose ne fait rien de tel.
+
+C'est la même leçon que le suivi de lecture, sous une autre forme : ce qui se
+porte d'une plateforme à l'autre n'est pas le geste, c'est **ce dont il dépend**.
+iOS dépendait ici d'un arbitrage que le système lui rendait gratuitement, et qui
+n'existe pas en face. Un port qui recopie le geste sans le voir a l'air fidèle
+et ne l'est pas.
+
+#### Le défilement à 61 ms par image, et trois hypothèses fausses
+
+Mesuré à `dumpsys gfxinfo` : **85 % d'images en retard, 61 ms par image**, pour
+16 ms de budget à 60 Hz.
+
+J'ai soupçonné le suivi de lecture, qui écrit un état à chaque image — débranché,
+c'était pire. Puis `LineBreak.Paragraph`, la stratégie de haute qualité d'Android
+sur des sections immenses — aucun écart. Deux intuitions raisonnables et fausses,
+qui auraient chacune coûté un correctif inutile.
+
+Ce qui a tranché : `framestats`, qui horodate chaque étape d'une image. Mesure et
+placement **0,1 ms**, GPU 8 ms, **enregistrement des commandes de dessin 23 ms**.
+Tout était là, et aucune des trois intuitions ne l'aurait montré.
+
+La cause : le pointillé de sélection lisait la mise en page **dans la phase de
+dessin**, s'y abonnait, et `onTextLayout` la réécrivait à chaque passe. Chaque
+image, le dessin s'invalidait et réenregistrait les glyphes d'un texte haut de
+plusieurs écrans — **même sans aucune sélection**, où il n'avait rien à dessiner.
+
+Trois corrections, chacune mesurée : le texte mémorisé au lieu d'être rebâti à
+chaque recomposition, le modificateur recevant des valeurs plutôt que des
+lambdas, et le pointillé posé sur un `Canvas` **frère** du texte, avec son propre
+nœud de dessin. 61 ms → 16 ms.
+
+#### Une neuvième forme : le relevé optimiste sans qu'on le sache
+
+Les six premières portent sur un instrument qui se trompe, se tait, ou détruit ce
+qu'il mesure. La septième porte sur deux référentiels divergents, la huitième sur
+des mesures qui s'accumulent. Celle-ci est d'un genre de plus.
+
+Après le correctif du geste, le même protocole a rendu **754 images là où il en
+rendait 320**, et 10 ms au lieu de 16. Rétrospectivement, mes mesures de
+fluidité étaient prises sur un défilement **à moitié volé** : plus de la moitié
+du mouvement partait au glissement, et ce que j'appelais « le défilement » était
+en partie l'animation du feuillet.
+
+Le rapport 61 → 16 reste juste, parce que les deux états partageaient le même
+défaut. Mais **le nombre absolu ne mesurait pas ce que son nom disait.** Un
+instrument juste, un protocole stable, un écart réel — et une grandeur mal
+nommée. Il n'y avait aucun moyen de s'en apercevoir avant de corriger autre
+chose.
+
+La règle qui en sort : **un chiffre stable et reproductible ne garantit pas qu'on
+mesure la chose qu'on nomme.** Quand une correction sans rapport déplace une
+mesure qu'elle ne devait pas toucher, ce n'est pas du bruit — c'est que la
+mesure portait sur autre chose.
+
+#### La publication sur Play, et deux manières pour un cache de mentir
+
+L'app est en test interne sur le Play Store, installée depuis le Store et
+signée par Google. La chaîne complète a été éprouvée bout en bout : un lien
+`ontbible.com` ouvre l'app, affiche l'unité, et désigne les versets demandés.
+
+Deux défauts sont tombés en chemin, et aucun n'était dans notre code.
+
+**L'empreinte recopiée depuis la mauvaise source.** La page de signature de la
+Play Console affiche désormais **deux** certificats côte à côte — la clé
+classique et une clé post-quantique — avec deux boutons au libellé identique.
+C'est le second qui a été copié, et la valeur est partie au site.
+
+Rien n'aurait cassé : `assetlinks.json` aurait été servi, bien formé, avec une
+empreinte inutile, et les liens auraient continué de partir au navigateur sans
+qu'aucun message ne dise pourquoi.
+
+Ce qui l'a rattrapée, c'est d'avoir tiré l'APK du téléphone et recalculé le
+condensat — `apksigner --print-certs` sur l'objet réel plutôt que sur ce qu'une
+console en dit. **Onzième forme : la source faisait autorité et n'était pas la
+mesure.** La console n'a pas menti ; elle affichait deux valeurs, et rien dans
+la page ne dit laquelle Android va lire.
+
+La règle qui en sort vaut au-delà du cas : **quand une valeur décrit un objet
+qu'on peut interroger, on interroge l'objet.**
+
+**Puis le cache de Google, qui rend deux réponses contradictoires.** Le site
+déployé servait bien les deux empreintes, et la vérification échouait toujours.
+L'API publique de Google — `digitalassetlinks.googleapis.com` — n'en voyait
+qu'une : son infrastructure avait mis le fichier en cache avant le déploiement.
+
+Le champ `maxAge` de la réponse donne la durée de vie restante, et sert de
+signal : une valeur qui **remonte** signifie que Google est allé relire. Elle
+est passée de 37 minutes à une heure pleine, la seconde empreinte est apparue,
+et la vérification a rendu `verified`.
+
+Mais huit appels d'affilée depuis la même machine ont ensuite rendu quatre fois
+l'ancien contenu et quatre fois le nouveau. **Douzième forme : un même système
+rend deux réponses contradictoires au même instant**, chacune cohérente en
+elle-même, et l'on tombe sur l'une ou l'autre au hasard.
+
+Elle est la plus retorse de la série parce qu'elle prend à contre-pied tout ce
+qui précède. Les onze premières se corrigent en mesurant ; celle-ci punit qui
+mesure **une seule fois** — un appel rend une réponse complète, plausible, sans
+erreur. Rien n'invite à en faire un second quand le premier répond ce qu'on
+espérait, et c'est exactement à ce moment-là qu'il le faut.
+
+Conséquence pratique, écrite pour le jour où un testeur le signale : pendant la
+propagation, deux appareils peuvent obtenir des résultats opposés avec un
+fichier irréprochable. Ce n'est pas une régression, et ça se règle seul.
+
+#### Ce que le téléphone a confirmé par ailleurs
+
+Démarrage à froid en **196 ms**. Ouverture animée mesurée au film à **5,8 s**
+contre 5,5 s de construction. Aucun plantage sur l'APK de production avec R8.
+
+Et un faux défaut qui vaut d'être connu : le verset du jour différait entre le
+téléphone et l'émulateur. **L'horloge du Samsung était restée en 2025.** Rien à
+corriger — une app qui doit marcher sans réseau n'a pas d'autre source de date
+que l'appareil.
+
+### 26 août 2026 — la glose des livres n'arrivait pas jusqu'à l'app
+
+Le corpus écrit une `glose` sur **chaque livre** — `Gevurot ha-Neviim` porte
+« Actes des Apôtres » comme pont français et « les gevurot de YHWH par ses
+neviim » comme glose. Le site les affiche tous les deux depuis toujours,
+`sommaire.rs` choisissant selon « Le français reçu ». L'app iOS, elle, affichait
+le français **quel que soit le réglage** : `BookOutline` ne déclarait pas le
+champ, donc la traduction du schéma le jetait sans que rien ne s'en aperçoive.
+L'auteur l'a vu en mettant les deux écrans côte à côte.
+
+**Ce que ça dit des trois dépôts.** Un champ que le pipeline écrit et qu'une
+liseuse ne déclare pas ne casse **rien** : le domaine compile, l'écran s'affiche,
+le lecteur voit simplement l'autre nom. C'est l'inverse exact d'un changement de
+schéma, qui casse iOS et Android tout de suite parce qu'ils sont engendrés — ici
+la perte est silencieuse des deux côtés à la fois.
+
+- **site** — rien à porter, *constaté* : `sommaire.rs:75-86` traite déjà les
+  livres comme les sections. C'est lui qui faisait foi ;
+- **Android** — `BookOutline` de `ontkit` porte la même omission, je l'avais
+  porté ainsi. Signalé à la session Android dans la même heure ;
+- **vault** — rien : la donnée était juste, c'est la lecture qui manquait.
+
+**Et le motif, une fois de plus.** La règle du choix — français si le reçu est
+allumé, glose sinon, rien quand la ligne se redoublerait — tenait en trois
+lignes et était **recopiée dans une vue**. Elle était donc appliquée dans la
+liste de la Bible et **absente** du sélecteur de référence, qui affichait le
+français en toutes circonstances. Une règle recopiée est une règle qu'un écran
+finit par ne pas appliquer. Elle vit maintenant dans le noyau — `Registre.second`
+côté iOS, à côté de `LibelleDUnite`, qui est arrivé là par le même chemin.
+
+### 26 août 2026 — le site consomme le backend de l'app, et ce que ça engage
+
+Le site a ouvert un compte, et ce n'est pas une fonctionnalité de plus : il
+**dépend désormais du backend de l'app**, là où il ne dépendait que de `dist/`.
+Trois choses en découlent, et aucune ne se voit depuis un seul dépôt.
+
+**`/auth/{fournisseur}`, `/auth/refresh` et `/sync` sont maintenant appelés par
+deux clients.** Le backend les servait à l'app iOS ; le site les appelle
+aujourd'hui, et Android les appellera. Un changement de forme dans l'une de ces
+réponses casse une plateforme qui n'est pas celle qu'on regarde en le faisant.
+
+Le partage des noms JSON est le point le plus fragile : le backend écrit en
+`snake_case` **littéral**, sans aucun `rename`. Un `#[serde(rename_all)]` ajouté
+là-bas paraîtrait innocent et ferait échouer la désérialisation ici, sans
+message utile — le site verrait une réponse vide et l'appellerait « pas de
+compte ».
+
+**Les cinq couleurs de surlignage sont une liste que personne ne valide.**
+`Highlight.color` est une chaîne libre côté backend : c'est **au client** de
+tenir `gold`, `olive`, `sky`, `rose`, `violet`. Deux clients qui divergeraient
+afficheraient deux couleurs pour la même marque, et rien ne le signalerait.
+L'app le prévoit déjà — « une couleur inconnue vient d'une version plus récente,
+et on préfère ignorer la ligne plutôt que de faire échouer toute la
+synchronisation » — et le site fait de même.
+
+**Une seconde adresse de retour OAuth existe.** `https://ontbible.com/fr/compte/retour`,
+distincte de celle de l'app, qui rebondit vers `ont://`. Elle doit être déclarée
+chez chaque fournisseur, et le README du backend l'avait prévu : « [le Services
+ID Apple] ne redeviendra nécessaire que le jour où une version web signera des
+comptes ». C'est ce jour-là. GitHub, lui, n'accepte qu'une adresse par
+application : il en faudra une seconde.
+
+**Ce qui reste vrai des deux côtés, et qu'on ne relâche pas.** La
+synchronisation est **facultative** : le site et l'app se lisent entièrement sans
+compte. Le backend en donne la raison, et elle vaut ici mot pour mot : « les
+surlignages et les notes d'un lecteur de Bible, rattachés à une identité,
+révèlent des convictions religieuses — article 9 du RGPD ». Un client qui
+exigerait un compte pour lire ferait de cette lecture une donnée.
+
+**Et un piège du contrat, qu'aucune signature ne montre.** Le backend apparie
+les surlignages par `(chapter_id, verse)` et non par `id`. Deux couleurs ne
+coexistent donc pas sur un même verset, et un identifiant neuf sur un verset
+déjà marqué **écrase** au lieu d'ajouter. Un client qui apparierait par `id`
+croirait avoir deux marques là où le serveur n'en garde qu'une — et l'écart ne
+se verrait qu'après un aller-retour.
+
+### 28 août 2026 — une dixième forme : l'optimisation qu'on n'a pas mesurée
+
+La série des manières dont un relevé peut tromper s'est enrichie de deux
+entrées le même jour, et elles se ressemblent assez pour qu'on les confonde.
+
+**La neuvième**, trouvée côté Android : *quand une correction qui n'aurait pas
+dû toucher une mesure la déplace, ce n'est pas du bruit — c'est que la mesure
+portait sur autre chose.* Un défilement relevé à 320 images en a rendu 754
+après un correctif de geste sans rapport ; ce qu'on appelait « le défilement »
+était en partie l'animation d'un feuillet qui volait le doigt. L'instrument
+était juste, le protocole stable, l'écart réel. Seul le **nom** de la grandeur
+était faux.
+
+**La dixième**, trouvée côté iOS le même jour : *une optimisation qu'on n'a pas
+mesurée avant et après est une croyance.* `plainText()` construisait deux
+chaînes là où une suffit ; les fusionner devait rendre un gain net. Relevé :
+**4 %**, de 0,280 à 0,269 ms. Le coût était dans le parcours caractère par
+caractère, pas dans l'allocation qu'on croyait coupable.
+
+**Ce qui les rapproche** : dans les deux cas le chiffre est bon, le protocole
+tient, et c'est le récit autour qui est faux. On croit savoir *ce qu'on mesure*
+dans un cas, *pourquoi c'est rapide* dans l'autre.
+
+**Ce qui les sépare, et qui est la part utile** : la dixième se détecte en
+mesurant — il suffit de le faire des deux côtés du changement. La neuvième ne
+se détecte pas du tout. Il faut qu'une correction étrangère déplace le chiffre,
+et qu'on choisisse de s'en **étonner** plutôt que de s'en réjouir. C'est ce
+qu'on ne fait pas d'ordinaire quand un nombre s'améliore.
+
+**Et la conséquence pratique, prise des deux côtés** : garder dans un test la
+*mesure* plutôt que la *conclusion*. « C'est rapide » vieillit ; « 0,27 ms pour
+trente versets » est encore utile le jour où quelqu'un change la donne. Les
+deux liseuses portent maintenant un relevé de ce genre au même endroit — le
+calcul des ancres de position —, avec le prix écrit de ce qui le rendrait
+coûteux : rendre le suivi de lecture observable le facturerait à chaque image,
+sur le geste le plus courant de l'app.
+
+**Ce qui traverse** : rien de technique. C'est une manière de tenir les
+relevés, et elle vaut pour les trois dépôts — le vault mesure des corpus, le
+site des temps de rendu, l'app des images par seconde.
+
+---
+
+## 30 août 2026 — le corpus publié écrasait le corpus embarqué, plus neuf
+
+**Traverse les trois dépôts.** Le vault date le contenu, le pipeline l'estampille,
+le site le publie, les deux apps le lisent. Le maillon manquant tenait en un
+champ vide.
+
+### Ce qui se serait passé
+
+L'app iOS lit son corpus **du disque quand il existe, du bundle sinon** — et le
+disque est rempli par ce que le site publie. Tant que le publié est le plus
+récent des deux, tout va bien. C'est faux **à chaque livraison TestFlight**, où
+un build part avant que le site redéploie.
+
+Mesuré sur simulateur en voulant simplement montrer le rendu des Shemot :
+
+    bundle de l'app : 1913 occurrences de "shem"
+    disque de l'app :  217   ← ce que l'app lit vraiment
+
+Le dossier effacé, l'app le recréait au lancement en retéléchargeant l'ancien.
+La couche des noms propres serait arrivée chez tous les testeurs **sans un seul
+nom affiché**. Aucun test ne pouvait l'attraper : ils mesurent tous le corpus du
+bundle, que personne ne lit.
+
+### La forme du défaut
+
+`genere` traverse toute la chaîne depuis le début, et vaut `""`. Il n'a pas été
+oublié : `build.rs` le laisse vide **délibérément**, pour que deux exécutions
+sur le même vault produisent le même octet — donc la même empreinte, donc aucun
+retéléchargement inutile. Le déterminisme était tenu ; l'ordre entre deux corpus
+n'existait nulle part, et personne n'en avait eu besoin jusqu'ici.
+
+Côté site, `corpus-publie.py` reportait bien le champ, mais avec un
+`.get(…, "")` : il publiait un manifeste **bien formé et indatable**. Un défaut
+par valeur par défaut est plus discret qu'un défaut par oubli, parce que sa
+sortie a l'air correcte.
+
+### Le remède, et pourquoi il n'est pas une horloge
+
+La date porte celle du **contenu source** — le dernier commit du vault —, pas
+celle du build. Déterministe pour un vault donné, croissante quand il change :
+l'ordre qui manquait, sans sacrifier ce que le pipeline tenait.
+
+Elle est **passée en entrée** au pipeline, jamais lue par lui : un binaire qui
+ouvre `.git` tombe sur un export d'archive, un `--depth 1`, un vault copié sans
+son dépôt. Et le repli sur la mtime des fichiers est un piège — un clone frais
+leur donne la mtime du `checkout`, c'est-à-dire l'heure du build déguisée, et
+non déterministe en CI où personne ne regarde.
+
+### Le format, qui n'est pas une préférence
+
+    %Y-%m-%dT%H:%M:%SZ en UTC   →   2026-08-30T00:14:00Z
+
+L'app compare ces dates **comme des chaînes**. Deux écritures du *même instant*
+s'ordonnent alors à l'envers :
+
+    "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"
+
+L'app garderait le plus vieux des deux corpus **en croyant garder le plus
+neuf** — le même défaut, sous une date bien formée, donc bien plus difficile à
+voir qu'un champ vide. Pas de `to_rfc3339()` : il rend l'offset de la machine de
+build et des fractions de seconde, ce qui casse aussi le déterminisme entre la
+CI en UTC et une machine en `+02:00`.
+
+### Ce que chaque dépôt en porte
+
+| | |
+|---|---|
+| **pipeline** | `generated_at` reçoit la date du vault, en entrée |
+| **site** | refuse de publier un corpus indatable ; le report existait déjà |
+| **app iOS** | `CorpusUpdater.Estampille` — n'accepte que ce qu'il peut prouver plus récent |
+| **app Android** | n'avait aucun dépôt disque : le défaut n'y existait pas, l'actualiseur s'y porte avec la garde |
+
+**Refuser quand l'ordre est indécidable.** Un corpus figé se voit et se répare ;
+un corpus silencieusement remplacé par du plus vieux ne se voit pas. C'est le
+défaut qu'on corrige — l'accepter « au cas où » serait le reproduire dans sa
+correction.
+
+**Ordre de livraison, sinon on se bloque en rond** : pipeline, site, app.
+
+### Ce qu'on en retient au-delà du cas
+
+Trois fois dans la même soirée, une mesure exacte a répondu à une autre question
+que celle qu'on posait. Le rendu montrait du rose : le moteur, sondé plutôt
+qu'accusé, rendait `#B98B6C` — c'était la donnée qui était vieille. Une session
+cherchait le même défaut sur Android, ne l'a pas trouvé, et a trouvé à la place
+une fiche Play qui promettait la fonctionnalité absente. Et les quatre tests de
+la nouvelle garde passaient **sans elle**, leurs manifestes ne listant aucun
+fichier — un instrument dont la panne ressemble au résultat attendu.
+
+La parade, à chaque fois, est la même : vérifier que l'épreuve **échoue** quand
+on retire ce qu'elle garde.
+
+---
+
+## 30 août 2026 — une déclaration sans la chose, deux fois le même mois
+
+Le réglage « Le français reçu » d'Android décrivait son effet dans son propre
+texte d'aide — « Apocalypse », « la Loi », « **Chapitre 7** » — et aucun écran
+de lecture ne le produisait. La pastille disait `Bereshit 2` dans les deux
+registres ; le sélecteur aussi ; sa sortie courte proposait « Toute l'unité »,
+un troisième mot hors des deux registres.
+
+C'est **le deuxième cas du même genre en quelques jours**. La fiche du Play
+Store annonçait la mise à jour du corpus avant qu'Android sache la faire ; la
+correction n'était pas d'amender la phrase mais d'écrire l'actualiseur. Gloire
+l'avait dit en une ligne : *« il faut pas fixer la déclaration, il faut
+implémenter ce qu'il manque »*.
+
+Le motif mérite d'être nommé, parce qu'il ne ressemble pas à un défaut : rien
+n'est faux dans le code, rien ne plante, aucun test ne rougit. C'est un texte
+qui décrit une intention, et la distance entre l'intention et le fait n'est
+mesurée nulle part. **Une phrase d'aide, une fiche de magasin, un `README` : ce
+sont des affirmations sur le logiciel que le logiciel ne vérifie pas.**
+
+### L'état des trois, sur ce point précis
+
+| | ce qu'il fait du registre |
+|---|---|
+| **site** | complet, et **au-delà** : en glose ONT, `Parashah` est un intraduisible en or, touchable, qui ouvre sa fiche |
+| **app iOS** | complet — `LibelleDUnite`, cinq formes, trois points d'appel |
+| **app Android** | l'annonçait dans ses réglages, ne le produisait nulle part → #153 |
+
+Le site était **en avance sur les deux apps**, ce qui n'est pas l'ordre
+habituel. Le porter d'iOS a suffi pour Android ; son traitement du mot comme
+intraduisible touchable reste, lui, à porter — et c'est à iOS d'en décider.
+
+### Le pluriel qui ne se francise pas
+
+*parashah* fait *parashiot*, jamais « parashahs » : le §2.5 le fixe, et la
+marque hébraïque est le seul détail du lot qu'un point d'appel pressé règle
+avec un `+ "s"`. Franciser l'intraduisible **déferait exactement ce que le
+réglage vient de faire**. Les trois dépôts portent maintenant le cas dans un
+test.
+
+### Et une méthode qui a servi deux fois
+
+Une branche en retard ne demande pas un rebasage, elle demande qu'on vérifie
+**si elle a encore quelque chose à dire**. Appliquée à deux PR le même soir,
+elle a donné des verdicts opposés : #144 était entièrement dépassée et s'est
+fermée ; #95 était 38 commits derrière et portait pourtant deux choses vivantes
+— le libellé d'unité, et le skill de l'émulateur — qui sont dans #153.
+
+Le reste de #95 posait la **bonne** question — en prose continue, le rang de
+l'item ne bouge jamais — avec le mauvais remède : sa fraction de défilement
+*estimait* la position, là où `SuiviDeLecture` la *mesure* par
+`TextLayoutResult`. Vérifié sur l'appareil avant de fermer, parce qu'une
+session qui ne peut pas éprouver du Kotlin avait refusé de trancher à
+l'aveugle sur un terrain qui n'était pas le sien.
+
+---
+
+## 30 août 2026 — la liseuse du Mac, et la raison du standard de contraste
+
+**Traverse les trois dépôts**, pour deux raisons très différentes.
+
+### Ce qui a été fait
+
+`ONTFeatures` était le seul paquet fermé à macOS, avec pour raison écrite « les
+vues emploient UIKit ». **Mesuré : 3 fichiers sur 25, 8 références.** La
+déclaration était très au-dessus de la chose — et elle a tenu des semaines parce
+que personne n'avait compté.
+
+Le reste — une trentaine de points — n'était pas un désaccord de conception mais
+des modificateurs SwiftUI qu'iOS a et que le Mac n'a pas. Ils passent désormais
+par `ONTPlateformes`, côté design system : **une vue déclare une intention,
+jamais un système.**
+
+### Ce que ça dit à Android
+
+Le portage Kotlin a rencontré la même question et l'a résolue autrement, en
+écrivant deux fois. La leçon vaut dans les deux sens : **ce qui diffère entre
+plateformes se range en deux tas, et on les traite différemment.**
+
+- ce que les deux nomment autrement — un titre compact, un placement de bouton,
+  une image : ça se **traduit**, en un seul endroit ;
+- ce que l'une a et l'autre pas — un glissement de retour, une tâche de fond
+  qui suppose un appareil qui dort : ça se **décide**, et le code doit montrer
+  qu'on a décidé.
+
+Le second tas est petit. C'est le premier qui fait croire qu'un portage est
+long.
+
+### Ce que ça dit au site
+
+`ONTShareItem` était enfermé dans un `#if canImport(UIKit)` alors qu'il ne
+contient rien d'UIKit. Il emportait avec lui tout le code qui *décide* quoi
+partager — identique partout —, alors que seule la **présentation** diffère.
+
+**La limite qu'une compilation conditionnelle doit suivre : ce qui touche au
+système, jamais ce qui touche au sens.** Le site a la même frontière à tenir
+entre ce qui dépend du navigateur et ce qui dépend du corpus.
+
+### Et le point qui vaut le plus, pour les trois
+
+**Le projet s'impose un standard de contraste au-dessus d'AA depuis des
+semaines, et la raison n'était écrite nulle part.**
+
+Elle a un nom : le **kératocône** de l'auteur. La condition déforme les lettres
+et effondre la sensibilité au contraste. Distinguer deux niveaux de texte par
+*la pente* — l'italique — est donc pour lui le pire discriminant possible : on
+ajoute de la déformation à de la déformation. Ce qui tient contre elle est la
+**couleur, la taille, l'espace**.
+
+C'est ce que fait `ONTTypography.apparatus` depuis toujours, sans que le
+commentaire dise pourquoi. C'est aussi ce qui rend un aperçu markdown pénible à
+relire, et ce qui a motivé la liseuse du Mac.
+
+**Une exigence dont on connaît le motif se défend ; une exigence orpheline se
+fait raboter au premier arbitrage.** Le vault, le site et les deux apps tiennent
+tous des seuils de contraste : ils savent maintenant contre quoi.
+
+---
+
+## 30 août 2026 — la décision qui vivait dans la vue, et ce qu'elle avait déjà coûté
+
+La session iOS, en portant la liseuse sur Mac, a nommé une frontière : **une
+compilation conditionnelle doit suivre ce qui touche au système, jamais ce qui
+touche au sens.** Chez elle, `ONTShareItem` était enfermé dans un
+`#if canImport(UIKit)` sans contenir un octet d'UIKit, et emportait avec lui le
+code qui *décide* quoi partager.
+
+Android n'a ni `#if` ni `expect`/`actual`. La question s'y posait donc
+autrement — quelle décision est écrite dans une vue ? — et la réponse était la
+même : **la composition du texte partagé, écrite deux fois.**
+
+### Ce que la duplication avait déjà coûté
+
+|  | corps | renvoi | lien |
+|---|---|---|---|
+| lecture | oui | oui | **oui** |
+| verset du jour | oui | oui | **non** |
+
+Le lien manquait au partage le plus fréquent — un verset du jour se transmet, un
+passage étudié beaucoup moins. C'était donc le seul que le destinataire ne
+pouvait pas ouvrir. Et il manquait depuis qu'on l'avait *ajouté* : le second
+point d'appel n'avait pas été vu.
+
+**iOS porte le même écart, sur la même paire d'écrans** — `ChapterView.swift`
+pose un lien, `QahalTab.swift` non.
+
+### Le détail qu'aucune lecture du code n'aurait donné
+
+Android enveloppait le corps dans une paire de chevrons, iOS non. On pouvait
+croire à un goût. C'en est un fait : **le corpus ouvre des citations que le
+verset ne ferme pas.** Bereshit 6:13 porte un chevron ouvrant et aucun fermant,
+parce que le discours d'Elohim continue au verset suivant — le français veut
+qu'on rouvre à chaque unité sans fermer avant la fin.
+
+    « Elohim dit à Noach : « La fin de toute chair… avec la Terre. »
+
+Deux ouvertures, une fermeture, et un chevron final qui **ferme un propos que le
+traducteur avait laissé courir**. Il fallait un verset qui cite quelqu'un, et il
+fallait regarder la feuille de partage sur l'appareil.
+
+### Et l'erreur commise en corrigeant, qui est la vraie leçon
+
+En extrayant la composition, on y a ajouté une « normalisation » du corps qui
+fondait les retours à la ligne en espaces. Elle contredisait `replier`, **deux
+fichiers plus loin**, qui les préserve délibérément :
+
+> un retour à la ligne est une décision de mise en page du traducteur — la
+> seconde ligne d'un parallélisme, l'ouverture d'un discours
+
+Sur l'écran, ça sautait aux yeux : « Elohim dit à Noach : » et l'ouverture du
+discours collés sur une ligne.
+
+**Sortir une décision au bon endroit ne suffit pas si on en profite pour en
+ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
+personne ne relit.
+
+### 30 août 2026 — une fonte qui ne se charge pas ne dit rien, et une garde peut mentir dans le sens rassurant
+
+**Source : l'app, cible macOS. Conséquence pour le site et pour Android.**
+
+La liseuse du Mac n'inscrivait aucune de ses fontes. iOS les déclare par
+`UIAppFonts` dans l'`Info.plist` ; **macOS ne lit pas cette clé** — il lit
+`ATSApplicationFontsPath`. La cible `ONTMac` ne déclarait ni l'une ni l'autre :
+les `.ttf` étaient copiés dans le bundle, et personne ne les inscrivait.
+
+Mesuré dans l'hôte de test réel : `Literata-Regular`, `-Italic` et `-SemiBold`
+**ne se résolvaient pas**. Toute la typographie de lecture du Mac retombait sur
+la fonte système. Literata est choisie pour la lecture longue, et c'est le
+lecteur au kératocône qui la payait.
+
+#### Pourquoi personne ne l'a vu pendant des semaines
+
+Deux silences empilés, et c'est ça qui vaut d'être retenu.
+
+**Le premier est dans l'API.** `Font.custom("Literata-Regular", size:)` avec un
+nom qui ne se résout pas ne lève pas, ne prévient pas, ne journalise pas : il
+rend la fonte système. Un nom de fonte est une chaîne, et une chaîne qui ne
+désigne rien n'est pas une erreur pour le compilateur.
+
+**Le second est dans la machine de l'auteur.** `EzraSIL`, elle, *se résolvait* —
+non depuis le bundle, mais depuis `~/Library/Fonts/SILEOT.ttf`, Gloire ayant
+installé Ezra SIL à titre personnel. **L'hébreu s'affichait donc juste sur sa
+machine et sur aucune autre.** Le défaut le plus difficile à voir n'est pas
+celui qui se cache : c'est celui qui ne se produit pas chez celui qui regarde.
+
+#### La garde qui aurait dû l'attraper rendait « oui » sans regarder
+
+`ONTFonts.hebrewAvailable`, `isAvailable(_:)` et `bodyAvailable` vérifiaient
+sous `#if canImport(UIKit)` et **retombaient sur `true`** ailleurs. Le catalogue
+du design system affichait « embarquée », en vert, sur la seule plateforme où
+c'était faux.
+
+C'est le même motif qu'une garde paraphrasée relevée le même jour côté backend,
+et il mérite un nom : **une garde qui ne sait pas ne doit pas rassurer.** Le
+repli d'une plateforme inconnue est désormais `false`, non `true`. Un « je ne
+sais pas » rendu comme un « oui » est pire que l'absence de garde — l'absence,
+au moins, ne fait pas fermer la question.
+
+#### Ce que ça dit au site
+
+Le site **n'a pas** ce défaut-là : `style/main.css` déclare bien sa `@font-face`
+pour « Ezra SIL », avec un `unicode-range` borné aux blocs hébreux pour que le
+navigateur ne la télécharge pas afin de dessiner du latin. Vérifié, pas supposé.
+
+Mais il partage l'autre trouvaille de la journée, et par construction.
+`src/interface/design/verset.rs` rend l'hébreu dans une course en ligne à
+`text-[1.08em]` — le même `ONTFonts.hebrewScale`, commenté comme tel. Or
+`body { line-height: 1.68 }` est **sans unité**, donc hérité comme un *nombre* :
+chaque élément le recalcule contre sa propre taille, et la course hébraïque
+s'en donne `1,68 × 1,08 = 1,814em` là où le reste de la ligne tient `1,68em`.
+
+**Ceci est déduit de la cascade, non mesuré** — et la journée a montré ce que
+valent les causes plausibles non mesurées. La vérification tient en une ligne
+dans l'inspecteur : comparer la hauteur d'une ligne portant de l'hébreu à celle
+de ses voisines, sur une unité qui en contient.
+
+Si l'écart est là, **le remède y est trivial** là où il ne l'est pas dans l'app :
+une `line-height` explicite sur la course hébraïque, ou une valeur en `rem` sur
+le paragraphe. CSS sait faire en une déclaration ce que SwiftUI ne sait pas
+faire du tout.
+
+#### Ce que ça dit à Android
+
+Deux choses, et la première est la plus urgente au vu du portage en cours.
+
+**Les fontes se déclarent encore autrement.** Ni `UIAppFonts` ni
+`ATSApplicationFontsPath` : `res/font/` et le nom de ressource, ou
+`FontFamily`/`Font` en Compose. Une troisième plateforme est une troisième
+occasion de croire que copier le fichier suffit. **La garde est ce qui
+transporte**, pas la clé : une épreuve qui charge chaque fonte par son nom et
+échoue si l'une ne répond pas vaut sur les trois, et c'est ce qui manquait ici.
+
+**Et le même mécanisme d'interligne s'y retrouvera.** La cause n'est pas qu'une
+fonte soit plus haute que l'autre — mesurées, leurs boîtes se valent à taille
+égale, rapport 0,995. C'est que **la ligne mêlée prend l'ascendante la plus
+haute et la descendante la plus basse parmi deux fontes différentes** :
+l'ascendante de Literata, la descendante d'EzraSIL.
+
+    Literata 23,54 + EzraSIL 8,72 = 32,26   contre 29,70   → +2,56 pt
+
+Tout moteur qui compose une ligne à partir de plusieurs fontes fait ce calcul —
+TextKit, le navigateur, et Android aussi. Ce n'est pas un défaut d'Apple, c'est
+la définition d'une ligne.
+
+#### Le geste, plus que le résultat
+
+Cinq bancs de mesure ont été écrits dans la journée pour cette question.
+**Quatre ont répondu à côté, et aucun n'a échoué** : deux composaient une
+écriture avec la fonte système sans le dire, un comparait EzraSIL au système
+plutôt qu'à Literata, un concluait d'un seul point de mesure.
+
+Les deux garde-fous qui distinguent le cinquième sont dans
+`scripts/banc-interligne.swift`, et ils valent pour les trois dépôts :
+
+1. **inscrire les fontes**, puis **vérifier qu'elles répondent**, et s'arrêter
+   sinon. Un banc qui mesure la fonte de repli rend des nombres plausibles ;
+2. **balayer plutôt que mesurer un point.** Un seul point ne distingue pas « ça
+   répond » de « ça a bougé pour une autre raison ». C'est ce qui a fait prendre
+   un `45 → 38` réel pour la preuve d'une propriété qui n'existe pas : `SwiftUI.Text`
+   **ignore** le style de paragraphe, balayé de 20 à 90 points sans qu'un point
+   bouge.
+
+`scripts/banc-chapitre.swift` mesure l'autre moitié, et renverse la crainte qui
+retenait le portage : **c'est l'architecture qui coûte, pas le moteur.** Une vue
+par verset vaut 8× une vue unique côté SwiftUI, 5,6× côté TextKit — le choix
+qu'on croyait secondaire pèse plus que celui qu'on croyait risqué. Vrai des
+trois plateformes, où la même alternative se posera.
+
+### 30 août 2026 — l'instrument qui répond à une autre question
+
+**Source : les trois dépôts, dans la même soirée.**
+
+Douze fois dans la journée, une mesure exacte a répondu à côté. Le compte n'est
+pas une curiosité : **aucune des douze n'a été attrapée par plus de rigueur dans
+la mesure.** Elles l'ont été par un second regard, ou par une contradiction entre
+deux sources.
+
+#### Ce qui a coûté le plus cher
+
+**Une garde paraphrasée a bloqué tout le dépôt.** `corpusDatable` vérifiait que
+les deux estampilles du corpus *existent* ; ce que le téléchargement exige, c'est
+que la publiée soit *plus récente*. Deux dates lisibles dont la publiée est la
+plus vieille passaient donc la garde et rendaient zéro fichier. Ça se déclenche
+dès que le vault avance avant que le site ne republie — et **toutes** les PR de
+`ONTBibleApp` tombaient depuis, en attendant une publication que personne n'avait
+de raison de faire.
+
+Le nom même était le glissement : « le corpus est-il datable » n'est pas « le
+téléchargement va-t-il avoir lieu ». **Une garde doit répéter sa condition mot
+pour mot, ou déléguer au même code.** Quand elle a son propre nom, elle a déjà
+commencé à s'en éloigner.
+
+Corollaire trouvé le même soir, dans les épreuves du Mac : une épreuve qui
+mesurait un `Form` promettait d'établir le comportement d'une `List`. Elle
+passait au vert et ne couvrait rien.
+
+#### Ce que ça change pour les trois dépôts
+
+**Une garde qui rassure est pire qu'une garde absente.** L'absente laisse la
+question ouverte ; la paraphrasée la fait croire close. À relire dans chaque
+dépôt : est-ce que le *nom* de la garde nomme la condition, ou sa conséquence ?
+
+**Une sonde contre le déployé est la seule chose qui mesure ce qui tourne** ;
+tout le reste mesure ce qu'on a écrit. Aucune garde du site ne pouvait voir la
+configuration de la Lambda qu'il appelle. Quand on allume un fournisseur, la
+sonde fait partie de l'allumage, pas de la vérification d'après.
+
+**Une contradiction entre deux sources est un instrument**, et c'est le seul qui
+attrape une erreur de *méthode* et non d'état. Elle a servi trois fois : un
+`grep` qui contredisait une session voisine et qui a révélé un arbre de travail
+717 lignes en retard ; une mesure d'interligne refaite par une seconde session,
+qui a montré que la première attribuait un effet réel à la mauvaise cause ; et un
+plan de déploiement dont une troisième session a vu la course, pas les chiffres.
+
+#### Le backend est déployé
+
+Depuis un worktree sur `origin/main`, l'arbre principal étant en retard. L'état
+Terraform est local : il a été copié, employé, puis recopié **sous garde du
+`serial`** — 56 au départ, vérifié inchangé avant d'écrire, 58 après. Sans cette
+garde, un `apply` concurrent aurait vu son état écrasé par un plus ancien, en
+silence : le motif du corpus publié qui recouvre le paquet plus récent,
+transposé sur un `.tfstate`.
+
+Sondé sur le déployé, pas annoncé : Apple passe de 503 à 401 sur l'origine web —
+il marche. GitHub reste à 503 tant que le repli de #164 n'a pas franchi
+`dev → staging → main`.
+
+#### Et une treizième, mesurée le soir même
+
+La liseuse du Mac ne suivait pas ⌘= sur son écran « Vous ». Trois captures n'ont
+rien prouvé : le facteur d'échelle **n'était pas celui qu'on croyait avoir posé**
+— 0,9 au lieu de 1,5 —, si bien qu'on mesurait un écran qui avait raison de ne
+pas bouger.
+
+Ce qui a tranché, en un seul build : **une sonde qui affiche ses propres
+conditions** à côté de ce qu'elle mesure. `f=1.5 cran=1 reglage=1` disait à la
+fois le résultat et l'état, et l'incohérence entre les deux derniers a nommé la
+cause. Une mesure qui n'affiche pas ses conditions ne mesure rien — c'est la
+même leçon que les fontes non inscrites, prise par l'autre bout.
+
+Le défaut réel, une fois le facteur vraiment posé : **une `List` de macOS ne
+transmet pas `\.font` à ses lignes.** Vaut pour les trois dépôts au titre de la
+méthode, et pour le seul Mac au titre du remède.
