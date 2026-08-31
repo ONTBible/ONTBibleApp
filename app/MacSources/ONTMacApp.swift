@@ -5,6 +5,7 @@ import ONTKit
 import QahalFeature
 import ReadingFeature
 import SearchFeature
+import os
 import AppKit
 import SwiftUI
 import YouFeature
@@ -100,6 +101,16 @@ struct ONTMacApp: App {
                 .safeAreaInset(edge: .bottom) {
                     if vault.vault != nil { BandeauDuVault(mode: vault) }
                 }
+                // Reprendre le vault de la session précédente, s'il y en
+                // avait un.
+                //
+                // Dans une vue et non dans le corps de la scène : c'est la
+                // même leçon que la fonte d'interface — ce qui est écrit hors
+                // d'un corps de vue n'est ni observé ni forcément exécuté au
+                // bon moment. `.task` s'attache au cycle de vie de la fenêtre,
+                // qui est précisément quand l'auteur peut voir le bandeau
+                // s'allumer.
+                .task { vault.reprendre() }
         }
         // **La taille d'ouverture, mesurée et non choisie.**
         //
@@ -288,7 +299,7 @@ private struct BandeauDuVault: View {
     }
 }
 
-/// Le délégué d'application — pour les liens, et rien d'autre.
+/// Le délégué d'application — les liens, et le jeton d'appareil.
 ///
 /// ## Pourquoi il faut en passer par là
 ///
@@ -303,9 +314,42 @@ private struct BandeauDuVault: View {
 /// c'est pour la même raison que partout ailleurs aujourd'hui : ce qui est en
 /// jeu appartient au système, pas à l'app.
 final class DelegueMac: NSObject, NSApplicationDelegate {
+    private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "push")
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls { EtatMac.partage.composition.router.open(url) }
         }
+    }
+
+    /// **La seconde raison d'avoir un délégué, et elle est de même nature.**
+    ///
+    /// SwiftUI n'expose pas plus le jeton d'appareil qu'il n'expose l'ouverture
+    /// d'une URL : `didRegisterForRemoteNotificationsWithDeviceToken` est une
+    /// méthode d'`NSApplicationDelegate`, et le système n'a pas d'autre voie
+    /// pour le rendre. C'est le même délégué et la même leçon — ce qui est en
+    /// jeu appartient au système, pas à l'app.
+    func application(
+        _ application: NSApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken jeton: Data
+    ) {
+        Task { await PushDistant.enregistrer(jeton) }
+    }
+
+    /// L'échec est **silencieux pour le lecteur**, et tracé pour nous.
+    ///
+    /// Il arrive pour des raisons qui ne le concernent pas — pas de réseau au
+    /// lancement, capacité Push absente du profil, machine non enregistrée dans
+    /// le compte développeur. Lui montrer une alerte reviendrait à lui
+    /// reprocher notre configuration.
+    ///
+    /// C'est le cas courant sur cette machine aujourd'hui, et ce le restera
+    /// tant qu'elle n'est pas enregistrée : sans profil, pas de droit
+    /// `aps-environment` dans le binaire, donc pas de jeton.
+    func application(
+        _ application: NSApplication,
+        didFailToRegisterForRemoteNotificationsWithError erreur: Error
+    ) {
+        journal.error("inscription aux notifications refusée — \(erreur.localizedDescription)")
     }
 }

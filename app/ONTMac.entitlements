@@ -9,17 +9,77 @@
 	     parte. L'app affichait « la connexion avec Apple n'a pas abouti »,
 	     ce qui était vrai et n'aidait personne.
 
-	     Le fichier est distinct de `ONT.entitlements` parce que les deux
-	     plateformes ne demandent pas les mêmes choses : pas d'`aps-environment`
-	     ici, les notifications distantes du Mac passant par un autre chemin.
-	     Les liens universels, eux, valent des deux côtés. -->
+	     Les liens universels valent des deux côtés. -->
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
 	</array>
+
+	<!-- Les notifications distantes.
+
+	     Le Mac en était exclu, sur une note qui affirmait qu'il « les gère
+	     autrement ». C'était faux : il ne les gérait pas du tout, et
+	     `RacineMac` rendait `false` au réglage des parutions — le lecteur
+	     voyait un interrupteur qui refusait de s'allumer, sans rien qui
+	     l'explique.
+
+	     APNs ne distingue pas les deux plateformes : même service, même
+	     format de jeton, même registre côté backend. Ce qui manquait était ce
+	     droit et deux appels — `NSApplication` au lieu d'`UIApplication`.
+
+	     `development` et non `production` : c'est ce qu'un profil de
+	     développement délivre, et le backend refuse un jeton dont
+	     l'environnement ne correspond pas au sien. La chaîne de livraison le
+	     bascule à `production` en signant, comme sur iOS. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:ontbible.com</string>
 	</array>
+
+	<!-- Le bac à sable.
+
+	     Obligatoire à l'App Store du Mac, et absent jusqu'ici : la liseuse
+	     tournait sans, ce qui marche en distribution directe et fait refuser
+	     la fiche.
+
+	     Il n'est pas gratuit. Le bac déplace `Application Support` dans le
+	     conteneur de l'app — c'est là que vivent `profil.json`,
+	     `lecteur.json` et le corpus publié. Une installation antérieure
+	     paraîtra donc vide au premier lancement sous bac. Sans conséquence
+	     tant que le Mac n'est pas distribué ; à traiter le jour où il l'est,
+	     par une migration, et non par la surprise du lecteur. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- Le vault, et rien d'autre.
+
+	     `read-only` et non `read-write` : le mode développeur **lit** les
+	     brouillons et écrit son aperçu dans le conteneur — voir
+	     `ModeVault.lancerLePipeline`, dont la sortie est en
+	     `Application Support/vault-apercu`. Demander l'écriture serait
+	     demander un droit dont on ne se sert pas, sur les dossiers de
+	     quelqu'un d'autre. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+
+	<!-- Retrouver le vault au lancement suivant.
+
+	     Sans ce droit, le signet enregistré ne se résout pas et l'auteur
+	     redésigne son dossier à chaque ouverture. Le droit ne donne accès à
+	     rien de neuf : il permet seulement de garder celui que le sélecteur
+	     a déjà accordé. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+
+	<!-- Le backend.
+
+	     `/auth/{fournisseur}`, `/auth/refresh` et `/sync`, plus le manifeste
+	     du corpus publié. Le bac à sable coupe le réseau par défaut : sans
+	     cette clé, la connexion et la synchronisation échouent en silence,
+	     et le premier soupçon irait au serveur. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

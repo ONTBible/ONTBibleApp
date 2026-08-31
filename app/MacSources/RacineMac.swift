@@ -56,6 +56,12 @@ struct RacineMac: View {
                     max: 460)
         } detail: {
             Detail()
+                // Les listes du détail reprennent la fonte du système à leurs
+                // lignes ; ces deux styles la leur rendent. Mesuré au pixel —
+                // voir `FonteDesListes`. Posé sur le détail et non sur toute la
+                // racine : la barre latérale déclare déjà ses fontes, et lui
+                // imposer un style de libellé changerait ce qu'elle a réglé.
+                .fonteDesListes()
                 .panneauDeFiche(shemot: composition.shemotSurDisque)
         }
         .navigationSplitViewStyle(.automatic)
@@ -107,21 +113,50 @@ struct RacineMac: View {
     /// Le détail — la vue que la sélection désigne.
     private struct Detail: View {
         @Environment(Router.self) private var router
+        @Environment(Composition.self) private var composition
 
         var body: some View {
             switch router.tab {
             case .reprendre: RepriseDeLecture()
             case .qahal: QahalTab()
             case .bible: BibleTab { SearchView() }
-            // Le compte, désigné par la ligne du bas ou par ⌘,. Les deux
-            // fermetures rendent des valeurs fixes : le Mac ne programme pas de
-            // verset quotidien et ne s'inscrit pas aux parutions — ce sont des
-            // notifications d'appareil, et sa liseuse n'en pose pas.
+            // Le compte, désigné par la ligne du bas ou par ⌘,.
             case .you:
-                YouTab(onDailyChange: { _ in true }, onParutions: { _ in false })
+                YouTab(onDailyChange: programmerLeVerset, onParutions: appliquerLesParutions)
             case .lexicon: LexiconTab()
             case .book(let id): BookTab(bookId: id)
             }
+        }
+
+        /// Le verset du jour, programmé pour de bon.
+        ///
+        /// Les deux fermetures rendaient des valeurs fixes — `true` pour le
+        /// verset, `false` pour les parutions — sur une note affirmant que « le
+        /// Mac ne pose pas de notifications d'appareil ». **C'était une
+        /// déclaration sans la chose** : `true` allumait un interrupteur qui ne
+        /// programmait rien, et `false` en montrait un qui refusait de
+        /// s'allumer sans que rien ne l'explique.
+        ///
+        /// Rien ne l'empêchait : `UserNotifications` existe sur macOS, et
+        /// `DailyVerseNotifications` n'a jamais eu une ligne propre à iOS. Elle
+        /// était déjà compilée dans cette cible ; personne ne l'appelait.
+        private func programmerLeVerset(_ horaire: DailyVerseSchedule) async -> Bool {
+            guard await DailyVerseNotifications.requestAuthorization() else { return false }
+            await DailyVerseNotifications.reschedule(horaire, pool: composition.dailyPool)
+            return true
+        }
+
+        /// Les parutions — le même chemin qu'iOS, au nom de l'application près.
+        ///
+        /// Couper efface le jeton du serveur **avant** de se désabonner
+        /// d'Apple. L'ordre compte : se désabonner d'abord laisserait un jeton
+        /// mort dans la table jusqu'à ce qu'une diffusion le heurte.
+        private func appliquerLesParutions(_ actif: Bool) async -> Bool {
+            guard actif else {
+                await PushDistant.desactiver()
+                return true
+            }
+            return await PushDistant.activer()
         }
     }
 }

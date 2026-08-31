@@ -296,10 +296,50 @@ thèmes, le moteur de rendu et les seuils de contraste ; **rien de ce qui fait l
 lecture n'est réécrit.**
 
 Ce qui diffère est borné et court : les tâches de fond (`BGTaskScheduler`
-n'existe pas ici, et une machine allumée n'en a pas besoin), Sentry, et les
-notifications distantes. Le reste des écarts passe par `ONTPlateformes`, côté
-design system : une vue déclare une intention — « ce titre est compact » —
-jamais un système.
+n'existe pas ici, et une machine allumée n'en a pas besoin) et Sentry. Le reste
+des écarts passe par `ONTPlateformes`, côté design system : une vue déclare une
+intention — « ce titre est compact » — jamais un système.
+
+**Les notifications, elles, ne diffèrent plus.** Elles figuraient dans cette
+liste sur une note affirmant que le Mac « les gère autrement ». Il ne les gérait
+pas du tout : `RacineMac` rendait `false` au réglage des parutions et `true` au
+verset du jour sans rien programmer — un interrupteur qui refusait de s'allumer,
+et un autre qui s'allumait pour rien.
+
+Rien ne l'empêchait. `UserNotifications` existe sur macOS, et
+`DailyVerseNotifications` était déjà compilée dans la cible sans que personne
+l'appelle. APNs ne distingue pas non plus les deux plateformes : même service,
+même format de jeton, même registre côté backend. `PushDistant` n'était UIKit
+que par **deux lignes** — `registerForRemoteNotifications` —, isolées depuis
+dans deux fonctions privées derrière un `#if canImport`.
+
+### L'échelle de l'interface, et ce que les listes en font
+
+⌘= grossit l'interface — `ONTEchelleUI`, puisque `dynamicTypeSize` est inerte
+ici. Deux chemins mènent au texte, et il faut savoir lequel on emprunte :
+
+- **déclarer la fonte** — `ONTUI.body`, `ONTUI.points(14)`. C'est ce que fait la
+  barre latérale, et ça marche partout ;
+- **s'en remettre à l'environnement**, que `AvecLaFonteDeLInterface` pose sur
+  toute la fenêtre. Ça marche partout **sauf dans une `List`**.
+
+Une `List` de macOS ne transmet pas `\.font` à ses lignes : elle leur pose la
+fonte système de son style. L'environnement n'est pas perdu — la même vue posée
+à côté de la liste grossit — il est écrasé au passage. Mesuré au pixel, facteur
+forcé à 1,5, où 32 px valent 13 pt et 48 px valent 19,5 :
+
+| ce qu'on pose | dans une `List` |
+|---|---|
+| rien (l'environnement seul) | 32 px — ne suit pas |
+| `.font()` sur la `List` | 32 px — ne suit pas |
+| `.font()` sur une `Section` | 32 px — ne suit pas |
+| `.font()` sur un `Text` de ligne | 48 px — suit |
+| `.font()` sur un `Label` de ligne | 32 px — ne suit pas |
+| un `LabelStyle` | 48 px — suit |
+
+D'où `FonteDesListes`, deux styles posés une fois sur le détail. Les en-têtes de
+section et les `Text` nus de `YouTab` restent hors d'atteinte : aucun
+modificateur extérieur ne les touche, il faudra qu'ils déclarent `ONTUI`.
 
 ### Lire ses brouillons
 
@@ -326,6 +366,50 @@ repousse l'échéance : c'est la fin de l'écriture qu'on guette, pas son début
 Il écrit dans `Application Support/vault-apercu`, jamais dans `dist/` : un
 aperçu de brouillon n'a rien à faire dans un arbre de travail git, ni dans un
 build par accident.
+
+Le dossier désigné est **retrouvé au lancement suivant**, par un signet à portée
+de sécurité et non par un chemin. Sous bac à sable, le droit de lire un dossier
+est accordé au *processus* par le sélecteur, et meurt avec lui : un chemin relu
+des réglages désignerait le bon dossier sans l'ouvrir, et l'app dirait « dossier
+illisible » d'un dossier parfaitement lisible. « Cesser de suivre » oublie le
+signet — cesser veut dire cesser, pas suspendre.
+
+### Le bac à sable
+
+`ONTMac.entitlements` porte `com.apple.security.app-sandbox` depuis le 30 août
+2026. Il est **obligatoire à l'App Store du Mac**, et son absence n'empêchait
+rien en distribution directe — c'est exactement le genre de manque qui ne se
+voit qu'au dépôt de la fiche.
+
+Quatre droits, et pas un de plus :
+
+| droit | pourquoi |
+|---|---|
+| `app-sandbox` | l'exigence elle-même |
+| `files.user-selected.read-only` | le vault ; **lecture seule**, l'aperçu s'écrivant dans le conteneur |
+| `files.bookmarks.app-scope` | retrouver le vault au lancement suivant |
+| `network.client` | le backend et le manifeste du corpus — le bac coupe le réseau par défaut |
+
+**Ce qui a été mesuré**, sur une app signée ad hoc : le bac s'applique — le
+conteneur apparaît sous `~/Library/Containers/com.labibleont.ONT` —, l'app
+s'ouvre, et le corpus embarqué se charge intact (864 versets, 108 entrées). Tout
+le stockage persistant étant déjà en `Application Support`, il suit dans le
+conteneur sans qu'une ligne change.
+
+**Ce qui reste à mesurer, et qui ne peut pas l'être en intégration** : le mode
+vault lance `ont-pipeline` en processus fils. Un fils hérite du bac de son père,
+mais **pas nécessairement des droits que le sélecteur a accordés à celui-ci**.
+Si le fils ne voit pas le vault, il faudra passer le contenu autrement que par
+un chemin. La question demande un dossier réellement désigné à la souris : elle
+se tranche à la main, sur une app signée, et non par un job.
+
+**Deux limites à connaître avant d'essayer.** Une signature ad hoc portant *à la
+fois* le bac et un droit restreint — `applesignin`, `associated-domains` — fait
+**échouer le lancement** (`RBSRequestErrorDomain` 5, spawn refusé) : le système
+refuse ces droits sans profil au lieu de les ignorer. Pour éprouver le bac
+localement, on signe avec les quatre clés de bac **seules**. Et le bac et Sign in
+with Apple ne peuvent donc pas être éprouvés ensemble tant que la machine n'est
+pas enregistrée dans le compte développeur.
 
 ### Pourquoi ce mode existe
 

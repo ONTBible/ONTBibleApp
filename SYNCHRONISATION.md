@@ -1149,7 +1149,9 @@ divergeaient.** Un audit utile compare ce qui s'affiche, pas ce qui s'appelle.
 les identifiants doublés — il avertit, et réutilise parfois la mauvaise vue.
 Compose lève : chercher « alliance » fermait l'app. Même domaine, même donnée,
 même requête ; une plateforme plante là où l'autre murmure. **Un défaut
-silencieux d'un côté n'est pas un défaut absent.**
+silencieux d'un côté n'est pas un défaut absent** — Android ne l'a pas
+introduit, il l'a révélé. Le portage est donc un instrument de mesure sur
+l'amont, et pas seulement du travail en aval.
 
 **Ce que la plateforme donne gratuitement à l'une, l'autre doit l'écrire.** Le
 même réglage d'interligne rendait 1,735 sur iOS et 1,500 sur Android :
@@ -1169,10 +1171,11 @@ l'empreinte de la clé de téléversement. Une seconde empreinte s'y **ajoutera*
 après le premier envoi à Play, celle avec laquelle Google resigne : la
 remplacer ferait cesser d'être reconnues toutes les installations de test.
 
-Pour le **vault** : les décisions terminologiques du pied d'unité portent des
-astérisques littérales — `*Elohim` — que les deux liseuses affichent, parce
-qu'elles emploient le même chemin de composition. C'est au pipeline de dire si
-ces marques doivent survivre jusqu'à l'écran.
+Pour le **vault** : rien à corriger. Les astérisques des décisions
+terminologiques viennent de l'analyseur du pipeline, qui ne sait pas ouvrir une
+emphase juste avant un gras — `***Elohim** / …*` est du Markdown valide. Le
+mot d'or s'appelle alors littéralement `*Elohim`, vingt-six fois dans
+*bereshit*. Le lien de la fiche reste juste ; seul l'affichage est faux.
 
 **Et une règle nouvelle, posée par Gloire ce jour :** les initiatives viennent
 d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
@@ -1963,3 +1966,191 @@ discours collés sur une ligne.
 **Sortir une décision au bon endroit ne suffit pas si on en profite pour en
 ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
 personne ne relit.
+
+### 30 août 2026 — une fonte qui ne se charge pas ne dit rien, et une garde peut mentir dans le sens rassurant
+
+**Source : l'app, cible macOS. Conséquence pour le site et pour Android.**
+
+La liseuse du Mac n'inscrivait aucune de ses fontes. iOS les déclare par
+`UIAppFonts` dans l'`Info.plist` ; **macOS ne lit pas cette clé** — il lit
+`ATSApplicationFontsPath`. La cible `ONTMac` ne déclarait ni l'une ni l'autre :
+les `.ttf` étaient copiés dans le bundle, et personne ne les inscrivait.
+
+Mesuré dans l'hôte de test réel : `Literata-Regular`, `-Italic` et `-SemiBold`
+**ne se résolvaient pas**. Toute la typographie de lecture du Mac retombait sur
+la fonte système. Literata est choisie pour la lecture longue, et c'est le
+lecteur au kératocône qui la payait.
+
+#### Pourquoi personne ne l'a vu pendant des semaines
+
+Deux silences empilés, et c'est ça qui vaut d'être retenu.
+
+**Le premier est dans l'API.** `Font.custom("Literata-Regular", size:)` avec un
+nom qui ne se résout pas ne lève pas, ne prévient pas, ne journalise pas : il
+rend la fonte système. Un nom de fonte est une chaîne, et une chaîne qui ne
+désigne rien n'est pas une erreur pour le compilateur.
+
+**Le second est dans la machine de l'auteur.** `EzraSIL`, elle, *se résolvait* —
+non depuis le bundle, mais depuis `~/Library/Fonts/SILEOT.ttf`, Gloire ayant
+installé Ezra SIL à titre personnel. **L'hébreu s'affichait donc juste sur sa
+machine et sur aucune autre.** Le défaut le plus difficile à voir n'est pas
+celui qui se cache : c'est celui qui ne se produit pas chez celui qui regarde.
+
+#### La garde qui aurait dû l'attraper rendait « oui » sans regarder
+
+`ONTFonts.hebrewAvailable`, `isAvailable(_:)` et `bodyAvailable` vérifiaient
+sous `#if canImport(UIKit)` et **retombaient sur `true`** ailleurs. Le catalogue
+du design system affichait « embarquée », en vert, sur la seule plateforme où
+c'était faux.
+
+C'est le même motif qu'une garde paraphrasée relevée le même jour côté backend,
+et il mérite un nom : **une garde qui ne sait pas ne doit pas rassurer.** Le
+repli d'une plateforme inconnue est désormais `false`, non `true`. Un « je ne
+sais pas » rendu comme un « oui » est pire que l'absence de garde — l'absence,
+au moins, ne fait pas fermer la question.
+
+#### Ce que ça dit au site
+
+Le site **n'a pas** ce défaut-là : `style/main.css` déclare bien sa `@font-face`
+pour « Ezra SIL », avec un `unicode-range` borné aux blocs hébreux pour que le
+navigateur ne la télécharge pas afin de dessiner du latin. Vérifié, pas supposé.
+
+Mais il partage l'autre trouvaille de la journée, et par construction.
+`src/interface/design/verset.rs` rend l'hébreu dans une course en ligne à
+`text-[1.08em]` — le même `ONTFonts.hebrewScale`, commenté comme tel. Or
+`body { line-height: 1.68 }` est **sans unité**, donc hérité comme un *nombre* :
+chaque élément le recalcule contre sa propre taille, et la course hébraïque
+s'en donne `1,68 × 1,08 = 1,814em` là où le reste de la ligne tient `1,68em`.
+
+**Ceci est déduit de la cascade, non mesuré** — et la journée a montré ce que
+valent les causes plausibles non mesurées. La vérification tient en une ligne
+dans l'inspecteur : comparer la hauteur d'une ligne portant de l'hébreu à celle
+de ses voisines, sur une unité qui en contient.
+
+Si l'écart est là, **le remède y est trivial** là où il ne l'est pas dans l'app :
+une `line-height` explicite sur la course hébraïque, ou une valeur en `rem` sur
+le paragraphe. CSS sait faire en une déclaration ce que SwiftUI ne sait pas
+faire du tout.
+
+#### Ce que ça dit à Android
+
+Deux choses, et la première est la plus urgente au vu du portage en cours.
+
+**Les fontes se déclarent encore autrement.** Ni `UIAppFonts` ni
+`ATSApplicationFontsPath` : `res/font/` et le nom de ressource, ou
+`FontFamily`/`Font` en Compose. Une troisième plateforme est une troisième
+occasion de croire que copier le fichier suffit. **La garde est ce qui
+transporte**, pas la clé : une épreuve qui charge chaque fonte par son nom et
+échoue si l'une ne répond pas vaut sur les trois, et c'est ce qui manquait ici.
+
+**Et le même mécanisme d'interligne s'y retrouvera.** La cause n'est pas qu'une
+fonte soit plus haute que l'autre — mesurées, leurs boîtes se valent à taille
+égale, rapport 0,995. C'est que **la ligne mêlée prend l'ascendante la plus
+haute et la descendante la plus basse parmi deux fontes différentes** :
+l'ascendante de Literata, la descendante d'EzraSIL.
+
+    Literata 23,54 + EzraSIL 8,72 = 32,26   contre 29,70   → +2,56 pt
+
+Tout moteur qui compose une ligne à partir de plusieurs fontes fait ce calcul —
+TextKit, le navigateur, et Android aussi. Ce n'est pas un défaut d'Apple, c'est
+la définition d'une ligne.
+
+#### Le geste, plus que le résultat
+
+Cinq bancs de mesure ont été écrits dans la journée pour cette question.
+**Quatre ont répondu à côté, et aucun n'a échoué** : deux composaient une
+écriture avec la fonte système sans le dire, un comparait EzraSIL au système
+plutôt qu'à Literata, un concluait d'un seul point de mesure.
+
+Les deux garde-fous qui distinguent le cinquième sont dans
+`scripts/banc-interligne.swift`, et ils valent pour les trois dépôts :
+
+1. **inscrire les fontes**, puis **vérifier qu'elles répondent**, et s'arrêter
+   sinon. Un banc qui mesure la fonte de repli rend des nombres plausibles ;
+2. **balayer plutôt que mesurer un point.** Un seul point ne distingue pas « ça
+   répond » de « ça a bougé pour une autre raison ». C'est ce qui a fait prendre
+   un `45 → 38` réel pour la preuve d'une propriété qui n'existe pas : `SwiftUI.Text`
+   **ignore** le style de paragraphe, balayé de 20 à 90 points sans qu'un point
+   bouge.
+
+`scripts/banc-chapitre.swift` mesure l'autre moitié, et renverse la crainte qui
+retenait le portage : **c'est l'architecture qui coûte, pas le moteur.** Une vue
+par verset vaut 8× une vue unique côté SwiftUI, 5,6× côté TextKit — le choix
+qu'on croyait secondaire pèse plus que celui qu'on croyait risqué. Vrai des
+trois plateformes, où la même alternative se posera.
+
+### 30 août 2026 — l'instrument qui répond à une autre question
+
+**Source : les trois dépôts, dans la même soirée.**
+
+Douze fois dans la journée, une mesure exacte a répondu à côté. Le compte n'est
+pas une curiosité : **aucune des douze n'a été attrapée par plus de rigueur dans
+la mesure.** Elles l'ont été par un second regard, ou par une contradiction entre
+deux sources.
+
+#### Ce qui a coûté le plus cher
+
+**Une garde paraphrasée a bloqué tout le dépôt.** `corpusDatable` vérifiait que
+les deux estampilles du corpus *existent* ; ce que le téléchargement exige, c'est
+que la publiée soit *plus récente*. Deux dates lisibles dont la publiée est la
+plus vieille passaient donc la garde et rendaient zéro fichier. Ça se déclenche
+dès que le vault avance avant que le site ne republie — et **toutes** les PR de
+`ONTBibleApp` tombaient depuis, en attendant une publication que personne n'avait
+de raison de faire.
+
+Le nom même était le glissement : « le corpus est-il datable » n'est pas « le
+téléchargement va-t-il avoir lieu ». **Une garde doit répéter sa condition mot
+pour mot, ou déléguer au même code.** Quand elle a son propre nom, elle a déjà
+commencé à s'en éloigner.
+
+Corollaire trouvé le même soir, dans les épreuves du Mac : une épreuve qui
+mesurait un `Form` promettait d'établir le comportement d'une `List`. Elle
+passait au vert et ne couvrait rien.
+
+#### Ce que ça change pour les trois dépôts
+
+**Une garde qui rassure est pire qu'une garde absente.** L'absente laisse la
+question ouverte ; la paraphrasée la fait croire close. À relire dans chaque
+dépôt : est-ce que le *nom* de la garde nomme la condition, ou sa conséquence ?
+
+**Une sonde contre le déployé est la seule chose qui mesure ce qui tourne** ;
+tout le reste mesure ce qu'on a écrit. Aucune garde du site ne pouvait voir la
+configuration de la Lambda qu'il appelle. Quand on allume un fournisseur, la
+sonde fait partie de l'allumage, pas de la vérification d'après.
+
+**Une contradiction entre deux sources est un instrument**, et c'est le seul qui
+attrape une erreur de *méthode* et non d'état. Elle a servi trois fois : un
+`grep` qui contredisait une session voisine et qui a révélé un arbre de travail
+717 lignes en retard ; une mesure d'interligne refaite par une seconde session,
+qui a montré que la première attribuait un effet réel à la mauvaise cause ; et un
+plan de déploiement dont une troisième session a vu la course, pas les chiffres.
+
+#### Le backend est déployé
+
+Depuis un worktree sur `origin/main`, l'arbre principal étant en retard. L'état
+Terraform est local : il a été copié, employé, puis recopié **sous garde du
+`serial`** — 56 au départ, vérifié inchangé avant d'écrire, 58 après. Sans cette
+garde, un `apply` concurrent aurait vu son état écrasé par un plus ancien, en
+silence : le motif du corpus publié qui recouvre le paquet plus récent,
+transposé sur un `.tfstate`.
+
+Sondé sur le déployé, pas annoncé : Apple passe de 503 à 401 sur l'origine web —
+il marche. GitHub reste à 503 tant que le repli de #164 n'a pas franchi
+`dev → staging → main`.
+
+#### Et une treizième, mesurée le soir même
+
+La liseuse du Mac ne suivait pas ⌘= sur son écran « Vous ». Trois captures n'ont
+rien prouvé : le facteur d'échelle **n'était pas celui qu'on croyait avoir posé**
+— 0,9 au lieu de 1,5 —, si bien qu'on mesurait un écran qui avait raison de ne
+pas bouger.
+
+Ce qui a tranché, en un seul build : **une sonde qui affiche ses propres
+conditions** à côté de ce qu'elle mesure. `f=1.5 cran=1 reglage=1` disait à la
+fois le résultat et l'état, et l'incohérence entre les deux derniers a nommé la
+cause. Une mesure qui n'affiche pas ses conditions ne mesure rien — c'est la
+même leçon que les fontes non inscrites, prise par l'autre bout.
+
+Le défaut réel, une fois le facteur vraiment posé : **une `List` de macOS ne
+transmet pas `\.font` à ses lignes.** Vaut pour les trois dépôts au titre de la
+méthode, et pour le seul Mac au titre du remède.

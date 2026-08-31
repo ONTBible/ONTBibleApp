@@ -102,6 +102,7 @@ private struct EnTeteDeLivre: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(livre.title)
+                .font(ONTUI.ligneDeListe)
             // Le second nom suit le registre, comme partout ailleurs.
             if let second = Registre.second(
                 french: livre.french, glose: livre.glose,
@@ -253,6 +254,7 @@ private struct Rien: View {
                 )
                 .font(ONTUI.footnote)
                 .foregroundStyle(.secondary)
+                    .font(ONTUI.ligneDeListe)
             }
         }
         .padding(.vertical, 6)

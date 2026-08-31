@@ -40,7 +40,7 @@ public struct ShemSheet: View {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entree.title)
-                                .font(.custom(ONTFonts.display, size: 26))
+                                .font(.custom(ONTFonts.display, size: ONTUI.points(26)))
                                 // La terre brûlée, la même qu'en lecture : le
                                 // lecteur doit reconnaître la couleur qu'il
                                 // vient de toucher.
@@ -54,7 +54,7 @@ public struct ShemSheet: View {
                     }
                     .ontRow()
 
-                    Section("Ce que son nom porte") {
+                    Section(header: Text("Ce que son nom porte").font(ONTUI.enteteDeListe)) {
                         if entree.sansDefinition {
                             // Même garde que pour un intraduisible : un écran
                             // qui montre un en-tête et rien dessous a l'air
@@ -64,6 +64,7 @@ public struct ShemSheet: View {
                                     + "n'est pas encore écrite."
                             )
                             .foregroundStyle(.secondary)
+                                .font(ONTUI.ligneDeListe)
                         } else {
                             ForEach(Array(entree.definition.enumerated()), id: \.offset) {
                                 _, block in

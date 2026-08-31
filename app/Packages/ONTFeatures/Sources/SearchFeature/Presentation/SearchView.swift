@@ -40,7 +40,7 @@ public struct SearchView: View {
                 }
 
                 if !model.hits.isEmpty {
-                    Section("\(model.hits.count) passage\(model.hits.count > 1 ? "s" : "")") {
+                    Section(header: Text("\(model.hits.count) passage\(model.hits.count > 1 ? "s" : "")").font(ONTUI.enteteDeListe)) {
                         ForEach(model.hits) { hit in
                             Button { open(hit) } label: {
                                 HitRow(hit: hit, title: model.bookTitle(hit.record.bookId),

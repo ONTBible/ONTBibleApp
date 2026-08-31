@@ -53,12 +53,14 @@ public struct DailyVerseSettings: View {
                 }
             } header: {
                 Text("Verset du jour")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text(
                     "Un verset différent chaque jour, tiré du corpus rédigé. "
                         + "Le rappel est préparé sur l'appareil : il fonctionne sans réseau, "
                         + "et rien de ce que vous lisez n'est envoyé nulle part."
                 )
+                    .font(ONTUI.piedDeListe)
             }
             .ontRow()
 
