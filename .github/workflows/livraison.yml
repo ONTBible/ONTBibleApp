@@ -442,6 +442,78 @@ jobs:
   # minutes à traiter un build, et rien ne peut lui être rattaché avant. Un
   # échec ici ne remet pas en cause le build, qui est bien monté — relancer ce
   # seul job suffit.
+  # ── La liseuse macOS, sur la machine de l'auteur
+  #
+  # **Pourquoi pas `macos-15` comme l'iPhone.** L'`actool` de l'image plante en
+  # composant `ONT.icon` pour macOS — un plantage sans diagnostic, mesuré en
+  # réactivant l'icône dans le job d'épreuves. Et l'image ne propose qu'Xcode
+  # 26.3 alors que le workflow demande déjà `latest` : il n'y a pas de version
+  # à monter.
+  #
+  # **Ce que le runner auto-hébergé engage, et ce qui le tient.** Ce dépôt est
+  # public. Un runner auto-hébergé y laisserait une proposition venue d'un fork
+  # exécuter du code sur la machine — sauf que le dépôt porte
+  # `approval_policy: all_external_contributors`, le réglage le plus strict :
+  # rien d'extérieur ne s'exécute sans approbation. Reste qu'un runner
+  # auto-hébergé est **persistant** là où celui de GitHub est jeté : ce qui
+  # tourne laisse des traces. C'est un arbitrage assumé, pas un oubli.
+  #
+  # Le label `ONTBibleApp` est propre à ce dépôt : les deux autres runners de
+  # la machine ne peuvent pas ramasser ce job.
+  #
+  # Le job **appelle le geste** plutôt que de le réécrire. `livrer-le-mac.sh`
+  # doit continuer de marcher à la main le jour où la machine est éteinte, et
+  # deux chaînes qui font la même chose finissent par diverger.
+  mac:
+    runs-on: [self-hosted, macOS, ONTBibleApp]
+    timeout-minutes: 40
+    steps:
+      - name: L'app
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - name: Le corpus et le projet
+        working-directory: ONTBibleApp
+        run: ONT_VAULT="$GITHUB_WORKSPACE/ONTBibleTranslation" ./scripts/corpus.sh
+
+      # La clé vit le temps du job, dans le dossier que le script attend, et
+      # part avec lui. Sur un runner auto-hébergé rien n'est jeté tout seul :
+      # ce que le job écrit, le job doit le reprendre.
+      - name: La clé App Store Connect
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: La livraison
+        working-directory: ONTBibleApp
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          CANAL="${{ inputs.canal || '' }}"
+          if [ -z "$CANAL" ]; then
+            case "${{ github.ref }}" in
+              refs/heads/main)    CANAL=appstore ;;
+              refs/heads/staging) CANAL=beta ;;
+              *)                  CANAL=interne ;;
+            esac
+          fi
+          ./scripts/livrer-le-mac.sh "$CANAL"
+
+      - name: Reprendre la clé
+        if: always()
+        run: rm -f ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
   distribuer:
     needs: livrer
     if: needs.livrer.outputs.canal != 'appstore'
