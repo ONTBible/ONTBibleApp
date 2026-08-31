@@ -213,6 +213,9 @@ final class Composition {
             positions: store,
             profils: profils,
             flow: SignInFlow(baseURL: baseURL),
+            // Ce que **ce serveur-là** sait faire. Sans session : l'app doit
+            // pouvoir le demander avant de savoir si la connexion est possible.
+            capacites: HTTPCapacitesService(baseURL: baseURL),
             reporter: reporter
         )
 

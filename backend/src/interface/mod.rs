@@ -34,6 +34,7 @@ pub mod web;
 pub fn router(app: App) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/capacites", get(capacites))
         .route("/auth/refresh", post(refresh))
         .route("/auth/{provider}", post(sign_in))
         .route("/auth/{provider}/callback", get(oauth_callback))
@@ -60,6 +61,30 @@ pub fn router(app: App) -> Router {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+/// Ce que ce déploiement sait faire.
+///
+/// **Distincte de `/health`, et pour une raison de fond** : l'une dit que le
+/// serveur *répond*, l'autre ce qu'il *sait faire*. Les mêler donnerait une
+/// route qui change de forme chaque fois qu'une capacité s'ajoute, alors que
+/// la sonde de vie du déploiement doit rester la chose la plus stable du
+/// système.
+///
+/// Sans authentification, délibérément. Elle ne dit rien qu'un lecteur ne voie
+/// déjà : les fournisseurs proposés sont sur l'écran de connexion. Et l'exiger
+/// authentifiée la rendrait inutile — l'app doit pouvoir demander *avant* de
+/// savoir si la connexion est possible.
+async fn capacites(State(app): State<App>) -> Response {
+    #[derive(serde::Serialize)]
+    struct Corps {
+        capacites: Vec<&'static str>,
+    }
+
+    Json(Corps {
+        capacites: app.capacites.iter().map(|c| c.cle()).collect(),
+    })
+    .into_response()
 }
 
 /// Le jeton d'un appareil qui veut être prévenu.
@@ -387,5 +412,79 @@ impl IntoResponse for ApiError {
         };
 
         (status, Json(serde_json::json!({ "error": message }))).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+
+    use super::*;
+    use crate::application::tests::app_de_test as app_offrant;
+    use crate::domain::capacites::Capacite;
+
+    async fn capacites_annoncees(app: App) -> Vec<String> {
+        let reponse = router(app)
+            .oneshot(
+                Request::builder()
+                    .uri("/capacites")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(reponse.status(), StatusCode::OK);
+
+        let corps = reponse.into_body().collect().await.unwrap().to_bytes();
+        let valeur: serde_json::Value = serde_json::from_slice(&corps).unwrap();
+        valeur["capacites"]
+            .as_array()
+            .expect("un tableau de clés")
+            .iter()
+            .map(|c| c.as_str().unwrap().to_string())
+            .collect()
+    }
+
+    /// Le câblage : ce que l'`App` porte est ce que la route dit.
+    #[tokio::test]
+    async fn la_route_annonce_ce_que_le_deploiement_offre() {
+        let offre = BTreeSet::from([Capacite::Synchronisation, Capacite::AuthGoogle]);
+        let annoncees = capacites_annoncees(app_offrant(offre)).await;
+
+        assert_eq!(annoncees, vec!["auth.google", "sync"]);
+    }
+
+    /// **Le cas qui compte pour l'app** : une capacité absente n'est pas
+    /// annoncée. Sans ça, la liseuse croirait pouvoir se connecter par Apple à
+    /// un serveur qui n'en a pas les identifiants.
+    #[tokio::test]
+    async fn ce_qui_n_est_pas_installe_n_est_pas_annonce() {
+        let annoncees =
+            capacites_annoncees(app_offrant(BTreeSet::from([Capacite::Synchronisation]))).await;
+
+        assert!(!annoncees.iter().any(|c| c.starts_with("auth.")));
+    }
+
+    /// La route ne demande pas de session : l'app doit pouvoir demander
+    /// **avant** de savoir si la connexion est possible.
+    #[tokio::test]
+    async fn la_route_repond_sans_authentification() {
+        let reponse = router(app_offrant(BTreeSet::new()))
+            .oneshot(
+                Request::builder()
+                    .uri("/capacites")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(reponse.status(), StatusCode::OK);
     }
 }

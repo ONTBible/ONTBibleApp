@@ -15,7 +15,7 @@ use crate::domain::ExternalIdentity;
 // Doublures
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct FakeProvider {
+pub(crate) struct FakeProvider {
     identity: ExternalIdentity,
     accept: bool,
 }
@@ -39,7 +39,7 @@ impl IdentityProvider for FakeProvider {
 }
 
 #[derive(Default)]
-struct FakeUsers {
+pub(crate) struct FakeUsers {
     identities: Mutex<HashMap<String, UserId>>,
     refresh: Mutex<HashMap<String, UserId>>,
     erased: Mutex<Vec<UserId>>,
@@ -96,7 +96,7 @@ impl UserRepository for FakeUsers {
 }
 
 #[derive(Default)]
-struct FakeSync {
+pub(crate) struct FakeSync {
     highlights: Mutex<Vec<Highlight>>,
     position: Mutex<Option<Position>>,
     profil: Mutex<Option<ProfilLecteur>>,
@@ -151,7 +151,7 @@ impl SyncRepository for FakeSync {
     }
 }
 
-struct FixedClock(OffsetDateTime);
+pub(crate) struct FixedClock(OffsetDateTime);
 
 impl Clock for FixedClock {
     fn now(&self) -> OffsetDateTime {
@@ -209,6 +209,12 @@ fn app_avec(identite: ExternalIdentity, accept: bool) -> (App, Arc<FakeUsers>, A
         sync: sync.clone(),
         tokens: TokenIssuer::new("secret-de-test"),
         clock: Arc::new(FixedClock(OffsetDateTime::now_utc())),
+        // Ces épreuves portent sur l'authentification et la synchronisation,
+        // pas sur ce qui est installé : on offre tout, pour que l'offre ne soit
+        // jamais la raison d'un échec ici.
+        capacites: crate::domain::capacites::Capacite::CONNUES
+            .into_iter()
+            .collect(),
     };
     (app, users, sync)
 }
@@ -592,4 +598,29 @@ async fn une_reconnexion_laisse_le_profil_tel_quel() {
 
     let apres = sync.profil(&UserId("x".into())).await.unwrap().unwrap();
     assert_eq!(apres.prenom, "Sha'eliel", "la correction du lecteur a tenu");
+}
+
+/// Un `App` monté sur des doublures, pour les épreuves qui n'ont pas besoin
+/// d'un vrai stockage.
+///
+/// Exposé pour que les épreuves de l'interface l'emploient : `/capacites` ne
+/// touche ni au stockage ni au réseau, mais `State<App>` en demande quand même
+/// — la fabrique évite d'en recopier un jeu là-bas.
+pub(crate) fn app_de_test(
+    capacites: std::collections::BTreeSet<crate::domain::capacites::Capacite>,
+) -> App {
+    App {
+        appareils: None,
+        notificateur: None,
+        secret_diffusion: None,
+        identity: Arc::new(FakeProvider {
+            identity: identity(),
+            accept: true,
+        }),
+        users: Arc::new(FakeUsers::default()),
+        sync: Arc::new(FakeSync::default()),
+        tokens: TokenIssuer::new("secret-de-test"),
+        clock: Arc::new(FixedClock(OffsetDateTime::now_utc())),
+        capacites,
+    }
 }

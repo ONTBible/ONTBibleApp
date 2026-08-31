@@ -208,6 +208,13 @@ public struct YouTab: View {
             .ontRow()
             .ontScreen()
             .navigationTitle("Vous")
+            // Demander à l'ouverture de l'onglet, pas au lancement de l'app :
+            // c'est le seul écran qui s'en sert, et un lecteur qui n'y vient
+            // jamais n'a pas à payer un appel réseau.
+            //
+            // `.task` et non `.onAppear` : il s'annule si le lecteur repart
+            // avant la réponse, et il ne relance pas à chaque retour.
+            .task { await account.negocier() }
         }
         .ontColumn()
     }
@@ -234,7 +241,15 @@ private struct AccountSection: View {
         case .signedOut, .failed:
             Section {
                 VStack(spacing: spacing.s) {
-                    ForEach(AuthProvider.allCases, id: \.self) { provider in
+                    // **Ce que le serveur sait faire**, et non tout ce
+                    // qui existe. Un bouton qui ne peut pas aboutir n'a rien à
+                    // faire là : le lecteur ne peut pas savoir que les
+                    // identifiants manquent chez nous, et l'échec lui
+                    // paraîtrait venir du fournisseur.
+                    //
+                    // Une offre inconnue — hors ligne, ou serveur d'avant la
+                    // route — les rend tous : on ne refuse pas ce qu'on ignore.
+                    ForEach(account.capacites.fournisseurs, id: \.self) { provider in
                         Button {
                             Task { await account.signIn(with: provider) }
                         } label: {
