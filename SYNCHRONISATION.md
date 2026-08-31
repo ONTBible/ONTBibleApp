@@ -1149,7 +1149,9 @@ divergeaient.** Un audit utile compare ce qui s'affiche, pas ce qui s'appelle.
 les identifiants doublés — il avertit, et réutilise parfois la mauvaise vue.
 Compose lève : chercher « alliance » fermait l'app. Même domaine, même donnée,
 même requête ; une plateforme plante là où l'autre murmure. **Un défaut
-silencieux d'un côté n'est pas un défaut absent.**
+silencieux d'un côté n'est pas un défaut absent** — Android ne l'a pas
+introduit, il l'a révélé. Le portage est donc un instrument de mesure sur
+l'amont, et pas seulement du travail en aval.
 
 **Ce que la plateforme donne gratuitement à l'une, l'autre doit l'écrire.** Le
 même réglage d'interligne rendait 1,735 sur iOS et 1,500 sur Android :
@@ -1169,10 +1171,11 @@ l'empreinte de la clé de téléversement. Une seconde empreinte s'y **ajoutera*
 après le premier envoi à Play, celle avec laquelle Google resigne : la
 remplacer ferait cesser d'être reconnues toutes les installations de test.
 
-Pour le **vault** : les décisions terminologiques du pied d'unité portent des
-astérisques littérales — `*Elohim` — que les deux liseuses affichent, parce
-qu'elles emploient le même chemin de composition. C'est au pipeline de dire si
-ces marques doivent survivre jusqu'à l'écran.
+Pour le **vault** : rien à corriger. Les astérisques des décisions
+terminologiques viennent de l'analyseur du pipeline, qui ne sait pas ouvrir une
+emphase juste avant un gras — `***Elohim** / …*` est du Markdown valide. Le
+mot d'or s'appelle alors littéralement `*Elohim`, vingt-six fois dans
+*bereshit*. Le lien de la fiche reste juste ; seul l'affichage est faux.
 
 **Et une règle nouvelle, posée par Gloire ce jour :** les initiatives viennent
 d'iOS, Android applique. Quand le portage révèle un arbitrage plutôt qu'un
@@ -1963,3 +1966,450 @@ discours collés sur une ligne.
 **Sortir une décision au bon endroit ne suffit pas si on en profite pour en
 ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
 personne ne relit.
+
+### 30 août 2026 — une fonte qui ne se charge pas ne dit rien, et une garde peut mentir dans le sens rassurant
+
+**Source : l'app, cible macOS. Conséquence pour le site et pour Android.**
+
+La liseuse du Mac n'inscrivait aucune de ses fontes. iOS les déclare par
+`UIAppFonts` dans l'`Info.plist` ; **macOS ne lit pas cette clé** — il lit
+`ATSApplicationFontsPath`. La cible `ONTMac` ne déclarait ni l'une ni l'autre :
+les `.ttf` étaient copiés dans le bundle, et personne ne les inscrivait.
+
+Mesuré dans l'hôte de test réel : `Literata-Regular`, `-Italic` et `-SemiBold`
+**ne se résolvaient pas**. Toute la typographie de lecture du Mac retombait sur
+la fonte système. Literata est choisie pour la lecture longue, et c'est le
+lecteur au kératocône qui la payait.
+
+#### Pourquoi personne ne l'a vu pendant des semaines
+
+Deux silences empilés, et c'est ça qui vaut d'être retenu.
+
+**Le premier est dans l'API.** `Font.custom("Literata-Regular", size:)` avec un
+nom qui ne se résout pas ne lève pas, ne prévient pas, ne journalise pas : il
+rend la fonte système. Un nom de fonte est une chaîne, et une chaîne qui ne
+désigne rien n'est pas une erreur pour le compilateur.
+
+**Le second est dans la machine de l'auteur.** `EzraSIL`, elle, *se résolvait* —
+non depuis le bundle, mais depuis `~/Library/Fonts/SILEOT.ttf`, Gloire ayant
+installé Ezra SIL à titre personnel. **L'hébreu s'affichait donc juste sur sa
+machine et sur aucune autre.** Le défaut le plus difficile à voir n'est pas
+celui qui se cache : c'est celui qui ne se produit pas chez celui qui regarde.
+
+#### La garde qui aurait dû l'attraper rendait « oui » sans regarder
+
+`ONTFonts.hebrewAvailable`, `isAvailable(_:)` et `bodyAvailable` vérifiaient
+sous `#if canImport(UIKit)` et **retombaient sur `true`** ailleurs. Le catalogue
+du design system affichait « embarquée », en vert, sur la seule plateforme où
+c'était faux.
+
+C'est le même motif qu'une garde paraphrasée relevée le même jour côté backend,
+et il mérite un nom : **une garde qui ne sait pas ne doit pas rassurer.** Le
+repli d'une plateforme inconnue est désormais `false`, non `true`. Un « je ne
+sais pas » rendu comme un « oui » est pire que l'absence de garde — l'absence,
+au moins, ne fait pas fermer la question.
+
+#### Ce que ça dit au site
+
+Le site **n'a pas** ce défaut-là : `style/main.css` déclare bien sa `@font-face`
+pour « Ezra SIL », avec un `unicode-range` borné aux blocs hébreux pour que le
+navigateur ne la télécharge pas afin de dessiner du latin. Vérifié, pas supposé.
+
+Mais il partage l'autre trouvaille de la journée, et par construction.
+`src/interface/design/verset.rs` rend l'hébreu dans une course en ligne à
+`text-[1.08em]` — le même `ONTFonts.hebrewScale`, commenté comme tel. Or
+`body { line-height: 1.68 }` est **sans unité**, donc hérité comme un *nombre* :
+chaque élément le recalcule contre sa propre taille, et la course hébraïque
+s'en donne `1,68 × 1,08 = 1,814em` là où le reste de la ligne tient `1,68em`.
+
+**Ceci est déduit de la cascade, non mesuré** — et la journée a montré ce que
+valent les causes plausibles non mesurées. La vérification tient en une ligne
+dans l'inspecteur : comparer la hauteur d'une ligne portant de l'hébreu à celle
+de ses voisines, sur une unité qui en contient.
+
+Si l'écart est là, **le remède y est trivial** là où il ne l'est pas dans l'app :
+une `line-height` explicite sur la course hébraïque, ou une valeur en `rem` sur
+le paragraphe. CSS sait faire en une déclaration ce que SwiftUI ne sait pas
+faire du tout.
+
+#### Ce que ça dit à Android
+
+Deux choses, et la première est la plus urgente au vu du portage en cours.
+
+**Les fontes se déclarent encore autrement.** Ni `UIAppFonts` ni
+`ATSApplicationFontsPath` : `res/font/` et le nom de ressource, ou
+`FontFamily`/`Font` en Compose. Une troisième plateforme est une troisième
+occasion de croire que copier le fichier suffit. **La garde est ce qui
+transporte**, pas la clé : une épreuve qui charge chaque fonte par son nom et
+échoue si l'une ne répond pas vaut sur les trois, et c'est ce qui manquait ici.
+
+**Et le même mécanisme d'interligne s'y retrouvera.** La cause n'est pas qu'une
+fonte soit plus haute que l'autre — mesurées, leurs boîtes se valent à taille
+égale, rapport 0,995. C'est que **la ligne mêlée prend l'ascendante la plus
+haute et la descendante la plus basse parmi deux fontes différentes** :
+l'ascendante de Literata, la descendante d'EzraSIL.
+
+    Literata 23,54 + EzraSIL 8,72 = 32,26   contre 29,70   → +2,56 pt
+
+Tout moteur qui compose une ligne à partir de plusieurs fontes fait ce calcul —
+TextKit, le navigateur, et Android aussi. Ce n'est pas un défaut d'Apple, c'est
+la définition d'une ligne.
+
+#### Le geste, plus que le résultat
+
+Cinq bancs de mesure ont été écrits dans la journée pour cette question.
+**Quatre ont répondu à côté, et aucun n'a échoué** : deux composaient une
+écriture avec la fonte système sans le dire, un comparait EzraSIL au système
+plutôt qu'à Literata, un concluait d'un seul point de mesure.
+
+Les deux garde-fous qui distinguent le cinquième sont dans
+`scripts/banc-interligne.swift`, et ils valent pour les trois dépôts :
+
+1. **inscrire les fontes**, puis **vérifier qu'elles répondent**, et s'arrêter
+   sinon. Un banc qui mesure la fonte de repli rend des nombres plausibles ;
+2. **balayer plutôt que mesurer un point.** Un seul point ne distingue pas « ça
+   répond » de « ça a bougé pour une autre raison ». C'est ce qui a fait prendre
+   un `45 → 38` réel pour la preuve d'une propriété qui n'existe pas : `SwiftUI.Text`
+   **ignore** le style de paragraphe, balayé de 20 à 90 points sans qu'un point
+   bouge.
+
+`scripts/banc-chapitre.swift` mesure l'autre moitié, et renverse la crainte qui
+retenait le portage : **c'est l'architecture qui coûte, pas le moteur.** Une vue
+par verset vaut 8× une vue unique côté SwiftUI, 5,6× côté TextKit — le choix
+qu'on croyait secondaire pèse plus que celui qu'on croyait risqué. Vrai des
+trois plateformes, où la même alternative se posera.
+
+### 30 août 2026 — l'instrument qui répond à une autre question
+
+**Source : les trois dépôts, dans la même soirée.**
+
+Douze fois dans la journée, une mesure exacte a répondu à côté. Le compte n'est
+pas une curiosité : **aucune des douze n'a été attrapée par plus de rigueur dans
+la mesure.** Elles l'ont été par un second regard, ou par une contradiction entre
+deux sources.
+
+#### Ce qui a coûté le plus cher
+
+**Une garde paraphrasée a bloqué tout le dépôt.** `corpusDatable` vérifiait que
+les deux estampilles du corpus *existent* ; ce que le téléchargement exige, c'est
+que la publiée soit *plus récente*. Deux dates lisibles dont la publiée est la
+plus vieille passaient donc la garde et rendaient zéro fichier. Ça se déclenche
+dès que le vault avance avant que le site ne republie — et **toutes** les PR de
+`ONTBibleApp` tombaient depuis, en attendant une publication que personne n'avait
+de raison de faire.
+
+Le nom même était le glissement : « le corpus est-il datable » n'est pas « le
+téléchargement va-t-il avoir lieu ». **Une garde doit répéter sa condition mot
+pour mot, ou déléguer au même code.** Quand elle a son propre nom, elle a déjà
+commencé à s'en éloigner.
+
+Corollaire trouvé le même soir, dans les épreuves du Mac : une épreuve qui
+mesurait un `Form` promettait d'établir le comportement d'une `List`. Elle
+passait au vert et ne couvrait rien.
+
+#### Ce que ça change pour les trois dépôts
+
+**Une garde qui rassure est pire qu'une garde absente.** L'absente laisse la
+question ouverte ; la paraphrasée la fait croire close. À relire dans chaque
+dépôt : est-ce que le *nom* de la garde nomme la condition, ou sa conséquence ?
+
+**Une sonde contre le déployé est la seule chose qui mesure ce qui tourne** ;
+tout le reste mesure ce qu'on a écrit. Aucune garde du site ne pouvait voir la
+configuration de la Lambda qu'il appelle. Quand on allume un fournisseur, la
+sonde fait partie de l'allumage, pas de la vérification d'après.
+
+**Une contradiction entre deux sources est un instrument**, et c'est le seul qui
+attrape une erreur de *méthode* et non d'état. Elle a servi trois fois : un
+`grep` qui contredisait une session voisine et qui a révélé un arbre de travail
+717 lignes en retard ; une mesure d'interligne refaite par une seconde session,
+qui a montré que la première attribuait un effet réel à la mauvaise cause ; et un
+plan de déploiement dont une troisième session a vu la course, pas les chiffres.
+
+#### Le backend est déployé
+
+Depuis un worktree sur `origin/main`, l'arbre principal étant en retard. L'état
+Terraform est local : il a été copié, employé, puis recopié **sous garde du
+`serial`** — 56 au départ, vérifié inchangé avant d'écrire, 58 après. Sans cette
+garde, un `apply` concurrent aurait vu son état écrasé par un plus ancien, en
+silence : le motif du corpus publié qui recouvre le paquet plus récent,
+transposé sur un `.tfstate`.
+
+Sondé sur le déployé, pas annoncé : Apple passe de 503 à 401 sur l'origine web —
+il marche. GitHub reste à 503 tant que le repli de #164 n'a pas franchi
+`dev → staging → main`.
+
+#### Et une treizième, mesurée le soir même
+
+La liseuse du Mac ne suivait pas ⌘= sur son écran « Vous ». Trois captures n'ont
+rien prouvé : le facteur d'échelle **n'était pas celui qu'on croyait avoir posé**
+— 0,9 au lieu de 1,5 —, si bien qu'on mesurait un écran qui avait raison de ne
+pas bouger.
+
+Ce qui a tranché, en un seul build : **une sonde qui affiche ses propres
+conditions** à côté de ce qu'elle mesure. `f=1.5 cran=1 reglage=1` disait à la
+fois le résultat et l'état, et l'incohérence entre les deux derniers a nommé la
+cause. Une mesure qui n'affiche pas ses conditions ne mesure rien — c'est la
+même leçon que les fontes non inscrites, prise par l'autre bout.
+
+Le défaut réel, une fois le facteur vraiment posé : **une `List` de macOS ne
+transmet pas `\.font` à ses lignes.** Vaut pour les trois dépôts au titre de la
+méthode, et pour le seul Mac au titre du remède.
+
+---
+
+## 31 août 2026 — la troisième façon de mal dégrader, et l'exception qu'Android faisait
+
+L'entrée du 26 août dit que les cinq couleurs de surlignage sont une liste que
+personne ne valide, puis que « l'app le prévoit déjà — on préfère ignorer la
+ligne plutôt que de faire échouer toute la synchronisation — et le site fait de
+même ».
+
+**Android ne faisait ni l'un ni l'autre.** La phrase couvrait deux clients sur
+trois et se lisait comme si elle les couvrait tous.
+
+    iOS      couleur inconnue → la ligne est ignorée, rien n'est réécrit
+    site     idem
+    Android  couleur inconnue → ramenée à l'or, puis réécrite « gold »
+
+La marque reste visible, ce qui est le bon sens — perdre le surlignage du
+lecteur serait pire que le montrer d'une autre couleur. Mais la lecture ne fait
+pas que lire : le disque réécrit la clé, donc une marque posée `turquoise` par
+un client plus récent revient `gold`, et la valeur d'origine n'existe plus sur
+l'appareil.
+
+Inoffensif aujourd'hui — Android n'envoie rien au serveur. Le jour où `/sync`
+arrivera, cet appareil renverra `gold` pour la marque de quelqu'un d'autre et
+l'écrasera **pour tout le monde**.
+
+### La propriété, et la branche qui lui manquait
+
+La session macOS l'avait formulée en deux temps, en réparant un filtre de
+plateforme d'App Store Connect :
+
+> dégrader vers « ne rien faire », pas vers « tout rejeter »
+
+Un filtre écrit « garder ce qui correspond » vide la liste le jour où le champ
+disparaît, et la chaîne crée une version de plus à chaque passage.
+
+Le cas des couleurs en ajoute une troisième, et c'est la pire :
+
+    tout rejeter          une liste vide se remarque
+    ne rien faire         l'abstention est visible, c'est le repli sain
+    remplacer en silence  rien ne se remarque du tout
+
+**Les deux premières laissent une trace.** Une liste vide se voit, une exception
+s'arrête. Une valeur plausible, du bon type, rendue par une fonction qui a l'air
+d'avoir répondu — celle-là ne laisse rien.
+
+Et elle est la seule des trois qui **détruise**. Se tromper d'objet se rattrape
+en relançant ; `turquoise` devenu `gold` ne se rattrape pas.
+
+### Ce qu'on en fait
+
+Rien encore, délibérément. L'arbitrage — ignorer la ligne comme iOS, ou garder
+la chaîne inconnue à côté de la teinte affichée — appartient à qui écrira la
+synchronisation d'Android, et il se prend dans `HighlightColor.depuis`, pas dans
+un service qui n'existe pas. Le trancher maintenant serait décider sur une
+hypothèse.
+
+Ce qui est fait : la question est écrite là où on la rencontrera, et cette
+entrée-ci corrige celle du 26 août, qui affirmait de trois clients ce qui
+n'était vrai que de deux.
+
+## 31 août 2026 — la liseuse du Mac livrée, et ce que quatre contrôles verts n'ont pas mesuré
+
+**Source : l'app, cible macOS. Conséquences pour les trois.**
+
+**La liseuse macOS est sur TestFlight** — build `260831.1410`, `VALID`,
+distribué au groupe interne. Elle est passée d'« elle compile » à « elle se
+livre » : confinée,
+capable de relire le vault en direct, éprouvée par la CI, et poussée vers
+TestFlight par un job. Cinq choses en sortent qui ne se voient pas depuis un
+seul dépôt.
+
+### Le backend a un troisième client, et bientôt un quatrième
+
+Le `CLAUDE.md` de la racine dit encore « ces routes ont maintenant **deux
+clients**, bientôt trois avec Android ». C'est **trois** depuis aujourd'hui —
+iOS, le site, la liseuse macOS — et quatre avec Android.
+
+Rien ne change au contrat : `snake_case` littéral sans `rename`, et les cinq
+couleurs de surlignage que **personne ne valide côté serveur**. Mais un
+changement de forme dans une réponse casse maintenant trois plateformes qu'on
+ne regarde pas en le faisant, au lieu de deux.
+
+*Ce fichier-là n'est pas édité ici : c'est le fichier d'instructions du projet,
+et sa mise à jour revient à Gloire.*
+
+### L'achat universel range les deux plateformes dans la même collection
+
+`com.labibleont.ONT` est le même identifiant sur l'iPhone et sur le Mac —
+délibérément : Sign in with Apple délivre son code **au bundle qui l'a
+demandé**, et un `…ONT.mac` aurait exigé un App ID de plus et une troisième
+origine côté serveur.
+
+Le prix de ce choix s'est révélé aujourd'hui. Une seule fiche App Store Connect
+porte **les builds et les versions des deux plateformes, mélangés**. Deux
+requêtes qui semblaient sûres ne l'étaient plus :
+
+- `builds?filter[version]=…&limit=1` — les numéros sont datés à la minute et
+  les deux chaînes partent du même push. Le jour où elles vont à la même
+  vitesse, la requête rend deux builds, `limit: 1` en prend un, et **les deux
+  répondent `VALID`** ;
+- `apps/{id}/appStoreVersions` puis « la première modifiable » — l'ajout de la
+  plateforme macOS a créé une version `1.0` en `PREPARE_FOR_SUBMISSION` pendant
+  que l'iOS `1.0.4` était `READY_FOR_SALE`. Une livraison **iPhone** aurait
+  repris **la version du Mac**, y aurait écrit ses informations de revue et
+  rattaché son binaire.
+
+Le second était latent depuis toujours ; c'est l'ajout de la plateforme qui l'a
+armé, une heure avant qu'on le trouve. Mesuré contre le code d'avant, pas
+déduit.
+
+**Ce qui traverse :** dès qu'un identifiant est partagé entre plateformes, toute
+requête qui retrouve un objet « par son numéro » doit nommer la plateforme.
+Vaut pour Play le jour où Android livrera, et pour toute API qui range deux
+choses dans une collection commune.
+
+### Un filtre s'écrit « garder ce qui ne contredit pas »
+
+`v["attributes"].get("platform", plateforme) == plateforme`, et non
+`… ["platform"] == plateforme`. Si le fournisseur cessait de rendre le champ, la
+seconde forme viderait la liste et la chaîne créerait un objet de plus à chaque
+passage, sans rien dire. La première se contente de ne plus filtrer.
+
+**Ce qui traverse :** un filtre défensif doit dégrader vers *ne rien faire*, pas
+vers *tout rejeter*. Le site et le vault ont des filtres de la même famille.
+
+### La liseuse du Mac lit le vault en direct
+
+Elle sait maintenant rebâtir le corpus depuis le vault et **le relire** — pas
+seulement l'écrire. Un brouillon non publié apparaît dans l'app en quelques
+secondes.
+
+**Pour le vault :** on peut relire une parashah dans la liseuse avant de la
+publier. C'est un changement de méthode de travail, pas une fonctionnalité de
+plus.
+
+Deux défauts empilés s'y cachaient, et le second n'a été vu que parce que Gloire
+a demandé la bonne épreuve : un décompte identique au corpus publié ne prouve
+rien. Le chapitre 20 manquait alors que le compte disait 45.
+
+### Ce que macOS ne fait pas comme iOS
+
+Mesuré cette semaine, et à porter dans toute réflexion de parité :
+
+| ce qu'on croyait | ce que macOS fait |
+|---|---|
+| `dynamicTypeSize` règle la taille | inerte — il faut l'échelle maison `ONTUI` |
+| `.font()` habille les lignes d'une `List` | la `List` l'écrase ; `Form` non |
+| `ImageRenderer` mesure une vue | rend `0 × 0` pour une `List` |
+| `WindowGroup` = une fenêtre | il en ouvre plusieurs ; `Window` non |
+| `UIAppFonts` inscrit les fontes | ignoré ; il faut `ATSApplicationFontsPath` |
+| `aps-environment` déclare le push | c'est `com.apple.developer.aps-environment` |
+
+### Deux versions d'un outil qui se renvoient la balle
+
+La liseuse du Mac n'a pas pu être livrée ce soir, et pour une raison qu'aucun
+des deux dépôts voisins ne verrait :
+
+    Xcode 26.3  publié, runners GitHub   actool plante sur le bundle Icon Composer en macOS
+    Xcode 27.0  bêta, machine de l'auteur  compose l'icône, Apple refuse le binaire
+
+Le second n'a été connu qu'à l'envoi, **après** que l'archive et l'export ont
+réussi : « Apple is not currently accepting applications built with this version
+of Xcode. » Toute la journée avait été passée à contourner le premier — runner
+auto-hébergé compris — sans que personne vérifie l'autre bout.
+
+**Ce qui traverse :** quand on contourne une contrainte, dire à voix haute ce
+que le contournement suppose *ailleurs*. « Une machine dont l'Xcode compose
+l'icône » était nécessaire et pas suffisant, et la phrase ne le laissait pas
+deviner.
+
+La sortie est un `.appiconset` classique gravé depuis le bundle : un pont, écrit
+comme tel dans les fichiers, à retirer quand Xcode 27 sera publié.
+
+### Trois contrôles verts qui ne mesuraient rien, en une heure
+
+Sur cette seule icône, et chacun d'une famille différente :
+
+| ce qui rassurait | ce que c'était |
+|---|---|
+| « 37 ko, dimensions justes » | le gabarit vide de macOS |
+| « garder le rendu le plus sombre » | une image transparente — le vide est plus noir |
+| « les images sont au bit près identiques » | le script était mort avant d'en écrire une |
+
+Le troisième est le pire : la comparaison portait sur des fichiers que rien
+n'avait touchés. **Un contrôle qui ne peut pas échouer ne contrôle rien**, et
+celui-là ne le pouvait pas.
+
+Ce qui a tranché à chaque fois : regarder. Une planche de contact des dix
+tailles, puis l'icône dans le Dock.
+
+### Ce que la première livraison réussie a tranché
+
+Deux questions restées ouvertes toute la journée, réglées par une seule mesure :
+
+- **les groupes de testeurs ne sont pas rangés par plateforme.** Un seul
+  « Dev » pour les deux, et le garde des homonymes n'a jamais eu à refuser. On
+  avait construit ce garde faute de pouvoir mesurer — il reste, inutile et bon ;
+- **le filtre de plateforme a été éprouvé sur le cas réel, le soir même.** Les
+  deux chaînes ont produit **le même numéro** — `260831.1410` — dans la même
+  course. Sans le filtre, `filter[version]=260831.1410&limit=1` aurait rendu
+  l'un des deux au hasard, et **les deux répondent `VALID`** : le job de
+  l'iPhone aurait pu rattacher le build du Mac au groupe, sans un mot.
+
+  Et la façon dont j'ai failli conclure l'inverse mérite d'être écrite : j'avais
+  compté **un seul numéro dans le journal** et j'en avais déduit qu'une seule
+  chaîne avait livré. Il n'y en avait qu'un parce que les deux le partageaient.
+  **Le signe même du défaut, lu comme son absence** — et il a fallu la capture
+  d'écran de la fiche, où la même ligne apparaît deux fois, une par plateforme,
+  pour le voir.
+
+### Un code de sortie est une convention, pas une mesure
+
+La toute première livraison du Mac a échoué en 0,26 seconde, code **134**, avant
+d'avoir rien compilé. La cause tenait dans `xcodebuild -version | head -1` :
+`head` ferme le tuyau après sa ligne, `xcodebuild` écrit la seconde dedans.
+
+Un programme ordinaire meurt là sur `SIGPIPE`, ce qui rend **141**. Celui
+d'Xcode 27 lève une `NSFileHandleOperationException` que personne ne rattrape,
+et avorte — `SIGABRT`, donc 134.
+
+**Ce chiffre a fait écarter la bonne piste une demi-heure durant.** Le
+raisonnement était juste — SIGPIPE donne 141, j'ai 134, donc ce n'est pas un
+tuyau — et faux, parce qu'il supposait que ce programme se comporte comme les
+autres.
+
+**Ce qui traverse :** un code de sortie est une convention que le programme
+choisit de suivre ou non. Un outil qui convertit un signal en exception change
+le nombre sans changer la cause. Vaut pour le vault (`obsidian-export`), pour le
+site (`vite build`), et pour toute chaîne qui décide en lisant un `$?`.
+
+Et une réserve inscrite dans la correction elle-même : **le défaut ne se
+reproduit pas sur la machine** — cent fois l'ancienne forme, zéro échec, contre
+deux échecs sur deux en CI. Le diagnostic vient de la trace d'appel, pas d'une
+reproduction. Assez pour agir, pas assez pour dire « vérifié ».
+
+### Et le motif de ces deux jours
+
+**Le silence bien formé** : une mesure exacte qui répond à une *autre* question
+que celle posée. Un `0 × 0` qui semble un échec de rendu. Un « aucune fenêtre »
+qui vient d'un écran verrouillé. Une vignette de Stage Manager rapportée comme
+la géométrie de la fenêtre. Un décompte de corpus identique au publié. Un
+`py_compile` vert qui n'a vu aucun des scripts qu'il prétendait couvrir.
+
+Et le plus retors, celui trouvé le soir même : la livraison de l'iPhone a
+réussi de bout en bout pendant que celle du Mac mourait. **Le tableau était
+vert à première vue** — il a fallu regarder job par job pour voir qu'une des
+deux chaînes n'avait rien livré.
+
+La session Android en a rapporté une troisième forme, pire que les deux
+qu'on connaissait : ni « tout rejeter », ni « ne rien faire », mais
+**remplacer en silence**. Un `?: GOLD` sur une couleur de surlignage inconnue
+rend une valeur plausible, du bon type — et détruit l'originale. Une liste
+vide se remarque ; une abstention se remarque ; une substitution, non.
+
+Aucune de ces mesures n'est fausse. Toutes rassurent. **Une mesure qui n'affiche
+pas ses conditions ne mesure rien** — et une garde qu'on lit plus large qu'elle
+n'est vaut moins que pas de garde.

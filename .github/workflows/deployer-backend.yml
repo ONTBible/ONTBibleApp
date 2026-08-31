@@ -186,7 +186,13 @@ jobs:
         run: |
           set -euo pipefail
           cible=target/lambda/ont-backend
-          objcopy=$(command -v llvm-objcopy || ls /usr/lib/llvm-*/bin/llvm-objcopy | head -1)
+          # Découpé plutôt que mis en tuyau : `ls` tué par un `head` qui a
+          # fermé rend 141, et le shell des actions tourne en `-o pipefail`.
+          objcopy="$(command -v llvm-objcopy || true)"
+          if [ -z "$objcopy" ]; then
+            trouves="$(ls /usr/lib/llvm-*/bin/llvm-objcopy 2>/dev/null || true)"
+            objcopy="${trouves%%$'\n'*}"
+          fi
 
           # La sortie est capturée entière avant d'être filtrée : un
           # `awk … exit` ferme le tuyau, et sentry-cli panique sur l'écriture

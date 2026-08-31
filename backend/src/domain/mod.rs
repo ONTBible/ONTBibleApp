@@ -1,5 +1,6 @@
 //! Le domaine — ce que le backend sait, indépendamment d'AWS et d'axum.
 
+pub mod capacites;
 pub mod diffusion;
 pub mod ports;
 pub mod sync;

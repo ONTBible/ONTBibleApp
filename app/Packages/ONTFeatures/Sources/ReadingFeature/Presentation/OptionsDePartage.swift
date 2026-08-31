@@ -40,6 +40,7 @@ public struct OptionsDePartage: View {
                 Toggle("Nom de l'application", isOn: $model.preferences.partage.nomDeLApp)
             } header: {
                 Text("La forme")
+                    .font(ONTUI.enteteDeListe)
             }
             .ontRow()
 
@@ -54,6 +55,7 @@ public struct OptionsDePartage: View {
                         + "pas l'application. Dans un message à un proche, il encombre "
                         + "autant qu'il sert."
                 )
+                    .font(ONTUI.piedDeListe)
             }
             .ontRow()
 
@@ -80,11 +82,13 @@ public struct OptionsDePartage: View {
                 .accessibilityLabel("Aperçu du partage. \(apercu)")
             } header: {
                 Text("Aperçu")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text(
                     "Le lien voyage à part : votre application de messagerie en fait "
                         + "un aperçu, au lieu d'une adresse noyée dans le texte."
                 )
+                    .font(ONTUI.piedDeListe)
             }
             .ontRow()
         }

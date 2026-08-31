@@ -29,7 +29,17 @@ public final class AccountModel {
     private let positions: any PositionRepository
     private let profils: any ProfilRepository
     private let flow: SignInFlow
+    /// `nil` sur un montage qui ne négocie pas — les épreuves, et tout appelant
+    /// d'avant cette négociation. L'offre reste alors inconnue, donc permissive.
+    private let capacitesService: (any CapacitesService)?
     private let reporter: any Reporter
+
+    /// Ce que le serveur annonce savoir faire.
+    ///
+    /// Inconnue tant qu'on n'a pas pu demander — et **inconnue ne retire
+    /// rien** : hors ligne, ou branché sur un serveur d'avant la route, le
+    /// lecteur garde tous ses boutons. Voir [`Offre`].
+    public private(set) var capacites: Offre = .inconnue
 
     public private(set) var state: State = .signedOut
     public private(set) var lastSync: Date?
@@ -103,6 +113,7 @@ public final class AccountModel {
         positions: any PositionRepository,
         profils: any ProfilRepository,
         flow: SignInFlow,
+        capacites capacitesService: (any CapacitesService)? = nil,
         reporter: any Reporter = SilentReporter()
     ) {
         self.auth = auth
@@ -112,9 +123,26 @@ public final class AccountModel {
         self.positions = positions
         self.profils = profils
         self.flow = flow
+        self.capacitesService = capacitesService
         self.reporter = reporter
         profil = profils.profil
         state = store.session == nil ? .signedOut : .signedIn
+    }
+
+    /// Demander au serveur ce qu'il sait faire.
+    ///
+    /// **Ne lève jamais.** Un échec laisse l'offre inconnue, ce qui rend à
+    /// l'app son comportement d'avant la négociation : tout est proposé. C'est
+    /// délibéré — une négociation qui casserait la connexion quand elle échoue
+    /// serait pire que pas de négociation du tout.
+    ///
+    /// Rien n'est remonté non plus : un serveur d'avant cette route rend `404`,
+    /// et c'est un état normal pendant toute la fenêtre où l'app est en avance
+    /// sur lui. Le signaler noierait les vraies pannes.
+    public func negocier() async {
+        guard let capacitesService else { return }
+        guard let offertes = try? await capacitesService.offertes() else { return }
+        capacites = Offre(offertes)
     }
 
     // MARK: - Connexion

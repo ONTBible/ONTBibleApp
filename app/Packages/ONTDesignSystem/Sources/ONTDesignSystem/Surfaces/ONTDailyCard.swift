@@ -123,6 +123,7 @@ public struct ONTDailyCard<Footer: View>: View {
                 .lineSpacing(size.leading)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .font(ONTUI.ligneDeListe)
 
             // Le renvoi est **gras**, pas italique : c'est une étiquette qu'on
             // repère, pas une citation dans une citation.

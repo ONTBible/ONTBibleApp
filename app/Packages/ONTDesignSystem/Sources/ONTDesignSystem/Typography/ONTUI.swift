@@ -80,6 +80,53 @@ public enum ONTUI {
     /// Pour les nombres qu'aucun rôle ne nomme — le côté d'un symbole SF, le
     /// minimum d'une case de grille. Sur iOS, `ONTScaled` fait déjà ce travail
     /// avec le curseur du système ; ici on ne fait que suivre le facteur.
+    // MARK: - Ce qu'une ligne de liste doit déclarer sur le Mac
+
+    /// **Pourquoi ces trois-là rendent `nil` sur iOS.**
+    ///
+    /// Une `List` de macOS reprend la fonte du système à ses lignes : mesuré au
+    /// pixel, aucun style n'y échappe — `sidebar`, `plain`, `inset`, `bordered`
+    /// —, et rien posé au-dessus ne franchit la barrière, ni sur la `List` ni
+    /// sur une `Section`. Un texte de ligne qui ne déclare pas sa fonte ne
+    /// suivra donc jamais ⌘=.
+    ///
+    /// Sur iOS le problème n'existe pas : le style de liste donne déjà la bonne
+    /// fonte, et Dynamic Type la fait suivre. **Y imposer la nôtre changerait
+    /// l'apparence pour rien** — un en-tête n'y vaut pas `.body`, et on
+    /// écraserait ce que la plateforme a choisi.
+    ///
+    /// D'où `Font?` et non `Font` : `.font(nil)` veut dire « hérite », donc
+    /// exactement ce qui se passe aujourd'hui. Le remède n'a de contenu que là
+    /// où le mal existe, et ça se lit dans le type.
+    ///
+    /// Les trois rôles ne prennent pas la même fonte, et c'est le point : un
+    /// en-tête, un pied et un contenu de ligne n'ont pas la même voix.
+    public static var ligneDeListe: Font? {
+        #if os(macOS)
+            return body
+        #else
+            return nil
+        #endif
+    }
+
+    /// L'intitulé d'une `Section`.
+    public static var enteteDeListe: Font? {
+        #if os(macOS)
+            return footnote
+        #else
+            return nil
+        #endif
+    }
+
+    /// Le paragraphe explicatif sous une `Section`.
+    public static var piedDeListe: Font? {
+        #if os(macOS)
+            return footnote
+        #else
+            return nil
+        #endif
+    }
+
     public static func points(_ valeur: CGFloat) -> CGFloat {
         #if os(macOS)
             return valeur * f

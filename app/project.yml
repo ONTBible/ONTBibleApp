@@ -333,10 +333,6 @@ targets:
           # Sentry n'est pas lié à cette cible : on n'instrumente pas une
           # liseuse avant qu'elle ait un seul lecteur.
           - "App/Observability.swift"
-          # Les notifications distantes passent par un autre mécanisme sur le
-          # Mac, et une liseuse de bureau n'en a pas besoin pour rendre le
-          # service qu'on lui demande.
-          - "App/PushDistant.swift"
           # **La racine d'iOS.** Le Mac a la sienne, `MacSources/RacineMac.swift`,
           # et ce n'est pas une duplication : `RootView` monte une
           # `TabView(.sidebarAdaptable)` dont AppKit dessine la barre latérale —
@@ -351,6 +347,23 @@ targets:
       properties:
         LSApplicationCategoryType: public.app-category.reference
         ITSAppUsesNonExemptEncryption: false
+        # **Les fontes, qui n'étaient inscrites nulle part sur le Mac.**
+        #
+        # iOS les déclare par `UIAppFonts`. macOS ne connaît pas cette clé : il
+        # lit `ATSApplicationFontsPath`, un chemin relatif à `Resources/`. La
+        # cible ne déclarait ni l'une ni l'autre — les `.ttf` étaient copiés
+        # dans le bundle, et personne ne les inscrivait.
+        #
+        # Le défaut était invisible ici et seulement ici : `Font.custom`
+        # retombe en silence sur la fonte système, et l'auteur a Ezra SIL
+        # installée à titre personnel — `~/Library/Fonts/SILEOT.ttf`. L'hébreu
+        # s'affichait donc correctement **sur sa machine et sur aucune autre**,
+        # pendant que Literata, elle, ne s'affichait nulle part.
+        #
+        # « . » et non « Fonts » : la phase de ressources aplatit
+        # `Resources/Fonts/` dans `Contents/Resources/`.
+        ATSApplicationFontsPath: "."
+
         # **`CFBundleName` en plus de `CFBundleDisplayName`.**
         #
         # Le Mac prend son nom de menu dans `CFBundleName`, qui retombe sur le

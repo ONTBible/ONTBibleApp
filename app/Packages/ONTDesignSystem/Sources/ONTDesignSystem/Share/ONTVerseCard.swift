@@ -40,6 +40,7 @@ public struct ONTVerseCard: View {
             Text(text)
                 .lineSpacing(size * 0.42)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .font(ONTUI.ligneDeListe)
 
             Spacer(minLength: 0)
 

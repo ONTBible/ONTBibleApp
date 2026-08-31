@@ -50,7 +50,12 @@ jobs:
     #
     # Trente minutes : plus du double du temps observé, assez pour absorber une
     # lenteur de runner, assez court pour qu'un blocage se voie dans l'heure.
-    timeout-minutes: 30
+    #
+    # **Quarante depuis que le Mac est éprouvé ici aussi.** Le chiffre suit la
+    # règle qu'énonce le paragraphe ci-dessus — le double du temps observé — et
+    # non l'inverse : une seconde cible à bâtir allonge le run, et garder 30
+    # aurait transformé la borne en couperet sur des builds sains.
+    timeout-minutes: 40
 
     steps:
       - name: L'app
@@ -65,6 +70,59 @@ jobs:
         with:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
+
+      # ## Les scripts de livraison, que rien n'éprouvait
+      #
+      # `.github/scripts/` et `scripts/` portent neuf scripts Python — la fiche
+      # des magasins, les groupes de testeurs, la soumission, les captures
+      # d'Android. **Aucun n'était compilé par quoi que ce soit.** Une faute de
+      # syntaxe y dormait jusqu'au jour de la livraison, c'est-à-dire jusqu'au
+      # pire moment : celui où l'on pousse une version et où l'on découvre que
+      # l'outil qui la pousse ne démarre pas.
+      #
+      # Posé en tête, avant Xcode : ça coûte deux secondes et ça évite d'attendre
+      # une compilation complète pour apprendre qu'une parenthèse manque.
+      #
+      # ## Ce que ça n'attrape pas, et il faut le dire
+      #
+      # `py_compile` lit la syntaxe, pas le sens. Les deux vrais défauts trouvés
+      # dans ces scripts le 31 août — une requête qui rendait deux builds là où
+      # elle en attendait un, un groupe de testeurs choisi par homonymie —
+      # seraient passés ici sans broncher.
+      #
+      # Un premier jet ajoutait un second contrôle : « tout script cité par un
+      # workflow existe ». Il a été retiré, parce qu'il ne voyait **aucun** des
+      # scripts de livraison — ils sont lancés par leur nom nu depuis un
+      # `working-directory`, jamais par un chemin. Il aurait couvert cinq
+      # chemins en ayant l'air d'en couvrir neuf, et une garde qu'on lit plus
+      # large qu'elle n'est vaut moins que pas de garde du tout.
+      - name: Les scripts de livraison compilent
+        working-directory: ONTBibleApp
+        run: git ls-files -z '*.py' | xargs -0 python3 -m py_compile
+
+      # ## Et les scripts shell, deux motifs, pas un de plus
+      #
+      # `bash -n` les lit, plus deux formes qui ont chacune coûté une livraison
+      # du Mac le 31 août 2026 et qu'aucune relecture n'attrape :
+      #
+      #   - **une variable collée à un caractère non-ASCII** — bash lit `$gris→`
+      #     comme un seul nom, et `set -u` arrête le script sur une variable qui
+      #     n'existe pas. La ligne fautive n'est pas celle qu'accuse le message ;
+      #   - **`xcodebuild` dans un lecteur qui se ferme tôt** — `head` ferme le
+      #     tuyau, `xcodebuild` y écrit sa seconde ligne, et celui d'Xcode 27
+      #     lève une exception non rattrapée. `SIGABRT`, code 134, et non le 141
+      #     qu'on cherche quand on soupçonne un `SIGPIPE`.
+      #
+      # Ces deux-là ont été réintroduits **dans un fichier neuf, le jour même où
+      # ils étaient corrigés ailleurs**. Ils ne peuvent plus dépendre de la
+      # vigilance de qui écrit.
+      #
+      # Comme le contrôle Python juste au-dessus, il ne connaît que des formes :
+      # une garde absente, un canal mal dérivé, un `trap` oublié passent ici
+      # sans un mot. Le fichier le dit lui-même en tête.
+      - name: Les scripts shell ne portent pas les deux pièges connus
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-les-scripts.sh
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
@@ -222,12 +280,123 @@ jobs:
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 
-      # Le compte réel, lu du paquet de résultats. La ligne « Executed 0 tests »
+      # **La liseuse du Mac n'était éprouvée nulle part.**
+      #
+      # `-scheme ONT` ne bâtit que la cible iOS. Les épreuves de `MacTests/` —
+      # dont `EchelleDeLInterfaceTests`, qui établit que `dynamicTypeSize` est
+      # inerte sur macOS et que le texte sans fonte déclarée suit bien le
+      # facteur d'interface — ne tournaient que sur la machine de la session
+      # qui les avait écrites. Un commit iOS pouvait casser le Mac en vert.
+      #
+      # Ce sont précisément les constats qui ont coûté le plus cher à établir :
+      # trois relevés pour comprendre que l'ancien levier était mort. Les
+      # laisser hors CI, c'était accepter de les réapprendre.
+      #
+      # Pas de simulateur ici : la destination est le runner lui-même.
+      #
+      # **Avec son icône, et c'est le but.** Elle était retirée ici, parce que
+      # l'`actool` d'Xcode 26.3 — celui du runner — plante en composant un
+      # bundle Icon Composer pour macOS. La cible du Mac porte désormais un
+      # `.appiconset` classique, gravé depuis ce bundle, et cet outil-là sait
+      # le composer depuis dix ans.
+      #
+      # Ne pas remettre le contournement : **c'est ce job qui prouve que le
+      # pont tient.** Si l'on vide de nouveau ce réglage, la CI redevient verte
+      # et ne mesure plus rien — la livraison, elle, échouera chez Apple.
+      #
+      # **Et le chemin par l'outillage est fermé, mesuré.** Une branche jetable
+      # a réactivé l'icône pour lire le vrai diagnostic : `actool` ne rend rien
+      # de plus qu'une pile d'appel d'`IBAbstractPlatformToolProxy` et une
+      # attente de rapport de crash. Aucun message, aucune ligne fautive.
+      #
+      # Et l'image du runner ne propose **qu'une seule version** — 26.3 — alors
+      # que le workflow demande déjà `latest`. Il n'y a donc pas d'Xcode plus
+      # récent à réclamer ici.
+      #
+      # **La limite est réelle et elle attend la livraison** : le jour où le Mac
+      # se livre, il lui faudra soit un runner dont l'`actool` ne plante pas,
+      # soit un `.appiconset` classique pour la seule cible macOS — l'iOS
+      # gardant le bundle Icon Composer. Le second est un travail de dessin, pas
+      # de configuration : un aplat et un glyphe ne rendent ni le verre, ni
+      # l'ombre, ni la translucidité que `ONT.icon` décrit, et l'icône
+      # différerait selon la machine qui a construit. C'est un arbitrage pour
+      # l'auteur, pas une case à cocher.
+      #
+      # **Sans signature, et c'est une limite qu'il faut connaître.** Le runner
+      # n'a pas de compte développeur, donc pas de profil, donc rien à signer
+      # avec. Les droits d'`ONTMac.entitlements` sont alors absents du binaire :
+      # ce job dit que le code du Mac tient, il ne dira **jamais** que Sign in
+      # with Apple fonctionne. Cette vérification-là se fait à la main, sur une
+      # machine enregistrée dans le compte développeur.
+      - name: Les tests du Mac
+        working-directory: ONTBibleApp/app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONTMac \
+            -destination "platform=macOS" \
+            -resultBundlePath ../resultats-mac.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
+
+      # **Ce que `xcbeautify` avale.**
+      #
+      # Il rend la sortie lisible en ne gardant que ce qu'il sait nommer. Les
+      # diagnostics d'`actool` n'en font pas partie : au premier passage de ce
+      # job, la compilation de l'icône a échoué et le compte rendu ne portait
+      # que « Command CompileAssetCatalogVariant failed with a nonzero exit
+      # code » — l'échec sans sa raison, donc un aller-retour de CI pour
+      # apprendre ce que la première exécution savait déjà.
+      #
+      # On garde le brut à côté et on n'en montre les lignes d'erreur que
+      # lorsqu'il y en a. Rien ne s'ajoute au journal d'un run vert.
+      - name: Ce que le Mac a vraiment dit
+        if: failure()
+        working-directory: ONTBibleApp
+        run: |
+          # **D'abord les épreuves, quand il y en a.**
+          #
+          # Un échec qui ne nomme pas l'attente déçue protège sans rien
+          # apprendre : le suivant doit refaire l'enquête depuis zéro. Le job
+          # iOS rend « Expectation failed » et le nom du test ; celui-ci ne
+          # rendait qu'`exit 65`.
+          echo "── les épreuves qui ont échoué ──"
+          if [ -d resultats-mac.xcresult ] \
+            && xcrun xcresulttool get test-results summary \
+                 --path resultats-mac.xcresult > resume-mac.json 2>/dev/null; then
+            python3 scripts/lire-echecs.py resume-mac.json
+          else
+            echo "  aucun paquet de résultats : les épreuves n'ont pas été atteintes"
+          fi
+
+          # **Puis le brut, pour ce qui tombe avant elles.**
+          #
+          # C'est ce qui est arrivé au premier passage : `actool` plantait, et
+          # `xcbeautify` ne rendait que « failed with a nonzero exit code ».
+          echo
+          echo "── les lignes d'erreur du log brut ──"
+          grep -iE "error:|failed|\*\* [A-Z]+ FAILED" brut-mac.log | tail -40 || true
+
+      # Le compte réel, lu des paquets de résultats. La ligne « Executed 0 tests »
       # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
       # invisible, et l'on croirait qu'aucun test n'a tourné.
+      #
+      # Chaque paquet est compté séparément, et son absence est dite plutôt que
+      # levée : quand l'iPhone tombe, le Mac n'a pas tourné et son paquet
+      # n'existe pas. Une erreur de plus ici masquerait celle qu'on cherche.
       - name: Le compte
         if: always()
         working-directory: ONTBibleApp
         run: |
-          xcrun xcresulttool get test-results summary --path resultats.xcresult \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"{d['passedTests']} réussis / {d['totalTestCount']}\")"
+          compter() {
+            if [ ! -d "$1.xcresult" ]; then
+              echo "$2 — pas de résultats : les épreuves n'ont pas tourné"
+              return
+            fi
+            xcrun xcresulttool get test-results summary --path "$1.xcresult" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"$2 — {d['passedTests']} réussis / {d['totalTestCount']}\")"
+          }
+          compter resultats "l'iPhone"
+          compter resultats-mac "le Mac"

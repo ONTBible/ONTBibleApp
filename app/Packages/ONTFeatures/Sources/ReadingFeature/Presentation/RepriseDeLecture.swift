@@ -1,3 +1,4 @@
+import ONTDesignSystem
 import ONTKit
 import SwiftUI
 
@@ -35,6 +36,7 @@ public struct RepriseDeLecture: View {
                 Label("Rien à reprendre", systemImage: "bookmark")
             } description: {
                 Text("Ouvrez une unité : elle vous attendra ici la prochaine fois.")
+                .font(ONTUI.body)
             }
         }
     }

@@ -5,6 +5,7 @@ import ONTKit
 import QahalFeature
 import ReadingFeature
 import SearchFeature
+import os
 import AppKit
 import SwiftUI
 import YouFeature
@@ -49,10 +50,26 @@ struct ONTMacApp: App {
     /// Voir `DelegueMac` — il existe pour une seule raison : recevoir les liens
     /// avant que SwiftUI n'en fasse une fenêtre de plus.
     @NSApplicationDelegateAdaptor(DelegueMac.self) private var delegue
-    @State private var vault = ModeVault()
+    @State private var vault = ModeVault(
+        montrer: { EtatMac.partage.composition.regarderLApercu($0) })
 
     var body: some Scene {
-        WindowGroup {
+        // **`Window` et non `WindowGroup`.**
+        //
+        // Un groupe *peut* engendrer des fenêtres ; une `Window` ne le peut
+        // pas. Et c'était le défaut : le **second** `ont://` ouvrait une
+        // seconde fenêtre, décalée de 29 points, et chaque lien suivant une de
+        // plus — mesuré, quatre liens, quatre fenêtres.
+        //
+        // Le délégué faisait pourtant son travail à chaque fois : la
+        // navigation avait lieu **et** une scène naissait à côté.
+        // `handlesExternalEvents` sur la vue ne l'empêche pas — il dit « cette
+        // fenêtre sait recevoir », pas « n'en ouvre pas d'autre ». La forme
+        // *scène* avec un ensemble vide fait pire, mesuré.
+        //
+        // Une liseuse n'a pas besoin de deux fenêtres : c'est un texte qu'on
+        // lit, pas un document qu'on compare. Musique et Livres font de même.
+        Window("La Bible ONT", id: "lecture") {
             AvecLaFonteDeLInterface {
                 AvecOuverture(theme: etat.composition.reading.preferences.theme) {
                     RacineMac()
@@ -100,6 +117,16 @@ struct ONTMacApp: App {
                 .safeAreaInset(edge: .bottom) {
                     if vault.vault != nil { BandeauDuVault(mode: vault) }
                 }
+                // Reprendre le vault de la session précédente, s'il y en
+                // avait un.
+                //
+                // Dans une vue et non dans le corps de la scène : c'est la
+                // même leçon que la fonte d'interface — ce qui est écrit hors
+                // d'un corps de vue n'est ni observé ni forcément exécuté au
+                // bon moment. `.task` s'attache au cycle de vie de la fenêtre,
+                // qui est précisément quand l'auteur peut voir le bandeau
+                // s'allumer.
+                .task { vault.reprendre() }
         }
         // **La taille d'ouverture, mesurée et non choisie.**
         //
@@ -136,11 +163,20 @@ struct ONTMacApp: App {
             // la pièce. Le réglage existe déjà dans l'écran de lecture ; ce
             // raccourci le double, il ne le remplace pas.
             CommandGroup(after: .newItem) {
-                Divider()
-                Button("Suivre un vault…") { choisirLeVault() }
-                    .keyboardShortcut("o", modifiers: [.command, .shift])
-                if vault.vault != nil {
-                    Button("Cesser de suivre") { vault.arreter() }
+                // **Le mode vault n'apparaît que là où il peut marcher.**
+                //
+                // Il a besoin du pipeline embarqué, et `livrer-le-mac.sh` ne
+                // l'embarque que pour le canal interne. Proposer l'entrée dans
+                // une livraison qui ne l'a pas, c'était promettre puis répondre
+                // « pipeline non embarqué » — mesuré sur le build 260831.1425,
+                // installé depuis TestFlight.
+                if ModeVault.pipelineEmbarque != nil {
+                    Divider()
+                    Button("Suivre un vault…") { choisirLeVault() }
+                        .keyboardShortcut("o", modifiers: [.command, .shift])
+                    if vault.vault != nil {
+                        Button("Cesser de suivre") { vault.arreter() }
+                    }
                 }
             }
             // **Deux tailles, deux gestes.** ⌘± règle l'interface ; ⌘⌥± le
@@ -288,7 +324,7 @@ private struct BandeauDuVault: View {
     }
 }
 
-/// Le délégué d'application — pour les liens, et rien d'autre.
+/// Le délégué d'application — les liens, et le jeton d'appareil.
 ///
 /// ## Pourquoi il faut en passer par là
 ///
@@ -303,9 +339,103 @@ private struct BandeauDuVault: View {
 /// c'est pour la même raison que partout ailleurs aujourd'hui : ce qui est en
 /// jeu appartient au système, pas à l'app.
 final class DelegueMac: NSObject, NSApplicationDelegate {
+    private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "push")
+
+    /// **La fenêtre posée à une taille exacte, pour les captures de l'App Store.**
+    ///
+    /// Apple n'accepte que quatre tailles pour macOS — 1280 × 800, 1440 × 900,
+    /// 2560 × 1600, 2880 × 1800 — et il n'existe **pas de simulateur macOS** :
+    /// l'app tourne nativement, donc la capture est celle de la vraie fenêtre.
+    /// Une fenêtre de 1440 × 900 points capturée en Retina rend 2880 × 1800,
+    /// c'est-à-dire une taille acceptée, sans redimensionner après coup.
+    ///
+    /// ## Pourquoi un argument de lancement
+    ///
+    /// C'est ce que fait déjà `scripts/captures.sh` pour l'iPhone, avec
+    /// `-ouvrir`. Et les deux autres voies sont fermées ici : `osascript` n'a
+    /// pas l'accessibilité sur la machine de l'auteur, et les préférences de
+    /// cadre de SwiftUI sont des clés de neuf cents caractères qui portent
+    /// l'arbre de vues entier — écrire dedans, c'est parier sur une chaîne qui
+    /// change à chaque modificateur ajouté.
+    ///
+    /// AppKit fait le reste : un argument `-clé valeur` au lancement devient un
+    /// `UserDefaults`. Rien à analyser.
+    ///
+    ///     open -a "La Bible ONT" --args -tailleDeCapture 1440x900
+    ///
+    /// Sans l'argument, la méthode ne fait rien — aucun lecteur ne rencontre ce
+    /// chemin.
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        poserLaTailleDeCapture()
+    }
+
+    /// **Reposée à chaque fois, et pas seulement au lancement.**
+    ///
+    /// Avec **Stage Manager** actif, envoyer une `ont://` à une app déjà
+    /// lancée gare sa fenêtre : elle devient une vignette en perspective de
+    /// 115 × 128, et `CGWindowList` rapporte la vignette comme si c'était la
+    /// fenêtre. Une capture prise là est nette, bien formée, et fausse.
+    ///
+    /// On ne touche pas au réglage de la machine pour autant — ce serait
+    /// changer l'environnement de quelqu'un pour arranger un script. L'app se
+    /// remet elle-même au premier plan et retrouve sa taille, sur ce seul
+    /// chemin.
+    private func poserLaTailleDeCapture() {
+        guard let demande = UserDefaults.standard.string(forKey: "tailleDeCapture") else { return }
+        let bouts = demande.split(separator: "x")
+        guard bouts.count == 2,
+            let largeur = Double(bouts[0]), let hauteur = Double(bouts[1])
+        else { return }
+
+        // Après le tour de boucle courant : au lancement la fenêtre n'existe pas
+        // encore, et à l'ouverture d'une URL elle n'a pas fini d'être dégarée.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApp.activate()
+            guard let fenetre = NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
+            fenetre.orderFrontRegardless()
+            var cadre = fenetre.frame
+            cadre.size = NSSize(width: largeur, height: hauteur)
+            fenetre.setFrame(cadre, display: true)
+            fenetre.center()
+        }
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls { EtatMac.partage.composition.router.open(url) }
         }
+        // Sans effet hors du chemin des captures — voir plus haut.
+        poserLaTailleDeCapture()
+    }
+
+    /// **La seconde raison d'avoir un délégué, et elle est de même nature.**
+    ///
+    /// SwiftUI n'expose pas plus le jeton d'appareil qu'il n'expose l'ouverture
+    /// d'une URL : `didRegisterForRemoteNotificationsWithDeviceToken` est une
+    /// méthode d'`NSApplicationDelegate`, et le système n'a pas d'autre voie
+    /// pour le rendre. C'est le même délégué et la même leçon — ce qui est en
+    /// jeu appartient au système, pas à l'app.
+    func application(
+        _ application: NSApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken jeton: Data
+    ) {
+        Task { await PushDistant.enregistrer(jeton) }
+    }
+
+    /// L'échec est **silencieux pour le lecteur**, et tracé pour nous.
+    ///
+    /// Il arrive pour des raisons qui ne le concernent pas — pas de réseau au
+    /// lancement, capacité Push absente du profil, machine non enregistrée dans
+    /// le compte développeur. Lui montrer une alerte reviendrait à lui
+    /// reprocher notre configuration.
+    ///
+    /// C'est le cas courant sur cette machine aujourd'hui, et ce le restera
+    /// tant qu'elle n'est pas enregistrée : sans profil, pas de droit
+    /// `aps-environment` dans le binaire, donc pas de jeton.
+    func application(
+        _ application: NSApplication,
+        didFailToRegisterForRemoteNotificationsWithError erreur: Error
+    ) {
+        journal.error("inscription aux notifications refusée — \(erreur.localizedDescription)")
     }
 }

@@ -1,9 +1,11 @@
 //! Les cas d'usage — la logique, sans axum ni AWS.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use time::OffsetDateTime;
 
+use crate::domain::capacites::Capacite;
 use crate::domain::ports::{
     AppareilRepository, Clock, IdentityProvider, Notificateur, SyncRepository, UserRepository,
 };
@@ -48,6 +50,12 @@ pub struct App {
     pub sync: Arc<dyn SyncRepository>,
     pub tokens: TokenIssuer,
     pub clock: Arc<dyn Clock>,
+    /// Ce que **ce** déploiement offre, calculé une fois au démarrage.
+    ///
+    /// Ici plutôt que recalculé à chaque requête : la configuration ne change
+    /// pas pendant la vie du processus, et une valeur figée est une valeur
+    /// qu'on peut comparer d'un appel à l'autre.
+    pub capacites: BTreeSet<Capacite>,
 }
 
 impl App {
@@ -253,5 +261,11 @@ fn millis(time: OffsetDateTime) -> i64 {
     time.unix_timestamp() * 1_000 + i64::from(time.millisecond())
 }
 
+/// Les doublures de test, partagées.
+///
+/// `pub(crate)` sous `cfg(test)` : les épreuves de l'interface ont besoin des
+/// mêmes faux dépôts que celles de l'application. Les recopier là-bas aurait
+/// donné deux jeux à tenir à jour — exactement le défaut qu'on passe la journée
+/// à corriger ailleurs.
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

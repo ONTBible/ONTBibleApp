@@ -43,7 +43,7 @@ struct RenvoiDuCorpusTests {
                 .chapter(book: "bereshit", chapter: "bereshit-9"),
             ]
         )
-        #expect(router.pendingVerse == 10, "le verset désigné doit être repris")
+        #expect(router.pendingVerse?.n == 10, "le verset désigné doit être repris")
     }
 }
 
@@ -67,7 +67,7 @@ struct ViserOuDesignerTests {
         let router = Router()
         router.designer(book: "bereshit", chapter: "bereshit-1", verse: 20)
 
-        #expect(router.pendingVerse == 20)
+        #expect(router.pendingVerse?.n == 20)
         #expect(router.pendingSelection == [20], "le verset doit arriver désigné")
     }
 
@@ -77,7 +77,7 @@ struct ViserOuDesignerTests {
         let router = Router()
         router.open(book: "bereshit", chapter: "bereshit-1", verse: 20)
 
-        #expect(router.pendingVerse == 20)
+        #expect(router.pendingVerse?.n == 20)
         #expect(router.pendingSelection.isEmpty)
     }
 
@@ -95,5 +95,55 @@ struct ViserOuDesignerTests {
         #expect(parLeWidget.biblePath == parLaCarte.biblePath)
         #expect(parLeWidget.pendingVerse == parLaCarte.pendingVerse)
         #expect(parLeWidget.pendingSelection == parLaCarte.pendingSelection)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// **Un verset visé porte son unité**, sinon une vue de lecture mange celui
+/// d'une autre.
+///
+/// Mesuré au simulateur : demander `bereshit-2?v=25` alors que `bereshit-1` est
+/// à l'écran, et l'ancienne vue efface le verset avant que la nouvelle ne se
+/// monte. Elle ne le trouvait pas chez elle, ne défilait pas — et le remettait
+/// quand même à `nil`. On atterrissait sur la bonne unité, en haut.
+///
+/// Troisième fois de la journée qu'un identifiant local sert là où il en faut un
+/// global : après les modes homonymes de deux corpus, et les résultats de
+/// recherche. Le remède est le même — porter avec soi ce qui rend unique.
+@MainActor
+struct VersetViseAvecSonUniteTests {
+    @Test("Le verset visé sait de quelle unité il vient")
+    func ilPorteSonUnite() throws {
+        let router = Router()
+        router.open(try #require(URL(string: "ont://read/bereshit/bereshit-2?v=25")))
+
+        let vise = try #require(router.pendingVerse)
+        #expect(vise.chapitre == "bereshit-2")
+        #expect(vise.n == 25)
+    }
+
+    /// Les trois portes qui posent un verset le nomment toutes avec son unité.
+    @Test("Les trois portes nomment l'unité")
+    func lesTroisPortes() throws {
+        let parLaCarte = Router()
+        parLaCarte.designer(book: "bereshit", chapter: "bereshit-3", verse: 7)
+        #expect(parLaCarte.pendingVerse?.chapitre == "bereshit-3")
+
+        let parLaRecherche = Router()
+        parLaRecherche.open(book: "bereshit", chapter: "bereshit-4", verse: 2)
+        #expect(parLaRecherche.pendingVerse?.chapitre == "bereshit-4")
+
+        let parLePartage = Router()
+        parLePartage.open(try #require(URL(string: "ont://share/bereshit/bereshit-5?v=9")))
+        #expect(parLePartage.pendingVerse?.chapitre == "bereshit-5")
+    }
+
+    /// Une unité ouverte sans viser de verset n'en invente pas un.
+    @Test("Sans verset, rien n'est visé")
+    func sansVersetRien() throws {
+        let router = Router()
+        router.open(try #require(URL(string: "ont://read/bereshit/bereshit-1")))
+        #expect(router.pendingVerse == nil)
     }
 }

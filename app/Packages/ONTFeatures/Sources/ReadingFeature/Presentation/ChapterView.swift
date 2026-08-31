@@ -1,5 +1,6 @@
 import ONTDesignSystem
 import ONTKit
+import OSLog
 import SwiftUI
 
 /// L'identité d'un verset pour le défilement.
@@ -29,6 +30,10 @@ struct ChapterView: View {
     /// Le bloc que la vue doit atteindre, quand un lien ou une reprise en
     /// désigne un. Les blocs sont les enfants directs de la pile, donc les
     /// seules cibles que `scrollPosition` sait viser.
+    /// Le journal de la lecture — voir `restore` : ce qu'on y écrit sert à
+    /// distinguer une inaction juste d'une inaction fautive.
+    private static let log = Logger(subsystem: "com.labibleont.ONT", category: "lecture")
+
     @State private var blocVise: Int?
         @State private var noteTarget: VerseSelection?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
@@ -192,7 +197,10 @@ struct ChapterView: View {
             // de l'unité **déjà ouverte**. La vue n'apparaît pas une seconde
             // fois, donc rien ne se déclencherait.
             .onChange(of: router.pendingVerse) { _, vise in
-                guard vise != nil else { return }
+                // Seulement le nôtre : sans ce filtre, chaque vue de lecture
+                // vivante relancerait sa restauration pour le verset d'une
+                // autre unité.
+                guard vise?.chapitre == chapter.id else { return }
                 Task { await restore(using: proxy) }
             }
             // Le suivi s'éteint aussi en **partant**, et pas seulement le temps
@@ -439,12 +447,42 @@ struct ChapterView: View {
         // est une non-opération silencieuse. Le comportement souhaitable
         // arrivait donc par tolérance du moteur, et le défaut se logeait juste
         // à côté, dans ce qu'on **retient**.
-        let demande = router.pendingVerse
+        // **On ne consomme que ce qui nous est adressé.**
+        //
+        // `pendingVerse` porte son unité depuis qu'on a mesuré ceci : demander
+        // `bereshit-2?v=25` alors que `bereshit-1` est à l'écran, et l'ancienne
+        // vue l'efface avant que la nouvelle ne se monte. Elle ne trouvait pas
+        // 25 chez elle, ne défilait pas — et le remettait quand même à `nil`.
+        // La nouvelle arrivait sur la bonne unité, en haut, sans rien à viser.
+        //
+        // Effacer ce qui ne nous est pas destiné, c'est répondre à la place de
+        // quelqu'un d'autre.
+        let pourNous = router.pendingVerse.flatMap {
+            $0.chapitre == chapter.id ? $0.n : nil
+        }
+        let demande = pourNous
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         let vise = demande.flatMap { n in
             chapter.verses.contains(where: { $0.n == n }) ? n : nil
         }
-        router.pendingVerse = nil
+        // **Un verset hors bornes se dit, au lieu de s'évanouir.**
+        //
+        // Ne rien viser est ici le comportement **juste** — et c'est ce qui rend
+        // le silence dangereux : il est indistinguable d'un défilement cassé,
+        // d'un verset mangé par une autre unité, ou d'une ancre introuvable.
+        // J'ai failli condamner une correction qui marchait sur cette base ;
+        // il a fallu aller lire le `verseCount` du corpus pour le savoir.
+        //
+        // Le cas est réel et attend quiconque compose une adresse depuis un
+        // **renvoi biblique** : « Bereshit 2:4-25 » nomme vingt-deux versets de
+        // la Genèse, quand l'unité ONT qui les porte en compte vingt et un,
+        // numérotés à partir de un. Une ligne de journal transforme une heure
+        // d'enquête en une lecture.
+        if let n = demande, vise == nil {
+            Self.log.notice(
+                "verset \(n, privacy: .public) demandé dans \(chapter.id, privacy: .public), qui en compte \(chapter.verses.count, privacy: .public) — rien à viser")
+        }
+        if pourNous != nil { router.pendingVerse = nil }
 
         suivi.recommence()
 
@@ -480,10 +518,32 @@ struct ChapterView: View {
         // la pile n'a pas encore ses cibles au premier instant. Les quatre
         // passes échelonnées d'avant compensaient l'échec de `scrollTo`, pas
         // une lenteur — elles ne réparaient rien, elles répétaient.
+        // **Deux gestes, et il en faut deux.**
+        //
+        // `scrollPosition(id:)` ne vise que les **enfants directs** de la pile
+        // de cibles, c'est-à-dire les blocs. En lecture suivie, les versets
+        // consécutifs sont fondus en un seul bloc — viser le bloc peut donc
+        // arriver plusieurs versets trop haut. Relevé sur le Mac par la session
+        // qui le tient : « ça atterrit sur le bloc contenant le verset, pas
+        // exactement sur le verset ».
+        //
+        // `scrollTo` vise le verset exactement, mais ne peut atteindre qu'une
+        // ligne **déjà montée** — c'est tout le défaut qu'on vient de réparer.
+        //
+        // Les deux ensemble font ce qu'aucun ne fait seul : le premier amène la
+        // pile paresseuse à monter la région voulue, le second ajuste au verset
+        // maintenant qu'il existe. Ni l'un ni l'autre n'est un raccourci de
+        // l'autre.
         blocVise = bloc
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         blocVise = bloc
+
+        // L'ajustement, une fois la région montée. Sans effet quand le bloc
+        // **est** le verset — le mode d'étude — puisqu'on y est déjà.
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo(VerseAnchor(n: vise), anchor: .top)
     }
 
     /// Les blocs tels qu'ils sont rendus.
@@ -611,6 +671,7 @@ private struct VerseRow: View {
                 .cesuree(theme.preferences.hyphenation)
             )
             .lineSpacing(theme.lineSpacing)
+                .font(ONTUI.ligneDeListe)
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
@@ -1016,7 +1077,7 @@ private struct ActionTileLabel: View {
             // dessous — et lui suit le curseur. On perd donc une icône qui
             // grandit, pas une information qui se lit.
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: ONTUI.points(18), weight: .medium))
                 .foregroundStyle(theme.accent)
                 .frame(width: 52, height: 44)
                 .background(
@@ -1421,6 +1482,7 @@ private struct BlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: spacing.s) {
                         Text(ordered ? "\(index + 1)." : "—")
                             .foregroundStyle(ONTColors.accent(theme.mode))
+                            .font(ONTUI.ligneDeListe)
                         Text(ONTTextRenderer.compose(item, theme: theme))
                     }
                 }
@@ -1464,9 +1526,9 @@ private struct FooterView: View {
 
             HStack(spacing: spacing.xs) {
                 Image(systemName: footer.locked ? "lock.fill" : "pencil.line")
-                Text(footer.locked ? "Verrouillée" : "À valider")
+                Text(footer.locked ? "Verrouillée" : "À valider").font(ONTUI.caption)
                 if let version = footer.version {
-                    Text("· Version \(version)")
+                    Text("· Version \(version)").font(ONTUI.caption)
                 }
             }
             .font(ONTUI.caption)
@@ -1511,7 +1573,7 @@ private struct NoteEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("\(chapter.title):\(verse)") {
+                Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
                     // `TextEditor` porte son propre fond, et il ne vient pas
                     // de la ligne : il reste gris système au milieu d'une nuit
                     // aubergine, même quand la section qui l'entoure est
@@ -1615,6 +1677,7 @@ public struct ReadingSettingsSheet: View {
                     Toggle("Couper les mots", isOn: $model.preferences.hyphenation)
                 } header: {
                     Text("Disposition")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "À la suite, les versets coulent en prose et leurs numéros "
@@ -1630,6 +1693,7 @@ public struct ReadingSettingsSheet: View {
                             + "en anglais couperait « pro-blème » au lieu de "
                             + "« pro-blè-me »."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1638,12 +1702,14 @@ public struct ReadingSettingsSheet: View {
                     Toggle("Translittération et hébreu", isOn: $model.preferences.showLevel3)
                 } header: {
                     Text("Niveaux du texte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Le corps de la traduction reste toujours visible. "
                             + "Les gloses explicitent l'implicite hébreu ; "
                             + "le niveau 3 donne le mot original."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1656,11 +1722,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Corps")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Cette taille s'ajoute au réglage système : agrandir le texte dans "
                             + "Réglages › Affichage agrandit aussi celui-ci."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1670,11 +1738,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Fonte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Chaque nom est composé dans sa propre fonte : "
                             + "ce que vous voyez est ce que vous lirez."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1682,8 +1752,10 @@ public struct ReadingSettingsSheet: View {
                     ThemeRow(selection: $model.preferences.theme)
                 } header: {
                     Text("Thème")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text("Mystique est la peau du site ontbible.com — nuit aubergine et or.")
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1700,6 +1772,7 @@ public struct ReadingSettingsSheet: View {
                         "Ramène disposition, niveaux, corps, fonte et thème à leur "
                             + "état de départ. Le rappel du verset du jour n'est pas touché."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
         }
@@ -1720,6 +1793,7 @@ public struct ReadingSettingsSheet: View {
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
+                .font(ONTUI.ligneDeListe)
         }
     }
 }
@@ -1881,7 +1955,7 @@ private struct ThemeRow: View {
                     if choix == selection {
                         Label(choix.label, systemImage: "checkmark")
                     } else {
-                        Text(choix.label)
+                        Text(choix.label).font(ONTUI.body)
                     }
                 }
             }
@@ -1889,8 +1963,9 @@ private struct ThemeRow: View {
             HStack(spacing: 8) {
                 Text("Thème")
                     .foregroundStyle(theme.ink)
+                    .font(ONTUI.ligneDeListe)
                 Spacer(minLength: 8)
-                Text(selection.label)
+                Text(selection.label).font(ONTUI.body)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
                 Image(systemName: "chevron.up.chevron.down")
                     .font(ONTUI.footnote.weight(.semibold))
@@ -1916,7 +1991,7 @@ private struct FontRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(font.label)
-                        .font(.custom(ONTFonts.family(font), size: 19))
+                        .font(.custom(ONTFonts.family(font), size: ONTUI.points(19)))
                         .foregroundStyle(theme.ink)
                     Text(font.note)
                         .font(ONTUI.footnote)

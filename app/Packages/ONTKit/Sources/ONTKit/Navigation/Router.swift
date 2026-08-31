@@ -69,6 +69,27 @@ public final class Router {
         }
     }
 
+    /// Un verset **et l'unité qui le porte**.
+    ///
+    /// Voir `pendingVerse` : sans l'unité, une vue de lecture ne peut pas savoir
+    /// si le verset qu'on lui demande est pour elle, et l'efface au passage.
+    public struct VerseVise: Hashable, Sendable {
+        public let chapitre: String
+        public let n: Int
+
+        public init(chapitre: String, n: Int) {
+            self.chapitre = chapitre
+            self.n = n
+        }
+
+        /// Rend `nil` quand il n'y a pas de verset à viser — ce qui évite au
+        /// point d'appel un `if let` par écriture.
+        init?(_ chapitre: String, _ n: Int?) {
+            guard let n else { return nil }
+            self.init(chapitre: chapitre, n: n)
+        }
+    }
+
     /// Le chemin de navigation dans l'onglet Bible.
     public enum Destination: Hashable, Sendable {
         case book(String)
@@ -95,7 +116,24 @@ public final class Router {
 
     /// Le verset à atteindre à l'ouverture d'une unité — posé par la
     /// recherche, consommé par la vue de lecture.
-    public var pendingVerse: Int?
+    ///
+    /// ## Il porte son unité, et ce n'est pas un ornement
+    ///
+    /// Un numéro de verset seul est **local à son unité** : « 25 » ne désigne
+    /// rien sans dire de quoi. Or la vue de lecture le consomme en le remettant
+    /// à `nil`, et plusieurs vues peuvent réagir à la fois.
+    ///
+    /// Mesuré : demander `bereshit-2?v=25` alors que `bereshit-1` est à
+    /// l'écran, et **l'ancienne vue mange le verset** avant que la nouvelle ne
+    /// se monte. Elle ne trouve pas 25 chez elle, ne défile pas — et l'efface
+    /// quand même. La nouvelle arrive et ne trouve plus rien : on atterrit sur
+    /// la bonne unité, en haut.
+    ///
+    /// C'est la troisième fois de la journée qu'un identifiant local sert là où
+    /// il en faut un global — après les modes homonymes de deux corpus et les
+    /// résultats de recherche. Le remède est le même : porter avec soi ce qui
+    /// rend unique.
+    public var pendingVerse: VerseVise?
 
     /// Les versets à **sélectionner** à l'ouverture — posés par un lien reçu.
     ///
@@ -208,7 +246,7 @@ public final class Router {
             tab = .bible
             biblePath = [.book(book), .chapter(book: book, chapter: parts[1])]
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = VerseVise(parts[1], pendingSelection.min())
             pendingShare = true
             return true
 
@@ -221,7 +259,8 @@ public final class Router {
             // Le widget passe `?v=12` : le passage arrive désigné, donc la
             // carte d'actions est déjà ouverte et « Partager » est à un doigt.
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = parts.count >= 2
+                ? VerseVise(parts[1], pendingSelection.min()) : nil
             return true
 
         default:
@@ -259,7 +298,7 @@ public final class Router {
     public func open(book: String, chapter: String, verse: Int? = nil) {
         tab = .bible
         biblePath = [.book(book), .chapter(book: book, chapter: chapter)]
-        pendingVerse = verse
+        pendingVerse = VerseVise(chapter, verse)
     }
 
     /// Traite un lien public `https://ontbible.com/fr/lire/<livre>/<unité>?v=1-3`.
@@ -283,7 +322,7 @@ public final class Router {
             // Le renvoi entier : on rouvre là où le lien pointait, et on
             // désigne ce qu'il désignait.
             pendingSelection = Self.verses(in: url)
-            pendingVerse = pendingSelection.min()
+            pendingVerse = VerseVise(parts[3], pendingSelection.min())
         } else {
             biblePath = [.book(book)]
         }

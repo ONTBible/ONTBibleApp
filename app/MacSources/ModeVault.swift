@@ -54,10 +54,45 @@ public final class ModeVault {
         public let raison: String
     }
 
-    private var source: DispatchSourceFileSystemObject?
-    private var descripteur: CInt = -1
+    private var surveillance: FSEventStreamRef?
     private var minuterie: Task<Void, Never>?
     private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "vault")
+
+    /// Le signet du vault, d'une session à l'autre.
+    ///
+    /// Sous bac à sable, le droit de lire un dossier ne survit pas à la
+    /// fermeture de l'app : c'est le sélecteur qui l'accorde, et il l'accorde
+    /// **au processus**. Un chemin relu des réglages désignerait le bon dossier
+    /// et ne l'ouvrirait pas — l'échec dirait « dossier illisible » à propos
+    /// d'un dossier parfaitement lisible, ce qui est le pire des messages.
+    ///
+    /// Un signet à portée de sécurité garde le droit lui-même, pas le chemin.
+    /// Où le pipeline écrit son aperçu, et où la liseuse va le lire.
+    ///
+    /// **Un seul endroit nommé**, et non deux chemins construits de part et
+    /// d'autre : c'est la seule garantie que celui qui écrit et celui qui lit
+    /// parlent du même dossier. Ils ne le faisaient pas — le second n'existait
+    /// pas.
+    nonisolated static let sortie: URL = FileManager.default.urls(
+        for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("vault-apercu", isDirectory: true)
+
+    private static let cleSignet = "vault.signet"
+
+    /// Le dossier dont on tient l'accès ouvert, et qu'il faut refermer.
+    ///
+    /// `nil` quand le dossier vient du sélecteur : le système a déjà ouvert
+    /// l'accès pour cette session, et il n'y a rien à refermer. Non-`nil`
+    /// seulement quand on l'a rouvert soi-même depuis un signet. Chaque
+    /// `start` veut son `stop`, et un compteur laissé ouvert fuit un droit.
+    private var accesOuvert: URL?
+
+    /// Où le signet est gardé.
+    ///
+    /// Injectable pour que les épreuves n'écrivent pas dans les réglages de
+    /// l'app installée : sans ça, lancer la suite laisserait l'auteur avec un
+    /// vault qu'il n'a pas désigné, ou lui retirerait le sien.
+    private let reglages: UserDefaults
 
     /// Le temps de silence avant de reconstruire.
     ///
@@ -70,50 +105,173 @@ public final class ModeVault {
     /// guette, pas son début.
     private let silence: Duration = .seconds(2)
 
-    public init() {}
+    /// Ce qu'on fait du corpus reconstruit — injecté, et non appelé en dur.
+    ///
+    /// Sans ça, `ModeVault` devrait atteindre la composition de l'app, et les
+    /// épreuves du signet monteraient tout le montage pour vérifier un
+    /// aller-retour de `UserDefaults`. Le défaut par défaut ne fait rien :
+    /// c'est ce qui rend le mode éprouvable sans corpus.
+    private let montrer: @MainActor (URL?) -> Void
+
+    public init(
+        reglages: UserDefaults = .standard,
+        montrer: @escaping @MainActor (URL?) -> Void = { _ in }
+    ) {
+        self.reglages = reglages
+        self.montrer = montrer
+    }
 
     /// Désigne un vault et commence à le suivre.
+    ///
+    /// L'URL vient du sélecteur, donc le système a déjà ouvert l'accès pour
+    /// cette session. On enregistre un signet pour les suivantes.
     public func suivre(_ dossier: URL) {
         arreter()
+        enregistrerLeSignet(dossier)
+        commencer(dossier, accesAFermer: nil)
+    }
+
+    /// Reprend le vault de la session précédente, s'il y en avait un.
+    ///
+    /// Sans bruit quand il n'y en a pas : le mode reste éteint, ce qui est
+    /// l'état de qui ne s'en sert pas. Ce n'est pas une erreur à signaler.
+    public func reprendre() {
+        guard let donnees = reglages.data(forKey: Self.cleSignet) else { return }
+        var perime = false
+        let resolu = try? URL(
+            resolvingBookmarkData: donnees,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &perime)
+        // Un signet qui ne se résout plus désigne un dossier déplacé, effacé,
+        // ou sur un volume démonté. On l'oublie : le retenter à chaque
+        // ouverture ferait échouer le lancement pour un dossier dont l'auteur
+        // ne se sert peut-être plus.
+        guard let dossier = resolu, dossier.startAccessingSecurityScopedResource() else {
+            journal.info("signet du vault caduc — oublié")
+            reglages.removeObject(forKey: Self.cleSignet)
+            return
+        }
+        // Périmé ne veut pas dire invalide : il s'est résolu, et il porte la
+        // bonne cible. Il faut seulement le réécrire, sans quoi il se périmera
+        // un peu plus à chaque fois jusqu'à ne plus se résoudre du tout.
+        if perime { enregistrerLeSignet(dossier) }
+        commencer(dossier, accesAFermer: dossier)
+    }
+
+    /// Éteint le mode, referme le descripteur, et oublie le vault.
+    ///
+    /// Le signet part avec : « Cesser de suivre » veut dire cesser, pas
+    /// suspendre. Le retrouver à la prochaine ouverture serait une surprise.
+    public func arreter() {
+        minuterie?.cancel()
+        minuterie = nil
+        if let surveillance {
+            // Les trois gestes vont ensemble : arrêter, détacher, libérer. En
+            // omettre un laisse un flux vivant sur un dossier qu'on ne suit
+            // plus — et il rallumerait le pipeline à chaque frappe.
+            FSEventStreamStop(surveillance)
+            FSEventStreamInvalidate(surveillance)
+            FSEventStreamRelease(surveillance)
+            self.surveillance = nil
+        }
+        accesOuvert?.stopAccessingSecurityScopedResource()
+        accesOuvert = nil
+        reglages.removeObject(forKey: Self.cleSignet)
+        vault = nil
+        etat = .eteint
+        // Cesser de suivre, c'est aussi cesser de lire l'aperçu.
+        montrer(nil)
+    }
+
+    private func commencer(_ dossier: URL, accesAFermer: URL?) {
         vault = dossier
+        accesOuvert = accesAFermer
         etat = .enAttente
         ouvrirLaSurveillance(dossier)
         reconstruire()
     }
 
-    /// Éteint le mode et referme le descripteur.
-    public func arreter() {
-        minuterie?.cancel()
-        minuterie = nil
-        source?.cancel()
-        source = nil
-        if descripteur >= 0 {
-            close(descripteur)
-            descripteur = -1
+    /// Garde le droit d'accès, et non le chemin.
+    ///
+    /// L'échec est silencieux à dessein : le mode marche tout de même pour la
+    /// session en cours, et l'auteur n'a rien à faire de la nouvelle qu'il
+    /// devra redésigner son dossier la prochaine fois. Le journal la porte.
+    private func enregistrerLeSignet(_ dossier: URL) {
+        do {
+            let donnees = try dossier.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil)
+            reglages.set(donnees, forKey: Self.cleSignet)
+        } catch {
+            journal.error("signet du vault non enregistré — \(error.localizedDescription)")
         }
-        vault = nil
-        etat = .eteint
     }
 
     // MARK: - La surveillance
 
+    /// **FSEvents, et non un descripteur sur le dossier.**
+    ///
+    /// La première version ouvrait la racine du vault avec `O_EVTONLY` et un
+    /// `DispatchSource`. C'est juste pour surveiller *un* dossier — et c'est
+    /// précisément ce qui ne servait à rien ici : **un descripteur de dossier
+    /// ne signale que ses propres entrées, jamais celles de ses
+    /// sous-dossiers.** Or les brouillons vivent quatre niveaux plus bas :
+    ///
+    ///     brouillons/1. kenesset (le Rassemblement)/1. torah (la Fondation)/
+    ///         01. bereshit (Genèse)/bereshit-7.md
+    ///
+    /// Le mode ne se déclenchait donc **jamais sur le travail réel**. Il
+    /// paraissait fonctionner parce qu'une reconstruction a lieu au moment où
+    /// l'on désigne le vault : on voyait un compte juste, et on l'attribuait à
+    /// la surveillance.
+    ///
+    /// **Mesuré** — l'auteur a proposé le seul essai qui distingue les deux :
+    /// ajouter un brouillon non publié et regarder si le compte bouge.
+    ///
+    ///     à la désignation du vault    44 unités, 864 versets
+    ///     brouillon ajouté             44 unités, 864 versets   ← inchangé
+    ///     pipeline lancé à la main     45 unités, 866 versets   ← il le lit
+    ///
+    /// Le pipeline lisait le brouillon ; l'app ne savait pas qu'il existait.
+    /// Sans cet essai, le compte affiché — exact, et identique au corpus publié
+    /// — était **indistinguable** entre « il a lu le vault » et « il a relu ce
+    /// qui était déjà là ».
+    ///
+    /// `FSEventStream` surveille une arborescence entière, ce qu'aucun
+    /// descripteur ne sait faire. Sa latence est mise à zéro : l'attente qui
+    /// compte est le **silence de deux secondes** que `quelqueChoseABouge`
+    /// impose déjà, et en ajouter une seconde ici la rendrait moins lisible.
     private func ouvrirLaSurveillance(_ dossier: URL) {
-        // `open` avec `O_EVTONLY` : on ne veut pas lire le dossier, seulement
-        // savoir qu'il a bougé. C'est aussi ce qui permet de le surveiller sans
-        // empêcher qu'on le déplace ou le démonte.
-        descripteur = open(dossier.path, O_EVTONLY)
-        guard descripteur >= 0 else {
-            etat = .echec("dossier illisible")
+        var contexte = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil, release: nil, copyDescription: nil)
+
+        let rappel: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            let mode = Unmanaged<ModeVault>.fromOpaque(info).takeUnretainedValue()
+            MainActor.assumeIsolated { mode.quelqueChoseABouge() }
+        }
+
+        guard
+            let flux = FSEventStreamCreate(
+                nil, rappel, &contexte,
+                [dossier.path] as CFArray,
+                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+                0,
+                UInt32(
+                    kFSEventStreamCreateFlagFileEvents
+                        | kFSEventStreamCreateFlagNoDefer
+                        | kFSEventStreamCreateFlagIgnoreSelf))
+        else {
+            etat = .echec("surveillance impossible")
             return
         }
-        let s = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descripteur,
-            eventMask: [.write, .extend, .rename, .delete],
-            queue: .main
-        )
-        s.setEventHandler { [weak self] in self?.quelqueChoseABouge() }
-        s.resume()
-        source = s
+        FSEventStreamSetDispatchQueue(flux, .main)
+        FSEventStreamStart(flux)
+        surveillance = flux
     }
 
     private func quelqueChoseABouge() {
@@ -139,6 +297,10 @@ public final class ModeVault {
                 case .success(let (unites, versets)):
                     journal.info("corpus rebâti — \(unites) unités, \(versets) versets")
                     self.etat = .fait(unites: unites, versets: versets)
+                    // **Et on le fait lire.** C'est le dernier mot de la
+                    // boucle, et il manquait : le pipeline écrivait un corpus
+                    // que la liseuse n'ouvrait pas.
+                    self.montrer(Self.sortie)
                 case .failure(let echec):
                     journal.error("pipeline en échec — \(echec.raison)")
                     self.etat = .echec(echec.raison)
@@ -152,17 +314,40 @@ public final class ModeVault {
     /// Il écrit dans le dossier de l'app plutôt que dans `dist/` du dépôt :
     /// **on ne veut pas qu'un aperçu de brouillon salisse un arbre de travail
     /// git**, ni qu'il entre dans un build par accident.
+    /// Le pipeline embarqué, s'il l'est.
+    ///
+    /// **Il ne l'est pas dans toutes les livraisons.** `livrer-le-mac.sh` ne
+    /// l'embarque que pour le canal interne : le mode vault est un outil
+    /// d'écriture, et le build public n'a pas à porter un exécutable dont
+    /// aucun lecteur ne se servira.
+    ///
+    /// D'où cette propriété plutôt qu'un test enfoui : le menu s'en sert pour
+    /// **ne pas proposer** ce qu'il ne peut pas tenir. Une app livrée le 31
+    /// août 2026 offrait « Suivre un vault… » et répondait « pipeline non
+    /// embarqué » — la bannière était juste, la promesse ne l'était pas.
+    nonisolated static var pipelineEmbarque: URL? {
+        guard let u = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline"),
+            FileManager.default.isExecutableFile(atPath: u.path)
+        else { return nil }
+        return u
+    }
+
     nonisolated private static func lancerLePipeline(
         vault: URL
     ) -> Result<(Int, Int), Echec> {
-        let binaire = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline")
-            ?? URL(fileURLWithPath: "/usr/local/bin/ont-pipeline")
-        guard FileManager.default.isExecutableFile(atPath: binaire.path) else {
-            return .failure(Echec(raison: "pipeline introuvable — voir README, section macOS"))
+        // **Le bundle, et lui seul.**
+        //
+        // Il y avait ici un repli sur `/usr/local/bin/ont-pipeline`. Le bac à
+        // sable l'interdit — un exécutable hors du bundle n'est pas lançable —,
+        // mais ce n'est pas la seule raison de le retirer : un binaire installé
+        // à part vieillit à part, et on relirait ses brouillons avec un pipeline
+        // d'il y a trois semaines sans que rien ne le dise. C'est exactement ce
+        // qu'`embarquer-le-pipeline.sh` explique vouloir éviter, et que le repli
+        // rendait possible par la porte de derrière.
+        guard let binaire = Self.pipelineEmbarque else {
+            return .failure(Echec(raison: "pipeline non embarqué — voir scripts/embarquer-le-pipeline.sh"))
         }
-        let sortie = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("vault-apercu", isDirectory: true)
+        let sortie = Self.sortie
 
         let processus = Process()
         processus.executableURL = binaire

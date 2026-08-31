@@ -48,6 +48,7 @@ struct BlocDeFiche: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("·").foregroundStyle(theme.accent)
+                            .font(ONTUI.ligneDeListe)
                         Text(ONTTextRenderer.compose(item, theme: theme))
                     }
                 }

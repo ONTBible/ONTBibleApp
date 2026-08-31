@@ -162,3 +162,26 @@ impl Config {
         })
     }
 }
+
+/// Ce que cette configuration installe, dit au domaine.
+///
+/// L'inversion de dépendance, concrètement : `capacites::offertes` ne connaît
+/// ni `Config`, ni les variables d'environnement, ni AWS. Il demande « ce
+/// fournisseur est-il installé ? » et cette implémentation répond. C'est ce
+/// qui rend l'offre éprouvable sans rien déployer.
+impl crate::domain::capacites::Installation for Config {
+    fn fournisseur_installe(&self, provider: crate::domain::Provider) -> bool {
+        match provider {
+            crate::domain::Provider::Apple => self.apple.is_some(),
+            crate::domain::Provider::Google => self.google.is_some(),
+            crate::domain::Provider::Github => self.github.is_some(),
+        }
+    }
+
+    /// La diffusion demande **les deux** : de quoi signer les notifications, et
+    /// le secret que le déploiement présente pour en déclencher une. L'une sans
+    /// l'autre ne sert à rien, et l'annoncer serait mentir à moitié.
+    fn diffusion_installee(&self) -> bool {
+        self.apns.is_some() && self.secret_diffusion.is_some()
+    }
+}

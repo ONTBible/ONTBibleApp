@@ -73,6 +73,7 @@ public struct QahalTab: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
+                            .font(ONTUI.ligneDeListe)
                         Text(subtitle)
                             .font(ONTUI.caption)
                             .foregroundStyle(.tertiary)
@@ -91,6 +92,7 @@ public struct QahalTab: View {
             .font(ONTUI.caption)
             .foregroundStyle(.tertiary)
             .padding(.top, 4)
+                .font(ONTUI.ligneDeListe)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)

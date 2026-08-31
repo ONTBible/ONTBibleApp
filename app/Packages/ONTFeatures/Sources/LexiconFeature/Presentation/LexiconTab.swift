@@ -156,7 +156,7 @@ private struct EntryRow: View {
 
             if let hebrew = entry.hebrew {
                 Text(hebrew)
-                    .font(.custom(ONTFonts.hebrew, size: 21))
+                    .font(.custom(ONTFonts.hebrew, size: ONTUI.points(21)))
                     .foregroundStyle(.secondary)
             }
 
