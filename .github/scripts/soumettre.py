@@ -110,7 +110,7 @@ def numero_de_version(client, build: str) -> str:
     return client.get(f"builds/{build}/preReleaseVersion")["data"]["attributes"]["version"]
 
 
-def creer_la_version(client, app: str, numero: str) -> str:
+def creer_la_version(client, app: str, numero: str, plateforme: str) -> str:
     """La version App Store, créée quand la précédente est déjà en vente.
 
     Une version `READY_FOR_SALE` n'est plus modifiable : tant que la suivante
@@ -125,7 +125,7 @@ def creer_la_version(client, app: str, numero: str) -> str:
     """
     cree = client.post("appStoreVersions", {"data": {
         "type": "appStoreVersions",
-        "attributes": {"platform": "IOS", "versionString": numero,
+        "attributes": {"platform": plateforme, "versionString": numero,
                        "releaseType": "AFTER_APPROVAL"},
         "relationships": {"app": {"data": {"type": "apps", "id": app}}}}})
     print(f"  version {numero} créée")
@@ -147,7 +147,24 @@ def main() -> None:
     #
     # Par la **relation** de l'app, et non par un filtre sur la collection :
     # `appStoreVersions?filter[app]=…` rend 403, quelle que soit la clé.
-    toutes = client.get(f"apps/{app}/appStoreVersions", limit=20)["data"]
+    #
+    # `limit` relevé et la plateforme retenue depuis que la fiche en porte deux
+    # — l'achat universel range les versions de l'iPhone et du Mac dans la
+    # **même** collection. Le 31 août 2026, l'ajout de la plateforme macOS a
+    # créé une version « 1.0 » en `PREPARE_FOR_SUBMISSION`, c'est-à-dire
+    # modifiable, pendant que l'iOS 1.0.4 était `READY_FOR_SALE` et ne l'était
+    # plus. `modifiables[0]` aurait donc rendu **la version du Mac** à une
+    # livraison iPhone, qui y aurait écrit ses informations de revue et
+    # rattaché son binaire.
+    #
+    # Le filtre est écrit « garder ce qui ne contredit pas » et non « garder ce
+    # qui correspond » : si Apple cessait un jour de rendre `platform`, la
+    # seconde forme viderait la liste et la chaîne créerait une version de plus
+    # à chaque passage.
+    toutes = [
+        v for v in client.get(f"apps/{app}/appStoreVersions", limit=50)["data"]
+        if v["attributes"].get("platform", plateforme) == plateforme
+    ]
     modifiables = [v for v in toutes
                    if v["attributes"]["appStoreState"] in MODIFIABLES]
 
@@ -159,7 +176,8 @@ def main() -> None:
         # Aucune version n'attend : la précédente est en vente. On crée la
         # suivante avec le numéro que porte le binaire, plutôt que d'arrêter la
         # chaîne sur un message qui demande d'aller cliquer.
-        version = creer_la_version(client, app, numero_de_version(client, build))
+        version = creer_la_version(
+            client, app, numero_de_version(client, build), plateforme)
 
     # Est-ce la toute première version de l'app ? La question se pose sur les
     # **autres** versions, et non sur leur nombre : celle qu'on vient de créer
@@ -249,10 +267,14 @@ def main() -> None:
     # Une soumission déjà ouverte est **réutilisée**. En ouvrir une seconde ne
     # marche pas — Apple n'en accepte qu'une en cours par app — et la première
     # resterait là, vide, à faire échouer toutes les suivantes.
+    # Par plateforme, pour la même raison que les versions ci-dessus : « une
+    # seule soumission en cours » se compte par plateforme, et reprendre celle
+    # du Mac pour y déposer une version de l'iPhone mélangerait les deux.
     ouvertes = [
         s for s in client.get("reviewSubmissions",
-                              **{"filter[app]": app, "limit": 10})["data"]
+                              **{"filter[app]": app, "limit": 20})["data"]
         if s["attributes"]["state"] in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES")
+        and s["attributes"].get("platform", plateforme) == plateforme
     ]
     if ouvertes:
         soumission = ouvertes[0]["id"]
@@ -260,7 +282,7 @@ def main() -> None:
     else:
         soumission = client.post("reviewSubmissions", {"data": {
             "type": "reviewSubmissions",
-            "attributes": {"platform": "IOS"},
+            "attributes": {"platform": plateforme},
             "relationships": {"app": {"data": {"type": "apps", "id": app}}}}})["data"]["id"]
         print("  soumission ouverte")
 
