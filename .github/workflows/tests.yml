@@ -71,6 +71,35 @@ jobs:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
+      # ## Les scripts de livraison, que rien n'éprouvait
+      #
+      # `.github/scripts/` et `scripts/` portent neuf scripts Python — la fiche
+      # des magasins, les groupes de testeurs, la soumission, les captures
+      # d'Android. **Aucun n'était compilé par quoi que ce soit.** Une faute de
+      # syntaxe y dormait jusqu'au jour de la livraison, c'est-à-dire jusqu'au
+      # pire moment : celui où l'on pousse une version et où l'on découvre que
+      # l'outil qui la pousse ne démarre pas.
+      #
+      # Posé en tête, avant Xcode : ça coûte deux secondes et ça évite d'attendre
+      # une compilation complète pour apprendre qu'une parenthèse manque.
+      #
+      # ## Ce que ça n'attrape pas, et il faut le dire
+      #
+      # `py_compile` lit la syntaxe, pas le sens. Les deux vrais défauts trouvés
+      # dans ces scripts le 31 août — une requête qui rendait deux builds là où
+      # elle en attendait un, un groupe de testeurs choisi par homonymie —
+      # seraient passés ici sans broncher.
+      #
+      # Un premier jet ajoutait un second contrôle : « tout script cité par un
+      # workflow existe ». Il a été retiré, parce qu'il ne voyait **aucun** des
+      # scripts de livraison — ils sont lancés par leur nom nu depuis un
+      # `working-directory`, jamais par un chemin. Il aurait couvert cinq
+      # chemins en ayant l'air d'en couvrir neuf, et une garde qu'on lit plus
+      # large qu'elle n'est vaut moins que pas de garde du tout.
+      - name: Les scripts de livraison compilent
+        working-directory: ONTBibleApp
+        run: git ls-files -z '*.py' | xargs -0 python3 -m py_compile
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
