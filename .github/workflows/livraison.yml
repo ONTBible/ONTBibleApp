@@ -495,6 +495,7 @@ jobs:
           chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
       - name: La livraison
+        id: livraison
         working-directory: ONTBibleApp
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -508,7 +509,37 @@ jobs:
               *)                  CANAL=interne ;;
             esac
           fi
+          case "$CANAL" in
+            appstore) GROUPE= ;;
+            beta)     GROUPE=Beta ;;
+            *)        GROUPE=Dev ;;
+          esac
+          echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
           ./scripts/livrer-le-mac.sh "$CANAL"
+
+      # **TestFlight distribue aussi les apps du Mac**, avec l'app TestFlight de
+      # macOS. Rien à changer côté fiche : l'achat universel donne une seule
+      # entrée App Store Connect pour les deux plateformes, et les groupes de
+      # testeurs y sont **par plateforme**.
+      #
+      # D'où `PLATEFORME: MAC_OS`. Le numéro de build est daté à la minute et
+      # les deux chaînes partent du même push : sans ce filtre, on attendrait
+      # l'iPhone en croyant attendre le Mac, et les deux répondraient `VALID`.
+      - name: Rattacher au groupe TestFlight
+        if: steps.livraison.outputs.groupe != ''
+        working-directory: ONTBibleApp/.github/scripts
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          BUILD: ${{ steps.livraison.outputs.build }}
+          GROUPE_BETA: ${{ steps.livraison.outputs.groupe }}
+          PLATEFORME: MAC_OS
+          NOTES_BETA: ${{ github.event.head_commit.message }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv-mac"
+          "$RUNNER_TEMP/venv-mac/bin/pip" install --quiet -r exigences.txt
+          "$RUNNER_TEMP/venv-mac/bin/python" beta.py
 
       - name: Reprendre la clé
         if: always()
@@ -532,6 +563,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
+          PLATEFORME: IOS
           GROUPE_BETA: ${{ needs.livrer.outputs.groupe }}
           # Ce que les testeurs lisent avant d'installer. Le message entier
           # dépasse ce qu'Apple accepte, et dirait de toute façon à un testeur
@@ -561,6 +593,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
+          PLATEFORME: IOS
           ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
           ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |

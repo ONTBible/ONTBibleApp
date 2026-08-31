@@ -5,7 +5,7 @@
 #   ./scripts/livrer-le-mac.sh              # le canal vient de la branche
 #   ./scripts/livrer-le-mac.sh interne      # ou on le force
 #
-# ## Pourquoi ce geste n'est pas un workflow
+# ## Pourquoi ce script existe, et qui l'appelle
 #
 # `livraison.yml` livre l'iPhone depuis un runner GitHub. Le Mac ne peut pas y
 # aller : l'`actool` d'Xcode 26.3 — la seule version que l'image propose, alors
@@ -13,14 +13,22 @@
 # Icon Composer pour macOS. Pas une erreur de validation : un plantage, sans un
 # mot sur ce qu'il reproche. Mesuré en réactivant l'icône dans le job.
 #
-# Un runner auto-hébergé réglerait la version et ouvrirait pire : `ONTBibleApp`
-# est **public**, et un runner auto-hébergé sur un dépôt public laisse toute
-# proposition venue d'un fork exécuter du code sur la machine. GitHub le
-# déconseille explicitement, et c'est la machine de l'auteur.
+# D'où ce script : la même chaîne, sur une machine dont l'Xcode compose l'icône.
+# Il a **deux appelants**, et c'est délibéré — le même fichier des deux côtés,
+# pour qu'une correction ne s'applique jamais à un seul :
 #
-# Reste ce que fait ce script : la même chaîne, sur la machine qui a l'Xcode
-# qu'il faut, sans démon qui écoute. Le jour où l'image du runner monte de
-# version, ce fichier devient un job et l'on jette celui-ci.
+#   - à la main, sur cette machine, quand on veut livrer sans passer par la CI ;
+#   - le job `mac` de `livraison.yml`, sur le runner **auto-hébergé** de cette
+#     même machine.
+#
+# Le runner auto-hébergé demande une précaution que `ONTBibleApp` étant public
+# rend obligatoire : une proposition venue d'un fork ne doit **jamais** pouvoir
+# s'exécuter ici. C'est réglé côté dépôt — l'approbation est exigée pour tout
+# contributeur externe (`approval_policy: all_external_contributors`), et non
+# par ce fichier. Le vérifier avant de toucher aux réglages Actions.
+#
+# Le jour où l'image du runner GitHub monte de version, le job repasse chez eux
+# et le runner s'éteint ; ce script, lui, reste bon pour la livraison à la main.
 #
 # ## Ce qu'il faut avant
 #
@@ -95,6 +103,19 @@ BUILD="$(date -u +%y%m%d).$(date -u +%H%M)"
 trap 'git checkout -- app/Info-Mac.plist 2>/dev/null || true' EXIT
 plutil -replace CFBundleVersion -string "$BUILD" app/Info-Mac.plist
 echo "→ build $BUILD"
+
+# Sous Actions, le numéro remonte au job : c'est lui qui rattachera le build au
+# groupe TestFlight, et il ne peut pas le deviner — deux `date` séparés d'une
+# minute ne rendent pas le même.
+#
+# Écrit en `if` plutôt qu'en `[ … ] && …`. Mesuré, et contre mon attente :
+# `set -e` **laisse passer** une liste `&&` dont le test échoue au milieu d'un
+# script. Mais la liste rend tout de même non-zéro, et le jour où cette ligne se
+# retrouve en dernière position d'une fonction ou du fichier, c'est le script
+# entier qui rendra non-zéro. La forme longue n'a pas ce bord.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+fi
 
 ARCHIVE=$(mktemp -d)/ONTMac.xcarchive
 

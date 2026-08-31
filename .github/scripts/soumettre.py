@@ -138,7 +138,8 @@ def main() -> None:
 
     app = application(client)
 
-    build = attendre_le_build(client, app, numero)
+    plateforme = os.environ.get("PLATEFORME", "IOS")
+    build = attendre_le_build(client, app, numero, plateforme)
 
     # Toutes les versions, et non les seules modifiables : savoir ce qui existe
     # à côté dit si celle qu'on soumet est la première de l'app, ce dont dépend

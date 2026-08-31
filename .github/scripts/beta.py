@@ -58,7 +58,11 @@ def main() -> None:
     notes = resumer(os.environ.get("NOTES_BETA") or "")
 
     app = application(client)
-    build = attendre_le_build(client, app, numero)
+    # `IOS` par défaut : c'est ce que faisait cette ligne avant que le Mac
+    # existe, et un défaut qui change de comportement au moment où l'on ajoute
+    # un appelant est un défaut qu'on ne relit pas.
+    plateforme = os.environ.get("PLATEFORME", "IOS")
+    build = attendre_le_build(client, app, numero, plateforme)
 
     # ── Le groupe ────────────────────────────────────────────────────────────
     #
