@@ -261,6 +261,16 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         adresseRecue.value = intent?.dataString
 
+        // **Écarter d'abord un corpus périmé, avant que quiconque le lise.**
+        //
+        // Le disque recouvre le bundle sans condition. Une copie téléchargée
+        // avant que la garde de `synchroniser` n'existe gagnerait donc sur un
+        // bundle plus neuf, et indéfiniment — jusqu'au jour où le site publie
+        // plus récent qu'elle. C'est ici, et pas dans le fil de fond : les
+        // dépôts ci-dessous lisent dès qu'on les interroge, et une purge qui
+        // arrive après eux ne répare que le lancement suivant.
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(applicationContext)
+
         // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
         // un corpus complet — elle marche au premier lancement, sans réseau — et
         // ce qui a été téléchargé le recouvre morceau par morceau.
