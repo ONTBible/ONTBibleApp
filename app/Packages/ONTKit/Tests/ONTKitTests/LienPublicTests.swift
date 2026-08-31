@@ -33,14 +33,14 @@ struct LienPublicTests {
     func versetSeul() {
         let r = ouvrir("https://ontbible.com/fr/lire/bereshit/bereshit-1?v=6")
         #expect(r.pendingSelection == [6])
-        #expect(r.pendingVerse == 6)
+        #expect(r.pendingVerse?.n == 6)
     }
 
     @Test("une plage contiguë")
     func plageContigue() {
         let r = ouvrir("https://ontbible.com/fr/lire/bereshit/bereshit-1?v=1-3")
         #expect(r.pendingSelection == [1, 2, 3])
-        #expect(r.pendingVerse == 1)
+        #expect(r.pendingVerse?.n == 1)
     }
 
     /// **Celle dont la session du site doutait.**
@@ -55,7 +55,7 @@ struct LienPublicTests {
         #expect(r.pendingSelection == [1, 4, 5, 6])
         #expect(!r.pendingSelection.contains(2))
         #expect(!r.pendingSelection.contains(3))
-        #expect(r.pendingVerse == 1)
+        #expect(r.pendingVerse?.n == 1)
     }
 
     // MARK: - Ce qui doit rester vrai

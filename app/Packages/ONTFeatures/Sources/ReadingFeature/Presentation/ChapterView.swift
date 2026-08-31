@@ -1,5 +1,6 @@
 import ONTDesignSystem
 import ONTKit
+import OSLog
 import SwiftUI
 
 /// L'identité d'un verset pour le défilement.
@@ -29,6 +30,10 @@ struct ChapterView: View {
     /// Le bloc que la vue doit atteindre, quand un lien ou une reprise en
     /// désigne un. Les blocs sont les enfants directs de la pile, donc les
     /// seules cibles que `scrollPosition` sait viser.
+    /// Le journal de la lecture — voir `restore` : ce qu'on y écrit sert à
+    /// distinguer une inaction juste d'une inaction fautive.
+    private static let log = Logger(subsystem: "com.labibleont.ONT", category: "lecture")
+
     @State private var blocVise: Int?
         @State private var noteTarget: VerseSelection?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
@@ -459,6 +464,23 @@ struct ChapterView: View {
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         let vise = demande.flatMap { n in
             chapter.verses.contains(where: { $0.n == n }) ? n : nil
+        }
+        // **Un verset hors bornes se dit, au lieu de s'évanouir.**
+        //
+        // Ne rien viser est ici le comportement **juste** — et c'est ce qui rend
+        // le silence dangereux : il est indistinguable d'un défilement cassé,
+        // d'un verset mangé par une autre unité, ou d'une ancre introuvable.
+        // J'ai failli condamner une correction qui marchait sur cette base ;
+        // il a fallu aller lire le `verseCount` du corpus pour le savoir.
+        //
+        // Le cas est réel et attend quiconque compose une adresse depuis un
+        // **renvoi biblique** : « Bereshit 2:4-25 » nomme vingt-deux versets de
+        // la Genèse, quand l'unité ONT qui les porte en compte vingt et un,
+        // numérotés à partir de un. Une ligne de journal transforme une heure
+        // d'enquête en une lecture.
+        if let n = demande, vise == nil {
+            Self.log.notice(
+                "verset \(n, privacy: .public) demandé dans \(chapter.id, privacy: .public), qui en compte \(chapter.verses.count, privacy: .public) — rien à viser")
         }
         if pourNous != nil { router.pendingVerse = nil }
 
