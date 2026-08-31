@@ -192,7 +192,10 @@ struct ChapterView: View {
             // de l'unité **déjà ouverte**. La vue n'apparaît pas une seconde
             // fois, donc rien ne se déclencherait.
             .onChange(of: router.pendingVerse) { _, vise in
-                guard vise != nil else { return }
+                // Seulement le nôtre : sans ce filtre, chaque vue de lecture
+                // vivante relancerait sa restauration pour le verset d'une
+                // autre unité.
+                guard vise?.chapitre == chapter.id else { return }
                 Task { await restore(using: proxy) }
             }
             // Le suivi s'éteint aussi en **partant**, et pas seulement le temps
@@ -439,12 +442,25 @@ struct ChapterView: View {
         // est une non-opération silencieuse. Le comportement souhaitable
         // arrivait donc par tolérance du moteur, et le défaut se logeait juste
         // à côté, dans ce qu'on **retient**.
-        let demande = router.pendingVerse
+        // **On ne consomme que ce qui nous est adressé.**
+        //
+        // `pendingVerse` porte son unité depuis qu'on a mesuré ceci : demander
+        // `bereshit-2?v=25` alors que `bereshit-1` est à l'écran, et l'ancienne
+        // vue l'efface avant que la nouvelle ne se monte. Elle ne trouvait pas
+        // 25 chez elle, ne défilait pas — et le remettait quand même à `nil`.
+        // La nouvelle arrivait sur la bonne unité, en haut, sans rien à viser.
+        //
+        // Effacer ce qui ne nous est pas destiné, c'est répondre à la place de
+        // quelqu'un d'autre.
+        let pourNous = router.pendingVerse.flatMap {
+            $0.chapitre == chapter.id ? $0.n : nil
+        }
+        let demande = pourNous
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         let vise = demande.flatMap { n in
             chapter.verses.contains(where: { $0.n == n }) ? n : nil
         }
-        router.pendingVerse = nil
+        if pourNous != nil { router.pendingVerse = nil }
 
         suivi.recommence()
 
