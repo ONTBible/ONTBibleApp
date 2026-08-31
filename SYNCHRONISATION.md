@@ -2215,3 +2215,201 @@ hypothèse.
 Ce qui est fait : la question est écrite là où on la rencontrera, et cette
 entrée-ci corrige celle du 26 août, qui affirmait de trois clients ce qui
 n'était vrai que de deux.
+
+## 31 août 2026 — la liseuse du Mac livrée, et ce que quatre contrôles verts n'ont pas mesuré
+
+**Source : l'app, cible macOS. Conséquences pour les trois.**
+
+**La liseuse macOS est sur TestFlight** — build `260831.1410`, `VALID`,
+distribué au groupe interne. Elle est passée d'« elle compile » à « elle se
+livre » : confinée,
+capable de relire le vault en direct, éprouvée par la CI, et poussée vers
+TestFlight par un job. Cinq choses en sortent qui ne se voient pas depuis un
+seul dépôt.
+
+### Le backend a un troisième client, et bientôt un quatrième
+
+Le `CLAUDE.md` de la racine dit encore « ces routes ont maintenant **deux
+clients**, bientôt trois avec Android ». C'est **trois** depuis aujourd'hui —
+iOS, le site, la liseuse macOS — et quatre avec Android.
+
+Rien ne change au contrat : `snake_case` littéral sans `rename`, et les cinq
+couleurs de surlignage que **personne ne valide côté serveur**. Mais un
+changement de forme dans une réponse casse maintenant trois plateformes qu'on
+ne regarde pas en le faisant, au lieu de deux.
+
+*Ce fichier-là n'est pas édité ici : c'est le fichier d'instructions du projet,
+et sa mise à jour revient à Gloire.*
+
+### L'achat universel range les deux plateformes dans la même collection
+
+`com.labibleont.ONT` est le même identifiant sur l'iPhone et sur le Mac —
+délibérément : Sign in with Apple délivre son code **au bundle qui l'a
+demandé**, et un `…ONT.mac` aurait exigé un App ID de plus et une troisième
+origine côté serveur.
+
+Le prix de ce choix s'est révélé aujourd'hui. Une seule fiche App Store Connect
+porte **les builds et les versions des deux plateformes, mélangés**. Deux
+requêtes qui semblaient sûres ne l'étaient plus :
+
+- `builds?filter[version]=…&limit=1` — les numéros sont datés à la minute et
+  les deux chaînes partent du même push. Le jour où elles vont à la même
+  vitesse, la requête rend deux builds, `limit: 1` en prend un, et **les deux
+  répondent `VALID`** ;
+- `apps/{id}/appStoreVersions` puis « la première modifiable » — l'ajout de la
+  plateforme macOS a créé une version `1.0` en `PREPARE_FOR_SUBMISSION` pendant
+  que l'iOS `1.0.4` était `READY_FOR_SALE`. Une livraison **iPhone** aurait
+  repris **la version du Mac**, y aurait écrit ses informations de revue et
+  rattaché son binaire.
+
+Le second était latent depuis toujours ; c'est l'ajout de la plateforme qui l'a
+armé, une heure avant qu'on le trouve. Mesuré contre le code d'avant, pas
+déduit.
+
+**Ce qui traverse :** dès qu'un identifiant est partagé entre plateformes, toute
+requête qui retrouve un objet « par son numéro » doit nommer la plateforme.
+Vaut pour Play le jour où Android livrera, et pour toute API qui range deux
+choses dans une collection commune.
+
+### Un filtre s'écrit « garder ce qui ne contredit pas »
+
+`v["attributes"].get("platform", plateforme) == plateforme`, et non
+`… ["platform"] == plateforme`. Si le fournisseur cessait de rendre le champ, la
+seconde forme viderait la liste et la chaîne créerait un objet de plus à chaque
+passage, sans rien dire. La première se contente de ne plus filtrer.
+
+**Ce qui traverse :** un filtre défensif doit dégrader vers *ne rien faire*, pas
+vers *tout rejeter*. Le site et le vault ont des filtres de la même famille.
+
+### La liseuse du Mac lit le vault en direct
+
+Elle sait maintenant rebâtir le corpus depuis le vault et **le relire** — pas
+seulement l'écrire. Un brouillon non publié apparaît dans l'app en quelques
+secondes.
+
+**Pour le vault :** on peut relire une parashah dans la liseuse avant de la
+publier. C'est un changement de méthode de travail, pas une fonctionnalité de
+plus.
+
+Deux défauts empilés s'y cachaient, et le second n'a été vu que parce que Gloire
+a demandé la bonne épreuve : un décompte identique au corpus publié ne prouve
+rien. Le chapitre 20 manquait alors que le compte disait 45.
+
+### Ce que macOS ne fait pas comme iOS
+
+Mesuré cette semaine, et à porter dans toute réflexion de parité :
+
+| ce qu'on croyait | ce que macOS fait |
+|---|---|
+| `dynamicTypeSize` règle la taille | inerte — il faut l'échelle maison `ONTUI` |
+| `.font()` habille les lignes d'une `List` | la `List` l'écrase ; `Form` non |
+| `ImageRenderer` mesure une vue | rend `0 × 0` pour une `List` |
+| `WindowGroup` = une fenêtre | il en ouvre plusieurs ; `Window` non |
+| `UIAppFonts` inscrit les fontes | ignoré ; il faut `ATSApplicationFontsPath` |
+| `aps-environment` déclare le push | c'est `com.apple.developer.aps-environment` |
+
+### Deux versions d'un outil qui se renvoient la balle
+
+La liseuse du Mac n'a pas pu être livrée ce soir, et pour une raison qu'aucun
+des deux dépôts voisins ne verrait :
+
+    Xcode 26.3  publié, runners GitHub   actool plante sur le bundle Icon Composer en macOS
+    Xcode 27.0  bêta, machine de l'auteur  compose l'icône, Apple refuse le binaire
+
+Le second n'a été connu qu'à l'envoi, **après** que l'archive et l'export ont
+réussi : « Apple is not currently accepting applications built with this version
+of Xcode. » Toute la journée avait été passée à contourner le premier — runner
+auto-hébergé compris — sans que personne vérifie l'autre bout.
+
+**Ce qui traverse :** quand on contourne une contrainte, dire à voix haute ce
+que le contournement suppose *ailleurs*. « Une machine dont l'Xcode compose
+l'icône » était nécessaire et pas suffisant, et la phrase ne le laissait pas
+deviner.
+
+La sortie est un `.appiconset` classique gravé depuis le bundle : un pont, écrit
+comme tel dans les fichiers, à retirer quand Xcode 27 sera publié.
+
+### Trois contrôles verts qui ne mesuraient rien, en une heure
+
+Sur cette seule icône, et chacun d'une famille différente :
+
+| ce qui rassurait | ce que c'était |
+|---|---|
+| « 37 ko, dimensions justes » | le gabarit vide de macOS |
+| « garder le rendu le plus sombre » | une image transparente — le vide est plus noir |
+| « les images sont au bit près identiques » | le script était mort avant d'en écrire une |
+
+Le troisième est le pire : la comparaison portait sur des fichiers que rien
+n'avait touchés. **Un contrôle qui ne peut pas échouer ne contrôle rien**, et
+celui-là ne le pouvait pas.
+
+Ce qui a tranché à chaque fois : regarder. Une planche de contact des dix
+tailles, puis l'icône dans le Dock.
+
+### Ce que la première livraison réussie a tranché
+
+Deux questions restées ouvertes toute la journée, réglées par une seule mesure :
+
+- **les groupes de testeurs ne sont pas rangés par plateforme.** Un seul
+  « Dev » pour les deux, et le garde des homonymes n'a jamais eu à refuser. On
+  avait construit ce garde faute de pouvoir mesurer — il reste, inutile et bon ;
+- **le filtre de plateforme a été éprouvé sur le cas réel, le soir même.** Les
+  deux chaînes ont produit **le même numéro** — `260831.1410` — dans la même
+  course. Sans le filtre, `filter[version]=260831.1410&limit=1` aurait rendu
+  l'un des deux au hasard, et **les deux répondent `VALID`** : le job de
+  l'iPhone aurait pu rattacher le build du Mac au groupe, sans un mot.
+
+  Et la façon dont j'ai failli conclure l'inverse mérite d'être écrite : j'avais
+  compté **un seul numéro dans le journal** et j'en avais déduit qu'une seule
+  chaîne avait livré. Il n'y en avait qu'un parce que les deux le partageaient.
+  **Le signe même du défaut, lu comme son absence** — et il a fallu la capture
+  d'écran de la fiche, où la même ligne apparaît deux fois, une par plateforme,
+  pour le voir.
+
+### Un code de sortie est une convention, pas une mesure
+
+La toute première livraison du Mac a échoué en 0,26 seconde, code **134**, avant
+d'avoir rien compilé. La cause tenait dans `xcodebuild -version | head -1` :
+`head` ferme le tuyau après sa ligne, `xcodebuild` écrit la seconde dedans.
+
+Un programme ordinaire meurt là sur `SIGPIPE`, ce qui rend **141**. Celui
+d'Xcode 27 lève une `NSFileHandleOperationException` que personne ne rattrape,
+et avorte — `SIGABRT`, donc 134.
+
+**Ce chiffre a fait écarter la bonne piste une demi-heure durant.** Le
+raisonnement était juste — SIGPIPE donne 141, j'ai 134, donc ce n'est pas un
+tuyau — et faux, parce qu'il supposait que ce programme se comporte comme les
+autres.
+
+**Ce qui traverse :** un code de sortie est une convention que le programme
+choisit de suivre ou non. Un outil qui convertit un signal en exception change
+le nombre sans changer la cause. Vaut pour le vault (`obsidian-export`), pour le
+site (`vite build`), et pour toute chaîne qui décide en lisant un `$?`.
+
+Et une réserve inscrite dans la correction elle-même : **le défaut ne se
+reproduit pas sur la machine** — cent fois l'ancienne forme, zéro échec, contre
+deux échecs sur deux en CI. Le diagnostic vient de la trace d'appel, pas d'une
+reproduction. Assez pour agir, pas assez pour dire « vérifié ».
+
+### Et le motif de ces deux jours
+
+**Le silence bien formé** : une mesure exacte qui répond à une *autre* question
+que celle posée. Un `0 × 0` qui semble un échec de rendu. Un « aucune fenêtre »
+qui vient d'un écran verrouillé. Une vignette de Stage Manager rapportée comme
+la géométrie de la fenêtre. Un décompte de corpus identique au publié. Un
+`py_compile` vert qui n'a vu aucun des scripts qu'il prétendait couvrir.
+
+Et le plus retors, celui trouvé le soir même : la livraison de l'iPhone a
+réussi de bout en bout pendant que celle du Mac mourait. **Le tableau était
+vert à première vue** — il a fallu regarder job par job pour voir qu'une des
+deux chaînes n'avait rien livré.
+
+La session Android en a rapporté une troisième forme, pire que les deux
+qu'on connaissait : ni « tout rejeter », ni « ne rien faire », mais
+**remplacer en silence**. Un `?: GOLD` sur une couleur de surlignage inconnue
+rend une valeur plausible, du bon type — et détruit l'originale. Une liste
+vide se remarque ; une abstention se remarque ; une substitution, non.
+
+Aucune de ces mesures n'est fausse. Toutes rassurent. **Une mesure qui n'affiche
+pas ses conditions ne mesure rien** — et une garde qu'on lit plus large qu'elle
+n'est vaut moins que pas de garde.
