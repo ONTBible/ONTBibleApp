@@ -2154,3 +2154,64 @@ même leçon que les fontes non inscrites, prise par l'autre bout.
 Le défaut réel, une fois le facteur vraiment posé : **une `List` de macOS ne
 transmet pas `\.font` à ses lignes.** Vaut pour les trois dépôts au titre de la
 méthode, et pour le seul Mac au titre du remède.
+
+---
+
+## 31 août 2026 — la troisième façon de mal dégrader, et l'exception qu'Android faisait
+
+L'entrée du 26 août dit que les cinq couleurs de surlignage sont une liste que
+personne ne valide, puis que « l'app le prévoit déjà — on préfère ignorer la
+ligne plutôt que de faire échouer toute la synchronisation — et le site fait de
+même ».
+
+**Android ne faisait ni l'un ni l'autre.** La phrase couvrait deux clients sur
+trois et se lisait comme si elle les couvrait tous.
+
+    iOS      couleur inconnue → la ligne est ignorée, rien n'est réécrit
+    site     idem
+    Android  couleur inconnue → ramenée à l'or, puis réécrite « gold »
+
+La marque reste visible, ce qui est le bon sens — perdre le surlignage du
+lecteur serait pire que le montrer d'une autre couleur. Mais la lecture ne fait
+pas que lire : le disque réécrit la clé, donc une marque posée `turquoise` par
+un client plus récent revient `gold`, et la valeur d'origine n'existe plus sur
+l'appareil.
+
+Inoffensif aujourd'hui — Android n'envoie rien au serveur. Le jour où `/sync`
+arrivera, cet appareil renverra `gold` pour la marque de quelqu'un d'autre et
+l'écrasera **pour tout le monde**.
+
+### La propriété, et la branche qui lui manquait
+
+La session macOS l'avait formulée en deux temps, en réparant un filtre de
+plateforme d'App Store Connect :
+
+> dégrader vers « ne rien faire », pas vers « tout rejeter »
+
+Un filtre écrit « garder ce qui correspond » vide la liste le jour où le champ
+disparaît, et la chaîne crée une version de plus à chaque passage.
+
+Le cas des couleurs en ajoute une troisième, et c'est la pire :
+
+    tout rejeter          une liste vide se remarque
+    ne rien faire         l'abstention est visible, c'est le repli sain
+    remplacer en silence  rien ne se remarque du tout
+
+**Les deux premières laissent une trace.** Une liste vide se voit, une exception
+s'arrête. Une valeur plausible, du bon type, rendue par une fonction qui a l'air
+d'avoir répondu — celle-là ne laisse rien.
+
+Et elle est la seule des trois qui **détruise**. Se tromper d'objet se rattrape
+en relançant ; `turquoise` devenu `gold` ne se rattrape pas.
+
+### Ce qu'on en fait
+
+Rien encore, délibérément. L'arbitrage — ignorer la ligne comme iOS, ou garder
+la chaîne inconnue à côté de la teinte affichée — appartient à qui écrira la
+synchronisation d'Android, et il se prend dans `HighlightColor.depuis`, pas dans
+un service qui n'existe pas. Le trancher maintenant serait décider sur une
+hypothèse.
+
+Ce qui est fait : la question est écrite là où on la rencontrera, et cette
+entrée-ci corrige celle du 26 août, qui affirmait de trois clients ce qui
+n'était vrai que de deux.
