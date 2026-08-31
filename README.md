@@ -444,6 +444,24 @@ Cinq workflows, et chacun répond à une question différente.
 | `deployer-backend.yml` | `main` | remplace le **code** de la Lambda, jamais son infrastructure |
 | `signature-diagnostic.yml` | à la main | ce que la clé App Store Connect a le droit de voir |
 
+**Le Mac ne passe pas par là**, et c'est mesuré et non choisi.
+`./scripts/livrer-le-mac.sh` fait la même chaîne depuis la machine de l'auteur.
+
+L'`actool` d'Xcode 26.3 **plante** en composant `ONT.icon` pour macOS — un
+plantage sans diagnostic, pile d'appel d'`IBAbstractPlatformToolProxy` et rien
+d'autre. Et l'image du runner ne propose que cette version, alors que le
+workflow demande déjà `latest` : il n'y a pas de version à monter.
+
+Un runner **auto-hébergé** réglerait la version et ouvrirait pire. Ce dépôt est
+public, et un runner auto-hébergé sur un dépôt public laisse toute proposition
+venue d'un fork exécuter du code sur la machine — c'est celle de l'auteur.
+
+Le script suit donc les mêmes règles que le workflow, sans démon qui écoute :
+même table de canaux, même numéro de build daté, même `destination: upload`
+plutôt qu'`altool`. Il vérifie l'icône **avant** d'archiver, parce que le
+découvrir au milieu d'une archive coûte l'archive. Le jour où l'image du runner
+monte de version, ce fichier redevient un job et l'on jette celui-ci.
+
 **Une branche nomme un destinataire, pas une manœuvre :**
 
 | branche | qui le voit |
