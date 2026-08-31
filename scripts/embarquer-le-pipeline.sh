@@ -23,7 +23,14 @@ cd "$(dirname "$0")/.."
 echo "→ le pipeline, en release"
 cargo build --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
 
-CIBLE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/*.app 2>/dev/null | head -1)"
+# Capturé puis découpé, jamais mis en tuyau vers `head` : `ls` tué par un
+# tuyau fermé rend 141, et `set -o pipefail` en fait un abandon du script.
+#
+# C'est le point le plus exposé du dépôt, parce que `DerivedData` **grossit à
+# chaque build** : le script marche des semaines, puis cesse, et le changement
+# ne vient pas de lui.
+LISTE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/*.app 2>/dev/null || true)"
+CIBLE="${LISTE%%$'\n'*}"
 if [ -z "$CIBLE" ]; then
   echo "✗ ONTMac.app introuvable — compiler la cible ONTMac d'abord" >&2
   exit 1
