@@ -940,3 +940,48 @@ mod tests {
         assert!(types(children).contains(&"term"));
     }
 }
+
+#[cfg(test)]
+mod triple_asterisque {
+    use super::*;
+
+    /// **Trois astérisques ne sont pas un intraduisible**, et c'est ce que les
+    /// pieds d'unité écrivent :
+    ///
+    ///     - ***Elohim** / אֱלֹהִים — laissé en hébreu*
+    ///
+    /// L'emphase prend la première astérisque, l'intraduisible les deux
+    /// suivantes. Sans la garde, l'analyseur mordait au premier astérisque et
+    /// capturait `*Elohim` comme **valeur** du terme : le mot d'or portait
+    /// l'astérisque, et celle de fermeture restait orpheline en fin de ligne.
+    ///
+    /// Vingt-six mots de *Bereshit* étaient dans ce cas, et le défaut ne
+    /// ressemblait nulle part à une panne — juste à une coquille du vault.
+    #[test]
+    fn l_italique_prend_la_premiere() {
+        let rendu = parse_inline("***Elohim** / hébreu*");
+        let texte = format!("{rendu:?}");
+        assert!(
+            !texte.contains("*Elohim"),
+            "le nom du terme ne doit pas porter l'astérisque : {texte}"
+        );
+    }
+
+    /// **Et quand l'italique ne se referme jamais ?**
+    ///
+    /// C'est le cas qu'une seconde correction, restée en attente, traitait en
+    /// plus — en faisant retomber l'astérisque orpheline en texte. Mesuré :
+    /// la correction retenue le tient déjà, sans le nommer.
+    ///
+    /// L'épreuve reste, précisément parce que personne ne l'avait écrite : ce
+    /// qui tient par accident tient jusqu'à la prochaine retouche.
+    #[test]
+    fn une_italique_jamais_refermee_ne_mange_pas_le_terme() {
+        let rendu = parse_inline("***Elohim** et rien ne referme");
+        let texte = format!("{rendu:?}");
+        assert!(
+            !texte.contains("*Elohim"),
+            "l'astérisque orpheline est entrée dans le terme : {texte}"
+        );
+    }
+}
