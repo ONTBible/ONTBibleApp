@@ -2353,9 +2353,18 @@ Deux questions restées ouvertes toute la journée, réglées par une seule mesu
 - **les groupes de testeurs ne sont pas rangés par plateforme.** Un seul
   « Dev » pour les deux, et le garde des homonymes n'a jamais eu à refuser. On
   avait construit ce garde faute de pouvoir mesurer — il reste, inutile et bon ;
-- **le filtre de plateforme n'a toujours rien prouvé.** La chaîne iPhone n'a pas
-  produit de build sur cette poussée : un seul numéro dans le journal. Le cas de
-  collision reste à venir, et il ne faut pas lire ce succès comme sa validation.
+- **le filtre de plateforme a été éprouvé sur le cas réel, le soir même.** Les
+  deux chaînes ont produit **le même numéro** — `260831.1410` — dans la même
+  course. Sans le filtre, `filter[version]=260831.1410&limit=1` aurait rendu
+  l'un des deux au hasard, et **les deux répondent `VALID`** : le job de
+  l'iPhone aurait pu rattacher le build du Mac au groupe, sans un mot.
+
+  Et la façon dont j'ai failli conclure l'inverse mérite d'être écrite : j'avais
+  compté **un seul numéro dans le journal** et j'en avais déduit qu'une seule
+  chaîne avait livré. Il n'y en avait qu'un parce que les deux le partageaient.
+  **Le signe même du défaut, lu comme son absence** — et il a fallu la capture
+  d'écran de la fiche, où la même ligne apparaît deux fois, une par plateforme,
+  pour le voir.
 
 ### Un code de sortie est une convention, pas une mesure
 
