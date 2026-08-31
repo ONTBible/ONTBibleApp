@@ -1,6 +1,7 @@
 package com.labibleont.ont.data
 
 import com.labibleont.ont.data.remote.CorpusUpdater
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -186,5 +187,64 @@ class EstampilleTest {
     fun `un bundle sans estampille ne purge rien`() {
         assertFalse(purge("2026-08-28T10:00:00Z", ""))
         assertFalse(purge("", ""))
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Le décodage — là où la garde tombait sans que rien ne le dise
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * **Un vrai manifeste du pipeline**, avec ses clés à lui.
+     *
+     * `generatedAt`, `vault`, `stats` : ce n'est pas le manifeste publié, qui
+     * porte `genere`, `fichiers` et `livres`. Les deux étaient décodés par la
+     * même classe. Sur celui-ci, kotlinx cherchait `genere`, ne le trouvait pas,
+     * et rendait la valeur par défaut — la chaîne vide.
+     *
+     * Rien ne le signalait. Ça compilait, et les épreuves ci-dessus restaient
+     * vertes : elles nourrissaient la date *déjà décodée*, jamais le document.
+     */
+    private val manifesteDuPipeline = """
+        {"schema":1,
+         "generatedAt":"2026-08-30T17:59:01Z",
+         "vault":"/quelque/part/ONTBibleTranslation",
+         "stats":{"books":44,"verses":864}}
+    """.trimIndent()
+
+    @Test
+    fun `la date du bundle se lit dans un manifeste du pipeline`() {
+        assertEquals(
+            "2026-08-30T17:59:01Z",
+            CorpusUpdater.dateDuManifesteEmbarque(manifesteDuPipeline),
+        )
+    }
+
+    /**
+     * Et la conséquence, qui est **tout le sujet** : une date vide fait tomber
+     * la garde entière.
+     *
+     * `plusRecent` traite un bundle indatable comme n'ayant rien à opposer — à
+     * raison, sinon ses lecteurs n'auraient plus jamais de mise à jour. Mais
+     * cela veut dire qu'un décodage muet ne dégrade pas la garde : **il
+     * l'annule**. Elle accepte alors tout, exactement comme avant qu'elle
+     * n'existe.
+     */
+    @Test
+    fun `une date de bundle vide ferait tout accepter`() {
+        assertTrue(arbitre("2026-08-28T10:00:00Z", ""))
+        // Avec la vraie date lue du manifeste, le corpus plus vieux est refusé.
+        assertFalse(
+            arbitre(
+                "2026-08-28T10:00:00Z",
+                CorpusUpdater.dateDuManifesteEmbarque(manifesteDuPipeline),
+            ),
+        )
+    }
+
+    /** Un manifeste illisible ne date rien, et ne prétend pas le contraire. */
+    @Test
+    fun `un manifeste illisible ne date rien`() {
+        assertEquals("", CorpusUpdater.dateDuManifesteEmbarque("pas du json"))
+        assertEquals("", CorpusUpdater.dateDuManifesteEmbarque("{}"))
     }
 }

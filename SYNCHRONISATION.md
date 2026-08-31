@@ -3449,3 +3449,25 @@ chaque lancement, sur le forfait du lecteur, pour reposer les mêmes octets.
 Aucune erreur, aucun texte faux : seulement une app qui consomme. L'épreuve
 `a date egale le disque est garde` tient ce cas, et rougit contre cette
 écriture-là.
+
+**Et sous le trou, la garde était creuse.** En vérifiant la purge sur
+l'émulateur — elle n'effaçait rien —, on a trouvé pourquoi : le manifeste **du
+bundle** porte `generatedAt`, celui **du site** porte `genere`, et Android les
+décodait avec la même classe. Kotlinx cherchait `genere` dans le document du
+pipeline, ne le trouvait pas, prenait la valeur par défaut. `dateDuBundle()`
+rendait la chaîne vide **depuis toujours**.
+
+Ce n'est pas une dégradation de la garde, c'est son **annulation** : un bundle
+indatable n'a rien à opposer — à raison, sinon ses lecteurs n'auraient plus
+jamais de mise à jour —, donc `plusRecentQueLeBundle` acceptait tout. Android
+avait la fonction, ses six épreuves, sa documentation, et aucune protection.
+
+Les épreuves étaient vertes parce qu'elles nourrissaient la date **déjà
+décodée**. Le défaut vivait un cran en amont, dans le décodage, et aucune
+d'elles ne le traversait. C'est la même famille que tout le reste de ces deux
+jours : l'instrument mesurait exactement, à côté.
+
+Trois épreuves de plus partent maintenant d'un vrai document du pipeline. iOS
+lisait la bonne clé — `objet["generatedAt"]` —, le site aussi ; le défaut était
+propre à Kotlin, et il venait de réutiliser un type parce que les deux
+documents s'appelaient « manifeste ».

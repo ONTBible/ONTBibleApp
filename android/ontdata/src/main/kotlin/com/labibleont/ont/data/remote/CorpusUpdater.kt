@@ -161,6 +161,31 @@ public class CorpusUpdater(
          * antérieures à cette version, et c'est ce qui rend la réparation
          * automatique au premier lancement.
          */
+        /**
+         * Le manifeste que le pipeline embarque dans les assets.
+         *
+         * Réduit à la seule clé qu'on lui demande : les autres — `vault`,
+         * `stats` — ne regardent pas la liseuse. `ignoreUnknownKeys` les laisse
+         * passer.
+         */
+        @Serializable
+        internal data class ManifesteEmbarque(val generatedAt: String = "")
+
+        /**
+         * La date d'un manifeste embarqué, **depuis son texte**.
+         *
+         * Séparée de la lecture des assets pour qu'une épreuve puisse lui donner
+         * un vrai document du pipeline. C'est tout le sujet : le défaut vivait
+         * dans le décodage, et une épreuve qui part de la valeur *déjà décodée*
+         * ne peut pas le voir.
+         */
+        internal fun dateDuManifesteEmbarque(source: String): String =
+            runCatching {
+                Json { ignoreUnknownKeys = true }
+                    .decodeFromString<ManifesteEmbarque>(source)
+                    .generatedAt
+            }.getOrDefault("")
+
         internal fun doitPurger(surDisque: String, embarquee: String): Boolean {
             val e = embarquee.trim()
             // Un bundle indatable ne peut rien opposer : ne rien jeter vaut
@@ -299,10 +324,28 @@ public class CorpusUpdater(
     internal fun plusRecentQueLeBundle(manifeste: Manifeste): Boolean =
         plusRecent(publiee = manifeste.genere, embarquee = dateDuBundle())
 
-    /** La date du corpus embarqué, lue du manifeste des assets. */
+    /**
+     * La date du corpus embarqué, lue du manifeste des assets.
+     *
+     * ## Deux manifestes, deux documents
+     *
+     * Celui du bundle est écrit par le pipeline et porte `generatedAt`, `vault`
+     * et les statistiques du build. Celui du site est écrit par
+     * `corpus-publie.py` et porte `genere`, `fichiers` et `livres`. **Ils ne se
+     * ressemblent que de loin**, et la même date n'y a pas le même nom.
+     *
+     * Les décoder avec la même classe compilait, passait les épreuves, et
+     * rendait la chaîne vide sur le manifeste du bundle — kotlinx cherchait
+     * `genere`, ne le trouvait pas, et prenait la valeur par défaut. La garde
+     * entière tombait alors : `plusRecent` traite un bundle indatable comme
+     * n'ayant rien à opposer, donc **acceptait tout**.
+     *
+     * Le défaut ne se voyait nulle part. Les épreuves nourrissaient la sortie de
+     * cette fonction, jamais son entrée.
+     */
     internal fun dateDuBundle(): String = runCatching {
         context.assets.open("data/manifest.json").use { flux ->
-            json.decodeFromString<Manifeste>(flux.readBytes().decodeToString()).genere
+            dateDuManifesteEmbarque(flux.readBytes().decodeToString())
         }
     }.getOrDefault("")
 
