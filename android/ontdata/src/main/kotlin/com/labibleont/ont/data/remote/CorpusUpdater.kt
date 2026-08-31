@@ -94,6 +94,84 @@ public class CorpusUpdater(
             File(context.filesDir, "corpus")
 
         /**
+         * **Écarte le corpus du disque quand celui du bundle est plus récent.**
+         *
+         * ## Le trou que la garde de [synchroniser] laisse
+         *
+         * Refuser un corpus publié plus vieux empêche d'en *poser* un mauvais.
+         * Ça ne fait rien à celui qui est **déjà là**. Or le disque recouvre le
+         * bundle, fichier par fichier et sans condition : une copie téléchargée
+         * avant la garde continue donc de gagner sur un bundle plus neuf, et
+         * indéfiniment — jusqu'au jour où le site publie plus récent qu'elle.
+         *
+         * Constaté sur iOS, où la même correction avait été faite d'abord : la
+         * 1.0.5 embarquait la couche des Shemot, et **aucun nom ne s'affichait**.
+         * Le disque portait le corpus de l'avant-veille, sans un seul nœud
+         * `shem`, et il répondait à sa place. La correction précédente avait
+         * arrêté la cause et laissé l'effet.
+         *
+         * Android portait la garde de [synchroniser] sans celle-ci : il avait
+         * donc hérité de la moitié du remède.
+         *
+         * ## Ce que la purge coûte, et pourquoi ce n'est rien
+         *
+         * Le corpus est **entièrement retéléchargeable**, et le bundle répond en
+         * attendant : l'app n'est jamais sans texte, même une seconde. Rien de
+         * ce que le lecteur a écrit ne vit ici — surlignages, notes et position
+         * sont dans son propre fichier, ailleurs.
+         *
+         * ## Une estampille absente vaut « plus vieux »
+         *
+         * Toutes les installations d'aujourd'hui sont dans ce cas : un corpus
+         * sur le disque et aucune estampille, puisque personne n'en écrivait.
+         * Les traiter comme périmées est exact — il date forcément d'avant cette
+         * version — et c'est ce qui rend la réparation automatique au premier
+         * lancement.
+         */
+        public fun purgerSiLeBundleEstPlusNeuf(
+            context: Context,
+            dossier: File = dossierParDefaut(context),
+        ) {
+            val embarquee = CorpusUpdater(context).dateDuBundle()
+            val surDisque = runCatching {
+                File(dossier, "estampille.txt").readText().trim()
+            }.getOrDefault("")
+            if (!doitPurger(surDisque = surDisque, embarquee = embarquee)) return
+            dossier.deleteRecursively()
+        }
+
+        /**
+         * L'arbitrage de la purge, isolé de tout contexte.
+         *
+         * Comme [plusRecent], et pour la même raison : il ne dépend ni du
+         * disque, ni des assets, ni de l'appareil, donc il s'éprouve tel quel.
+         * Laissé dans [purgerSiLeBundleEstPlusNeuf], il aurait exigé un
+         * `Context` — et une épreuve qui a besoin d'un appareil est une épreuve
+         * qu'on n'écrit pas.
+         *
+         * ## Pourquoi ce n'est pas `!plusRecent(...)`
+         *
+         * [plusRecent] est **strict**, et l'égalité est ici le cas ordinaire :
+         * le disque porte alors exactement le corpus du bundle. Le nier
+         * purgerait à chaque lancement pour reposer les mêmes octets. **Aussi
+         * récent suffit à garder.**
+         *
+         * Une estampille absente ou mal formée ne s'ordonne pas : elle est
+         * traitée comme périmée. C'est le cas de toutes les installations
+         * antérieures à cette version, et c'est ce qui rend la réparation
+         * automatique au premier lancement.
+         */
+        internal fun doitPurger(surDisque: String, embarquee: String): Boolean {
+            val e = embarquee.trim()
+            // Un bundle indatable ne peut rien opposer : ne rien jeter vaut
+            // mieux que jeter un corpus peut-être bon.
+            if (!bienFormee(e)) return false
+            val d = surDisque.trim()
+            if (!bienFormee(d)) return true
+            return d < e
+        }
+
+        /**
          * L'arbitrage, isolé de tout contexte.
          *
          * Il ne dépend ni du réseau, ni des assets, ni de l'appareil — donc il
@@ -138,6 +216,16 @@ public class CorpusUpdater(
     private val registre get() = File(dossier, "empreintes.json")
 
     /**
+     * L'estampille du corpus **posé sur le disque**.
+     *
+     * À côté de lui, et pas dans le registre d'empreintes : celui-ci dit *quels
+     * fichiers* on tient, celle-là dit *de quand ils datent*. Deux questions,
+     * deux fichiers — les mêler ferait qu'une réponse partielle à l'une abîmerait
+     * l'autre.
+     */
+    private val estampilleDuDisque get() = File(dossier, "estampille.txt")
+
+    /**
      * Synchronise, et rend le nombre de fichiers remplacés.
      *
      * Zéro veut dire « rien de neuf », ce qui est le cas ordinaire. Une panne de
@@ -165,7 +253,13 @@ public class CorpusUpdater(
             remplaces++
         }
 
-        if (remplaces > 0) enregistrerLesEmpreintes(connus)
+        if (remplaces > 0) {
+            // Après les fichiers, comme le registre et pour la même raison : une
+            // estampille écrite d'avance promettrait un corpus qu'une coupure
+            // aurait laissé à moitié posé.
+            runCatching { estampilleDuDisque.writeText(manifeste.genere) }
+            enregistrerLesEmpreintes(connus)
+        }
         return remplaces
     }
 

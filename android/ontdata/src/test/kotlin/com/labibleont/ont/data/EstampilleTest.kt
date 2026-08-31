@@ -108,4 +108,83 @@ class EstampilleTest {
         // en croyant garder le plus récent.
         assertFalse(arbitre("2026-08-30T02:14:00+02:00", "2026-08-30T00:14:00Z"))
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // La purge — l'effet que la garde ci-dessus laissait derrière elle
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Refuser un corpus publié trop vieux empêche d'en **poser** un mauvais.
+     * Ça ne fait rien à celui qui est **déjà là**, et le disque recouvre le
+     * bundle sans condition.
+     *
+     * Android portait la garde de `synchroniser` sans celle-ci : il avait donc
+     * hérité de la moitié du remède. Sur iOS, cette moitié manquante s'était vue
+     * en vrai — la 1.0.5 embarquait les Shemot et n'affichait aucun nom, parce
+     * que le disque de l'avant-veille répondait à sa place.
+     */
+    private fun purge(surDisque: String, embarquee: String) =
+        CorpusUpdater.doitPurger(surDisque = surDisque, embarquee = embarquee)
+
+    @Test
+    fun `un disque plus vieux que le bundle est ecarte`() {
+        assertTrue(purge("2026-08-28T10:00:00Z", "2026-08-30T10:00:00Z"))
+    }
+
+    @Test
+    fun `un disque plus recent que le bundle reste`() {
+        assertFalse(purge("2026-08-31T10:00:00Z", "2026-08-30T10:00:00Z"))
+    }
+
+    /**
+     * **Le cas ordinaire**, et celui qui coûterait le plus cher à rater.
+     *
+     * À égalité, le disque porte exactement le corpus du bundle. Le purger
+     * quand même retéléchargerait tout à chaque lancement pour reposer les mêmes
+     * octets — vingt méga par ouverture d'app, sur le forfait du lecteur.
+     *
+     * C'est ce qu'un `!plusRecent(...)` aurait produit : cette fonction est
+     * stricte, et l'égalité n'y est pas « plus récent ».
+     */
+    @Test
+    fun `a date egale le disque est garde`() {
+        assertFalse(purge("2026-08-30T10:00:00Z", "2026-08-30T10:00:00Z"))
+    }
+
+    /**
+     * Le cas de **toutes les installations existantes** : un corpus sur le
+     * disque et aucune estampille, puisque personne n'en écrivait avant cette
+     * version.
+     *
+     * Les traiter comme périmées est exact — ce corpus date forcément d'avant —
+     * et c'est ce qui rend la réparation automatique au premier lancement, sans
+     * que le lecteur ait rien à faire.
+     */
+    @Test
+    fun `un disque sans estampille est ecarte`() {
+        assertTrue(purge("", "2026-08-30T10:00:00Z"))
+    }
+
+    /**
+     * Une estampille de forme voisine ne s'ordonne pas contre la forme stricte.
+     * La traiter comme absente est le même choix que pour le manifeste publié :
+     * se tromper dans ce sens-là est ce qui a produit le défaut.
+     */
+    @Test
+    fun `une estampille mal formee vaut une absence`() {
+        assertTrue(purge("2026-08-30", "2026-08-30T10:00:00Z"))
+        assertTrue(purge("2026-08-31T12:14:00+02:00", "2026-08-30T10:00:00Z"))
+    }
+
+    /**
+     * **Un bundle indatable ne peut rien opposer.**
+     *
+     * Purger sur cette base jetterait un corpus peut-être bon — et le
+     * retéléchargerait aussitôt, sans avoir rien prouvé. On ne touche à rien.
+     */
+    @Test
+    fun `un bundle sans estampille ne purge rien`() {
+        assertFalse(purge("2026-08-28T10:00:00Z", ""))
+        assertFalse(purge("", ""))
+    }
 }
