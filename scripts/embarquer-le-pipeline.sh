@@ -76,15 +76,56 @@ DROITS="$(mktemp -t ont-droits).plist"
 codesign -d --entitlements - --xml "$CIBLE" 2>/dev/null \
   | plutil -convert xml1 -o "$DROITS" - 2>/dev/null || true
 
+# **Le binaire imbriqué porte ses propres droits, et il en faut deux.**
+#
+# Signé sans droits, il faisait rejeter la livraison entière par Apple :
+#
+#     App sandbox not enabled. The following executables must include the
+#     "com.apple.security.app-sandbox" entitlement […] ont-pipeline
+#
+# Une app du Mac App Store est confinée, et **tout** exécutable qu'elle embarque
+# doit l'être aussi. `inherit` dit qu'il prend le bac à sable de son parent
+# plutôt que d'en ouvrir un à lui — c'est ce qui lui donne accès au dossier que
+# le lecteur a désigné, et rien d'autre. Mesuré le 31 août 2026 : le fils hérite
+# bien de l'autorisation du powerbox, 44 unités et 864 versets lus.
+#
+# Ces deux droits-là et pas ceux de l'app : recopier les siens donnerait au
+# pipeline le droit au réseau et à Sign in with Apple, dont il n'a que faire.
+DROITS_FILS="$(mktemp -t ont-droits-fils).plist"
+cat > "$DROITS_FILS" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key><true/>
+  <key>com.apple.security.inherit</key><true/>
+</dict>
+</plist>
+PLIST
+
 if [ -n "$IDENTITE" ] && [ -s "$DROITS" ]; then
   echo "→ re-signature sous « $IDENTITE »"
-  codesign --force --sign "$IDENTITE" "$CIBLE/Contents/MacOS/ont-pipeline"
+  codesign --force --sign "$IDENTITE" --entitlements "$DROITS_FILS" \
+    "$CIBLE/Contents/MacOS/ont-pipeline"
   codesign --force --sign "$IDENTITE" --entitlements "$DROITS" "$CIBLE"
 else
   echo "→ app non signée : re-signature ad hoc"
-  codesign --force --sign - "$CIBLE/Contents/MacOS/ont-pipeline" 2>/dev/null || true
+  codesign --force --sign - --entitlements "$DROITS_FILS" \
+    "$CIBLE/Contents/MacOS/ont-pipeline" 2>/dev/null || true
   codesign --force --sign - "$CIBLE" 2>/dev/null || true
 fi
+
+# **Et l'on vérifie que le fils les porte**, comme on le fait pour l'app.
+# C'est la vérification qui manquait : la livraison du 31 août a été rejetée par
+# Apple pour ces deux droits absents, alors que le script annonçait « 9 portés
+# pour 7 demandés » — le compte de l'app, juste, et muet sur son fils.
+FILS=$(codesign -d --entitlements - --xml "$CIBLE/Contents/MacOS/ont-pipeline" 2>/dev/null \
+  | plutil -convert xml1 -o - - 2>/dev/null | grep -c "app-sandbox" || echo 0)
+if [ "$FILS" -lt 1 ]; then
+  echo "✗ ont-pipeline ne porte pas app-sandbox — Apple rejettera la livraison" >&2
+  exit 1
+fi
+echo "→ le pipeline porte son bac à sable"
 
 # **Et on vérifie que les droits ont survécu**, plutôt que de l'espérer.
 #

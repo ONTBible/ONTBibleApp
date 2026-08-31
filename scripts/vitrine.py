@@ -212,6 +212,17 @@ ILE = (125 / 440, 37 / 440, 11 / 440)
 def appareil(capture, largeur_cible, cadre):
     """La capture montée dans un châssis d'appareil.
 
+    ## Sauf sur le Mac, où l'on ne dessine rien
+
+    `screencapture -l` rend la fenêtre **avec ses coins arrondis en
+    transparence** — vérifié, alpha 0 aux quatre angles. Une fenêtre de macOS
+    est déjà un objet fini : elle porte sa barre de titre, ses trois pastilles
+    et sa forme. Lui ajouter un châssis d'écran serait dessiner un moniteur
+    autour d'une fenêtre, ce qu'aucune fiche du Mac App Store ne fait.
+
+    D'où `nu` : on met la capture à l'échelle et rien d'autre. L'ombre, elle,
+    reste — c'est elle qui décolle la fenêtre du fond.
+
     ## Pourquoi ce n'est pas un rectangle arrondi
 
     Ça l'a été, et l'affiche s'est fait prendre pour un appareil Android. Un
@@ -231,6 +242,12 @@ def appareil(capture, largeur_cible, cadre):
     et **pas d'île** — la caméra de l'iPad Pro M5 est sur le bord long,
     invisible en portrait.
     """
+    if cadre.get("nu"):
+        hauteur = round(capture.height * largeur_cible / capture.width)
+        return capture.convert("RGBA").resize(
+            (largeur_cible, hauteur), Image.LANCZOS
+        )
+
     bordure = max(3, round(largeur_cible * cadre["bordure"]))
     rayon = round(largeur_cible * cadre["rayon"])
     saillie = max(2, round(largeur_cible * 0.007))
@@ -341,36 +358,50 @@ def affiche(chemin_capture, titre, phrase, cadre):
     toile = fond(L, H).convert("RGBA")
     dessin = ImageDraw.Draw(toile)
 
-    # Tout se mesure sur la largeur, jamais sur la hauteur : l'iPhone et
-    # l'iPad n'ont pas la même proportion, et un corps de texte réglé sur la
-    # hauteur sortirait deux fois plus gros sur l'un que sur l'autre.
-    marge = round(L * 0.075)
+    # **Le texte se mesure sur le petit côté, l'appareil sur la largeur.**
+    #
+    # C'était « tout sur la largeur », et ça tenait tant que les affiches
+    # étaient en portrait : sur l'iPhone comme sur l'iPad, le petit côté *est*
+    # la largeur, donc `ref` vaut exactement ce que valait `L` et rien ne bouge
+    # pour eux.
+    #
+    # Le Mac est en paysage — 2880 × 1800. Mesurer son texte sur la largeur
+    # donnerait une accroche de trois cents points de corps dans dix-huit cents
+    # points de hauteur : le titre seul remplirait l'affiche.
+    #
+    # `texte` rattrape ce qui reste : même sur le petit côté, un paysage laisse
+    # moins de place au-dessus de l'appareil qu'un portrait.
+    ref = round(min(L, H) * cadre.get("texte", 1.0))
+    marge = round(ref * 0.075)
     f_titre, corps_titre = ajuster(
-        dessin, titre, "Literata-SemiBold.ttf", round(L * 0.103), L * 0.86
+        dessin, titre, "Literata-SemiBold.ttf", round(ref * 0.103), min(L, ref * 0.86)
     )
-    f_phrase = police("Literata-Regular.ttf", round(L * 0.040))
+    f_phrase = police("Literata-Regular.ttf", round(ref * 0.040))
 
     y = marge
 
-    signature = marque(round(L * 0.30))
+    signature = marque(round(ref * 0.30))
     toile.alpha_composite(signature, ((L - signature.width) // 2, y))
-    y += signature.height + round(L * 0.055)
+    y += signature.height + round(ref * 0.055)
 
     hauteur_ligne = round(corps_titre * 1.16)
     for ligne in titre:
         dessin.text((L / 2, y), ligne, font=f_titre, fill=ENCRE_VIVE, anchor="ma")
         y += hauteur_ligne
-    y += round(L * 0.042)
+    y += round(ref * 0.042)
 
     # La phrase est tenue plus étroite que le titre : une ligne de soixante
     # signes se relit, une ligne qui court sur toute la largeur non.
-    for ligne in couper(dessin, phrase, f_phrase, L * 0.74):
+    for ligne in couper(dessin, phrase, f_phrase, min(L, ref * 0.74)):
         dessin.text((L / 2, y), ligne, font=f_phrase, fill=ENCRE_DOUCE, anchor="ma")
-        y += round(L * 0.040 * 1.42)
+        y += round(ref * 0.040 * 1.42)
 
-    y += round(L * 0.070)
+    y += round(ref * 0.070)
 
-    largeur_appareil = round(L * 0.735)
+    # La largeur de l'appareil se mesure sur celle de l'affiche, et par cadre :
+    # un portrait supporte des marges généreuses, un paysage les fait paraître
+    # vides. Le Mac occupe donc plus de sa largeur que l'iPhone de la sienne.
+    largeur_appareil = round(L * cadre.get("largeur", 0.735))
     vignette = appareil(capture, largeur_appareil, cadre)
     x = (L - vignette.width) // 2
     plaque, decalage_ombre = ombre(
@@ -391,6 +422,20 @@ def affiche(chemin_capture, titre, phrase, cadre):
 # Un dossier Android s'ajoutera ici le jour venu — sans île, coins moins
 # arrondis, rail neutre — et rien d'autre ne bougera.
 CADRES = {
+    # **Le Mac ne se dessine pas.** Voir `appareil()` : la capture porte déjà
+    # ses coins, sa barre de titre et ses pastilles.
+    #
+    # `texte` à 0,62 parce qu'un paysage laisse moins de hauteur au-dessus de
+    # l'appareil qu'un portrait : à 1,0 le titre et la phrase mangeaient la
+    # fenêtre. Le rayon vaut celui d'une fenêtre de macOS — dix points sur une
+    # fenêtre de mille quatre cent quarante — ramené en fraction de la largeur
+    # de la vignette, et il ne sert qu'à l'ombre.
+    "mac": {
+        "nu": True,
+        "texte": 0.62,
+        "largeur": 0.82,
+        "rayon": 0.007,
+    },
     "iphone-6.9": {
         "ile": True,
         "bordure": 0.030,
@@ -421,10 +466,23 @@ CADRES = {
 
 
 def main():
+    # **Un dossier brut absent est sauté, pas fatal — et il est nommé.**
+    #
+    # Les captures de l'iPhone et celles du Mac se prennent par deux scripts
+    # différents, sur deux machines qui n'ont pas les mêmes moyens : un
+    # simulateur d'un côté, la fenêtre native de l'autre. Refuser de composer
+    # les unes parce que les autres manquent obligerait à tout refaire pour
+    # retoucher une accroche.
+    #
+    # Ce qui reste fatal : n'avoir rien composé du tout. Sinon le script rendrait
+    # zéro et l'on croirait la vitrine à jour.
+    faits = 0
     for dossier, cadre in CADRES.items():
         source = CAPTURES / "brut" / dossier
         if not source.is_dir():
-            sys.exit(f"manque {source} — lancer ./scripts/captures.sh d'abord")
+            print(f"  {dossier} : aucune capture brute, sauté")
+            continue
+        faits += 1
         cible = CAPTURES / dossier
         cible.mkdir(parents=True, exist_ok=True)
         for i, (titre, phrase) in enumerate(AFFICHES, start=1):
@@ -432,6 +490,12 @@ def main():
             image = affiche(source / nom, titre, phrase, cadre)
             image.save(cible / nom)
             print(f"  {cible.relative_to(RACINE)}/{nom}  {image.width}×{image.height}")
+
+    if faits == 0:
+        sys.exit(
+            f"aucune capture brute sous {(CAPTURES / 'brut').relative_to(RACINE)} — "
+            "lancer ./scripts/captures.sh ou ./scripts/captures-mac.sh d'abord"
+        )
 
 
 if __name__ == "__main__":
