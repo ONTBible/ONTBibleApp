@@ -8,19 +8,32 @@
 # connaissait la réponse. C'est pour ça que ce workflow crée une release, dont
 # le tag n'est qu'un effet.
 #
-# ## Quelle version, et pourquoi celle-là
+# ## Quelle version, et où elle vit vraiment
 #
-# `CFBundleShortVersionString` d'`app/Info.plist` — la version publique, celle
-# que l'App Store affiche. `1.0.5` donne `v1.0.5`.
+# `targets.ONT.info.properties.CFBundleShortVersionString` d'**`app/project.yml`**
+# — la version publique, celle que l'App Store affiche. `1.0.5` donne `v1.0.5`.
 #
-# **Pas `CFBundleVersion`**, et la raison est mesurable : dans le dépôt il vaut
-# littéralement `1`. Il ne devient un numéro daté — `260831.1246` — que le temps
-# d'un build, posé par `livraison.yml` puis restauré. Un tag `v1` ne dirait rien,
-# et `v260831.1246` dirait la minute d'une compilation, pas une version.
+# **Pas `app/Info.plist`.** Il n'est pas dans le dépôt : `.gitignore` l'écarte,
+# parce que xcodegen l'engendre depuis `info.properties` à chaque génération.
+# La première version de ce fichier le lisait, et aurait échoué à chaque
+# poussée sur `main` — le fichier existe sur la machine où on l'a écrit, et
+# nulle part ailleurs. Relevé par la session qui tient le profil, par un `gh
+# api` sur la branche : 404.
 #
-# **Pas le `.pbxproj` non plus** : `ONT.xcodeproj` est engendré par xcodegen et
-# n'est pas committé. `agvtool` et les lectures du projet n'ont rien à lire ici.
-# Le plist fait foi.
+# C'est la même raison qui écarte le `.pbxproj`, et j'avais écrit celle-là sans
+# l'appliquer au plist : `ONT.xcodeproj` **et** `Info.plist` sont engendrés par
+# le même outil. Une justification longue donne le sentiment d'avoir fini, et
+# la question « ce fichier existe-t-il en CI ? » n'avait jamais été posée.
+#
+# **`targets.ONT` explicitement**, et non la première occurrence rencontrée :
+# les trois cibles portent `1.0.5` aujourd'hui, mais `ONTMac` et `ONTWidget`
+# peuvent diverger, et c'est l'app iOS qui va à l'App Store.
+#
+# **Pas `CFBundleVersion`**, et la raison est mesurable : il vaut littéralement
+# `1` dans la source. Il ne devient un numéro daté — `260831.1246` — que le
+# temps d'un build, posé par `livraison.yml` puis restauré par son `trap`. Un
+# tag `v1` ne dirait rien, et `v260831.1246` dirait la minute d'une
+# compilation, pas une version.
 #
 # ## Ce qui arrive quand la version n'a pas bougé
 #
@@ -57,17 +70,21 @@ jobs:
           # l'historique, elles ne portent que le dernier commit.
           fetch-depth: 0
 
-      - name: La version publique, lue dans le plist
+      - name: La version publique, lue dans project.yml
         id: version
         run: |
           set -euo pipefail
+          python3 -c "import yaml" 2>/dev/null || pip install --quiet pyyaml
           V=$(python3 -c "
-          import plistlib, sys
-          with open('app/Info.plist', 'rb') as f:
-              d = plistlib.load(f)
-          v = d.get('CFBundleShortVersionString', '')
+          import sys, yaml
+          with open('app/project.yml') as f:
+              d = yaml.safe_load(f)
+          cible = (d.get('targets') or {}).get('ONT')
+          if cible is None:
+              sys.exit('cible ONT absente de app/project.yml')
+          v = ((cible.get('info') or {}).get('properties') or {}).get('CFBundleShortVersionString', '')
           if not v:
-              sys.exit('CFBundleShortVersionString absent d Info.plist')
+              sys.exit('CFBundleShortVersionString absent de targets.ONT dans app/project.yml')
           print(v)
           ")
           echo "version=$V" >> "$GITHUB_OUTPUT"
