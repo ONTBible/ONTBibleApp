@@ -136,6 +136,23 @@ public final class ModeVault {
     /// Sans bruit quand il n'y en a pas : le mode reste éteint, ce qui est
     /// l'état de qui ne s'en sert pas. Ce n'est pas une erreur à signaler.
     public func reprendre() {
+        // **Sans pipeline, on ne reprend rien.**
+        //
+        // Le menu qui ouvre et ferme le mode vault ne s'affiche que si le
+        // binaire est là — mais reprendre un vault suivi à la session
+        // précédente ne passait pas par ce menu. Sur un build livré sans le
+        // pipeline, l'auteur retrouvait donc le bandeau « pipeline non
+        // embarqué » **et aucun moyen de l'enlever** : « Cesser de suivre »
+        // est dans le bloc caché.
+        //
+        // Mesuré le 31 août 2026 sur le build `260831.1628`, celui du canal
+        // bêta, installé depuis TestFlight. Une garde posée à un endroit et
+        // pas à l'autre laisse une porte que personne n'a vue.
+        //
+        // Le signet n'est pas effacé : il attend un build qui saura s'en
+        // servir. Effacer serait décider à la place de l'auteur qu'il ne
+        // reviendra pas au canal interne.
+        guard Self.pipelineEmbarque != nil else { return }
         guard let donnees = reglages.data(forKey: Self.cleSignet) else { return }
         var perime = false
         let resolu = try? URL(
