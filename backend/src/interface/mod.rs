@@ -465,10 +465,8 @@ mod tests {
     /// un serveur qui n'en a pas les identifiants.
     #[tokio::test]
     async fn ce_qui_n_est_pas_installe_n_est_pas_annonce() {
-        let annoncees = capacites_annoncees(app_offrant(BTreeSet::from([
-            Capacite::Synchronisation,
-        ])))
-        .await;
+        let annoncees =
+            capacites_annoncees(app_offrant(BTreeSet::from([Capacite::Synchronisation]))).await;
 
         assert!(!annoncees.iter().any(|c| c.starts_with("auth.")));
     }
