@@ -35,7 +35,7 @@ cd "$(dirname "$0")/.."
 vert=$'\033[32m'; rouge=$'\033[31m'; gris=$'\033[90m'; fin=$'\033[0m'
 echec() { printf '%s✗%s %s\n' "$rouge" "$fin" "$1" >&2; exit 1; }
 
-SORTIE="app/Captures/mac"
+SORTIE="app/Captures/brut/mac"
 TAILLE="1440x900"
 ATTENDU_L=2880
 ATTENDU_H=1800
@@ -148,14 +148,22 @@ done
 
 pkill -f "La Bible ONT" 2>/dev/null || true
 
-printf '%s✓%s %s captures dans %s\n' "$vert" "$fin" "$i" "$SORTIE"
+printf '%s✓%s %s captures brutes dans %s\n' "$vert" "$fin" "$i" "$SORTIE"
+
+# **Ce qu'on téléverse n'est pas ce qu'on vient de prendre.** Une capture nue
+# arrive en vignette dans la fiche, où l'interface n'est plus lisible.
+# `vitrine.py` en fait des affiches — marque, accroche, phrase — et c'est le
+# même script que pour l'iPhone, pour que les deux fiches se ressemblent.
+echo "→ les affiches"
+./scripts/vitrine.py
+
 cat <<TEXTE
 
 ${gris}  Les regarder avant de les téléverser : la taille est vérifiée, le contenu
   non. Une bannière de vault, une carte d'actions ouverte ou un verset
   sélectionné passeraient ce contrôle sans un mot.
 
-      qlmanage -p $SORTIE/*.png
+      qlmanage -p app/Captures/mac/*.png
 
   Puis, pour les poser sur la fiche :
 
