@@ -30,8 +30,16 @@
 	     `development` et non `production` : c'est ce qu'un profil de
 	     développement délivre, et le backend refuse un jeton dont
 	     l'environnement ne correspond pas au sien. La chaîne de livraison le
-	     bascule à `production` en signant, comme sur iOS. -->
-	<key>aps-environment</key>
+	     bascule à `production` en signant, comme sur iOS.
+
+	     **Et le nom de la clé n'est pas celui d'iOS.** Là-bas c'est
+	     `aps-environment` ; ici c'est `com.apple.developer.aps-environment`.
+	     La même capacité, deux noms, et rien ne le dit : Xcode ne trouve pas
+	     de correspondance dans le profil, **laisse tomber le droit, et
+	     compile en vert**. Mesuré en comparant ce que le fichier demande à ce
+	     que `codesign -d --entitlements` rend — six droits sur sept, sans un
+	     avertissement. -->
+	<key>com.apple.developer.aps-environment</key>
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
