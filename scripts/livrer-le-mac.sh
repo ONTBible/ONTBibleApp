@@ -74,7 +74,22 @@ esac
 CLE="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 [ -f "$CLE" ] || echec "clé absente : $CLE"
 
-XCODE=$(xcodebuild -version | head -1)
+# **Sans tuyau, et ce n'est pas une coquetterie.**
+#
+# `xcodebuild -version | head -1` a fait échouer la toute première livraison du
+# Mac, en 0,26 seconde et avec le code 134. `head` lit sa ligne et ferme le
+# tuyau ; `xcodebuild` écrit alors la seconde — « Build version … » — dans un
+# descripteur fermé.
+#
+# Un programme ordinaire meurt là sur `SIGPIPE`, ce qui rend 141. Celui d'Xcode
+# 27 lève une `NSFileHandleOperationException` que personne ne rattrape, et
+# avorte : `SIGABRT`, donc 134. C'est ce chiffre qui m'a fait écarter la piste
+# du tuyau pendant une demi-heure — je cherchais 141.
+#
+# La course est de surcroît gagnée la plupart du temps en interactif, où tout
+# tient dans une seule écriture : le défaut ne se voit qu'en CI.
+XCODE=$(xcodebuild -version)
+XCODE=${XCODE%%$'\n'*}
 echo "$gris→ $XCODE  ·  branche $BRANCHE  ·  canal $CANAL${GROUPE:+ (groupe « $GROUPE »)}$fin"
 
 # **On ne devine pas si l'icône passera : on le mesure d'abord.**
