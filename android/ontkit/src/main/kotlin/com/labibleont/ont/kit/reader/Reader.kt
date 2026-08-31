@@ -18,6 +18,46 @@ public enum class HighlightColor(public val cle: String, public val label: Strin
     VIOLET("violet", "Violet");
 
     public companion object {
+        /**
+         * La teinte nommée par sa clé, l'or à défaut.
+         *
+         * ## L'or n'est pas un choix anodin, c'est un rétrécissement
+         *
+         * `color` est une **chaîne libre** côté backend : le serveur ne valide
+         * aucune liste, et chaque client tient la sienne. Une clé inconnue vient
+         * donc, selon toute vraisemblance, d'une version plus récente d'une
+         * autre plateforme.
+         *
+         * Retomber sur l'or garde le surlignage visible, et c'est bien : perdre
+         * la marque du lecteur serait pire que la montrer d'une autre couleur.
+         *
+         * **Mais la lecture ne fait pas que lire.** Le disque réécrit ensuite
+         * `color.cle`, donc une marque enregistrée `turquoise` par un client
+         * futur revient `gold` — et la valeur d'origine n'existe plus nulle
+         * part sur cet appareil.
+         *
+         * ## Aujourd'hui inoffensif, demain non
+         *
+         * Android n'envoie rien au serveur : `remote/` ne porte que
+         * l'actualiseur de corpus, et le compte n'est pas branché. Le
+         * rétrécissement s'arrête donc au disque de l'appareil.
+         *
+         * **Le jour où `/sync` arrivera, ce sera l'inverse** : cet appareil
+         * renverra `gold` pour une marque que quelqu'un d'autre a posée en
+         * turquoise, et l'écrasera pour tout le monde. C'est le motif du corpus
+         * publié qui recouvrait un paquet plus neuf, transposé sur une couleur.
+         *
+         * iOS a tranché autrement, et le dit dans `Services.swift` : une ligne
+         * de couleur inconnue est **ignorée** plutôt que ramenée à une teinte
+         * connue — « on préfère ignorer la ligne plutôt que de faire échouer
+         * toute la synchronisation ». Sa lecture ne réécrit donc rien.
+         *
+         * **Qui écrira la synchronisation d'Android doit trancher ici**, pas
+         * dans le service : soit garder la clé d'origine à côté de la teinte
+         * affichée, soit ne pas renvoyer les lignes qu'on n'a pas comprises.
+         * Ce que cette fonction ne peut pas faire, c'est laisser croire qu'elle
+         * a lu ce qu'elle a en fait remplacé.
+         */
         public fun depuis(cle: String?): HighlightColor =
             entries.firstOrNull { it.cle == cle } ?: GOLD
     }
