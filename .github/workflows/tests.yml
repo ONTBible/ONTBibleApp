@@ -273,7 +273,6 @@ jobs:
             -resultBundlePath ../resultats-mac.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            ASSETCATALOG_COMPILER_APPICON_NAME= \
             2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
 
       # **Ce que `xcbeautify` avale.**
@@ -313,6 +312,9 @@ jobs:
           echo
           echo "── les lignes d'erreur du log brut ──"
           grep -iE "error:|failed|\*\* [A-Z]+ FAILED" brut-mac.log | tail -40 || true
+          echo
+          echo "── tout ce qui touche à l'icône ──"
+          grep -iE "actool|icon|IBAbstract|CompileAssetCatalog" brut-mac.log | tail -60 || true
 
       # Le compte réel, lu des paquets de résultats. La ligne « Executed 0 tests »
       # d'`xcodebuild` ne compte que l'ancien XCTest : Swift Testing y est
