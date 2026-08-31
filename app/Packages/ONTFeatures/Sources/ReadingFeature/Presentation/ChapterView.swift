@@ -611,6 +611,7 @@ private struct VerseRow: View {
                 .cesuree(theme.preferences.hyphenation)
             )
             .lineSpacing(theme.lineSpacing)
+                .font(ONTUI.ligneDeListe)
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
@@ -1421,6 +1422,7 @@ private struct BlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: spacing.s) {
                         Text(ordered ? "\(index + 1)." : "—")
                             .foregroundStyle(ONTColors.accent(theme.mode))
+                            .font(ONTUI.ligneDeListe)
                         Text(ONTTextRenderer.compose(item, theme: theme))
                     }
                 }
@@ -1511,7 +1513,7 @@ private struct NoteEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("\(chapter.title):\(verse)") {
+                Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
                     // `TextEditor` porte son propre fond, et il ne vient pas
                     // de la ligne : il reste gris système au milieu d'une nuit
                     // aubergine, même quand la section qui l'entoure est
@@ -1615,6 +1617,7 @@ public struct ReadingSettingsSheet: View {
                     Toggle("Couper les mots", isOn: $model.preferences.hyphenation)
                 } header: {
                     Text("Disposition")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "À la suite, les versets coulent en prose et leurs numéros "
@@ -1630,6 +1633,7 @@ public struct ReadingSettingsSheet: View {
                             + "en anglais couperait « pro-blème » au lieu de "
                             + "« pro-blè-me »."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1638,12 +1642,14 @@ public struct ReadingSettingsSheet: View {
                     Toggle("Translittération et hébreu", isOn: $model.preferences.showLevel3)
                 } header: {
                     Text("Niveaux du texte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Le corps de la traduction reste toujours visible. "
                             + "Les gloses explicitent l'implicite hébreu ; "
                             + "le niveau 3 donne le mot original."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1656,11 +1662,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Corps")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Cette taille s'ajoute au réglage système : agrandir le texte dans "
                             + "Réglages › Affichage agrandit aussi celui-ci."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1670,11 +1678,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Fonte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Chaque nom est composé dans sa propre fonte : "
                             + "ce que vous voyez est ce que vous lirez."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1682,8 +1692,10 @@ public struct ReadingSettingsSheet: View {
                     ThemeRow(selection: $model.preferences.theme)
                 } header: {
                     Text("Thème")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text("Mystique est la peau du site ontbible.com — nuit aubergine et or.")
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1700,6 +1712,7 @@ public struct ReadingSettingsSheet: View {
                         "Ramène disposition, niveaux, corps, fonte et thème à leur "
                             + "état de départ. Le rappel du verset du jour n'est pas touché."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
         }
@@ -1720,6 +1733,7 @@ public struct ReadingSettingsSheet: View {
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
+                .font(ONTUI.ligneDeListe)
         }
     }
 }
@@ -1889,6 +1903,7 @@ private struct ThemeRow: View {
             HStack(spacing: 8) {
                 Text("Thème")
                     .foregroundStyle(theme.ink)
+                    .font(ONTUI.ligneDeListe)
                 Spacer(minLength: 8)
                 Text(selection.label).font(ONTUI.body)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))

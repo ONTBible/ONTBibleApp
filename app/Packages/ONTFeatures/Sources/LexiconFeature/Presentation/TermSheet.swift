@@ -107,7 +107,7 @@ public struct TermSheet: View {
             // toujours.
             .ontRow()
 
-            Section("Ce qu'il signifie") {
+            Section(header: Text("Ce qu'il signifie").font(ONTUI.enteteDeListe)) {
                 if entry.sansDefinition {
                     // **Le silence était pire que l'aveu.** Sans cette section,
                     // l'écran passait de l'en-tête aux repères sans rien entre
@@ -122,6 +122,7 @@ public struct TermSheet: View {
                             + "n'est pas encore écrite."
                     )
                     .foregroundStyle(.secondary)
+                        .font(ONTUI.ligneDeListe)
                 } else if let definition = entry.definition {
                     ForEach(Array(definition.enumerated()), id: \.offset) { _, block in
                         BlocDeFiche(block: block)
@@ -131,7 +132,7 @@ public struct TermSheet: View {
             .ontRow()
 
             if let note = entry.taggingNote {
-                Section("Règle de balisage") {
+                Section(header: Text("Règle de balisage").font(ONTUI.enteteDeListe)) {
                     ForEach(Array(note.enumerated()), id: \.offset) { _, block in
                         BlocDeFiche(block: block)
                     }
@@ -139,7 +140,7 @@ public struct TermSheet: View {
                 .ontRow()
             }
 
-            Section("Repères") {
+            Section(header: Text("Repères").font(ONTUI.enteteDeListe)) {
                 if let firstUse = entry.firstUse {
                     LabeledContent("Premier emploi", value: firstUse)
                 }
@@ -149,6 +150,7 @@ public struct TermSheet: View {
                     LabeledContent("Formes") {
                         Text(entry.forms.joined(separator: " · "))
                             .multilineTextAlignment(.trailing)
+                            .font(ONTUI.ligneDeListe)
                     }
                 }
             }
@@ -167,6 +169,7 @@ public struct TermSheet: View {
             if list.isEmpty {
                 Text("Aucune occurrence dans le corpus rédigé à ce jour.")
                     .foregroundStyle(.secondary)
+                    .font(ONTUI.ligneDeListe)
             } else {
                 ForEach(Array(list.prefix(60).enumerated()), id: \.offset) { _, occurrence in
                     VStack(alignment: .leading, spacing: 4) {

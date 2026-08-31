@@ -282,7 +282,7 @@ struct BookView: View {
     private func list(_ outline: BookOutline) -> some View {
         List {
             if let intro = outline.intro {
-                Section("Introduction") {
+                Section(header: Text("Introduction").font(ONTUI.enteteDeListe)) {
                     NavigationLink(
                         value: Router.Destination.chapter(book: outline.id, chapter: intro.id)
                     ) {

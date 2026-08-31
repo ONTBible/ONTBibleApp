@@ -61,12 +61,14 @@ struct EnTeteDuProfil: View {
                             }
                             if let adresse = session.email {
                                 Text(adresse)
+                                    .font(ONTUI.ligneDeListe)
                             } else if let fournisseur = session.provider {
                                 // L'adresse n'arrive qu'avec le serveur
                                 // déployé. Le nom du fournisseur tient lieu
                                 // d'information en attendant — il est vrai, et
                                 // c'est ce que la question demandait.
                                 Text(fournisseur.label)
+                                    .font(ONTUI.ligneDeListe)
                             }
                         }
                         .font(ONTUI.caption)
@@ -224,6 +226,7 @@ struct EditeurDuProfil: View {
                     Text("@")
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
+                        .font(ONTUI.ligneDeListe)
                     TextField("nomdusage", text: $account.profil.nomDUsage)
                         .ontSansCapitaleAutomatique()
                         .autocorrectionDisabled()
@@ -241,18 +244,21 @@ struct EditeurDuProfil: View {
                 }
             } header: {
                 Text("Nom d'usage")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 // Le reproche ne paraît que s'il y a quelque chose à reprocher,
                 // et il nomme ce qui manque — jamais la règle entière.
                 if let reproche = NomDUsage.reproche(account.profil.nomDUsage) {
                     Text(reproche).foregroundStyle(.red)
+                        .font(ONTUI.piedDeListe)
                 } else {
                     Text("Ce par quoi les autres lecteurs vous nommeront, au Qahal.")
+                        .font(ONTUI.piedDeListe)
                 }
             }
             .ontRow()
 
-            Section("Nom") {
+            Section(header: Text("Nom").font(ONTUI.enteteDeListe)) {
                 // **Un identifiant stable, et non l'invite.**
                 //
                 // L'invite disparaît dès que le champ est rempli : un relevé
@@ -282,6 +288,7 @@ struct EditeurDuProfil: View {
                     }
             } header: {
                 Text("Bio")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text("\(account.profil.bio.count) / \(bornDeLaBio)")
                     .font(ONTUI.caption2.monospacedDigit())
@@ -300,6 +307,7 @@ struct EditeurDuProfil: View {
                     )
                     .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
+                        .font(ONTUI.ligneDeListe)
                 } icon: {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(theme.accent)

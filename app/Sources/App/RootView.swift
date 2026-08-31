@@ -228,6 +228,7 @@ private struct LigneDuCompte: View {
             HStack(spacing: espace.s) {
                 Portrait(profil: compte.profil, octets: compte.portrait(), taille: 26)
                 Text(compte.profil.nomDeBarre).lineLimit(1)
+                    .font(ONTUI.ligneDeListe)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(theme.ink)
