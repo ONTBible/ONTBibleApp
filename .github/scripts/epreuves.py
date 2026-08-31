@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import asc
 import beta
+import fiche
 import soumettre
 
 
@@ -235,6 +236,36 @@ class LeChoixDUneVersionDeLaFiche(unittest.TestCase):
         self.assertIn("version 1.0.5 reprise", texte)
         self.assertFalse([c for c, _ in client.envois if c == "appStoreVersions"],
                          "aucune version ne devrait être créée en double")
+
+
+class LaFicheDesMagasins(unittest.TestCase):
+    """`fiche.py` — le texte et les captures vont sur la bonne plateforme."""
+
+    def choisir(self, versions, plateforme):
+        client = FauxClient({"appStoreVersions": {"data": versions}})
+        return fiche.version_a_remplir(client, "app-1", plateforme), client
+
+    def test_la_fiche_de_l_iphone_ne_va_pas_sur_la_version_du_mac(self):
+        """Le même défaut que `soumettre.py` portait, et qui n'a jamais tiré.
+
+        `fiche.yml` est manuel et n'avait jamais tourné quand on l'a trouvé.
+        Une exécution après l'ajout de la plateforme macOS aurait écrit la
+        description, les mots-clés et les captures de l'iPhone sur la version
+        du Mac — la seule modifiable.
+        """
+        _, client = self.choisir(FICHE_A_DEUX_PLATEFORMES, "IOS")
+        creees = [b for c, b in client.envois if c == "appStoreVersions"]
+        self.assertEqual(len(creees), 1, "une version iOS aurait dû être créée")
+        self.assertEqual(creees[0]["data"]["attributes"]["platform"], "IOS")
+
+    def test_la_fiche_du_mac_reprend_la_sienne(self):
+        version, _ = self.choisir(FICHE_A_DEUX_PLATEFORMES, "MAC_OS")
+        self.assertEqual(version, "v-mac-10")
+
+    def test_chaque_plateforme_a_ses_formats_de_capture(self):
+        """Le Mac n'a qu'un format, et ce n'est pas celui de l'iPhone."""
+        self.assertIn("APP_DESKTOP", fiche.FORMATS["MAC_OS"].values())
+        self.assertNotIn("APP_DESKTOP", fiche.FORMATS["IOS"].values())
 
 
 if __name__ == "__main__":
