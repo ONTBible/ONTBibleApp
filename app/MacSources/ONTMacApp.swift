@@ -50,7 +50,8 @@ struct ONTMacApp: App {
     /// Voir `DelegueMac` — il existe pour une seule raison : recevoir les liens
     /// avant que SwiftUI n'en fasse une fenêtre de plus.
     @NSApplicationDelegateAdaptor(DelegueMac.self) private var delegue
-    @State private var vault = ModeVault()
+    @State private var vault = ModeVault(
+        montrer: { EtatMac.partage.composition.regarderLApercu($0) })
 
     var body: some Scene {
         // **`Window` et non `WindowGroup`.**

@@ -54,8 +54,7 @@ public final class ModeVault {
         public let raison: String
     }
 
-    private var source: DispatchSourceFileSystemObject?
-    private var descripteur: CInt = -1
+    private var surveillance: FSEventStreamRef?
     private var minuterie: Task<Void, Never>?
     private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "vault")
 
@@ -68,6 +67,16 @@ public final class ModeVault {
     /// d'un dossier parfaitement lisible, ce qui est le pire des messages.
     ///
     /// Un signet à portée de sécurité garde le droit lui-même, pas le chemin.
+    /// Où le pipeline écrit son aperçu, et où la liseuse va le lire.
+    ///
+    /// **Un seul endroit nommé**, et non deux chemins construits de part et
+    /// d'autre : c'est la seule garantie que celui qui écrit et celui qui lit
+    /// parlent du même dossier. Ils ne le faisaient pas — le second n'existait
+    /// pas.
+    nonisolated static let sortie: URL = FileManager.default.urls(
+        for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("vault-apercu", isDirectory: true)
+
     private static let cleSignet = "vault.signet"
 
     /// Le dossier dont on tient l'accès ouvert, et qu'il faut refermer.
@@ -96,8 +105,20 @@ public final class ModeVault {
     /// guette, pas son début.
     private let silence: Duration = .seconds(2)
 
-    public init(reglages: UserDefaults = .standard) {
+    /// Ce qu'on fait du corpus reconstruit — injecté, et non appelé en dur.
+    ///
+    /// Sans ça, `ModeVault` devrait atteindre la composition de l'app, et les
+    /// épreuves du signet monteraient tout le montage pour vérifier un
+    /// aller-retour de `UserDefaults`. Le défaut par défaut ne fait rien :
+    /// c'est ce qui rend le mode éprouvable sans corpus.
+    private let montrer: @MainActor (URL?) -> Void
+
+    public init(
+        reglages: UserDefaults = .standard,
+        montrer: @escaping @MainActor (URL?) -> Void = { _ in }
+    ) {
         self.reglages = reglages
+        self.montrer = montrer
     }
 
     /// Désigne un vault et commence à le suivre.
@@ -145,17 +166,22 @@ public final class ModeVault {
     public func arreter() {
         minuterie?.cancel()
         minuterie = nil
-        source?.cancel()
-        source = nil
-        if descripteur >= 0 {
-            close(descripteur)
-            descripteur = -1
+        if let surveillance {
+            // Les trois gestes vont ensemble : arrêter, détacher, libérer. En
+            // omettre un laisse un flux vivant sur un dossier qu'on ne suit
+            // plus — et il rallumerait le pipeline à chaque frappe.
+            FSEventStreamStop(surveillance)
+            FSEventStreamInvalidate(surveillance)
+            FSEventStreamRelease(surveillance)
+            self.surveillance = nil
         }
         accesOuvert?.stopAccessingSecurityScopedResource()
         accesOuvert = nil
         reglages.removeObject(forKey: Self.cleSignet)
         vault = nil
         etat = .eteint
+        // Cesser de suivre, c'est aussi cesser de lire l'aperçu.
+        montrer(nil)
     }
 
     private func commencer(_ dossier: URL, accesAFermer: URL?) {
@@ -185,23 +211,67 @@ public final class ModeVault {
 
     // MARK: - La surveillance
 
+    /// **FSEvents, et non un descripteur sur le dossier.**
+    ///
+    /// La première version ouvrait la racine du vault avec `O_EVTONLY` et un
+    /// `DispatchSource`. C'est juste pour surveiller *un* dossier — et c'est
+    /// précisément ce qui ne servait à rien ici : **un descripteur de dossier
+    /// ne signale que ses propres entrées, jamais celles de ses
+    /// sous-dossiers.** Or les brouillons vivent quatre niveaux plus bas :
+    ///
+    ///     brouillons/1. kenesset (le Rassemblement)/1. torah (la Fondation)/
+    ///         01. bereshit (Genèse)/bereshit-7.md
+    ///
+    /// Le mode ne se déclenchait donc **jamais sur le travail réel**. Il
+    /// paraissait fonctionner parce qu'une reconstruction a lieu au moment où
+    /// l'on désigne le vault : on voyait un compte juste, et on l'attribuait à
+    /// la surveillance.
+    ///
+    /// **Mesuré** — l'auteur a proposé le seul essai qui distingue les deux :
+    /// ajouter un brouillon non publié et regarder si le compte bouge.
+    ///
+    ///     à la désignation du vault    44 unités, 864 versets
+    ///     brouillon ajouté             44 unités, 864 versets   ← inchangé
+    ///     pipeline lancé à la main     45 unités, 866 versets   ← il le lit
+    ///
+    /// Le pipeline lisait le brouillon ; l'app ne savait pas qu'il existait.
+    /// Sans cet essai, le compte affiché — exact, et identique au corpus publié
+    /// — était **indistinguable** entre « il a lu le vault » et « il a relu ce
+    /// qui était déjà là ».
+    ///
+    /// `FSEventStream` surveille une arborescence entière, ce qu'aucun
+    /// descripteur ne sait faire. Sa latence est mise à zéro : l'attente qui
+    /// compte est le **silence de deux secondes** que `quelqueChoseABouge`
+    /// impose déjà, et en ajouter une seconde ici la rendrait moins lisible.
     private func ouvrirLaSurveillance(_ dossier: URL) {
-        // `open` avec `O_EVTONLY` : on ne veut pas lire le dossier, seulement
-        // savoir qu'il a bougé. C'est aussi ce qui permet de le surveiller sans
-        // empêcher qu'on le déplace ou le démonte.
-        descripteur = open(dossier.path, O_EVTONLY)
-        guard descripteur >= 0 else {
-            etat = .echec("dossier illisible")
+        var contexte = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil, release: nil, copyDescription: nil)
+
+        let rappel: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            let mode = Unmanaged<ModeVault>.fromOpaque(info).takeUnretainedValue()
+            MainActor.assumeIsolated { mode.quelqueChoseABouge() }
+        }
+
+        guard
+            let flux = FSEventStreamCreate(
+                nil, rappel, &contexte,
+                [dossier.path] as CFArray,
+                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+                0,
+                UInt32(
+                    kFSEventStreamCreateFlagFileEvents
+                        | kFSEventStreamCreateFlagNoDefer
+                        | kFSEventStreamCreateFlagIgnoreSelf))
+        else {
+            etat = .echec("surveillance impossible")
             return
         }
-        let s = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descripteur,
-            eventMask: [.write, .extend, .rename, .delete],
-            queue: .main
-        )
-        s.setEventHandler { [weak self] in self?.quelqueChoseABouge() }
-        s.resume()
-        source = s
+        FSEventStreamSetDispatchQueue(flux, .main)
+        FSEventStreamStart(flux)
+        surveillance = flux
     }
 
     private func quelqueChoseABouge() {
@@ -227,6 +297,10 @@ public final class ModeVault {
                 case .success(let (unites, versets)):
                     journal.info("corpus rebâti — \(unites) unités, \(versets) versets")
                     self.etat = .fait(unites: unites, versets: versets)
+                    // **Et on le fait lire.** C'est le dernier mot de la
+                    // boucle, et il manquait : le pipeline écrivait un corpus
+                    // que la liseuse n'ouvrait pas.
+                    self.montrer(Self.sortie)
                 case .failure(let echec):
                     journal.error("pipeline en échec — \(echec.raison)")
                     self.etat = .echec(echec.raison)
@@ -257,9 +331,7 @@ public final class ModeVault {
         else {
             return .failure(Echec(raison: "pipeline non embarqué — voir scripts/embarquer-le-pipeline.sh"))
         }
-        let sortie = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("vault-apercu", isDirectory: true)
+        let sortie = Self.sortie
 
         let processus = Process()
         processus.executableURL = binaire
