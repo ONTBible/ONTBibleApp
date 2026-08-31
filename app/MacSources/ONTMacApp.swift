@@ -163,11 +163,20 @@ struct ONTMacApp: App {
             // la pièce. Le réglage existe déjà dans l'écran de lecture ; ce
             // raccourci le double, il ne le remplace pas.
             CommandGroup(after: .newItem) {
-                Divider()
-                Button("Suivre un vault…") { choisirLeVault() }
-                    .keyboardShortcut("o", modifiers: [.command, .shift])
-                if vault.vault != nil {
-                    Button("Cesser de suivre") { vault.arreter() }
+                // **Le mode vault n'apparaît que là où il peut marcher.**
+                //
+                // Il a besoin du pipeline embarqué, et `livrer-le-mac.sh` ne
+                // l'embarque que pour le canal interne. Proposer l'entrée dans
+                // une livraison qui ne l'a pas, c'était promettre puis répondre
+                // « pipeline non embarqué » — mesuré sur le build 260831.1425,
+                // installé depuis TestFlight.
+                if ModeVault.pipelineEmbarque != nil {
+                    Divider()
+                    Button("Suivre un vault…") { choisirLeVault() }
+                        .keyboardShortcut("o", modifiers: [.command, .shift])
+                    if vault.vault != nil {
+                        Button("Cesser de suivre") { vault.arreter() }
+                    }
                 }
             }
             // **Deux tailles, deux gestes.** ⌘± règle l'interface ; ⌘⌥± le
