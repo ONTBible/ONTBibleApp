@@ -341,10 +341,71 @@ private struct BandeauDuVault: View {
 final class DelegueMac: NSObject, NSApplicationDelegate {
     private let journal = Logger(subsystem: "com.labibleont.ONT.mac", category: "push")
 
+    /// **La fenêtre posée à une taille exacte, pour les captures de l'App Store.**
+    ///
+    /// Apple n'accepte que quatre tailles pour macOS — 1280 × 800, 1440 × 900,
+    /// 2560 × 1600, 2880 × 1800 — et il n'existe **pas de simulateur macOS** :
+    /// l'app tourne nativement, donc la capture est celle de la vraie fenêtre.
+    /// Une fenêtre de 1440 × 900 points capturée en Retina rend 2880 × 1800,
+    /// c'est-à-dire une taille acceptée, sans redimensionner après coup.
+    ///
+    /// ## Pourquoi un argument de lancement
+    ///
+    /// C'est ce que fait déjà `scripts/captures.sh` pour l'iPhone, avec
+    /// `-ouvrir`. Et les deux autres voies sont fermées ici : `osascript` n'a
+    /// pas l'accessibilité sur la machine de l'auteur, et les préférences de
+    /// cadre de SwiftUI sont des clés de neuf cents caractères qui portent
+    /// l'arbre de vues entier — écrire dedans, c'est parier sur une chaîne qui
+    /// change à chaque modificateur ajouté.
+    ///
+    /// AppKit fait le reste : un argument `-clé valeur` au lancement devient un
+    /// `UserDefaults`. Rien à analyser.
+    ///
+    ///     open -a "La Bible ONT" --args -tailleDeCapture 1440x900
+    ///
+    /// Sans l'argument, la méthode ne fait rien — aucun lecteur ne rencontre ce
+    /// chemin.
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        poserLaTailleDeCapture()
+    }
+
+    /// **Reposée à chaque fois, et pas seulement au lancement.**
+    ///
+    /// Avec **Stage Manager** actif, envoyer une `ont://` à une app déjà
+    /// lancée gare sa fenêtre : elle devient une vignette en perspective de
+    /// 115 × 128, et `CGWindowList` rapporte la vignette comme si c'était la
+    /// fenêtre. Une capture prise là est nette, bien formée, et fausse.
+    ///
+    /// On ne touche pas au réglage de la machine pour autant — ce serait
+    /// changer l'environnement de quelqu'un pour arranger un script. L'app se
+    /// remet elle-même au premier plan et retrouve sa taille, sur ce seul
+    /// chemin.
+    private func poserLaTailleDeCapture() {
+        guard let demande = UserDefaults.standard.string(forKey: "tailleDeCapture") else { return }
+        let bouts = demande.split(separator: "x")
+        guard bouts.count == 2,
+            let largeur = Double(bouts[0]), let hauteur = Double(bouts[1])
+        else { return }
+
+        // Après le tour de boucle courant : au lancement la fenêtre n'existe pas
+        // encore, et à l'ouverture d'une URL elle n'a pas fini d'être dégarée.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NSApp.activate()
+            guard let fenetre = NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
+            fenetre.orderFrontRegardless()
+            var cadre = fenetre.frame
+            cadre.size = NSSize(width: largeur, height: hauteur)
+            fenetre.setFrame(cadre, display: true)
+            fenetre.center()
+        }
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls { EtatMac.partage.composition.router.open(url) }
         }
+        // Sans effet hors du chemin des captures — voir plus haut.
+        poserLaTailleDeCapture()
     }
 
     /// **La seconde raison d'avoir un délégué, et elle est de même nature.**
