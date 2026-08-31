@@ -126,7 +126,24 @@ struct ONTMacApp: App {
                 // bon moment. `.task` s'attache au cycle de vie de la fenêtre,
                 // qui est précisément quand l'auteur peut voir le bandeau
                 // s'allumer.
-                .task { vault.reprendre() }
+                .task {
+                    // **La même condition que le menu, au même endroit.**
+                    //
+                    // Le menu ne propose « Suivre un vault… » que si le
+                    // pipeline est embarqué. Reprendre un vault suivi à la
+                    // session précédente ne passait pas par lui : sur un build
+                    // sans pipeline — le canal bêta —, l'auteur retrouvait le
+                    // bandeau « pipeline non embarqué » **et aucun moyen de
+                    // l'enlever**, « Cesser de suivre » étant dans le bloc
+                    // caché. Mesuré sur le build 260831.1628.
+                    //
+                    // La garde est ici et non dans `reprendre()` : le modèle
+                    // n'a pas à savoir ce que le bundle contient, et l'y
+                    // mettre a cassé « La reprise du vault » — les tests
+                    // s'exécutent dans un bundle qui n'embarque rien. Une
+                    // décision de présentation appartient à la présentation.
+                    if ModeVault.pipelineEmbarque != nil { vault.reprendre() }
+                }
         }
         // **La taille d'ouverture, mesurée et non choisie.**
         //
