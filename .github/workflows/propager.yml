@@ -41,7 +41,7 @@ name: Propager
 
 on:
   push:
-    branches: [main]
+    branches: [app-store]
     paths:
       - "pipeline/**"
       - ".github/workflows/propager.yml"
