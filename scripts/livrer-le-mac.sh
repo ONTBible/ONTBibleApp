@@ -4,6 +4,7 @@
 #
 #   ./scripts/livrer-le-mac.sh              # le canal vient de la branche
 #   ./scripts/livrer-le-mac.sh interne      # ou on le force
+#   ./scripts/livrer-le-mac.sh interne --a-blanc   # tout, sauf archiver et livrer
 #
 # ## Pourquoi ce script existe, et qui l'appelle
 #
@@ -46,6 +47,28 @@ echec() { printf '%s✗%s %s\n' "$rouge" "$fin" "$1" >&2; exit 1; }
 # La règle est celle de `livraison.yml`, et elle ne se réinvente pas ici : une
 # branche nomme **qui verra le build**, pas une manœuvre. La dupliquer serait
 # accepter qu'elles divergent le jour où l'une des deux change.
+# ── À blanc : le seul moyen d'éprouver ce script sans livrer
+#
+# Trois défauts s'y sont succédé le 31 août 2026, découverts **un par un**, à
+# vingt minutes de CI et une tentative de livraison chacun : un tuyau qui tuait
+# `xcodebuild`, une variable collée à un caractère multi-octets, et avant eux la
+# plateforme absente d'une requête. Aucun n'était visible à la lecture ; tous
+# l'étaient à l'exécution.
+#
+# `--a-blanc` fait tout ce qui est vérifiable — les gardes, la version d'Xcode,
+# la composition de l'icône, le numéro de build, la mutation du plist et sa
+# restauration — et **s'arrête avant d'archiver**. Ce qu'il ne couvre pas est
+# dit à la fin plutôt que sous-entendu.
+A_BLANC=0
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --a-blanc) A_BLANC=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
 BRANCHE=$(git rev-parse --abbrev-ref HEAD)
 CANAL="${1:-}"
 if [ -z "$CANAL" ]; then
@@ -69,10 +92,18 @@ esac
 # message de cette forme rouvre un contexte de citation, et le script ne se
 # lisait plus — « unexpected EOF while looking for matching " ». Le raccourci
 # coûtait un défaut de syntaxe pour deux lignes gagnées.
-[ -n "${ASC_KEY_ID:-}" ] || echec "exporter ASC_KEY_ID — identifiant de la clé App Store Connect"
-[ -n "${ASC_ISSUER_ID:-}" ] || echec "exporter ASC_ISSUER_ID — identifiant de emetteur"
-CLE="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-[ -f "$CLE" ] || echec "clé absente : $CLE"
+#
+# À blanc, ces trois-là ne sont pas exigées : on ne parle à personne. Les exiger
+# quand même rendrait la vérification impossible sur une machine qui n'a pas la
+# clé — c'est-à-dire précisément là où on voudrait la lancer avant de pousser.
+if [ "$A_BLANC" -eq 0 ]; then
+  [ -n "${ASC_KEY_ID:-}" ] || echec "exporter ASC_KEY_ID — identifiant de la clé App Store Connect"
+  [ -n "${ASC_ISSUER_ID:-}" ] || echec "exporter ASC_ISSUER_ID — identifiant de emetteur"
+  CLE="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+  [ -f "$CLE" ] || echec "clé absente : $CLE"
+else
+  CLE="(aucune — à blanc)"
+fi
 
 # **Sans tuyau, et ce n'est pas une coquetterie.**
 #
@@ -90,7 +121,14 @@ CLE="$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 # tient dans une seule écriture : le défaut ne se voit qu'en CI.
 XCODE=$(xcodebuild -version)
 XCODE=${XCODE%%$'\n'*}
-echo "$gris→ $XCODE  ·  branche $BRANCHE  ·  canal $CANAL${GROUPE:+ (groupe « $GROUPE »)}$fin"
+# `${gris}` accolé, et non `$gris` : bash lit `$gris→` comme **un seul nom de
+# variable** — il ne s'arrête pas au premier octet du caractère multi-octets.
+# Sous `set -u`, ce nom introuvable arrête le script, et le message accuse une
+# variable qui n'existe pas plutôt que la ligne qui l'a inventée.
+#
+# Cette ligne était fautive depuis le premier jour. Personne ne l'avait vu :
+# le script mourait deux lignes plus haut, sur le tuyau d'`xcodebuild`.
+echo "${gris}→ $XCODE  ·  branche $BRANCHE  ·  canal $CANAL${GROUPE:+ (groupe « $GROUPE »)}$fin"
 
 # **On ne devine pas si l'icône passera : on le mesure d'abord.**
 #
@@ -130,6 +168,19 @@ echo "→ build $BUILD"
 # entier qui rendra non-zéro. La forme longue n'a pas ce bord.
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+fi
+
+if [ "$A_BLANC" -eq 1 ]; then
+  printf '%s✓%s à blanc — tout ce qui précède l'"'"'archive a été exécuté\n' "$vert" "$fin"
+  cat <<TEXTE
+${gris}  Vérifié : les gardes, ${XCODE}, la composition de ONT.icon, le numéro
+  ${BUILD}, la mutation de Info-Mac.plist et sa restauration par le trap.
+
+  **Non vérifié** : l'archive, l'export, le téléversement, et tout ce que le
+  compte App Store Connect refuse ou accepte. Un « à blanc » vert ne dit rien
+  de la livraison — il dit seulement que le script ne se casse plus tout seul.${fin}
+TEXTE
+  exit 0
 fi
 
 ARCHIVE=$(mktemp -d)/ONTMac.xcarchive
