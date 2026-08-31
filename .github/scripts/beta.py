@@ -70,16 +70,41 @@ def main() -> None:
     # dans un fichier de CI est une donnée qui ne se relit pas, et qui devient
     # fausse le jour où le groupe est recréé.
     groupes = client.get("betaGroups", **{"filter[app]": app, "limit": 200})["data"]
-    groupe = next(
-        (g for g in groupes if g["attributes"].get("name") == nom_du_groupe), None
-    )
-    if groupe is None:
+    homonymes = [g for g in groupes if g["attributes"].get("name") == nom_du_groupe]
+    if not homonymes:
         connus = ", ".join(g["attributes"].get("name", "?") for g in groupes) or "aucun"
         raise SystemExit(
             f"Aucun groupe nommé « {nom_du_groupe} ». Groupes existants : {connus}.\n"
             "Le groupe se crée à la main dans App Store Connect — c'est là qu'on "
             "décide s'il est public et qui peut s'y inscrire."
         )
+
+    # ── Un homonyme n'est pas une variante, c'est une ambiguïté ──────────────
+    #
+    # Je ne sais pas, en écrivant ceci, si App Store Connect porte ses groupes de
+    # testeurs **par plateforme** ou pour la fiche entière — la clé n'était pas
+    # sur la machine pour le mesurer, et l'affirmer sans mesure serait exactement
+    # la faute que ce fichier vient de corriger un cran plus haut.
+    #
+    # S'ils sont par plateforme, deux groupes « Dev » coexistent, et `next()`
+    # aurait pris le premier venu : le build du Mac rattaché au groupe de
+    # l'iPhone, sans un mot. On refuse plutôt de choisir. S'ils ne le sont pas,
+    # il n'y a qu'un objet et cette porte ne s'ouvre jamais.
+    if len(homonymes) > 1:
+        detail = "\n".join(
+            f"  · {g['id']} — " + ", ".join(
+                f"{c} = {g['attributes'][c]}" for c in sorted(g["attributes"])
+                if c != "name"
+            )
+            for g in homonymes
+        )
+        raise SystemExit(
+            f"{len(homonymes)} groupes portent le nom « {nom_du_groupe} » :\n{detail}\n"
+            "Lequel doit recevoir ce build ne se devine pas. Les renommer par "
+            "plateforme — « Dev macOS », par exemple — lève l'ambiguïté pour de "
+            "bon, et GROUPE_BETA suit."
+        )
+    groupe = homonymes[0]
     externe = groupe["attributes"].get("isInternalGroup") is False
     print(f"  groupe « {nom_du_groupe} » trouvé ({'externe' if externe else 'interne'})")
 
