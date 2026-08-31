@@ -396,12 +396,20 @@ s'ouvre, et le corpus embarqué se charge intact (864 versets, 108 entrées). To
 le stockage persistant étant déjà en `Application Support`, il suit dans le
 conteneur sans qu'une ligne change.
 
-**Ce qui reste à mesurer, et qui ne peut pas l'être en intégration** : le mode
-vault lance `ont-pipeline` en processus fils. Un fils hérite du bac de son père,
-mais **pas nécessairement des droits que le sélecteur a accordés à celui-ci**.
-Si le fils ne voit pas le vault, il faudra passer le contenu autrement que par
-un chemin. La question demande un dossier réellement désigné à la souris : elle
-se tranche à la main, sur une app signée, et non par un job.
+**Et le processus fils voit le vault** — mesuré le 31 août 2026, sur l'app
+signée et confinée, vault désigné à la souris :
+
+    ✓ 44 unités, 864 versets                    ONTBibleTranslation
+
+C'était la question ouverte : un fils hérite du bac de son père, mais **pas
+nécessairement des droits que le sélecteur a accordés à celui-ci**. Il les
+hérite. Le mode vault fonctionne donc sous bac à sable sans rien changer à sa
+mécanique — pas de passage de contenu par un autre canal, pas d'extension à
+consommer à la main.
+
+Elle ne pouvait pas se trancher en intégration : il fallait un dossier
+réellement choisi dans le sélecteur, donc une main sur la souris. C'est la seule
+mesure de ce chantier qu'un job ne pouvait pas faire.
 
 **Deux limites à connaître avant d'essayer.** Une signature ad hoc portant *à la
 fois* le bac et un droit restreint — `applesignin`, `associated-domains` — fait
