@@ -464,8 +464,26 @@ jobs:
   # Le job **appelle le geste** plutôt que de le réécrire. `livrer-le-mac.sh`
   # doit continuer de marcher à la main le jour où la machine est éteinte, et
   # deux chaînes qui font la même chose finissent par diverger.
+  # ## Le Mac est revenu chez GitHub, et pourquoi il en était parti
+  #
+  # Ce job a tourné une soirée sur un runner **auto-hébergé**, sur la machine
+  # de l'auteur. La raison : l'`actool` d'Xcode 26.3 — la seule version que
+  # l'image de GitHub propose — plante en composant le bundle Icon Composer
+  # pour macOS.
+  #
+  # Le contournement supposait qu'un Xcode 27 réglerait tout. Il compose bien
+  # l'icône, et **Apple refuse ses binaires** : « Apple is not currently
+  # accepting applications built with this version of Xcode. » Mesuré à
+  # l'envoi, après que l'archive et l'export ont réussi. Les deux issues
+  # s'excluaient.
+  #
+  # La cible macOS porte donc un `.appiconset` classique, gravé depuis le
+  # bundle, qu'Xcode 26.3 compose sans broncher — mesuré en CI, qui pose
+  # `AppIconMac.icns` dans l'app. Tout ce qui justifiait le runner
+  # auto-hébergé a disparu avec ça : plus de machine qui écoute, plus de
+  # trousseau à débloquer, plus de bêta refusée.
   mac:
-    runs-on: [self-hosted, macOS, ONTBibleApp]
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - name: L'app
@@ -479,13 +497,25 @@ jobs:
           repository: ONTBible/ONTBibleTranslation
           path: ONTBibleTranslation
 
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest
+
+      - name: La version d'Xcode
+        run: xcodebuild -version
+
+      - name: Les outils
+        run: brew install xcodegen xcbeautify
+
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
         run: ONT_VAULT="$GITHUB_WORKSPACE/ONTBibleTranslation" ./scripts/corpus.sh
 
-      # La clé vit le temps du job, dans le dossier que le script attend, et
-      # part avec lui. Sur un runner auto-hébergé rien n'est jeté tout seul :
-      # ce que le job écrit, le job doit le reprendre.
+      # La clé vit le temps du job, dans le dossier que le script attend. Le
+      # runner de GitHub est détruit après, donc la reprendre n'est plus
+      # indispensable — on la garde parce que ce job a tourné sur une machine
+      # personnelle, y retournera peut-être, et qu'un secret qu'on n'efface que
+      # lorsque c'est nécessaire finit par rester.
       - name: La clé App Store Connect
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}

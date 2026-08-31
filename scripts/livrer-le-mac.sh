@@ -6,34 +6,33 @@
 #   ./scripts/livrer-le-mac.sh interne      # ou on le force
 #   ./scripts/livrer-le-mac.sh interne --a-blanc   # tout, sauf archiver et livrer
 #
-# ## Pourquoi ce script existe, et qui l'appelle
+# ## Qui l'appelle, et pourquoi il n'y en a qu'un
 #
-# `livraison.yml` livre l'iPhone depuis un runner GitHub. Le Mac ne peut pas y
-# aller : l'`actool` d'Xcode 26.3 — la seule version que l'image propose, alors
-# que le workflow demande déjà `latest` — **plante** en composant le bundle
-# Icon Composer pour macOS. Pas une erreur de validation : un plantage, sans un
-# mot sur ce qu'il reproche. Mesuré en réactivant l'icône dans le job.
+# **Deux appelants**, délibérément le même fichier — pour qu'une correction ne
+# s'applique jamais à un seul :
 #
-# D'où ce script : la même chaîne, sur une machine dont l'Xcode compose l'icône.
-# Il a **deux appelants**, et c'est délibéré — le même fichier des deux côtés,
-# pour qu'une correction ne s'applique jamais à un seul :
+#   - le job `mac` de `livraison.yml`, sur un runner GitHub ;
+#   - à la main, sur la machine de l'auteur, pour livrer sans passer par la CI.
 #
-#   - à la main, sur cette machine, quand on veut livrer sans passer par la CI ;
-#   - le job `mac` de `livraison.yml`, sur le runner **auto-hébergé** de cette
-#     même machine.
+# ## Une soirée sur un runner auto-hébergé, et pourquoi c'est fini
 #
-# Le runner auto-hébergé demande une précaution que `ONTBibleApp` étant public
-# rend obligatoire : une proposition venue d'un fork ne doit **jamais** pouvoir
-# s'exécuter ici. C'est réglé côté dépôt — l'approbation est exigée pour tout
-# contributeur externe (`approval_policy: all_external_contributors`), et non
-# par ce fichier. Le vérifier avant de toucher aux réglages Actions.
+# Ce script est né parce que l'`actool` d'Xcode 26.3 — la seule version que
+# l'image de GitHub propose — **plante** en composant le bundle Icon Composer
+# pour macOS. On a donc monté un runner sur la machine de l'auteur, qui a un
+# Xcode 27.
 #
-# Le jour où l'image du runner GitHub monte de version, le job repasse chez eux
-# et le runner s'éteint ; ce script, lui, reste bon pour la livraison à la main.
+# Ça ne pouvait pas marcher, et il a fallu aller jusqu'au téléversement pour
+# l'apprendre : **Apple refuse les binaires construits avec un Xcode bêta.**
+# « This bundle is invalid. Apple is not currently accepting applications built
+# with this version of Xcode. » Les deux issues connues s'excluaient.
+#
+# La sortie n'est pas ici : la cible macOS porte désormais un `.appiconset`
+# classique gravé depuis le bundle — voir `scripts/graver-l-icone-du-mac.sh` —
+# qu'Xcode 26.3 compose sans broncher. Le job est reparti chez GitHub, et le
+# runner auto-hébergé est éteint.
 #
 # ## Ce qu'il faut avant
 #
-#   - Xcode dont l'`actool` compose `ONT.icon` pour macOS — 27 le fait, 26.3 non ;
 #   - la clé App Store Connect en `~/private_keys/AuthKey_<ID>.p8`, et les deux
 #     identifiants en variables d'environnement — voir plus bas.
 set -euo pipefail
@@ -180,20 +179,13 @@ AIDE
 fi
 rm -rf "$(dirname "$SONDE")"
 
-# **L'icône, et rien d'autre.**
+# **Plus de vérification préalable de l'icône, et c'est voulu.**
 #
-# Sans signature : ce qu'on veut savoir ici est si `actool` compose le bundle
-# Icon Composer pour macOS, et la signature n'y entre pour rien. La mêler
-# faisait échouer cette étape pour une raison qu'elle nommait mal.
-echo "→ l'icône"
-if ! xcodebuild build \
-      -project app/ONT.xcodeproj -scheme ONTMac -destination 'platform=macOS' \
-      CODE_SIGNING_ALLOWED=NO > /tmp/ont-icone.log 2>&1; then
-  if grep -q "CompileAssetCatalogVariant" /tmp/ont-icone.log; then
-    echec "cet Xcode ne compose pas ONT.icon pour macOS — voir /tmp/ont-icone.log"
-  fi
-  echec "la compilation échoue — voir /tmp/ont-icone.log"
-fi
+# Il y en avait une : un `xcodebuild build` complet, pour savoir si `actool`
+# composait `ONT.icon` avant de dépenser une archive. Elle gardait un risque
+# qui n'existe plus — le Mac ne porte plus ce bundle mais un `.appiconset`, et
+# `tests.yml` bâtit `ONTMac` à chaque proposition. La garder doublerait le
+# temps du job pour reposer une question déjà répondue deux fois.
 
 # ── Le numéro de build
 #
@@ -223,8 +215,8 @@ if [ "$A_BLANC" -eq 1 ]; then
   printf '%s✓%s à blanc — tout ce qui précède l'"'"'archive a été exécuté\n' "$vert" "$fin"
   cat <<TEXTE
 ${gris}  Vérifié : les gardes, ${XCODE}, l'accès de codesign à la clé privée,
-  la composition de ONT.icon, le numéro ${BUILD}, la mutation de
-  Info-Mac.plist et sa restauration par le trap.
+  le numéro ${BUILD}, la mutation de Info-Mac.plist et sa restauration
+  par le trap.
 
   **Non vérifié** : l'archive, l'export, le téléversement, et tout ce que le
   compte App Store Connect refuse ou accepte. Un « à blanc » vert ne dit rien
