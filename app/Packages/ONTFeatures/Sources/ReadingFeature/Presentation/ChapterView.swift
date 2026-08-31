@@ -518,10 +518,32 @@ struct ChapterView: View {
         // la pile n'a pas encore ses cibles au premier instant. Les quatre
         // passes échelonnées d'avant compensaient l'échec de `scrollTo`, pas
         // une lenteur — elles ne réparaient rien, elles répétaient.
+        // **Deux gestes, et il en faut deux.**
+        //
+        // `scrollPosition(id:)` ne vise que les **enfants directs** de la pile
+        // de cibles, c'est-à-dire les blocs. En lecture suivie, les versets
+        // consécutifs sont fondus en un seul bloc — viser le bloc peut donc
+        // arriver plusieurs versets trop haut. Relevé sur le Mac par la session
+        // qui le tient : « ça atterrit sur le bloc contenant le verset, pas
+        // exactement sur le verset ».
+        //
+        // `scrollTo` vise le verset exactement, mais ne peut atteindre qu'une
+        // ligne **déjà montée** — c'est tout le défaut qu'on vient de réparer.
+        //
+        // Les deux ensemble font ce qu'aucun ne fait seul : le premier amène la
+        // pile paresseuse à monter la région voulue, le second ajuste au verset
+        // maintenant qu'il existe. Ni l'un ni l'autre n'est un raccourci de
+        // l'autre.
         blocVise = bloc
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         blocVise = bloc
+
+        // L'ajustement, une fois la région montée. Sans effet quand le bloc
+        // **est** le verset — le mode d'étude — puisqu'on y est déjà.
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo(VerseAnchor(n: vise), anchor: .top)
     }
 
     /// Les blocs tels qu'ils sont rendus.
