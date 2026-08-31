@@ -239,6 +239,30 @@ xcodebuild archive \
   -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
   | { command -v xcbeautify >/dev/null && xcbeautify || cat; }
 
+# ── Le pipeline, embarqué pour le seul canal interne
+#
+# Le mode vault relance le pipeline à chaque pause dans l'écriture ; sans lui
+# dans le bundle, l'app livrée proposait « Suivre un vault… » puis répondait
+# « pipeline non embarqué ». Mesuré sur le build 260831.1425, installé depuis
+# TestFlight.
+#
+# **Interne seulement**, et c'est le choix de l'auteur : le mode vault est un
+# outil d'écriture, et le build public n'a pas à porter un exécutable d'usage
+# général dont aucun lecteur ne se servira — ni à s'en expliquer devant un
+# relecteur d'Apple.
+#
+# Le menu suit la même règle de son côté : il n'apparaît que si le binaire est
+# là. Une app qui ne propose pas ne promet pas.
+if [ "$CANAL" = interne ]; then
+  APP_ARCHIVEE="$ARCHIVE/Products/Applications/La Bible ONT.app"
+  if [ -d "$APP_ARCHIVEE" ]; then
+    echo "→ le pipeline, embarqué (canal interne)"
+    ./scripts/embarquer-le-pipeline.sh "$APP_ARCHIVEE"
+  else
+    echec "app introuvable dans l'archive : $APP_ARCHIVEE"
+  fi
+fi
+
 # Les symboles sont gardés à côté de l'archive, pour la même raison qu'en CI :
 # un build livré sans eux est illisible pour toujours. `uploadSymbols` les
 # envoie aussi à Apple, mais ce qu'Apple garde n'est pas ce qu'on relit.

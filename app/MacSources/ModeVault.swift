@@ -314,6 +314,24 @@ public final class ModeVault {
     /// Il écrit dans le dossier de l'app plutôt que dans `dist/` du dépôt :
     /// **on ne veut pas qu'un aperçu de brouillon salisse un arbre de travail
     /// git**, ni qu'il entre dans un build par accident.
+    /// Le pipeline embarqué, s'il l'est.
+    ///
+    /// **Il ne l'est pas dans toutes les livraisons.** `livrer-le-mac.sh` ne
+    /// l'embarque que pour le canal interne : le mode vault est un outil
+    /// d'écriture, et le build public n'a pas à porter un exécutable dont
+    /// aucun lecteur ne se servira.
+    ///
+    /// D'où cette propriété plutôt qu'un test enfoui : le menu s'en sert pour
+    /// **ne pas proposer** ce qu'il ne peut pas tenir. Une app livrée le 31
+    /// août 2026 offrait « Suivre un vault… » et répondait « pipeline non
+    /// embarqué » — la bannière était juste, la promesse ne l'était pas.
+    nonisolated static var pipelineEmbarque: URL? {
+        guard let u = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline"),
+            FileManager.default.isExecutableFile(atPath: u.path)
+        else { return nil }
+        return u
+    }
+
     nonisolated private static func lancerLePipeline(
         vault: URL
     ) -> Result<(Int, Int), Echec> {
@@ -326,9 +344,7 @@ public final class ModeVault {
         // d'il y a trois semaines sans que rien ne le dise. C'est exactement ce
         // qu'`embarquer-le-pipeline.sh` explique vouloir éviter, et que le repli
         // rendait possible par la porte de derrière.
-        guard let binaire = Bundle.main.url(forAuxiliaryExecutable: "ont-pipeline"),
-            FileManager.default.isExecutableFile(atPath: binaire.path)
-        else {
+        guard let binaire = Self.pipelineEmbarque else {
             return .failure(Echec(raison: "pipeline non embarqué — voir scripts/embarquer-le-pipeline.sh"))
         }
         let sortie = Self.sortie

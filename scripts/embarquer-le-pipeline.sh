@@ -2,7 +2,8 @@
 #
 # Dépose `ont-pipeline` dans la liseuse du Mac, pour son mode développeur.
 #
-#   ./scripts/embarquer-le-pipeline.sh
+#   ./scripts/embarquer-le-pipeline.sh                    # la dernière app Debug
+#   ./scripts/embarquer-le-pipeline.sh chemin/vers/App.app # une app précise
 #
 # ## Pourquoi il est embarqué et non installé
 #
@@ -29,10 +30,16 @@ cargo build --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --q
 # C'est le point le plus exposé du dépôt, parce que `DerivedData` **grossit à
 # chaque build** : le script marche des semaines, puis cesse, et le changement
 # ne vient pas de lui.
-LISTE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/*.app 2>/dev/null || true)"
-CIBLE="${LISTE%%$'\n'*}"
+# Une cible donnée l'emporte sur la devinette. C'est par là que
+# `livrer-le-mac.sh` embarque le pipeline dans l'app d'une **archive**, pour le
+# seul canal interne — la devinette sur `DerivedData` n'y trouverait rien.
+CIBLE="${1:-}"
 if [ -z "$CIBLE" ]; then
-  echo "✗ ONTMac.app introuvable — compiler la cible ONTMac d'abord" >&2
+  LISTE="$(ls -dt ~/Library/Developer/Xcode/DerivedData/ONT-*/Build/Products/Debug/*.app 2>/dev/null || true)"
+  CIBLE="${LISTE%%$'\n'*}"
+fi
+if [ -z "$CIBLE" ] || [ ! -d "$CIBLE" ]; then
+  echo "✗ app introuvable — compiler la cible ONTMac, ou passer un chemin" >&2
   exit 1
 fi
 
