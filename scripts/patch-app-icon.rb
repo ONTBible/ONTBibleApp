@@ -19,7 +19,12 @@ require "xcodeproj"
 ROOT         = File.expand_path("..", __dir__)
 PROJECT_PATH = File.join(ROOT, "app", "ONT.xcodeproj")
 ICON_NAME    = "ONT.icon"
-TARGET_NAME  = "ONT"
+# **Les deux liseuses, et pas seulement celle du téléphone.**
+#
+# Le Mac partageait l'icône du dépôt sans jamais la déclarer : sa cible
+# n'existait pas quand ce script a été écrit, et rien ne l'a signalé — une app
+# sans icône se lance très bien, elle est simplement grise dans le Dock.
+TARGET_NAMES = %w[ONT ONTMac]
 
 abort "✗ #{PROJECT_PATH} introuvable — lancer xcodegen d'abord." unless File.exist?(PROJECT_PATH)
 
@@ -27,8 +32,11 @@ icon_path = File.join(ROOT, "app", ICON_NAME)
 abort "✗ #{icon_path} introuvable." unless File.exist?(icon_path)
 
 project = Xcodeproj::Project.open(PROJECT_PATH)
-target  = project.targets.find { |t| t.name == TARGET_NAME }
-abort "✗ cible « #{TARGET_NAME} » absente de #{PROJECT_PATH}" unless target
+cibles = TARGET_NAMES.map do |nom|
+  c = project.targets.find { |x| x.name == nom }
+  abort "✗ cible « #{nom} » absente de #{PROJECT_PATH}" unless c
+  c
+end
 
 changed = false
 
@@ -49,23 +57,24 @@ else
 end
 
 # 2. La phase de copie des ressources.
-phase = target.resources_build_phase
-unless phase.files_references.include?(file_ref)
-  phase.add_file_reference(file_ref)
-  changed = true
-end
+cibles.each do |target|
+  phase = target.resources_build_phase
+  unless phase.files_references.include?(file_ref)
+    phase.add_file_reference(file_ref)
+    changed = true
+  end
 
-# 3. Le réglage qui désigne l'icône.
-target.build_configurations.each do |config|
-  next if config.build_settings["ASSETCATALOG_COMPILER_APPICON_NAME"] == "ONT"
-
-  config.build_settings["ASSETCATALOG_COMPILER_APPICON_NAME"] = "ONT"
-  changed = true
+  # 3. Le réglage qu'actool lit pour savoir quelle icône composer.
+  target.build_configurations.each do |config|
+    next if config.build_settings["ASSETCATALOG_COMPILER_APPICON_NAME"] == "ONT"
+    config.build_settings["ASSETCATALOG_COMPILER_APPICON_NAME"] = "ONT"
+    changed = true
+  end
 end
 
 if changed
   project.save
-  puts "✓ icône « #{ICON_NAME} » déclarée"
+  puts "✓ icône « #{ICON_NAME} » déclarée sur #{TARGET_NAMES.join(", ")}"
 else
   puts "· icône déjà déclarée"
 end

@@ -60,14 +60,14 @@ public struct OptionsDePartage: View {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(apercu)
-                        .font(.callout)
+                        .font(ONTUI.callout)
                         .foregroundStyle(theme.ink)
                         .textSelection(.enabled)
                         .animation(.snappy(duration: 0.16), value: apercu)
 
                     if model.preferences.partage.lien {
                         Text("https://ontbible.com/fr/lire/bereshit/bereshit-1?v=1-2")
-                            .font(.footnote)
+                            .font(ONTUI.footnote)
                             .foregroundStyle(theme.accent)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -88,8 +88,9 @@ public struct OptionsDePartage: View {
             }
             .ontRow()
         }
+        .ontFormulaire()
         .navigationTitle("Options de partage")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 

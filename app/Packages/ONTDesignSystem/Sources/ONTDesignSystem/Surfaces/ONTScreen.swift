@@ -80,11 +80,32 @@ public struct ONTColumnModifier: ViewModifier {
 /// La ligne de liste type — surface du thème, séparateur du thème.
 public struct ONTRowModifier: ViewModifier {
     @Environment(\.ontTheme) private var theme
+    private var spacing = ONTSpacing()
 
     public func body(content: Content) -> some View {
         content
             .listRowBackground(theme.surface)
             .listRowSeparatorTint(theme.separator)
+            // **Les marges d'une rangée, sur le Mac.**
+            //
+            // iOS les donne avec `insetGrouped` — des groupes détachés, dont le
+            // contenu respire. Le Mac n'a pas ce style ; `inset`, son plus
+            // proche, en pose beaucoup moins, et le texte d'une fiche venait
+            // toucher les deux bords de la feuille.
+            //
+            // Ce n'est pas une coquetterie : une colonne de lecture sans marge
+            // fatigue, et l'œil perd sa ligne au retour. C'est la même raison
+            // qui donne à la fenêtre une largeur minimale.
+            //
+            // On les pose sur la **rangée** plutôt que sur la feuille : chaque
+            // écran qui emploie `ontRow` en profite, et un futur écran de
+            // réglages n'aura pas à y penser.
+            #if os(macOS)
+                .listRowInsets(
+                    EdgeInsets(
+                        top: spacing.m, leading: spacing.page,
+                        bottom: spacing.m, trailing: spacing.page))
+            #endif
     }
 }
 

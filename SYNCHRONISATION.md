@@ -1842,3 +1842,124 @@ l'item ne bouge jamais — avec le mauvais remède : sa fraction de défilement
 `TextLayoutResult`. Vérifié sur l'appareil avant de fermer, parce qu'une
 session qui ne peut pas éprouver du Kotlin avait refusé de trancher à
 l'aveugle sur un terrain qui n'était pas le sien.
+
+---
+
+## 30 août 2026 — la liseuse du Mac, et la raison du standard de contraste
+
+**Traverse les trois dépôts**, pour deux raisons très différentes.
+
+### Ce qui a été fait
+
+`ONTFeatures` était le seul paquet fermé à macOS, avec pour raison écrite « les
+vues emploient UIKit ». **Mesuré : 3 fichiers sur 25, 8 références.** La
+déclaration était très au-dessus de la chose — et elle a tenu des semaines parce
+que personne n'avait compté.
+
+Le reste — une trentaine de points — n'était pas un désaccord de conception mais
+des modificateurs SwiftUI qu'iOS a et que le Mac n'a pas. Ils passent désormais
+par `ONTPlateformes`, côté design system : **une vue déclare une intention,
+jamais un système.**
+
+### Ce que ça dit à Android
+
+Le portage Kotlin a rencontré la même question et l'a résolue autrement, en
+écrivant deux fois. La leçon vaut dans les deux sens : **ce qui diffère entre
+plateformes se range en deux tas, et on les traite différemment.**
+
+- ce que les deux nomment autrement — un titre compact, un placement de bouton,
+  une image : ça se **traduit**, en un seul endroit ;
+- ce que l'une a et l'autre pas — un glissement de retour, une tâche de fond
+  qui suppose un appareil qui dort : ça se **décide**, et le code doit montrer
+  qu'on a décidé.
+
+Le second tas est petit. C'est le premier qui fait croire qu'un portage est
+long.
+
+### Ce que ça dit au site
+
+`ONTShareItem` était enfermé dans un `#if canImport(UIKit)` alors qu'il ne
+contient rien d'UIKit. Il emportait avec lui tout le code qui *décide* quoi
+partager — identique partout —, alors que seule la **présentation** diffère.
+
+**La limite qu'une compilation conditionnelle doit suivre : ce qui touche au
+système, jamais ce qui touche au sens.** Le site a la même frontière à tenir
+entre ce qui dépend du navigateur et ce qui dépend du corpus.
+
+### Et le point qui vaut le plus, pour les trois
+
+**Le projet s'impose un standard de contraste au-dessus d'AA depuis des
+semaines, et la raison n'était écrite nulle part.**
+
+Elle a un nom : le **kératocône** de l'auteur. La condition déforme les lettres
+et effondre la sensibilité au contraste. Distinguer deux niveaux de texte par
+*la pente* — l'italique — est donc pour lui le pire discriminant possible : on
+ajoute de la déformation à de la déformation. Ce qui tient contre elle est la
+**couleur, la taille, l'espace**.
+
+C'est ce que fait `ONTTypography.apparatus` depuis toujours, sans que le
+commentaire dise pourquoi. C'est aussi ce qui rend un aperçu markdown pénible à
+relire, et ce qui a motivé la liseuse du Mac.
+
+**Une exigence dont on connaît le motif se défend ; une exigence orpheline se
+fait raboter au premier arbitrage.** Le vault, le site et les deux apps tiennent
+tous des seuils de contraste : ils savent maintenant contre quoi.
+
+---
+
+## 30 août 2026 — la décision qui vivait dans la vue, et ce qu'elle avait déjà coûté
+
+La session iOS, en portant la liseuse sur Mac, a nommé une frontière : **une
+compilation conditionnelle doit suivre ce qui touche au système, jamais ce qui
+touche au sens.** Chez elle, `ONTShareItem` était enfermé dans un
+`#if canImport(UIKit)` sans contenir un octet d'UIKit, et emportait avec lui le
+code qui *décide* quoi partager.
+
+Android n'a ni `#if` ni `expect`/`actual`. La question s'y posait donc
+autrement — quelle décision est écrite dans une vue ? — et la réponse était la
+même : **la composition du texte partagé, écrite deux fois.**
+
+### Ce que la duplication avait déjà coûté
+
+|  | corps | renvoi | lien |
+|---|---|---|---|
+| lecture | oui | oui | **oui** |
+| verset du jour | oui | oui | **non** |
+
+Le lien manquait au partage le plus fréquent — un verset du jour se transmet, un
+passage étudié beaucoup moins. C'était donc le seul que le destinataire ne
+pouvait pas ouvrir. Et il manquait depuis qu'on l'avait *ajouté* : le second
+point d'appel n'avait pas été vu.
+
+**iOS porte le même écart, sur la même paire d'écrans** — `ChapterView.swift`
+pose un lien, `QahalTab.swift` non.
+
+### Le détail qu'aucune lecture du code n'aurait donné
+
+Android enveloppait le corps dans une paire de chevrons, iOS non. On pouvait
+croire à un goût. C'en est un fait : **le corpus ouvre des citations que le
+verset ne ferme pas.** Bereshit 6:13 porte un chevron ouvrant et aucun fermant,
+parce que le discours d'Elohim continue au verset suivant — le français veut
+qu'on rouvre à chaque unité sans fermer avant la fin.
+
+    « Elohim dit à Noach : « La fin de toute chair… avec la Terre. »
+
+Deux ouvertures, une fermeture, et un chevron final qui **ferme un propos que le
+traducteur avait laissé courir**. Il fallait un verset qui cite quelqu'un, et il
+fallait regarder la feuille de partage sur l'appareil.
+
+### Et l'erreur commise en corrigeant, qui est la vraie leçon
+
+En extrayant la composition, on y a ajouté une « normalisation » du corps qui
+fondait les retours à la ligne en espaces. Elle contredisait `replier`, **deux
+fichiers plus loin**, qui les préserve délibérément :
+
+> un retour à la ligne est une décision de mise en page du traducteur — la
+> seconde ligne d'un parallélisme, l'ouverture d'un discours
+
+Sur l'écran, ça sautait aux yeux : « Elohim dit à Noach : » et l'ouverture du
+discours collés sur une ligne.
+
+**Sortir une décision au bon endroit ne suffit pas si on en profite pour en
+ajouter une.** Un nettoyage qui passe pour de l'hygiène est exactement ce que
+personne ne relit.

@@ -161,15 +161,36 @@ impl Clock for FixedClock {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Une identité **sans nom** — celle d'Apple, qui n'en donne jamais au serveur.
 fn identity() -> ExternalIdentity {
     ExternalIdentity {
         provider: Provider::Apple,
         subject: "001234.abcdef".into(),
         email: Some("lecteur@example.com".into()),
+        prenom: None,
+        nom: None,
+        bio: None,
+    }
+}
+
+/// Une identité **avec un nom** — celle de Google ou de GitHub.
+fn identite_nommee() -> ExternalIdentity {
+    ExternalIdentity {
+        provider: Provider::Google,
+        subject: "google-001".into(),
+        email: Some("lecteur@example.com".into()),
+        prenom: Some("Gloire".into()),
+        nom: Some("Bikouta".into()),
+        bio: None,
     }
 }
 
 fn app(accept: bool) -> (App, Arc<FakeUsers>, Arc<FakeSync>) {
+    app_avec(identity(), accept)
+}
+
+/// Le même montage, avec l'identité qu'on veut éprouver.
+fn app_avec(identite: ExternalIdentity, accept: bool) -> (App, Arc<FakeUsers>, Arc<FakeSync>) {
     let users = Arc::new(FakeUsers::default());
     let sync = Arc::new(FakeSync::default());
 
@@ -181,7 +202,7 @@ fn app(accept: bool) -> (App, Arc<FakeUsers>, Arc<FakeSync>) {
         notificateur: None,
         secret_diffusion: None,
         identity: Arc::new(FakeProvider {
-            identity: identity(),
+            identity: identite,
             accept,
         }),
         users: users.clone(),
@@ -475,4 +496,100 @@ async fn un_portrait_trop_grand_est_refuse() {
     // Et rien n'a été écrit : un envoi refusé ne laisse pas la moitié de
     // lui-même derrière lui.
     assert!(app.pull(&lecteur, None).await.unwrap().profil.is_none());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Le profil amorcé par le fournisseur
+
+/// **Ce que Google et GitHub savent, le compte le sait dès sa première ligne.**
+///
+/// Sans ça, un lecteur qui vient de se connecter voit « Vous » dans sa barre
+/// latérale alors que son fournisseur venait de dire comment il s'appelle. On
+/// lui demanderait de retaper ce qu'on avait sous la main.
+#[tokio::test]
+async fn un_compte_neuf_porte_le_nom_du_fournisseur() {
+    let (app, _, sync) = app_avec(identite_nommee(), true);
+
+    let session = app
+        .sign_in(Provider::Google, Origine::App, "code", "app://retour", None)
+        .await
+        .expect("la connexion aboutit");
+    assert!(session.created, "le compte est neuf");
+
+    let profil = sync
+        .profil(&UserId("peu-importe".into()))
+        .await
+        .unwrap()
+        .expect("le profil a été amorcé");
+    assert_eq!(profil.prenom, "Gloire");
+    assert_eq!(profil.nom, "Bikouta");
+}
+
+/// **Le nom d'usage n'est jamais deviné.**
+///
+/// C'est le seul champ du profil qui soit un identifiant : c'est par lui qu'un
+/// lecteur en nommera un autre dans le Qahal. Le déduire du fournisseur
+/// poserait un pseudonyme que le lecteur n'a pas choisi, et qui pourrait déjà
+/// être pris par quelqu'un d'autre.
+#[tokio::test]
+async fn le_nom_d_usage_reste_au_lecteur() {
+    let (app, _, sync) = app_avec(identite_nommee(), true);
+
+    app.sign_in(Provider::Google, Origine::App, "code", "app://retour", None)
+        .await
+        .unwrap();
+
+    let profil = sync.profil(&UserId("x".into())).await.unwrap().unwrap();
+    assert!(profil.nom_dusage.is_empty());
+}
+
+/// **Apple ne donne rien au serveur, et on n'écrit donc rien.**
+///
+/// Écrire un profil vide serait pire que ne rien écrire : il porterait une date
+/// de mise à jour, et la fusion — dernier écrit gagné — ferait alors effacer par
+/// le serveur le nom que le client venait de poser. Apple ne donne le nom qu'au
+/// client, et c'est lui qui l'écrit.
+#[tokio::test]
+async fn une_identite_sans_nom_n_ecrit_aucun_profil() {
+    let (app, _, sync) = app(true);
+
+    app.sign_in(Provider::Apple, Origine::App, "code", "app://retour", None)
+        .await
+        .unwrap();
+
+    assert!(
+        sync.profil(&UserId("x".into())).await.unwrap().is_none(),
+        "aucun profil ne doit être écrit quand le fournisseur ne dit rien"
+    );
+}
+
+/// **Une reconnexion ne réécrit pas le profil.**
+///
+/// Le profil appartient au lecteur dès qu'il existe. Le réécrire à chaque
+/// connexion écraserait le nom qu'il aurait corrigé chez nous par celui de son
+/// compte GitHub — une fois par connexion, sur chacun de ses appareils, et sans
+/// qu'il comprenne pourquoi sa correction se défait.
+#[tokio::test]
+async fn une_reconnexion_laisse_le_profil_tel_quel() {
+    let (app, _, sync) = app_avec(identite_nommee(), true);
+
+    app.sign_in(Provider::Google, Origine::App, "code", "app://retour", None)
+        .await
+        .unwrap();
+
+    // Le lecteur corrige son nom.
+    let mut corrige = sync.profil(&UserId("x".into())).await.unwrap().unwrap();
+    corrige.prenom = "Sha'eliel".into();
+    sync.set_profil(&UserId("x".into()), &corrige)
+        .await
+        .unwrap();
+
+    let session = app
+        .sign_in(Provider::Google, Origine::App, "code", "app://retour", None)
+        .await
+        .unwrap();
+    assert!(!session.created, "le compte existait déjà");
+
+    let apres = sync.profil(&UserId("x".into())).await.unwrap().unwrap();
+    assert_eq!(apres.prenom, "Sha'eliel", "la correction du lecteur a tenu");
 }

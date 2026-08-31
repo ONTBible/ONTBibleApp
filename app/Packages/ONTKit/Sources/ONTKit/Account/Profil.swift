@@ -68,6 +68,22 @@ public struct Profil: Codable, Hashable, Sendable {
         return entier.isEmpty ? nil : entier
     }
 
+    /// Comment nommer ce lecteur **dans une barre latérale**, sans jamais rendre
+    /// vide.
+    ///
+    /// Distinct de `nomAffiche`, qui rend `nil` exprès : un écran de profil doit
+    /// pouvoir ne rien écrire, une ligne de barre doit toujours porter un
+    /// libellé. Trois recours, du plus personnel au plus neutre — le prénom et
+    /// le nom, le nom d'usage, puis « Vous ».
+    ///
+    /// « Vous » n'est pas un pis-aller : c'est ce qu'une app écrit d'un lecteur
+    /// qu'elle ne connaît pas encore, et ça se lit très bien.
+    public var nomDeBarre: String {
+        if let nomAffiche { return nomAffiche }
+        if !nomDUsage.isEmpty { return nomDUsage }
+        return "Vous"
+    }
+
     /// Les initiales, pour tenir lieu de portrait tant qu'il n'y en a pas.
     ///
     /// Deux lettres au plus. Vide quand on ne sait rien — l'appelant dessine

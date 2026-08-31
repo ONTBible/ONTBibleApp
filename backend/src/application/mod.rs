@@ -7,9 +7,9 @@ use time::OffsetDateTime;
 use crate::domain::ports::{
     AppareilRepository, Clock, IdentityProvider, Notificateur, SyncRepository, UserRepository,
 };
-use crate::domain::sync::{resolve, PullResponse, PushRequest};
+use crate::domain::sync::{resolve, ProfilLecteur, PullResponse, PushRequest};
 use crate::domain::token::{RefreshToken, TokenIssuer, UserId, REFRESH_TTL};
-use crate::domain::{DomainError, Origine, Provider};
+use crate::domain::{DomainError, ExternalIdentity, Origine, Provider};
 
 /// Ce qu'une connexion réussie rend au client.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -75,7 +75,53 @@ impl App {
             None => (self.users.create(&identity).await?, true),
         };
 
+        if created {
+            self.amorcer_le_profil(&user, &identity).await;
+        }
+
         self.open_session(user, created, identity.email).await
+    }
+
+    /// Pose ce que le fournisseur sait du lecteur, **à la création seulement**.
+    ///
+    /// ## Pourquoi seulement à la création
+    ///
+    /// Le profil appartient au lecteur dès qu'il existe. Le réécrire à chaque
+    /// connexion écraserait le nom qu'il aurait corrigé chez nous par celui de
+    /// son compte GitHub, et il verrait sa correction se défaire sans
+    /// comprendre — une fois par connexion, sur chacun de ses appareils.
+    ///
+    /// ## Pourquoi ça n'échoue pas la connexion
+    ///
+    /// Un profil non amorcé est un profil vide, et un profil vide est un état
+    /// parfaitement valide — c'est celui de tout compte créé avant aujourd'hui.
+    /// Refuser la connexion pour ça reviendrait à interdire de lire parce qu'on
+    /// n'a pas su écrire un prénom.
+    ///
+    /// L'échec est donc avalé, et c'est l'un des rares endroits où c'est juste :
+    /// **ce qu'on tente est une amélioration, pas une étape.**
+    async fn amorcer_le_profil(&self, user: &UserId, identity: &ExternalIdentity) {
+        let prenom = identity.prenom.clone().unwrap_or_default();
+        let nom = identity.nom.clone().unwrap_or_default();
+        let bio = identity.bio.clone().unwrap_or_default();
+        if prenom.is_empty() && nom.is_empty() && bio.is_empty() {
+            return;
+        }
+
+        let profil = ProfilLecteur {
+            // **Le nom d'usage reste vide.** C'est le seul champ du profil qui
+            // soit un identifiant : c'est par lui qu'un lecteur en nommera un
+            // autre dans le Qahal. Le déduire du fournisseur poserait un
+            // pseudonyme que le lecteur n'a pas choisi, et qui pourrait déjà
+            // être pris.
+            nom_dusage: String::new(),
+            prenom,
+            nom,
+            bio,
+            portrait: None,
+            updated_at: self.clock.now().unix_timestamp(),
+        };
+        let _ = self.sync.set_profil(user, &profil).await;
     }
 
     /// Rafraîchissement : un jeton long contre une nouvelle paire.

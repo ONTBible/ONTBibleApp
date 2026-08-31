@@ -77,14 +77,14 @@ public struct MesSurlignages: View {
             }
         }
         .navigationTitle("Surlignages")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         // Le décompte est **dans** la barre et non en tête de liste : il suit le
         // filtre, et une ligne de total qui monte et descend avec lui ferait
         // sauter toute la liste à chaque changement.
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: ONTPlacement.principale) {
                 Text("\(total)")
-                    .font(.footnote.monospacedDigit())
+                    .font(ONTUI.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("\(total) surlignages")
             }
@@ -108,7 +108,7 @@ private struct EnTeteDeLivre: View {
                 francaisRecu: model.preferences.french)
             {
                 Text(second)
-                    .font(.caption2)
+                    .font(ONTUI.caption2)
                     .foregroundStyle(.tertiary)
                     .textCase(nil)
             }
@@ -138,15 +138,15 @@ private struct LigneDeSurlignage: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(situe.renvoi)
-                        .font(.caption.weight(.medium))
+                        .font(ONTUI.caption.weight(.medium))
                         .foregroundStyle(theme.accent)
                     Spacer()
                     Text(date)
-                        .font(.caption2)
+                        .font(ONTUI.caption2)
                         .foregroundStyle(.tertiary)
                 }
                 Text(situe.texte)
-                    .font(.callout)
+                    .font(ONTUI.callout)
                     .foregroundStyle(theme.ink)
                     // Trois lignes : de quoi reconnaître le verset sans que la
                     // liste devienne une lecture. Le toucher mène au texte
@@ -154,7 +154,7 @@ private struct LigneDeSurlignage: View {
                     .lineLimit(3)
                 if let note = situe.surlignage.note, !note.isEmpty {
                     Text(note)
-                        .font(.footnote.italic())
+                        .font(ONTUI.footnote.italic())
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -212,7 +212,7 @@ private struct Pastille: View {
                         .fill(ONTColors.highlight(couleur, theme.mode))
                         .frame(width: 9, height: 9)
                 }
-                Text(titre).font(.caption)
+                Text(titre).font(ONTUI.caption)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -240,18 +240,18 @@ private struct Rien: View {
             // rien marqué, alors qu'on vient d'en cacher.
             if let filtre {
                 Text("Rien en \(filtre.label.lowercased())")
-                    .font(.callout.weight(.medium))
+                    .font(ONTUI.callout.weight(.medium))
                 Text("Touchez « Tout » pour revoir les autres couleurs.")
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 Text("Aucun surlignage")
-                    .font(.callout.weight(.medium))
+                    .font(ONTUI.callout.weight(.medium))
                 Text(
                     "Touchez un verset pendant la lecture, puis choisissez une "
                         + "couleur. Ce que vous marquez se retrouve ici."
                 )
-                .font(.footnote)
+                .font(ONTUI.footnote)
                 .foregroundStyle(.secondary)
             }
         }

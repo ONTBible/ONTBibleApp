@@ -60,7 +60,7 @@ public struct ReferencePicker: View {
         NavigationStack(path: $chemin) {
             livres
                 .navigationTitle("Aller à")
-                .navigationBarTitleDisplayMode(.inline)
+                .ontTitreCompact()
                 .navigationDestination(for: Etape.self) { etape in
                     switch etape {
                     case .unites(let book):
@@ -120,7 +120,7 @@ public struct ReferencePicker: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(ONTPlacement.listeGroupee)
         .searchable(text: $recherche, prompt: "Chercher un livre")
         .ontScreen()
     }
@@ -162,7 +162,7 @@ public struct ReferencePicker: View {
                             aller(book: bookId, chapter: intro.id, verse: nil)
                         } label: {
                             Label("Introduction", systemImage: "text.book.closed")
-                                .font(.callout.weight(.medium))
+                                .font(ONTUI.callout.weight(.medium))
                                 .foregroundStyle(theme.accent)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(spacing.m)
@@ -193,7 +193,7 @@ public struct ReferencePicker: View {
             }
         }
         .navigationTitle(livre?.title ?? bookId)
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 
@@ -264,7 +264,7 @@ public struct ChoixDuVerset: View {
                         LibelleDUnite.toutLe(french: model.preferences.french),
                         systemImage: "text.justify.left"
                     )
-                    .font(.callout.weight(.medium))
+                    .font(ONTUI.callout.weight(.medium))
                     .foregroundStyle(theme.accent)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(spacing.m)
@@ -296,7 +296,7 @@ public struct ChoixDuVerset: View {
             .padding(spacing.m)
         }
         .navigationTitle(unite?.label(french: model.preferences.french) ?? chapter)
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
     }
 
@@ -372,7 +372,7 @@ private struct LivreLigne: View {
     var body: some View {
         HStack(spacing: 10) {
             Text("\(livre.slot)")
-                .font(.caption.monospacedDigit())
+                .font(ONTUI.caption.monospacedDigit())
                 .foregroundStyle(theme.ink.opacity(0.35))
                 .frame(width: 24, alignment: .trailing)
 
@@ -388,14 +388,14 @@ private struct LivreLigne: View {
                     francaisRecu: model.preferences.french
                 ) {
                     Text(second)
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(theme.ink.opacity(0.45))
                 }
             }
             Spacer(minLength: 8)
             if courant {
                 Image(systemName: "checkmark")
-                    .font(.footnote.weight(.semibold))
+                    .font(ONTUI.footnote.weight(.semibold))
                     .foregroundStyle(theme.accent)
             }
         }
@@ -409,7 +409,7 @@ private struct Indisponible: View {
 
     var body: some View {
         Text(message)
-            .font(.callout)
+            .font(ONTUI.callout)
             .foregroundStyle(theme.ink.opacity(0.55))
             .frame(maxWidth: .infinity)
             .padding(.top, 48)

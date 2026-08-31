@@ -59,7 +59,7 @@ public struct QahalTab: View {
     private var comingSoon: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("À venir")
-                .font(.caption.smallCaps())
+                .font(ONTUI.caption.smallCaps())
                 .foregroundStyle(.secondary)
 
             ForEach(
@@ -74,7 +74,7 @@ public struct QahalTab: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                         Text(subtitle)
-                            .font(.caption)
+                            .font(ONTUI.caption)
                             .foregroundStyle(.tertiary)
                     }
                 } icon: {
@@ -88,7 +88,7 @@ public struct QahalTab: View {
                 "Ces fonctions demandent un serveur. La lecture, elle, fonctionne "
                     + "entièrement hors ligne."
             )
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(.tertiary)
             .padding(.top, 4)
         }
@@ -127,7 +127,11 @@ private struct VerseOfTheDayCard: View {
         // l'onglet, le livre, l'unité, et désigne le verset — qui est déjà
         // surligné à l'arrivée.
         Button {
-            router.open(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
+            // `designer` et non `open` : cette carte montre **un** verset, et y
+            // toucher dit « celui-ci ». Il doit être sélectionné à l'arrivée,
+            // comme lorsqu'on vient du widget — sinon on atterrit dans un
+            // chapitre et l'on cherche des yeux ce qu'on venait de lire.
+            router.designer(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
         } label: {
             carte
         }

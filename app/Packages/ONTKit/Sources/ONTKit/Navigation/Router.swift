@@ -25,10 +25,22 @@ public final class Router {
     /// dernier onglet reste une seule chaîne dans les réglages.
     public enum TabID: RawRepresentable, Hashable, Sendable {
         case qahal, bible, lexicon, you
+        /// **Où l'on en était** — un onglet du Mac seulement.
+        ///
+        /// Sur un téléphone, « Reprendre » est une carte en tête de la Bible :
+        /// l'écran est petit, et un onglet de plus mangerait la barre. Sur un
+        /// bureau, la barre latérale est verticale et n'a pas cette contrainte —
+        /// le geste le plus fréquent mérite d'y être le premier.
+        ///
+        /// Le cas existe dans `ONTKit` et non côté Mac : `rawValue` doit savoir
+        /// le relire, sinon un état enregistré par la liseuse du Mac reviendrait
+        /// `nil` et l'app rouvrirait ailleurs.
+        case reprendre
         case book(String)
 
         public init?(rawValue: String) {
             switch rawValue {
+            case "reprendre": self = .reprendre
             case "qahal": self = .qahal
             case "bible": self = .bible
             case "lexicon": self = .lexicon
@@ -41,6 +53,7 @@ public final class Router {
 
         public var rawValue: String {
             switch self {
+            case .reprendre: "reprendre"
             case .qahal: "qahal"
             case .bible: "bible"
             case .lexicon: "lexicon"
@@ -216,7 +229,33 @@ public final class Router {
         }
     }
 
+    /// Ouvre une unité **en désignant** un verset — ce que fait le widget, et
+    /// ce que doit faire toute carte qui montre un verset précis.
+    ///
+    /// ## Pourquoi c'est une méthode à part
+    ///
+    /// `open(book:chapter:verse:)` *vise* sans *désigner* : c'est le bon geste
+    /// pour un résultat de recherche, qui amène à un verset sans prétendre que
+    /// c'est **celui-là** qu'on voulait — la recherche a rendu vingt lignes,
+    /// elle n'en élit aucune.
+    ///
+    /// Une carte de verset du jour, elle, montre un verset et un seul. Y toucher
+    /// dit « ce verset-ci ». Le lecteur doit le retrouver **désigné** en
+    /// arrivant, comme lorsqu'il ouvre le widget — sans quoi il atterrit dans un
+    /// chapitre et doit rechercher des yeux ce qu'il venait de lire.
+    ///
+    /// C'est exactement l'écart que l'auteur a relevé : le widget composait
+    /// `?v=<n>`, qui désigne, et la carte du Qahal appelait `open(…verse:)`, qui
+    /// ne fait que viser. Deux gestes identiques à l'écran, deux comportements.
+    public func designer(book: String, chapter: String, verse: Int) {
+        open(book: book, chapter: chapter, verse: verse)
+        pendingSelection = [verse]
+    }
+
     /// Ouvre une unité à un verset donné — ce que fait un résultat de recherche.
+    ///
+    /// **Vise sans désigner.** Pour montrer le verset sélectionné à l'arrivée,
+    /// c'est `designer(book:chapter:verse:)` qu'il faut.
     public func open(book: String, chapter: String, verse: Int? = nil) {
         tab = .bible
         biblePath = [.book(book), .chapter(book: book, chapter: chapter)]

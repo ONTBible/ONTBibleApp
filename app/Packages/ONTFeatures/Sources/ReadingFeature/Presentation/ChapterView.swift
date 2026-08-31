@@ -26,7 +26,11 @@ struct ChapterView: View {
 
     @State private var showingSettings = false
     @State private var showingPicker = false
-    @State private var noteTarget: VerseSelection?
+    /// Le bloc que la vue doit atteindre, quand un lien ou une reprise en
+    /// désigne un. Les blocs sont les enfants directs de la pile, donc les
+    /// seules cibles que `scrollPosition` sait viser.
+    @State private var blocVise: Int?
+        @State private var noteTarget: VerseSelection?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -155,8 +159,31 @@ struct ChapterView: View {
                     }
                     // Ce qui désigne les cibles que `.scrollPosition(id:)` peut
                     // viser : les enfants directs de cette pile, donc les blocs.
+                    //
+                    // **Ce commentaire était orphelin.** Il décrivait un
+                    // modificateur qui n'a jamais existé dans ce fichier — le
+                    // relevé de `git log -S` est sans appel. Le mécanisme qu'il
+                    // annonçait manquait donc, et avec lui le seul moyen
+                    // d'atteindre une ligne que la pile n'a pas encore montée.
+                    .scrollTargetLayout()
                 }
             }
+            // **`scrollPosition` et non `scrollTo`, à cause de la paresse.**
+            //
+            // `proxy.scrollTo` ne peut atteindre qu'une ligne **déjà réalisée**.
+            // Dans une `LazyVStack`, un verset profond ne l'est pas : l'appel
+            // ne produit alors ni erreur ni mouvement. Mesuré au simulateur —
+            // six passes sur le verset 20 de Bereshit 1, ancre trouvée, page
+            // immobile.
+            //
+            // Ce qui rendait le défaut invisible, c'est qu'il **marche quand la
+            // cible est haute** : un verset des premières lignes est déjà monté.
+            // On croyait donc que le widget fonctionnait et que le Qahal non,
+            // alors que les deux dépendent de la profondeur du verset visé.
+            //
+            // `.scrollPosition(id:)` vise par identité dans la pile de cibles,
+            // et la pile paresseuse sait s'y rendre sans avoir tout monté.
+            .scrollPosition(id: $blocVise, anchor: .top)
             // `.task(id:)` et non `.onAppear` : la tâche est **annulée** quand
             // la vue disparaît, donc un défilement en cours ne poursuit pas
             // une page qu'on vient de quitter.
@@ -293,18 +320,18 @@ struct ChapterView: View {
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .toolbar {
             if actif {
             // La pastille de renvoi, en haut à gauche — le geste de YouVersion
             // et de Bible Strong. Elle dit où l'on est **et** sert de porte :
             // sans elle, aller de Bereshit 1 à Bereshit 18 demande de remonter
             // à la table, replier, déplier, redescendre.
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: ONTPlacement.retrait) {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
                         Text(pastille)
-                            .font(.subheadline.weight(.semibold))
+                            .font(ONTUI.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: echelle(10), weight: .bold))
@@ -335,7 +362,7 @@ struct ChapterView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: ONTPlacement.principale) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
             }
             }
@@ -375,7 +402,7 @@ struct ChapterView: View {
             // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
             // grande taille avec les gloses allumées, la mi-hauteur ne laisse
             // plus voir les réglages.
-            .presentationDetents([.medium, .large])
+            .ontHauteurDeFeuille([.medium, .large])
             .ontTheme(from: model.preferences)
         }
         .sheet(item: $noteTarget) { selection in
@@ -439,7 +466,7 @@ struct ChapterView: View {
             return
         }
 
-        guard let ancre = anchor(for: vise) else { return }
+        guard let bloc = blocContenant(vise) else { return }
 
         // Plusieurs passes, échelonnées au-delà de l'animation de navigation.
         //
@@ -449,11 +476,14 @@ struct ChapterView: View {
         //
         // Les passes après 0,6 s ne coûtent rien quand la première a visé
         // juste : viser une position déjà atteinte ne déplace rien.
-        for delai in [Duration.zero, .milliseconds(250), .milliseconds(600), .seconds(1)] {
-            if delai > .zero { try? await Task.sleep(for: delai) }
-            guard !Task.isCancelled else { return }
-            proxy.scrollTo(VerseAnchor(n: ancre), anchor: .top)
-        }
+        // Deux passes suffisent désormais, et la seconde ne sert qu'au cas où
+        // la pile n'a pas encore ses cibles au premier instant. Les quatre
+        // passes échelonnées d'avant compensaient l'échec de `scrollTo`, pas
+        // une lenteur — elles ne réparaient rien, elles répétaient.
+        blocVise = bloc
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        blocVise = bloc
     }
 
     /// Les blocs tels qu'ils sont rendus.
@@ -474,6 +504,22 @@ struct ChapterView: View {
     /// texte : la cible existe donc, et il n'y a plus lieu de rabattre le
     /// repère sur le début du bloc comme on le faisait.
     private func anchor(for verse: Int) -> Int? { verse }
+
+    /// Le rang du bloc qui porte ce verset, parmi ceux réellement rendus.
+    ///
+    /// **Parmi `blocs` et non `chapter.blocks`** : en lecture suivie les
+    /// versets consécutifs sont fusionnés, et les rangs ne coïncident plus. Un
+    /// rang pris sur la liste d'origine viserait un autre endroit du texte
+    /// dès que le lecteur allume la prose continue — c'est-à-dire sans qu'il
+    /// puisse relier les deux.
+    private func blocContenant(_ verse: Int) -> Int? {
+        blocs.firstIndex { bloc in
+            if case .verses(let versets) = bloc {
+                return versets.contains { $0.n == verse }
+            }
+            return false
+        }
+    }
 
     /// L'opacité de ce qui n'est pas sélectionné.
     ///
@@ -500,10 +546,10 @@ struct ChapterView: View {
                 HStack(spacing: spacing.s) {
                     // Le pont de navigation : le nom français et le renvoi
                     // biblique, jamais la désignation principale (§2.6).
-                    Text(subtitle.french).font(.callout.italic())
+                    Text(subtitle.french).font(ONTUI.callout.italic())
                     Text(subtitle.hebrew).font(theme.type.hebrew.font)
                     if let reference = subtitle.reference {
-                        Text(reference).font(.callout.monospacedDigit())
+                        Text(reference).font(ONTUI.callout.monospacedDigit())
                     }
                 }
                 .foregroundStyle(theme.ink.opacity(0.6))
@@ -511,7 +557,7 @@ struct ChapterView: View {
 
             if chapter.status == .brouillon {
                 Label("Brouillon — en attente de validation", systemImage: "pencil.line")
-                    .font(.caption)
+                    .font(ONTUI.caption)
                     .foregroundStyle(ONTColors.accent(theme.mode))
                     .padding(.top, spacing.xs)
             }
@@ -568,7 +614,7 @@ private struct VerseRow: View {
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.leading, spacing.xs)
             }
@@ -832,7 +878,7 @@ private struct VerseActionBar: View {
                 // un presse-papier n'a qu'un contenu, et la ligne à part fait
                 // que le destinataire peut citer le texte sans traîner
                 // l'adresse.
-                UIPasteboard.general.string = texteACopier
+                ONTPressePapier.poser(texteACopier)
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -978,7 +1024,7 @@ private struct ActionTileLabel: View {
                         .fill(theme.accent.opacity(0.12))
                 )
             Text(title)
-                .font(.caption2)
+                .font(ONTUI.caption2)
                 .foregroundStyle(theme.ink.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -1423,13 +1469,13 @@ private struct FooterView: View {
                     Text("· Version \(version)")
                 }
             }
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(ONTColors.accent(theme.mode))
 
             if !footer.notes.isEmpty {
                 SectionCaption("Décisions terminologiques")
                 ForEach(Array(footer.notes.enumerated()), id: \.offset) { _, note in
-                    Text(plain(note)).font(.footnote).foregroundStyle(.secondary)
+                    Text(plain(note)).font(ONTUI.footnote).foregroundStyle(.secondary)
                 }
             }
         }
@@ -1478,8 +1524,9 @@ private struct NoteEditor: View {
                 }
                 .ontRow()
             }
+            .ontFormulaire()
             .navigationTitle("Note")
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annuler") { dismiss() }
@@ -1500,7 +1547,7 @@ private struct NoteEditor: View {
             .ontRow()
             .ontScreen()
         }
-        .presentationDetents([.medium])
+        .ontHauteurDeFeuille([.medium])
     }
 }
 
@@ -1554,7 +1601,7 @@ public struct ReadingSettingsSheet: View {
             controls
         }
         .navigationTitle("Lecture")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
     }
 
     /// Les réglages, qui défilent sous l'aperçu.
@@ -1656,6 +1703,7 @@ public struct ReadingSettingsSheet: View {
                 }
                 .ontRow()
         }
+        .ontFormulaire()
         // Une confirmation, parce que le geste est court et la perte réelle :
         // qui a réglé sa taille de texte pour y voir ne veut pas la retrouver
         .ontRow()
@@ -1720,7 +1768,7 @@ private struct SettingsPreview: View {
         var body: some View {
             VStack(alignment: .leading, spacing: spacing.xs) {
                 Text("Aperçu — \(title)")
-                    .font(.caption.weight(.semibold))
+                    .font(ONTUI.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(theme.ink.opacity(0.5))
@@ -1845,7 +1893,7 @@ private struct ThemeRow: View {
                 Text(selection.label)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote.weight(.semibold))
+                    .font(ONTUI.footnote.weight(.semibold))
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
             }
             .contentShape(.rect)
@@ -1871,13 +1919,13 @@ private struct FontRow: View {
                         .font(.custom(ONTFonts.family(font), size: 19))
                         .foregroundStyle(theme.ink)
                     Text(font.note)
-                        .font(.footnote)
+                        .font(ONTUI.footnote)
                         .foregroundStyle(theme.ink.opacity(0.6))
                 }
                 Spacer(minLength: 8)
                 if chosen {
                     Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
+                        .font(ONTUI.body.weight(.semibold))
                         .foregroundStyle(theme.accent)
                 }
             }

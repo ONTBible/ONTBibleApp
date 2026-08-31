@@ -47,6 +47,36 @@ enum PushDistant {
     /// Rend `false` si le lecteur refuse la notification : le réglage doit
     /// alors se remettre seul en position fermée, sans quoi il annoncerait un
     /// service qui ne fonctionne pas.
+    /// L'appareil est-il **réellement** inscrit chez le serveur ?
+    ///
+    /// Distinct du consentement : celui-ci dit ce que le lecteur a demandé,
+    /// celui-là ce que le serveur a accepté. Les confondre est ce qui a rendu
+    /// le défaut du 30 août invisible — interrupteur allumé, aucune inscription.
+    static let cleEnregistre = "push-distant-enregistre"
+
+    /// Vrai quand le lecteur a consenti **et** que le serveur a répondu.
+    public static var inscrit: Bool {
+        UserDefaults.standard.bool(forKey: cleConsentement)
+            && UserDefaults.standard.bool(forKey: cleEnregistre)
+    }
+
+    /// Redemande un jeton au lancement quand le consentement est là et
+    /// l'inscription non.
+    ///
+    /// **Le commentaire promettait déjà cette reprise** — « le prochain
+    /// lancement réessaiera » — et rien ne l'appelait : aucun lancement ne
+    /// redemandait de jeton. Une déclaration sans la chose, et c'est elle qui
+    /// rendait une panne de réseau définitive.
+    ///
+    /// L'appel est sans coût quand tout va bien : iOS rend le jeton déjà
+    /// connu, et le serveur reçoit une inscription qu'il a déjà.
+    public static func reprendreSiBesoin() {
+        guard UserDefaults.standard.bool(forKey: cleConsentement) else { return }
+        guard !UserDefaults.standard.bool(forKey: cleEnregistre) else { return }
+        log.info("consentement sans inscription — on redemande un jeton")
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
     static func activer() async -> Bool {
         let centre = UNUserNotificationCenter.current()
         let etat = await centre.notificationSettings().authorizationStatus
@@ -110,10 +140,27 @@ enum PushDistant {
         do {
             let (_, reponse) = try await URLSession.shared.data(for: requete)
             let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
+            // **Le code décide, et il ne décidait rien.**
+            //
+            // Cette ligne écrivait « appareil enregistré » quel que soit le
+            // code — 500, 401, 404. Un serveur en panne laissait donc le
+            // lecteur avec un interrupteur allumé, un journal rassurant, et
+            // aucun jeton dans la table.
+            //
+            // C'est ce qui est arrivé le 30 août 2026 : parution diffusée,
+            // « code 204 » côté site, et rien reçu. Ni l'app ni le serveur ne
+            // pouvaient le dire.
+            guard (200..<300).contains(code) else {
+                UserDefaults.standard.set(false, forKey: cleEnregistre)
+                log.error("le serveur a refusé l'appareil, code \(code)")
+                return
+            }
+            UserDefaults.standard.set(true, forKey: cleEnregistre)
             log.info("appareil enregistré, code \(code)")
         } catch {
-            // Une panne de réseau n'est pas une erreur à montrer : le lecteur
-            // a activé le réglage, et le prochain lancement réessaiera.
+            // Une panne de réseau n'est pas une erreur à montrer — mais elle
+            // ne doit pas non plus passer pour une réussite.
+            UserDefaults.standard.set(false, forKey: cleEnregistre)
             log.info("enregistrement remis à plus tard : \(error.localizedDescription)")
         }
     }
@@ -124,6 +171,7 @@ enum PushDistant {
             url: base.appendingPathComponent("appareils").appendingPathComponent(empreinte))
         requete.httpMethod = "DELETE"
         _ = try? await URLSession.shared.data(for: requete)
+        UserDefaults.standard.set(false, forKey: cleEnregistre)
         log.info("appareil retiré du serveur")
     }
 

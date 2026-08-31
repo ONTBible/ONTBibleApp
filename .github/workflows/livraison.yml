@@ -182,6 +182,50 @@ jobs:
         # Un binaire, plus aucun runtime : voir `scripts/corpus.sh`.
         run: ./scripts/corpus.sh
 
+      # **Un build livré doit pouvoir dater son corpus, ou ne pas partir.**
+      #
+      # `CorpusUpdater` n'accepte du corpus publié que ce qu'il peut prouver
+      # plus récent que le sien. Sans estampille embarquée, `estampilleEmbarquee`
+      # rend `nil`, la garde refuse tout, et **l'app ne met plus jamais son
+      # corpus à jour** — sans rien dire, ce qui est précisément le silence que
+      # cette garde existe pour empêcher, retourné contre elle.
+      #
+      # `corpus.sh` se contente d'avertir : c'est le bon choix en local, où
+      # l'on construit souvent sans vault. Une livraison, elle, doit refuser —
+      # un avertissement qu'un build ignore est une déclaration sans la chose,
+      # et le défaut ne se verrait qu'à l'exécution, chez un testeur, des jours
+      # plus tard.
+      #
+      # ## Ce que cette garde n'est pas
+      #
+      # La session du vault a signalé un défaut : `ONT_GENERE` absente des
+      # workflows, donc un binaire livré qui ne se mettrait jamais à jour. Elle
+      # s'est rétractée, et j'avais mesuré la même chose de mon côté : la
+      # variable **est** posée, par `corpus.sh`, que ces workflows appellent.
+      # Son `git grep` cherchait où la variable serait déclarée, pas où le
+      # travail se fait.
+      #
+      # La garde reste, pour une autre raison que celle qu'on m'avait donnée :
+      # **`corpus.sh` avertit et continue.** C'est le bon choix en local, où
+      # l'on construit souvent sans vault. Mais un avertissement qu'une
+      # livraison ignore ne garde rien — et celle-ci partirait avec un
+      # actualiseur gelé à vie, sans que rien ne le dise avant qu'un testeur
+      # s'étonne, des jours plus tard, de ne rien recevoir.
+      #
+      # Éprouvée dans les deux sens : code 1 sans estampille, code 0 avec.
+      - name: Le corpus est-il datable
+        working-directory: ONTBibleApp
+        run: |
+          set -euo pipefail
+          genere=$(python3 -c "import json;print(json.load(open('dist/manifest.json')).get('generatedAt',''))")
+          if [ -z "$genere" ]; then
+            echo "✗ dist/manifest.json ne porte pas de generatedAt." >&2
+            echo "  L'app livrée ne mettrait jamais son corpus à jour, en silence." >&2
+            echo "  Vérifier que le vault est bien présent et que ONT_VAULT le désigne." >&2
+            exit 1
+          fi
+          echo "→ corpus datable — $genere"
+
       # Les numéros sont posés **après** `xcodegen`, directement dans les
       # `Info.plist` produits. Les mettre dans `project.yml` obligerait à
       # committer un numéro de build à chaque livraison — un commit qui ne dit

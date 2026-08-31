@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sign in with Apple.
+
+	     Il manquait, et c'est tout : la liseuse du Mac ne portait que des
+	     droits de débogage, donc le système refusait la demande avant qu'elle
+	     parte. L'app affichait « la connexion avec Apple n'a pas abouti »,
+	     ce qui était vrai et n'aidait personne.
+
+	     Le fichier est distinct de `ONT.entitlements` parce que les deux
+	     plateformes ne demandent pas les mêmes choses : pas d'`aps-environment`
+	     ici, les notifications distantes du Mac passant par un autre chemin.
+	     Les liens universels, eux, valent des deux côtés. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:ontbible.com</string>
+	</array>
+</dict>
+</plist>

@@ -16,6 +16,10 @@ public struct TermSheet: View {
     @Environment(LexiconModel.self) private var model
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
+    /// Posé par la présentation quand ce n'est pas une feuille — voir
+    /// `ONTFermeture`. `dismiss` ne ferme ni un panneau latéral ni un
+    /// aperçu en surimpression.
+    @Environment(\.ontFermer) private var fermer
 
     let lemma: String
 
@@ -41,13 +45,26 @@ public struct TermSheet: View {
                 }
             }
             .ontScreen()
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fermer") { dismiss() }
+                // **Seulement quand la présentation n'a pas sa propre croix.**
+                //
+                // Un `NavigationStack` posé dans une surimpression projette sa
+                // barre d'outils dans la **barre de titre de la fenêtre** sur le
+                // Mac : le « Fermer » de la fiche allait s'asseoir tout en haut à
+                // droite, loin de la carte qu'il ferme, à côté de la loupe de
+                // recherche. Vu à l'écran, et impossible à deviner d'ici.
+                //
+                // Quand `ontFermer` est posé, la présentation a déjà sa chrome —
+                // on lui laisse la place.
+                if fermer == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
             }
         }
+        .ontHauteurDeFeuille([.medium, .large])
     }
 
     @ViewBuilder
@@ -65,7 +82,7 @@ public struct TermSheet: View {
 
                     if let rendering = entry.rendering, rendering != entry.title {
                         Text(rendering)
-                            .font(.callout)
+                            .font(ONTUI.callout)
                             .foregroundStyle(.secondary)
                     }
 
@@ -74,7 +91,7 @@ public struct TermSheet: View {
                             "Vocabulaire fixé — traduit dans le corps du texte",
                             systemImage: "text.quote"
                         )
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.tertiary)
                     }
                 }
@@ -155,16 +172,16 @@ public struct TermSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(reference(occurrence))
-                                .font(.caption.monospaced())
+                                .font(ONTUI.caption.monospaced())
                                 .foregroundStyle(ONTColors.accent(theme.mode))
                             if occurrence.level == .gloss {
                                 Text("glose")
-                                    .font(.caption2)
+                                    .font(ONTUI.caption2)
                                     .foregroundStyle(.tertiary)
                             }
                         }
                         Text(occurrence.snippet)
-                            .font(.callout)
+                            .font(ONTUI.callout)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
@@ -172,7 +189,7 @@ public struct TermSheet: View {
 
                 if list.count > 60 {
                     Text("… et \(list.count - 60) autres")
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.tertiary)
                 }
             }
