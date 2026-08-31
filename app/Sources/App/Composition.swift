@@ -227,4 +227,30 @@ final class Composition {
             reporter.report(error, context: "chargement du corpus")
         }
     }
+    /// **Fait lire à la liseuse un corpus d'aperçu, ou la ramène au publié.**
+    ///
+    /// Le mode développeur du Mac reconstruit depuis le vault et écrit à côté
+    /// du corpus publié — dans `Application Support/vault-apercu`, jamais dans
+    /// `dist/` : un aperçu de brouillon n'a rien à faire dans un arbre de
+    /// travail git.
+    ///
+    /// Il l'écrivait déjà. **Personne ne le lisait.** Le dossier des dépôts
+    /// était fixé à la construction, et la boucle que le README décrit —
+    /// « on désigne le vault, il surveille, il reconstruit, l'app recharge » —
+    /// s'arrêtait avant son dernier mot.
+    ///
+    /// Le défaut se cachait derrière un nombre juste : le bandeau affichait le
+    /// compte que le pipeline venait de rendre, sur un corpus que la liseuse
+    /// n'ouvrait pas. L'auteur l'a pris en cherchant le **chapitre** plutôt que
+    /// le compte.
+    ///
+    /// `nil` ramène au corpus publié — c'est ce que fait « Cesser de suivre ».
+    func regarderLApercu(_ dossier: URL?) {
+        let cible = dossier ?? CorpusUpdater.dossierParDefaut()
+        corpusSurDisque.regarder(cible)
+        lexiqueSurDisque.regarder(cible)
+        reading.corpusChanged()
+        lexicon.glossaryChanged()
+    }
+
 }

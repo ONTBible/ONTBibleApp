@@ -396,12 +396,20 @@ s'ouvre, et le corpus embarqué se charge intact (864 versets, 108 entrées). To
 le stockage persistant étant déjà en `Application Support`, il suit dans le
 conteneur sans qu'une ligne change.
 
-**Ce qui reste à mesurer, et qui ne peut pas l'être en intégration** : le mode
-vault lance `ont-pipeline` en processus fils. Un fils hérite du bac de son père,
-mais **pas nécessairement des droits que le sélecteur a accordés à celui-ci**.
-Si le fils ne voit pas le vault, il faudra passer le contenu autrement que par
-un chemin. La question demande un dossier réellement désigné à la souris : elle
-se tranche à la main, sur une app signée, et non par un job.
+**Et le processus fils voit le vault** — mesuré le 31 août 2026, sur l'app
+signée et confinée, vault désigné à la souris :
+
+    ✓ 44 unités, 864 versets                    ONTBibleTranslation
+
+C'était la question ouverte : un fils hérite du bac de son père, mais **pas
+nécessairement des droits que le sélecteur a accordés à celui-ci**. Il les
+hérite. Le mode vault fonctionne donc sous bac à sable sans rien changer à sa
+mécanique — pas de passage de contenu par un autre canal, pas d'extension à
+consommer à la main.
+
+Elle ne pouvait pas se trancher en intégration : il fallait un dossier
+réellement choisi dans le sélecteur, donc une main sur la souris. C'est la seule
+mesure de ce chantier qu'un job ne pouvait pas faire.
 
 **Deux limites à connaître avant d'essayer.** Une signature ad hoc portant *à la
 fois* le bac et un droit restreint — `applesignin`, `associated-domains` — fait
@@ -435,6 +443,24 @@ Cinq workflows, et chacun répond à une question différente.
 | `livraison.yml` | `dev` / `staging` / `main` | monte le build vers le bon public |
 | `deployer-backend.yml` | `main` | remplace le **code** de la Lambda, jamais son infrastructure |
 | `signature-diagnostic.yml` | à la main | ce que la clé App Store Connect a le droit de voir |
+
+**Le Mac ne passe pas par là**, et c'est mesuré et non choisi.
+`./scripts/livrer-le-mac.sh` fait la même chaîne depuis la machine de l'auteur.
+
+L'`actool` d'Xcode 26.3 **plante** en composant `ONT.icon` pour macOS — un
+plantage sans diagnostic, pile d'appel d'`IBAbstractPlatformToolProxy` et rien
+d'autre. Et l'image du runner ne propose que cette version, alors que le
+workflow demande déjà `latest` : il n'y a pas de version à monter.
+
+Un runner **auto-hébergé** réglerait la version et ouvrirait pire. Ce dépôt est
+public, et un runner auto-hébergé sur un dépôt public laisse toute proposition
+venue d'un fork exécuter du code sur la machine — c'est celle de l'auteur.
+
+Le script suit donc les mêmes règles que le workflow, sans démon qui écoute :
+même table de canaux, même numéro de build daté, même `destination: upload`
+plutôt qu'`altool`. Il vérifie l'icône **avant** d'archiver, parce que le
+découvrir au milieu d'une archive coûte l'archive. Le jour où l'image du runner
+monte de version, ce fichier redevient un job et l'on jette celui-ci.
 
 **Une branche nomme un destinataire, pas une manœuvre :**
 

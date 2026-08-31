@@ -442,6 +442,117 @@ jobs:
   # minutes à traiter un build, et rien ne peut lui être rattaché avant. Un
   # échec ici ne remet pas en cause le build, qui est bien monté — relancer ce
   # seul job suffit.
+  # ── La liseuse macOS, sur la machine de l'auteur
+  #
+  # **Pourquoi pas `macos-15` comme l'iPhone.** L'`actool` de l'image plante en
+  # composant `ONT.icon` pour macOS — un plantage sans diagnostic, mesuré en
+  # réactivant l'icône dans le job d'épreuves. Et l'image ne propose qu'Xcode
+  # 26.3 alors que le workflow demande déjà `latest` : il n'y a pas de version
+  # à monter.
+  #
+  # **Ce que le runner auto-hébergé engage, et ce qui le tient.** Ce dépôt est
+  # public. Un runner auto-hébergé y laisserait une proposition venue d'un fork
+  # exécuter du code sur la machine — sauf que le dépôt porte
+  # `approval_policy: all_external_contributors`, le réglage le plus strict :
+  # rien d'extérieur ne s'exécute sans approbation. Reste qu'un runner
+  # auto-hébergé est **persistant** là où celui de GitHub est jeté : ce qui
+  # tourne laisse des traces. C'est un arbitrage assumé, pas un oubli.
+  #
+  # Le label `ONTBibleApp` est propre à ce dépôt : les deux autres runners de
+  # la machine ne peuvent pas ramasser ce job.
+  #
+  # Le job **appelle le geste** plutôt que de le réécrire. `livrer-le-mac.sh`
+  # doit continuer de marcher à la main le jour où la machine est éteinte, et
+  # deux chaînes qui font la même chose finissent par diverger.
+  mac:
+    runs-on: [self-hosted, macOS, ONTBibleApp]
+    timeout-minutes: 40
+    steps:
+      - name: L'app
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - name: Le corpus et le projet
+        working-directory: ONTBibleApp
+        run: ONT_VAULT="$GITHUB_WORKSPACE/ONTBibleTranslation" ./scripts/corpus.sh
+
+      # La clé vit le temps du job, dans le dossier que le script attend, et
+      # part avec lui. Sur un runner auto-hébergé rien n'est jeté tout seul :
+      # ce que le job écrit, le job doit le reprendre.
+      - name: La clé App Store Connect
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: La livraison
+        id: livraison
+        working-directory: ONTBibleApp
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          CANAL="${{ inputs.canal || '' }}"
+          if [ -z "$CANAL" ]; then
+            case "${{ github.ref }}" in
+              refs/heads/main)    CANAL=appstore ;;
+              refs/heads/staging) CANAL=beta ;;
+              *)                  CANAL=interne ;;
+            esac
+          fi
+          case "$CANAL" in
+            appstore) GROUPE= ;;
+            beta)     GROUPE=Beta ;;
+            *)        GROUPE=Dev ;;
+          esac
+          echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
+          ./scripts/livrer-le-mac.sh "$CANAL"
+
+      # **TestFlight distribue aussi les apps du Mac**, par l'app TestFlight de
+      # macOS. L'achat universel donne une seule entrée App Store Connect pour
+      # les deux plateformes — mais « une seule entrée » ne veut pas dire « rien
+      # à faire » : la **plateforme macOS doit y être ajoutée à la main**, une
+      # fois, avant qu'un build du Mac puisse monter. Tant que ce n'est pas
+      # fait, ce job échouera au téléversement, pas ici.
+      #
+      # D'où `PLATEFORME: MAC_OS` : le numéro de build est daté à la minute et
+      # les deux chaînes partent du même push, donc sans ce filtre on attendrait
+      # l'iPhone en croyant attendre le Mac, et les deux répondraient `VALID`.
+      #
+      # Reste une chose que je n'ai pas pu mesurer — la clé de lecture est dans
+      # le coffre, son identifiant d'émetteur seulement en secret : je ne sais
+      # pas si les groupes de testeurs sont rangés **par plateforme**. `beta.py`
+      # ne parie sur aucune des deux réponses ; il refuse s'il trouve deux
+      # groupes de même nom, et la première exécution de ce job tranchera.
+      - name: Rattacher au groupe TestFlight
+        if: steps.livraison.outputs.groupe != ''
+        working-directory: ONTBibleApp/.github/scripts
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          BUILD: ${{ steps.livraison.outputs.build }}
+          GROUPE_BETA: ${{ steps.livraison.outputs.groupe }}
+          PLATEFORME: MAC_OS
+          NOTES_BETA: ${{ github.event.head_commit.message }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv-mac"
+          "$RUNNER_TEMP/venv-mac/bin/pip" install --quiet -r exigences.txt
+          "$RUNNER_TEMP/venv-mac/bin/python" beta.py
+
+      - name: Reprendre la clé
+        if: always()
+        run: rm -f ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
   distribuer:
     needs: livrer
     if: needs.livrer.outputs.canal != 'appstore'
@@ -460,6 +571,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
+          PLATEFORME: IOS
           GROUPE_BETA: ${{ needs.livrer.outputs.groupe }}
           # Ce que les testeurs lisent avant d'installer. Le message entier
           # dépasse ce qu'Apple accepte, et dirait de toute façon à un testeur
@@ -489,6 +601,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
+          PLATEFORME: IOS
           ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
           ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |

@@ -279,11 +279,25 @@ jobs:
       # machine de développement.
       #
       # Une app d'épreuve n'a que faire d'une icône : on la retire ici plutôt
-      # que de retenir tout le job sur un outil qui tombe. **Mais la limite est
-      # réelle** — le jour où le Mac se livre, le runner de livraison devra
-      # tourner sur un Xcode dont l'`actool` ne plante pas, sans quoi la fiche
-      # partirait grise. C'est écrit ici pour que ce ne se découvre pas ce
-      # jour-là.
+      # que de retenir tout le job sur un outil qui tombe.
+      #
+      # **Et le chemin par l'outillage est fermé, mesuré.** Une branche jetable
+      # a réactivé l'icône pour lire le vrai diagnostic : `actool` ne rend rien
+      # de plus qu'une pile d'appel d'`IBAbstractPlatformToolProxy` et une
+      # attente de rapport de crash. Aucun message, aucune ligne fautive.
+      #
+      # Et l'image du runner ne propose **qu'une seule version** — 26.3 — alors
+      # que le workflow demande déjà `latest`. Il n'y a donc pas d'Xcode plus
+      # récent à réclamer ici.
+      #
+      # **La limite est réelle et elle attend la livraison** : le jour où le Mac
+      # se livre, il lui faudra soit un runner dont l'`actool` ne plante pas,
+      # soit un `.appiconset` classique pour la seule cible macOS — l'iOS
+      # gardant le bundle Icon Composer. Le second est un travail de dessin, pas
+      # de configuration : un aplat et un glyphe ne rendent ni le verre, ni
+      # l'ombre, ni la translucidité que `ONT.icon` décrit, et l'icône
+      # différerait selon la machine qui a construit. C'est un arbitrage pour
+      # l'auteur, pas une case à cocher.
       #
       # **Sans signature, et c'est une limite qu'il faut connaître.** Le runner
       # n'a pas de compte développeur, donc pas de profil, donc rien à signer

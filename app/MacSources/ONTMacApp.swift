@@ -50,10 +50,26 @@ struct ONTMacApp: App {
     /// Voir `DelegueMac` — il existe pour une seule raison : recevoir les liens
     /// avant que SwiftUI n'en fasse une fenêtre de plus.
     @NSApplicationDelegateAdaptor(DelegueMac.self) private var delegue
-    @State private var vault = ModeVault()
+    @State private var vault = ModeVault(
+        montrer: { EtatMac.partage.composition.regarderLApercu($0) })
 
     var body: some Scene {
-        WindowGroup {
+        // **`Window` et non `WindowGroup`.**
+        //
+        // Un groupe *peut* engendrer des fenêtres ; une `Window` ne le peut
+        // pas. Et c'était le défaut : le **second** `ont://` ouvrait une
+        // seconde fenêtre, décalée de 29 points, et chaque lien suivant une de
+        // plus — mesuré, quatre liens, quatre fenêtres.
+        //
+        // Le délégué faisait pourtant son travail à chaque fois : la
+        // navigation avait lieu **et** une scène naissait à côté.
+        // `handlesExternalEvents` sur la vue ne l'empêche pas — il dit « cette
+        // fenêtre sait recevoir », pas « n'en ouvre pas d'autre ». La forme
+        // *scène* avec un ensemble vide fait pire, mesuré.
+        //
+        // Une liseuse n'a pas besoin de deux fenêtres : c'est un texte qu'on
+        // lit, pas un document qu'on compare. Musique et Livres font de même.
+        Window("La Bible ONT", id: "lecture") {
             AvecLaFonteDeLInterface {
                 AvecOuverture(theme: etat.composition.reading.preferences.theme) {
                     RacineMac()
