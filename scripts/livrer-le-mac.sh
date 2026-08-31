@@ -150,12 +150,17 @@ echo "${gris}→ $XCODE  ·  branche $BRANCHE  ·  canal $CANAL${GROUPE:+ (group
 echo "→ la signature, avant tout le reste"
 SONDE=$(mktemp -d)/sonde
 cp /bin/ls "$SONDE"
-IDENTITE_ESSAI=$(security find-identity -v -p codesigning 2>/dev/null \
-                 | grep "Apple Distribution" | head -1 | awk '{print $2}')
+IDENTITES=$(security find-identity -v -p codesigning 2>/dev/null || true)
+IDENTITE_ESSAI=$(printf '%s\n' "$IDENTITES" | awk '/Apple Distribution/ {print $2; exit}')
 if [ -z "$IDENTITE_ESSAI" ]; then
-  echec "aucune identité « Apple Distribution » dans le trousseau"
-fi
-if ! codesign --force --sign "$IDENTITE_ESSAI" "$SONDE" > /tmp/ont-signature.log 2>&1; then
+  # **Absente n'est pas inaccessible.** Sur un runner neuf, le trousseau est
+  # vide et c'est normal : `-allowProvisioningUpdates` fera fabriquer une clé
+  # et enregistrer un certificat au moment de l'archive. Échouer ici
+  # confondrait « rien à sonder » avec « la sonde a échoué », et interdirait la
+  # seule machine où tout se passe bien.
+  printf '%s  aucune identité de distribution — la sonde est sans objet,\n' "$gris"
+  printf '  xcodebuild en fera créer une à l'"'"'archive%s\n' "$fin"
+elif ! codesign --force --sign "$IDENTITE_ESSAI" "$SONDE" > /tmp/ont-signature.log 2>&1; then
   if grep -q "errSecInternalComponent" /tmp/ont-signature.log; then
     printf '%s✗%s codesign n'"'"'obtient pas la clé privée — errSecInternalComponent\n' "$rouge" "$fin" >&2
     cat >&2 <<AIDE

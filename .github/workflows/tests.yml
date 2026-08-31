@@ -100,6 +100,30 @@ jobs:
         working-directory: ONTBibleApp
         run: git ls-files -z '*.py' | xargs -0 python3 -m py_compile
 
+      # ## Et les scripts shell, deux motifs, pas un de plus
+      #
+      # `bash -n` les lit, plus deux formes qui ont chacune coûté une livraison
+      # du Mac le 31 août 2026 et qu'aucune relecture n'attrape :
+      #
+      #   - **une variable collée à un caractère non-ASCII** — bash lit `$gris→`
+      #     comme un seul nom, et `set -u` arrête le script sur une variable qui
+      #     n'existe pas. La ligne fautive n'est pas celle qu'accuse le message ;
+      #   - **`xcodebuild` dans un lecteur qui se ferme tôt** — `head` ferme le
+      #     tuyau, `xcodebuild` y écrit sa seconde ligne, et celui d'Xcode 27
+      #     lève une exception non rattrapée. `SIGABRT`, code 134, et non le 141
+      #     qu'on cherche quand on soupçonne un `SIGPIPE`.
+      #
+      # Ces deux-là ont été réintroduits **dans un fichier neuf, le jour même où
+      # ils étaient corrigés ailleurs**. Ils ne peuvent plus dépendre de la
+      # vigilance de qui écrit.
+      #
+      # Comme le contrôle Python juste au-dessus, il ne connaît que des formes :
+      # une garde absente, un canal mal dérivé, un `trap` oublié passent ici
+      # sans un mot. Le fichier le dit lui-même en tête.
+      - name: Les scripts shell ne portent pas les deux pièges connus
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-les-scripts.sh
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest
@@ -270,16 +294,15 @@ jobs:
       #
       # Pas de simulateur ici : la destination est le runner lui-même.
       #
-      # **Sans icône, et ce n'est pas un goût.** `ASSETCATALOG_COMPILER_APPICON_NAME`
-      # est vidé parce que l'`actool` d'Xcode 26.3 — celui du runner — **plante**
-      # en composant le bundle Icon Composer pour macOS. Pas une erreur de
-      # validation : un plantage, `IBAbstractPlatformToolProxy` et une attente de
-      # rapport de crash, sans un mot sur ce qu'il reproche. La même icône passe
-      # pour iOS dans le job d'à côté, et pour macOS sous l'Xcode 27 de la
-      # machine de développement.
+      # **Avec son icône, et c'est le but.** Elle était retirée ici, parce que
+      # l'`actool` d'Xcode 26.3 — celui du runner — plante en composant un
+      # bundle Icon Composer pour macOS. La cible du Mac porte désormais un
+      # `.appiconset` classique, gravé depuis ce bundle, et cet outil-là sait
+      # le composer depuis dix ans.
       #
-      # Une app d'épreuve n'a que faire d'une icône : on la retire ici plutôt
-      # que de retenir tout le job sur un outil qui tombe.
+      # Ne pas remettre le contournement : **c'est ce job qui prouve que le
+      # pont tient.** Si l'on vide de nouveau ce réglage, la CI redevient verte
+      # et ne mesure plus rien — la livraison, elle, échouera chez Apple.
       #
       # **Et le chemin par l'outillage est fermé, mesuré.** Une branche jetable
       # a réactivé l'icône pour lire le vrai diagnostic : `actool` ne rend rien
@@ -316,7 +339,6 @@ jobs:
             -resultBundlePath ../resultats-mac.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            ASSETCATALOG_COMPILER_APPICON_NAME= \
             2>&1 | tee ../brut-mac.log | xcbeautify --renderer github-actions
 
       # **Ce que `xcbeautify` avale.**
