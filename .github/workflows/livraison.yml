@@ -517,14 +517,22 @@ jobs:
           echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
           ./scripts/livrer-le-mac.sh "$CANAL"
 
-      # **TestFlight distribue aussi les apps du Mac**, avec l'app TestFlight de
-      # macOS. Rien à changer côté fiche : l'achat universel donne une seule
-      # entrée App Store Connect pour les deux plateformes, et les groupes de
-      # testeurs y sont **par plateforme**.
+      # **TestFlight distribue aussi les apps du Mac**, par l'app TestFlight de
+      # macOS. L'achat universel donne une seule entrée App Store Connect pour
+      # les deux plateformes — mais « une seule entrée » ne veut pas dire « rien
+      # à faire » : la **plateforme macOS doit y être ajoutée à la main**, une
+      # fois, avant qu'un build du Mac puisse monter. Tant que ce n'est pas
+      # fait, ce job échouera au téléversement, pas ici.
       #
-      # D'où `PLATEFORME: MAC_OS`. Le numéro de build est daté à la minute et
-      # les deux chaînes partent du même push : sans ce filtre, on attendrait
+      # D'où `PLATEFORME: MAC_OS` : le numéro de build est daté à la minute et
+      # les deux chaînes partent du même push, donc sans ce filtre on attendrait
       # l'iPhone en croyant attendre le Mac, et les deux répondraient `VALID`.
+      #
+      # Reste une chose que je n'ai pas pu mesurer — la clé de lecture est dans
+      # le coffre, son identifiant d'émetteur seulement en secret : je ne sais
+      # pas si les groupes de testeurs sont rangés **par plateforme**. `beta.py`
+      # ne parie sur aucune des deux réponses ; il refuse s'il trouve deux
+      # groupes de même nom, et la première exécution de ce job tranchera.
       - name: Rattacher au groupe TestFlight
         if: steps.livraison.outputs.groupe != ''
         working-directory: ONTBibleApp/.github/scripts
