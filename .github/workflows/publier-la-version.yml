@@ -1,0 +1,93 @@
+# Publie une **Release GitHub** à chaque version qui atteint `main`.
+#
+# ## Pourquoi une Release et non un simple tag
+#
+# Le profil GitHub de l'auteur se remplit par `repo.get_releases()`, et non par
+# `get_tags()`. Un `git tag` poussé seul n'y apparaîtra donc **jamais** —
+# relevé par la session qui tient ce profil, sur un dépôt témoin dont elle
+# connaissait la réponse. C'est pour ça que ce workflow crée une release, dont
+# le tag n'est qu'un effet.
+#
+# ## Quelle version, et pourquoi celle-là
+#
+# `CFBundleShortVersionString` d'`app/Info.plist` — la version publique, celle
+# que l'App Store affiche. `1.0.5` donne `v1.0.5`.
+#
+# **Pas `CFBundleVersion`**, et la raison est mesurable : dans le dépôt il vaut
+# littéralement `1`. Il ne devient un numéro daté — `260831.1246` — que le temps
+# d'un build, posé par `livraison.yml` puis restauré. Un tag `v1` ne dirait rien,
+# et `v260831.1246` dirait la minute d'une compilation, pas une version.
+#
+# **Pas le `.pbxproj` non plus** : `ONT.xcodeproj` est engendré par xcodegen et
+# n'est pas committé. `agvtool` et les lectures du projet n'ont rien à lire ici.
+# Le plist fait foi.
+#
+# ## Ce qui arrive quand la version n'a pas bougé
+#
+# `main` reçoit plusieurs poussées par version — corrections, promotions
+# rejouées. La release existe alors déjà, et **on ne fait rien** : une version
+# de l'App Store, une release. Créer `v1.0.5-2` donnerait au profil une entrée
+# qui ne correspond à rien de public.
+#
+# C'est le point fragile de la consigne d'origine — « un tag à chaque poussée
+# sur main » — et il se résout en ne taguant que ce qui change.
+name: Publier la version
+
+on:
+  push:
+    branches: [main]
+
+# Le jeton par défaut lit seulement. Créer une release demande d'écrire, et
+# rien d'autre : pas de `packages`, pas d'`actions`.
+permissions:
+  contents: write
+
+concurrency:
+  group: publier-la-version
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Les notes engendrées comparent à la release précédente ; sans
+          # l'historique, elles ne portent que le dernier commit.
+          fetch-depth: 0
+
+      - name: La version publique, lue dans le plist
+        id: version
+        run: |
+          set -euo pipefail
+          V=$(python3 -c "
+          import plistlib, sys
+          with open('app/Info.plist', 'rb') as f:
+              d = plistlib.load(f)
+          v = d.get('CFBundleShortVersionString', '')
+          if not v:
+              sys.exit('CFBundleShortVersionString absent d Info.plist')
+          print(v)
+          ")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          echo "→ version publique : $V"
+
+      - name: La release, si elle n'existe pas déjà
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "· $TAG existe déjà — rien à faire"
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "La Bible ONT $VERSION" \
+            --generate-notes
+          echo "✓ release $TAG créée"
