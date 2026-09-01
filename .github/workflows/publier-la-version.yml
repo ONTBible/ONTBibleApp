@@ -48,7 +48,7 @@ name: Publier la version
 
 on:
   push:
-    branches: [main]
+    branches: [app-store]
 
 # Le jeton par défaut lit seulement. Créer une release demande d'écrire, et
 # rien d'autre : pas de `packages`, pas d'`actions`.

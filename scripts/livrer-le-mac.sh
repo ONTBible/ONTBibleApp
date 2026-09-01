@@ -72,9 +72,12 @@ BRANCHE=$(git rev-parse --abbrev-ref HEAD)
 CANAL="${1:-}"
 if [ -z "$CANAL" ]; then
   case "$BRANCHE" in
-    main)    CANAL=appstore ;;
-    staging) CANAL=beta ;;
-    dev)     CANAL=interne ;;
+    app-store) CANAL=appstore ;;
+    beta-test) CANAL=beta ;;
+    dev)       CANAL=interne ;;
+    # `device` n'a délibérément pas de canal : rien ne part chez Apple depuis
+    # elle. C'est là qu'on travaille, et l'app s'installe par
+    # `lancer-sur-le-mac.sh`, sans consommer une place du quota quotidien.
     *) echec "branche « $BRANCHE » : préciser le canal — interne, beta ou appstore" ;;
   esac
 fi
