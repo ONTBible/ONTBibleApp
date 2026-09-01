@@ -2413,3 +2413,139 @@ vide se remarque ; une abstention se remarque ; une substitution, non.
 Aucune de ces mesures n'est fausse. Toutes rassurent. **Une mesure qui n'affiche
 pas ses conditions ne mesure rien** — et une garde qu'on lit plus large qu'elle
 n'est vaut moins que pas de garde.
+
+### 31 août 2026 — la chaîne de publication s'est rompue trois fois, et rien ne l'a dit
+
+Gloire a demandé que sa première **parashah** du *Chazon Avraham* atteigne les
+lecteurs. Elle ne les atteignait pas, et **personne ne le savait**.
+
+Le déploiement d'`ontbible.com` échouait **depuis six heures**. Trois défauts
+s'y étaient accumulés, indépendants :
+
+- **un bras de `match` manquant** — le site avait accueilli `Noeud::Shem` dans
+  son domaine et son rendu, sans écrire la conversion depuis `Inline::Shem`. Le
+  type d'arrivée existait, le rendu existait, **le pont entre les deux, non** ;
+- **`ONT_GENERE` posée nulle part** dans le déploiement du site. Le pipeline
+  refuse d'inventer une date — *« vide plutôt que fausse »* — et le site refuse
+  de publier un corpus indatable. Deux gardes correctes, aucune source ;
+- **une garde trop large** : le refus de publier le corpus arrêtait **tout le
+  site**. Or `/corpus/` est ce que l'app télécharge, tandis que les pages
+  portent leur corpus dans le binaire. On ne répare pas un silence en en créant
+  un plus grand.
+
+**Chacun a parfaitement joué son rôle. Chacun a refusé de publier plutôt que de
+publier faux. Aucun n'a rien dit à personne.**
+
+#### Ce qui manquait n'était pas une garde de plus
+
+`propager.yml` du vault **déclenchait et oubliait** : vert dès que GitHub
+accepte l'ordre, aveugle à tout ce qui suit.
+
+La parade posée n'est donc pas une surveillance par maillon — une garde par
+maillon ne couvre que les ruptures **qu'on a prévues**, et les trois étaient
+imprévues. C'est un contrôle de **l'état final observable** :
+`ontbible.com/corpus/manifeste.json`, ce qu'un lecteur télécharge.
+
+Et il connaît la valeur exacte à attendre, ce qui vaut mieux qu'un « ça a
+bougé » : le site estampille le corpus de la date du dernier commit du vault,
+et ce commit est celui qui déclenche le job.
+
+Trois pièges y sont encodés, tous rencontrés le même jour — `format-local` avec
+`TZ=UTC` et jamais `--date=format:`, qui rend une heure locale coiffée d'un `Z`
+et ment de l'écart au méridien sans qu'aucune vérification de forme le voie ;
+`>=` et non `==`, pour qu'une fusion qui en double une autre ne fasse pas
+rougir à tort ; et le contournement du cache, `max-age=300` sur `/corpus/`.
+
+#### Et la garde est tombée à sa première exécution
+
+`fatal: not a git repository` — le job ne fait aucun checkout, ses autres
+étapes n'appelant que l'API. Elle avait été éprouvée dans trois directions et
+jamais **dans l'environnement où elle tourne**.
+
+Ce qui la sauve est qu'elle a échoué **bruyamment et tout de suite**, ce qu'on
+lui demandait justement de faire du reste de la chaîne.
+
+**Pour les trois dépôts :** un échec de déploiement du site est un échec de
+livraison du corpus. C'est le seul chemin par lequel un texte atteint un
+lecteur, et il n'était surveillé par personne.
+
+### 31 août 2026 — onze relevés justes sur le mauvais état, en douze heures
+
+Quatre sessions, onze mesures fausses, et **aucun instrument cassé**. Toutes
+mesuraient correctement — autre chose que ce qu'on croyait. La taxonomie, parce
+que le remède diffère :
+
+| forme | exemple du jour |
+|---|---|
+| **état périmé** | un worktree de build en retard de quinze commits ; l'app compilée contre une autre branche |
+| **cache** | un corpus publié lu à travers cinq minutes de CloudFront — j'ai failli annoncer un quatrième défaut |
+| **périmètre trop étroit** | `grep ONT_GENERE .github/workflows` → rien. La variable était dans le **script que le workflow appelle** |
+| **motif mal ancré** | `grep "^brouillons"` sur une sortie `git`, qui **entoure de guillemets** les chemins accentués |
+| **unité fausse** | `grep -c` compte les **lignes**, pas les occurrences — 8 annoncés pour 10 réels |
+| **mauvais environnement** | une garde éprouvée sur trois cas et jamais là où elle s'exécute |
+| **autre chemin de code** | une sonde HTTP bien formée, sur le bon service, renvoyant six codes cohérents — et interrogeant un chemin qu'on ne voulait pas mesurer |
+
+La dernière est la pire : **sa sortie était impossible à distinguer d'une bonne
+réponse.**
+
+#### Ce qui a marché
+
+Ni le raisonnement, ni la confiance. **Comparer deux commandes.** Deux sessions
+en désaccord sur un 503 ont échangé leurs conclusions sans avancer ; l'une a
+demandé *« donne-moi ta commande exacte et je la rejoue »*, et l'écart est
+apparu en une minute — un champ du corps là où l'autre lisait un en-tête.
+
+**La règle : donner le commit, la branche et la commande sur lesquels on a
+mesuré.** Un relevé sans sa référence n'est pas vérifiable par qui n'est pas
+dans le même arbre — et à plusieurs sessions, c'est la situation normale.
+
+Corollaire : **un « 0 » est ce qu'on vérifie le moins**, parce qu'il ressemble
+à une absence et qu'une absence ne se relit pas.
+
+### 1ᵉʳ septembre 2026 — une stratigraphie écrite sans son apparat
+
+Le *Chazon Avraham* fait descendre un feu sur la maison de Terah. La
+stratigraphie du livre affirmait que le récit **répondait au silence de
+*Bereshit* 11:28** sur la mort de Haran.
+
+Vérification faite au texte : **c'est faux du témoin de base.** Le Codex
+Sylvester, le plus ancien des six slavons, fait périr **Terah**. La version où
+Haran meurt est une **insertion** de trois manuscrits tardifs, et cette
+insertion **harmonise** — elle comble le silence de la Torah et rejoint
+*Yovelim*. Une couche de copiste, du genre exact que le filtre du livre écarte.
+
+Tout tenait à une note de bas de page d'édition critique, en une ligne. **La
+stratigraphie avait été écrite sur une traduction sans son apparat.**
+
+#### Ce que l'auteur en a décidé
+
+Restituer le témoin, gloser la divergence avec *Bereshit* 11:32, ne pas
+harmoniser. La raison vaut au-delà de ce livre : **on ne corrige pas un témoin
+sur la foi d'un autre.** Écarter reviendrait à réécrire le livre d'après la
+Torah ; harmoniser reviendrait à refaire ce que les copistes ont fait et qu'on
+vient d'écarter.
+
+**Pour les trois dépôts :** toute affirmation tirée d'une traduction se
+revérifie sur une édition qui porte son apparat. Un motif peut reposer
+entièrement sur des manuscrits interpolés sans que la traduction le dise dans
+son corps.
+
+### 1ᵉʳ septembre 2026 — le seuil de contraste du projet a enfin une raison
+
+Les trois dépôts ont convergé, chacun de son côté, sur un plancher de contraste
+**au-dessus du seuil AA** — environ 6,1:1 — sans qu'aucun sache d'où venait
+l'exigence. Elle était tenue partout et écrite nulle part.
+
+Elle a maintenant un motif : **l'auteur du corpus lit à 0,6/10 corrigé**, d'un
+kératocône bilatéral sévère où les verres n'apportent rien.
+
+Deux conséquences de conception qui en découlent, et qui valent pour les trois :
+
+- **l'italique est le plus faible des discriminants** pour un astigmatisme
+  irrégulier — il multiplie les images fantômes au lieu de séparer. Ce qui tient
+  est la **couleur**, la **taille**, l'**espace** ;
+- les bascules d'affichage — masquer les gloses, masquer le niveau 3 — ne sont
+  pas un confort. Ce sont **les** fonctions d'accessibilité du corpus.
+
+**Une exigence dont on connaît la raison se défend ; une exigence orpheline se
+fait raboter au premier arbitrage.**
