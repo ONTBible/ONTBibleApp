@@ -278,6 +278,37 @@ struct ONTMacApp: App {
                 Divider()
                 Button("Thème suivant") { etat.themeSuivant() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
+                Button("Police suivante") { etat.policeSuivante() }
+                .keyboardShortcut("p", modifiers: [.command, .option])
+
+                // ── Les options de lecture, une touche chacune
+                //
+                // **Les libellés sont ceux de l'écran de réglages, au mot
+                // près.** Deux formulations pour un même réglage obligent le
+                // lecteur à deviner qu'il s'agit du même, et elles finissent
+                // par diverger.
+                //
+                // ⌥⌘2 et ⌥⌘3 pour les deux niveaux du texte, parce que c'est
+                // ainsi que le projet les nomme — « niveau 2, les gloses »,
+                // « niveau 3, translittération et hébreu ». Une lettre aurait
+                // été un moyen mnémotechnique de plus à retenir ; le chiffre
+                // est déjà dans le vocabulaire.
+                //
+                // Et **pas ⌥⌘H pour l'hébreu**, si tentant soit-il : macOS le
+                // garde pour « Masquer les autres ». Un raccourci qu'on croit
+                // libre et qui ne l'est pas rend l'app muette sans rien dire.
+                Divider()
+                Toggle("Gloses", isOn: etat.option(\.showGloss))
+                    .keyboardShortcut("2", modifiers: [.command, .option])
+                Toggle("Translittération et hébreu", isOn: etat.option(\.showLevel3))
+                    .keyboardShortcut("3", modifiers: [.command, .option])
+                Divider()
+                Toggle("Versets à la suite", isOn: etat.option(\.continuous))
+                    .keyboardShortcut("v", modifiers: [.command, .option])
+                Toggle("Couper les mots", isOn: etat.option(\.hyphenation))
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                Toggle("Le français reçu", isOn: etat.option(\.french))
+                    .keyboardShortcut("f", modifiers: [.command, .option])
             }
         }
     }
