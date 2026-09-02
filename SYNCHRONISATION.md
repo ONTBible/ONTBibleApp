@@ -2549,3 +2549,134 @@ Deux conséquences de conception qui en découlent, et qui valent pour les trois
 
 **Une exigence dont on connaît la raison se défend ; une exigence orpheline se
 fait raboter au premier arbitrage.**
+
+### 2 septembre 2026 — un texte écrit sur son plan, et non sur sa source
+
+Les **parashiot** ① et ② du *Chazon Avraham* ont été refaites entièrement, sur
+les deux témoins. Elles avaient été écrites sur le plan de la stratigraphie —
+lui-même établi sans le texte sous les yeux.
+
+Ce que le témoin porte et qu'elles n'avaient pas : le temple et ses six
+matières ; l'idole **trouvée déjà tombée** aux pieds d'un autre dieu, quand la
+rédaction faisait choir une idole des mains de l'enfant ; **la vente de cinq
+dieux au marché** — l'âne, les marchands, le cri d'un chameau, trois brisés,
+les morceaux jetés au fleuve ; et l'échelle des éléments **prononcée à voix
+haute devant le père**, non ruminée. Une scène entière était au mauvais
+chapitre. Dans la ③, la voix **appelle le nom deux fois** et c'est l'homme qui
+répond *me voici* — la rédaction attribuait ce *me voici* à la voix.
+
+**Le motif est celui que le journal traque depuis le 30 août**, dans un
+matériau nouveau : une sortie cohérente, bien formée, complète, et qui ne
+répond pas à la source. Il s'était présenté sur un instrument de mesure, puis
+sur un compte de balises. Ici c'est du texte — et c'est plus grave, parce
+qu'**un build faux se refait et qu'un texte faux se lit**.
+
+**Pour les trois dépôts :** un plan n'est pas une source. Un document
+intermédiaire — stratigraphie, inventaire, schéma, note de conception — est un
+instrument comme un autre, et il se valide contre ce qu'il prétend décrire
+avant qu'on bâtisse dessus. Ce qui a rattrapé celui-ci n'est pas une relecture :
+c'est d'être allé chercher les chapitres.
+
+**Ce que le vault déclare maintenant, et qui manquait :** la feuille
+d'introduction décrivait la chaîne du *texte* — hébreu, grec, slavon — comme si
+c'était celle de **notre accès**. Les deux ne se recouvrent pas. Aucun
+manuscrit slavon n'est transcrit en accès ouvert et aucune édition n'en est
+lisible par machine : l'ONT travaille sur deux traductions savantes du domaine
+public. La chaîne est écrite maillon par maillon, avec ce qu'elle coûte et ce
+qui la rend tenable. **Un dépôt doit déclarer sur quoi il travaille, pas
+seulement d'où vient ce qu'il travaille.**
+
+### 2 septembre 2026 — le pipeline d'un arbre périmé rend un rapport faux
+
+Même vault, même commande, deux exemplaires du pipeline :
+
+    ~/ONTBible/ONTBibleApp   (branche de travail abandonnée)   204 fiches orphelines
+    worktree détaché @ origin/dev                                2 fiches orphelines
+
+L'écart n'est pas une régression : la branche est **en amont** du correctif des
+Shemot, de 939 lignes sur `pipeline/`. C'est la troisième forme de prémisse
+fausse déjà nommée — **juste ici, fausse là-bas, sans que rien n'ait bougé** —,
+et elle a failli produire un signalement de régression 3 → 204 à la session app.
+
+**Pour les trois dépôts :** un outil de contrôle se mesure **avec la référence
+sur laquelle il tourne**, au même titre qu'un `grep`. `git worktree add -f
+--detach <scratch> origin/dev` coûte une ligne et donne l'état publié.
+
+Deux faits utiles au passage. Le binaire du pipeline résout le vault en relatif
+depuis son propre chemin : hors de l'arbre habituel il faut `ONT_VAULT`, et il
+s'arrête net avec un message clair si on l'oublie — bon comportement. Et
+`scripts/corpus.sh` ne se lance **pas** sur un arbre partagé : il fait `rm -rf
+app/Resources/data`, réécrit les DTO Swift et rejoue `xcodegen`. Le binaire
+seul écrit dans `dist/`, qui est ignoré.
+
+**Et un défaut réel, trouvé en se faisant contredire.** J'avais avancé que le
+balayage ne collectait les `[[Nom]]` que depuis les unités d'un livre. La
+session app l'a **réfuté sur pièces** — les fiches produisent bien leurs nœuds
+de lien, et l'app les rend touchables. Elle a en même temps donné **la date de
+son propre corpus**, vieux de deux jours, plutôt que la conclusion sans elle :
+c'est ce qui m'a fait remesurer au lieu de conclure.
+
+Le vrai défaut est ailleurs, et il est plus large. Sur `dist/` fraîchement
+construit depuis `origin/dev` :
+
+    liens émis          corps de chapitre 4447   ·   fiches 2948
+    lemmes introuvables corps de chapitre  133   ·   fiches   88
+
+**Deux causes distinctes, et il faut les séparer parce que le remède diffère.**
+
+- **Une forme dérivée s'émet elle-même comme lemme.** `**gibborim**` sort en
+  `lemma: "gibborim"`, quand l'entrée s'appelle `gibbor` et déclare
+  `forms: [gibbor, gibborim, gibor]`. Le rapport dit « 0 mot d'or sans fiche »
+  parce que **lui** traverse `forms` ; le nœud livré, non. Et pour une partie
+  d'entre elles la traversée ne suffirait pas : `forms` garde le texte brut —
+  `mal'akhim`, `le'olam`, `kohen gadol` — tandis que `lemma` est passé par
+  `slugify`, qui **laisse tomber l'apostrophe sans séparateur**. `mal'akhim`
+  devient `malakhim`, qui n'est dans aucune liste de formes. Ces liens-là sont
+  morts quel que soit le consommateur : **25 occurrences pour le seul
+  `mal'akhim`, dans des corps de chapitre.**
+- **Une fiche citée seulement par d'autres fiches est écartée de l'index — et
+  les liens vers elle continuent d'être émis.** `shem-fils-de-noach` est visé
+  **37 fois** et `kasdim` **6 fois** depuis d'autres fiches ; ni l'un ni l'autre
+  n'entre dans `shemot.json`. C'était bien un chemin de traversée qui ne voit
+  pas une source, mais ce n'est pas celui que j'avais nommé : ce n'est pas le
+  *rendu* qui rate les fiches, c'est le **critère d'inclusion**.
+
+**Pour les trois dépôts :** un rapport qui rend `0` peut être exact et
+n'attester de rien pour le lecteur, parce qu'il **normalise autrement que le
+consommateur**. Le rapport résout la forme dérivée ; le fichier livré ne la
+résout pas. La mesure qui compte n'est pas « le contrôle passe » mais
+**« chaque lien émis retombe-t-il sur une entrée du même fichier »** — et elle
+se fait sur `dist/`, pas sur le rapport.
+
+**Confirmé indépendamment, et c'est pire que des liens morts.** La session app
+a mesuré de son côté, sur un corpus plus ancien : `126` morts dans les corps et
+`131` dans les fiches, ==les mêmes coupables==. Et elle a lu le consommateur :
+
+    LexiconModel.swift:24   byLemma = Dictionary(entries.map { ($0.lemma, $0) }, …)
+    LexiconModel.swift:36   func entry(_ lemma: String) -> GlossaryEntry? { byLemma[lemma] }
+
+**Lemme exact, rien d'autre** — le consommateur ne traverse pas `forms`. La
+première cause vaut donc les 133, non les quatre.
+
+Et l'app ne reste pas muette devant un lemme absent : elle ouvre une feuille et
+écrit *« Terme non documenté — ce mot est balisé dans le texte mais n'a pas
+encore d'entrée dans le glossaire »*. ==C'est faux== : l'entrée existe, sous le
+lemme du singulier. **Un lien mort qui ne fait rien est un défaut ; un lien mort
+qui affirme une lacune inexistante est une perte de confiance** — le lecteur en
+conclut que le glossaire est plus creux qu'il n'est, cent vingt-six fois.
+
+**Le remède est à l'émission, non chez les consommateurs**, et la raison vaut
+d'être gardée : corriger côté app en indexant `forms` obligerait chaque
+plateforme à réécrire sa propre version de `slugify` pour faire se rejoindre
+`mal'akhim` et `malakhim`. ==Deux normalisations écrites séparément divergent==,
+et le défaut deviendrait intermittent au lieu d'être systématique — pire que
+maintenant. Le pipeline, lui, tient les deux au moment d'émettre : la forme
+rencontrée et l'entrée qu'elle désigne.
+
+**Décision réservée à l'auteur**, parce que le pipeline sert les trois
+plateformes : une correction de normalisation change ce que le site compile
+autant que ce que l'app lit.
+
+Corollaire de méthode, gagné en se trompant : **une hypothèse réfutée par un
+pair est le meilleur moment pour remesurer**, pas pour clore. La réfutation
+était juste et le défaut existait quand même — deux étages plus bas.
