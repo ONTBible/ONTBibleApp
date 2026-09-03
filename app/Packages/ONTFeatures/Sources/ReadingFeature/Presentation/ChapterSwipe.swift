@@ -2,6 +2,10 @@ import ONTDesignSystem
 import ONTKit
 import SwiftUI
 
+#if canImport(AppKit)
+    import AppKit
+#endif
+
 /// Passer d'une unité à la suivante d'un glissement horizontal.
 ///
 /// ## Pourquoi horizontal
@@ -324,8 +328,38 @@ struct ChapterSwipe: View {
             // autres, parce qu'il ne dit pas qu'il s'est passé quelque chose —
             // il dit que rien ne s'est passé, et que le geste est rendu.
             .sensoryFeedback(.impact(weight: .light, intensity: 0.30), trigger: renoncements)
+            // **Et le même trio pour le Mac, par l'autre porte.**
+            //
+            // `.impact` est un retour d'iOS : SwiftUI ne le traduit vers aucun
+            // motif du trackpad Force Touch, et les trois lignes ci-dessus ne
+            // produisent donc rien sous les doigts sur macOS. Le trigger part,
+            // et rien n'arrive.
+            //
+            // `NSHapticFeedbackManager` a ses propres motifs, et deux d'entre
+            // eux disent exactement ce qu'on veut dire : `.alignment` pour un
+            // cran qui s'enclenche, `.levelChange` pour un palier franchi.
+            // C'est ce que les apps de dessin emploient pour leurs guides.
+            //
+            // Sans effet sur un trackpad qui n'a pas le retour de force, et
+            // sans effet non plus si le lecteur l'a coupé dans les Réglages :
+            // c'est le système qui en décide, pas nous.
+            #if os(macOS)
+                .onChange(of: arme) { _, arme in
+                    if arme { Self.haptique(.alignment) }
+                }
+                .onChange(of: courant.id) { _, _ in Self.haptique(.levelChange) }
+                .onChange(of: renoncements) { _, _ in Self.haptique(.generic) }
+            #endif
             .environment(\.ontLectureFigee, gesteEngage || enTransition)
             .simultaneousGesture(geste(largeur: taille.width), isEnabled: !enTransition)
+            #if os(macOS)
+                .modifier(
+                    GlissementADeuxDoigts(
+                        actif: !enTransition,
+                        avancer: { dx in avancer(dx: dx, dy: 0, largeur: taille.width) },
+                        terminer: { dx in terminer(dx: dx, lance: dx, largeur: taille.width) }
+                    ))
+            #endif
         // On relève la taille sans envelopper : la mesure n'a pas à changer la
         // mise en page de ce qu'elle mesure.
         .onGeometryChange(for: CGSize.self) { $0.size } action: { taille = $0 }
@@ -342,94 +376,128 @@ struct ChapterSwipe: View {
     private func geste(largeur: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { mouvement in
-                let dx = mouvement.translation.width
-                let dy = mouvement.translation.height
-
-                // L'axe se tranche au premier mouvement qui compte, et ne se
-                // rejuge plus. Vertical : on ne touche à rien de tout le geste.
-                if axeHorizontal == nil {
-                    guard max(abs(dx), abs(dy)) > 12 else { return }
-                    axeHorizontal = abs(dx) > abs(dy) * 1.5
-                }
-                guard axeHorizontal == true else { return }
-                // Le défilement de lecture s'arrête ici : à partir du moment où
-                // l'horizontale l'emporte, la page se soulève et ne descend
-                // plus.
-                gesteEngage = true
-
-                let seuil = seuilDuGeste(largeur)
-                let versLaSuivante = dx < 0
-                guard let cible = voisine(suivante: versLaSuivante) else {
-                    // Au bout du livre : la page résiste au lieu de se bloquer
-                    // net. Un arrêt sec se lit comme un défaut.
-                    glisse = min(max(dx / 4, -seuil), seuil)
-                    creux = 0
-                    return
-                }
-
-                let ecart = abs(dx)
-                let gagne = depassement(ecart, seuil: seuil)
-                sens = versLaSuivante ? -1 : 1
-
-                // Le texte et le pli gagnent **exactement le même** dépassement,
-                // et c'est ce qui préserve la garantie du seuil : le texte doit
-                // reculer d'autant que le pli mord. En les faisant croître du
-                // même pas, la marge qui l'empêche d'être mangé reste intacte
-                // sur toute la course. Un pli qui se creuserait plus vite que
-                // le texte ne s'écarte remangerait des lettres au moment précis
-                // où le geste est armé.
-                glisse = sens * (min(ecart, seuil) + gagne)
-                creux = Self.creuxMax * min(ecart / seuil, 1) + gagne
-
-                // Le seuil franchi, on construit — le doigt est encore posé et
-                // le texte courant occupe toujours l'écran.
-                if ecart >= seuil, entrant?.id != cible.id {
-                    entrant = cible
-                }
-
-                // Armé au seuil, désarmé un peu en deçà : le jeu empêche qu'un
-                // doigt immobile sur la frontière la traverse en rafale.
-                //
-                // Le basculement est **animé** — quatre-vingt-dix millisecondes,
-                // assez vif pour se lire comme un déclic, assez long pour ne
-                // pas clignoter quand on hésite.
-                let devrait = arme
-                    ? ecart >= seuil - Self.jeuDeDesarmement
-                    : ecart >= seuil
-                if arme != devrait {
-                    withAnimation(.easeOut(duration: 0.09)) { arme = devrait }
-                }
+                avancer(dx: mouvement.translation.width,
+                        dy: mouvement.translation.height,
+                        largeur: largeur)
             }
             .onEnded { mouvement in
-                let horizontal = axeHorizontal == true
-                axeHorizontal = nil
-                guard horizontal else { return }
-
-                let dx = mouvement.translation.width
-                let lance = mouvement.predictedEndTranslation.width
-                // Le plafond atteint suffit — il n'y a plus de seuil séparé.
-                // La vitesse reste un raccourci pour le coup de pouce vif qui
-                // n'a pas eu le temps d'aller au bout.
-                let assez = abs(dx) >= seuilDuGeste(largeur) || abs(lance) > largeur * 0.5
-
-                guard assez, let cible = entrant ?? voisine(suivante: dx < 0) else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                        glisse = 0
-                        creux = 0
-                    }
-                    // Senti seulement si la page avait bougé pour de bon. Un
-                    // doigt qui effleure sans rien déplacer n'a rien à se voir
-                    // rendre.
-                    if abs(dx) > 24 { renoncements += 1 }
-                    entrant = nil
-                    voile = 1
-                    arme = false
-                    gesteEngage = false
-                    return
-                }
-                if entrant == nil { entrant = cible }
-                tourner(la: cible, largeur: largeur)
+                terminer(dx: mouvement.translation.width,
+                         lance: mouvement.predictedEndTranslation.width,
+                         largeur: largeur)
             }
+    }
+
+    // ── La machine du geste, séparée de ce qui la pilote
+    //
+    // **Deux canaux d'événements pour un même mouvement.** Un `DragGesture` sur
+    // macOS veut dire *clic maintenu puis déplacement* ; le glissement à deux
+    // doigts **sans pression** n'y arrive jamais — le système l'envoie comme
+    // `scrollWheel`, avec `hasPreciseScrollingDeltas`. C'est le geste que Safari
+    // emploie pour revenir en arrière, et celui que l'auteur demande.
+    //
+    // La logique est donc extraite ici, **sans qu'une ligne change** : le pli,
+    // le seuil, l'armement et le dépassement restent où ils étaient, relevés au
+    // film. Les dupliquer pour le trackpad les ferait diverger à la première
+    // retouche, sur le seul écran qu'on lit des heures.
+    //
+    // Le pilote trackpad appelle les mêmes fonctions avec `dy: 0` : il a déjà
+    // tranché l'axe de son côté, et n'a pas de trajectoire prédite à offrir.
+
+    #if os(macOS)
+        /// Un motif du trackpad, si la machine et le lecteur le veulent.
+        ///
+        /// `.now` et non `.drawCompleted` : le retour doit arriver **avec** le
+        /// cran, pas après le dessin de la page. Attendre le dessin le
+        /// décalerait de la sensation qu'il accompagne.
+        private static func haptique(_ motif: NSHapticFeedbackManager.FeedbackPattern) {
+            NSHapticFeedbackManager.defaultPerformer.perform(motif, performanceTime: .now)
+        }
+    #endif
+
+    private func avancer(dx: CGFloat, dy: CGFloat, largeur: CGFloat) {
+
+            // L'axe se tranche au premier mouvement qui compte, et ne se
+            // rejuge plus. Vertical : on ne touche à rien de tout le geste.
+            if axeHorizontal == nil {
+                guard max(abs(dx), abs(dy)) > 12 else { return }
+                axeHorizontal = abs(dx) > abs(dy) * 1.5
+            }
+            guard axeHorizontal == true else { return }
+            // Le défilement de lecture s'arrête ici : à partir du moment où
+            // l'horizontale l'emporte, la page se soulève et ne descend
+            // plus.
+            gesteEngage = true
+
+            let seuil = seuilDuGeste(largeur)
+            let versLaSuivante = dx < 0
+            guard let cible = voisine(suivante: versLaSuivante) else {
+                // Au bout du livre : la page résiste au lieu de se bloquer
+                // net. Un arrêt sec se lit comme un défaut.
+                glisse = min(max(dx / 4, -seuil), seuil)
+                creux = 0
+                return
+            }
+
+            let ecart = abs(dx)
+            let gagne = depassement(ecart, seuil: seuil)
+            sens = versLaSuivante ? -1 : 1
+
+            // Le texte et le pli gagnent **exactement le même** dépassement,
+            // et c'est ce qui préserve la garantie du seuil : le texte doit
+            // reculer d'autant que le pli mord. En les faisant croître du
+            // même pas, la marge qui l'empêche d'être mangé reste intacte
+            // sur toute la course. Un pli qui se creuserait plus vite que
+            // le texte ne s'écarte remangerait des lettres au moment précis
+            // où le geste est armé.
+            glisse = sens * (min(ecart, seuil) + gagne)
+            creux = Self.creuxMax * min(ecart / seuil, 1) + gagne
+
+            // Le seuil franchi, on construit — le doigt est encore posé et
+            // le texte courant occupe toujours l'écran.
+            if ecart >= seuil, entrant?.id != cible.id {
+                entrant = cible
+            }
+
+            // Armé au seuil, désarmé un peu en deçà : le jeu empêche qu'un
+            // doigt immobile sur la frontière la traverse en rafale.
+            //
+            // Le basculement est **animé** — quatre-vingt-dix millisecondes,
+            // assez vif pour se lire comme un déclic, assez long pour ne
+            // pas clignoter quand on hésite.
+            let devrait = arme
+                ? ecart >= seuil - Self.jeuDeDesarmement
+                : ecart >= seuil
+            if arme != devrait {
+                withAnimation(.easeOut(duration: 0.09)) { arme = devrait }
+            }
+    }
+
+    private func terminer(dx: CGFloat, lance: CGFloat, largeur: CGFloat) {
+            let horizontal = axeHorizontal == true
+            axeHorizontal = nil
+            guard horizontal else { return }
+            // Le plafond atteint suffit — il n'y a plus de seuil séparé.
+            // La vitesse reste un raccourci pour le coup de pouce vif qui
+            // n'a pas eu le temps d'aller au bout.
+            let assez = abs(dx) >= seuilDuGeste(largeur) || abs(lance) > largeur * 0.5
+
+            guard assez, let cible = entrant ?? voisine(suivante: dx < 0) else {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    glisse = 0
+                    creux = 0
+                }
+                // Senti seulement si la page avait bougé pour de bon. Un
+                // doigt qui effleure sans rien déplacer n'a rien à se voir
+                // rendre.
+                if abs(dx) > 24 { renoncements += 1 }
+                entrant = nil
+                voile = 1
+                arme = false
+                gesteEngage = false
+                return
+            }
+            if entrant == nil { entrant = cible }
+            tourner(la: cible, largeur: largeur)
     }
 
     /// La fin du geste, relevée image par image sur YouVersion.
@@ -794,6 +862,121 @@ private struct CoupeGesteDeRetour: UIViewControllerRepresentable {
         /// de geste système ici » dit la même chose sur les deux plateformes,
         /// et c'est au design system de savoir que l'une n'a rien à faire.
         func sansGesteDeRetourSysteme() -> some View { self }
+    }
+
+#endif
+
+#if os(macOS)
+
+    import AppKit
+
+    /// Le glissement à deux doigts **sans pression**, celui du back de Safari.
+    ///
+    /// ## Pourquoi le `DragGesture` ne suffisait pas
+    ///
+    /// Sur macOS, un `DragGesture` veut dire *clic maintenu puis déplacement*.
+    /// Deux doigts posés qui glissent n'y arrivent jamais : le système les
+    /// envoie comme `scrollWheel`, avec `hasPreciseScrollingDeltas`. Deux
+    /// canaux d'événements pour un même mouvement de la main.
+    ///
+    /// ## Un moniteur, et non une vue
+    ///
+    /// Une `NSView` qui surcharge `scrollWheel` ne reçoit rien si elle n'est pas
+    /// sous le curseur, et une vue posée par-dessus vole les clics. Le moniteur
+    /// voit l'événement avant distribution, et le **rend tel quel** pour le
+    /// laisser filer — ou `nil` pour l'avaler.
+    ///
+    /// **On n'avale que l'horizontal revendiqué.** Le vertical doit continuer
+    /// d'atteindre la `ScrollView`, sans quoi la lecture se fige.
+    private struct GlissementADeuxDoigts: ViewModifier {
+        let actif: Bool
+        let avancer: (CGFloat) -> Void
+        let terminer: (CGFloat) -> Void
+
+        @State private var moniteur: Any?
+        @State private var cumul: CGFloat = 0
+        @State private var horizontal: Bool?
+        @State private var bornes: CGRect = .zero
+
+        func body(content: Content) -> some View {
+            content
+                .background(
+                    GeometryReader { g in
+                        Color.clear
+                            .onAppear { bornes = g.frame(in: .global) }
+                            .onChange(of: g.frame(in: .global)) { _, neuf in bornes = neuf }
+                    }
+                )
+                .onAppear { poser() }
+                .onDisappear { retirer() }
+        }
+
+        private func poser() {
+            guard moniteur == nil else { return }
+            moniteur = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                traiter(event) ? nil : event
+            }
+        }
+
+        private func retirer() {
+            if let m = moniteur { NSEvent.removeMonitor(m) }
+            moniteur = nil
+        }
+
+        /// Rend `true` quand l'événement est consommé.
+        private func traiter(_ event: NSEvent) -> Bool {
+            // **Le réglage du lecteur fait foi.** « Balayer entre les pages »
+            // se désactive dans les Réglages ; l'ignorer donnerait à cette app
+            // un geste que le reste du système n'a pas.
+            guard actif, NSEvent.isSwipeTrackingFromScrollEventsEnabled else { return false }
+
+            // **Trackpad seulement.** Sans ce garde, la molette d'une souris
+            // ferait tourner les parashiot par à-coups.
+            guard event.hasPreciseScrollingDeltas else { return false }
+
+            // **Borné au lecteur.** Le moniteur est à l'échelle de l'app : sans
+            // ça, un glissement au-dessus de la barre latérale tournerait la
+            // page.
+            if let fenetre = event.window, bornes != .zero {
+                let p = fenetre.contentView.map { vue -> CGPoint in
+                    let local = vue.convert(event.locationInWindow, from: nil)
+                    return CGPoint(x: local.x, y: vue.bounds.height - local.y)
+                }
+                if let p, !bornes.contains(p) { return false }
+            }
+
+            switch event.phase {
+            case .began:
+                cumul = 0
+                horizontal = nil
+            case .changed:
+                cumul += event.scrollingDeltaX
+                // **L'axe se tranche une fois par geste et ne se rejuge pas.**
+                // Sinon un défilement de lecture un peu oblique soulève la page.
+                if horizontal == nil {
+                    let dy = abs(event.scrollingDeltaY)
+                    let dx = abs(event.scrollingDeltaX)
+                    guard max(dx, dy) > 1 else { return false }
+                    horizontal = dx > dy * 1.5
+                }
+                guard horizontal == true else { return false }
+                avancer(cumul)
+                return true
+            case .ended, .cancelled:
+                // **On finit ici et non sur l'inertie.** Les événements de
+                // `momentumPhase` continuent après que les doigts se sont
+                // levés, et feraient défiler les parashiot en rafale.
+                defer { horizontal = nil; cumul = 0 }
+                guard horizontal == true else { return false }
+                terminer(cumul)
+                return true
+            default:
+                // L'inertie est avalée si le geste était nôtre, pour qu'elle
+                // n'aille pas défiler le texte de la page qu'on vient d'ouvrir.
+                return horizontal == true
+            }
+            return false
+        }
     }
 
 #endif

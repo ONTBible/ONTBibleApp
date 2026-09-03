@@ -44,27 +44,45 @@ struct RacineMac: View {
     @Environment(Router.self) private var router
     @Environment(ReadingModel.self) private var reading
     @Environment(Composition.self) private var composition
+    @Environment(ModeVault.self) private var vault
 
     var body: some View {
         @Bindable var router = router
 
-        NavigationSplitView {
-            BarreLateraleONT()
-                .navigationSplitViewColumnWidth(
-                    min: 180,
-                    ideal: Self.largeurDeBarreParDefaut,
-                    max: 460)
-        } detail: {
-            Detail()
-                // Les listes du détail reprennent la fonte du système à leurs
-                // lignes ; ces deux styles la leur rendent. Mesuré au pixel —
-                // voir `FonteDesListes`. Posé sur le détail et non sur toute la
-                // racine : la barre latérale déclare déjà ses fontes, et lui
-                // imposer un style de libellé changerait ce qu'elle a réglé.
-                .fonteDesListes()
-                .panneauDeFiche(shemot: composition.shemotSurDisque)
+        // **Une rangée et non un encart.**
+        //
+        // La bande du vault était posée en `safeAreaInset` **au-dessus** de
+        // cette vue, depuis la scène. Deux conséquences, et la même cause :
+        // elle vivait hors du `.ontTheme(…)`.
+        //
+        //   — elle portait le matériau gris du système dans une app dont le
+        //     thème mystique est or sur bordeaux ;
+        //   — et son encart n'atteignait pas la colonne latérale : elle
+        //     **recouvrait « Vous »** au lieu de la remonter.
+        //
+        // Dans une `VStack`, elle occupe une place réelle — rien ne peut plus
+        // se retrouver derrière elle — et elle hérite du thème du lecteur.
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                BarreLateraleONT()
+                    .navigationSplitViewColumnWidth(
+                        min: 180,
+                        ideal: Self.largeurDeBarreParDefaut,
+                        max: 460)
+            } detail: {
+                Detail()
+                    // Les listes du détail reprennent la fonte du système à leurs
+                    // lignes ; ces deux styles la leur rendent. Mesuré au pixel —
+                    // voir `FonteDesListes`. Posé sur le détail et non sur toute la
+                    // racine : la barre latérale déclare déjà ses fontes, et lui
+                    // imposer un style de libellé changerait ce qu'elle a réglé.
+                    .fonteDesListes()
+                    .panneauDeFiche(shemot: composition.shemotSurDisque)
+            }
+            .navigationSplitViewStyle(.automatic)
+
+            if vault.vault != nil { BandeauDuVault(mode: vault) }
         }
-        .navigationSplitViewStyle(.automatic)
         .ontTheme(from: reading.preferences)
         .ontNavigationChrome()
         // Toucher un intraduisible n'ouvre pas une page : ça soulève une fiche

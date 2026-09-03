@@ -105,6 +105,28 @@ public final class Router {
 
     public var biblePath: [Destination] = []
 
+    /// Aller à un onglet — et **revenir à sa racine si l'on y est déjà**.
+    ///
+    /// C'est ce que fait `TabView` sur iOS sans qu'on lui demande : toucher
+    /// l'onglet courant dépile sa `NavigationStack`. Sur macOS la barre
+    /// latérale est une vue à nous, et le système ne rend pas ce service —
+    /// cliquer la ligne déjà choisie ne faisait rien.
+    ///
+    /// Le geste est donc écrit ici plutôt qu'en deux endroits : la barre
+    /// latérale et le menu « Aller » l'appellent tous les deux, et un lecteur
+    /// qui apprend le geste à la souris le retrouve au clavier.
+    ///
+    /// Seule la Bible porte une pile aujourd'hui. Le jour où le Lexique en
+    /// aura une, elle se dépile ici, et les deux appelants suivront sans rien
+    /// changer.
+    public func aller(a cible: TabID) {
+        guard tab == cible else {
+            tab = cible
+            return
+        }
+        if cible == .bible { biblePath.removeAll() }
+    }
+
     /// Le lemme dont la fiche est soulevée par-dessus la lecture.
     public var openedLemma: LemmaSelection?
     /// Le **Shem** qu'on vient de toucher.

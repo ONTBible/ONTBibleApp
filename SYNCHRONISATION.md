@@ -2413,3 +2413,402 @@ vide se remarque ; une abstention se remarque ; une substitution, non.
 Aucune de ces mesures n'est fausse. Toutes rassurent. **Une mesure qui n'affiche
 pas ses conditions ne mesure rien** — et une garde qu'on lit plus large qu'elle
 n'est vaut moins que pas de garde.
+
+### 31 août 2026 — la chaîne de publication s'est rompue trois fois, et rien ne l'a dit
+
+Gloire a demandé que sa première **parashah** du *Chazon Avraham* atteigne les
+lecteurs. Elle ne les atteignait pas, et **personne ne le savait**.
+
+Le déploiement d'`ontbible.com` échouait **depuis six heures**. Trois défauts
+s'y étaient accumulés, indépendants :
+
+- **un bras de `match` manquant** — le site avait accueilli `Noeud::Shem` dans
+  son domaine et son rendu, sans écrire la conversion depuis `Inline::Shem`. Le
+  type d'arrivée existait, le rendu existait, **le pont entre les deux, non** ;
+- **`ONT_GENERE` posée nulle part** dans le déploiement du site. Le pipeline
+  refuse d'inventer une date — *« vide plutôt que fausse »* — et le site refuse
+  de publier un corpus indatable. Deux gardes correctes, aucune source ;
+- **une garde trop large** : le refus de publier le corpus arrêtait **tout le
+  site**. Or `/corpus/` est ce que l'app télécharge, tandis que les pages
+  portent leur corpus dans le binaire. On ne répare pas un silence en en créant
+  un plus grand.
+
+**Chacun a parfaitement joué son rôle. Chacun a refusé de publier plutôt que de
+publier faux. Aucun n'a rien dit à personne.**
+
+#### Ce qui manquait n'était pas une garde de plus
+
+`propager.yml` du vault **déclenchait et oubliait** : vert dès que GitHub
+accepte l'ordre, aveugle à tout ce qui suit.
+
+La parade posée n'est donc pas une surveillance par maillon — une garde par
+maillon ne couvre que les ruptures **qu'on a prévues**, et les trois étaient
+imprévues. C'est un contrôle de **l'état final observable** :
+`ontbible.com/corpus/manifeste.json`, ce qu'un lecteur télécharge.
+
+Et il connaît la valeur exacte à attendre, ce qui vaut mieux qu'un « ça a
+bougé » : le site estampille le corpus de la date du dernier commit du vault,
+et ce commit est celui qui déclenche le job.
+
+Trois pièges y sont encodés, tous rencontrés le même jour — `format-local` avec
+`TZ=UTC` et jamais `--date=format:`, qui rend une heure locale coiffée d'un `Z`
+et ment de l'écart au méridien sans qu'aucune vérification de forme le voie ;
+`>=` et non `==`, pour qu'une fusion qui en double une autre ne fasse pas
+rougir à tort ; et le contournement du cache, `max-age=300` sur `/corpus/`.
+
+#### Et la garde est tombée à sa première exécution
+
+`fatal: not a git repository` — le job ne fait aucun checkout, ses autres
+étapes n'appelant que l'API. Elle avait été éprouvée dans trois directions et
+jamais **dans l'environnement où elle tourne**.
+
+Ce qui la sauve est qu'elle a échoué **bruyamment et tout de suite**, ce qu'on
+lui demandait justement de faire du reste de la chaîne.
+
+**Pour les trois dépôts :** un échec de déploiement du site est un échec de
+livraison du corpus. C'est le seul chemin par lequel un texte atteint un
+lecteur, et il n'était surveillé par personne.
+
+### 31 août 2026 — onze relevés justes sur le mauvais état, en douze heures
+
+Quatre sessions, onze mesures fausses, et **aucun instrument cassé**. Toutes
+mesuraient correctement — autre chose que ce qu'on croyait. La taxonomie, parce
+que le remède diffère :
+
+| forme | exemple du jour |
+|---|---|
+| **état périmé** | un worktree de build en retard de quinze commits ; l'app compilée contre une autre branche |
+| **cache** | un corpus publié lu à travers cinq minutes de CloudFront — j'ai failli annoncer un quatrième défaut |
+| **périmètre trop étroit** | `grep ONT_GENERE .github/workflows` → rien. La variable était dans le **script que le workflow appelle** |
+| **motif mal ancré** | `grep "^brouillons"` sur une sortie `git`, qui **entoure de guillemets** les chemins accentués |
+| **unité fausse** | `grep -c` compte les **lignes**, pas les occurrences — 8 annoncés pour 10 réels |
+| **mauvais environnement** | une garde éprouvée sur trois cas et jamais là où elle s'exécute |
+| **autre chemin de code** | une sonde HTTP bien formée, sur le bon service, renvoyant six codes cohérents — et interrogeant un chemin qu'on ne voulait pas mesurer |
+
+La dernière est la pire : **sa sortie était impossible à distinguer d'une bonne
+réponse.**
+
+#### Ce qui a marché
+
+Ni le raisonnement, ni la confiance. **Comparer deux commandes.** Deux sessions
+en désaccord sur un 503 ont échangé leurs conclusions sans avancer ; l'une a
+demandé *« donne-moi ta commande exacte et je la rejoue »*, et l'écart est
+apparu en une minute — un champ du corps là où l'autre lisait un en-tête.
+
+**La règle : donner le commit, la branche et la commande sur lesquels on a
+mesuré.** Un relevé sans sa référence n'est pas vérifiable par qui n'est pas
+dans le même arbre — et à plusieurs sessions, c'est la situation normale.
+
+Corollaire : **un « 0 » est ce qu'on vérifie le moins**, parce qu'il ressemble
+à une absence et qu'une absence ne se relit pas.
+
+### 1ᵉʳ septembre 2026 — une stratigraphie écrite sans son apparat
+
+Le *Chazon Avraham* fait descendre un feu sur la maison de Terah. La
+stratigraphie du livre affirmait que le récit **répondait au silence de
+*Bereshit* 11:28** sur la mort de Haran.
+
+Vérification faite au texte : **c'est faux du témoin de base.** Le Codex
+Sylvester, le plus ancien des six slavons, fait périr **Terah**. La version où
+Haran meurt est une **insertion** de trois manuscrits tardifs, et cette
+insertion **harmonise** — elle comble le silence de la Torah et rejoint
+*Yovelim*. Une couche de copiste, du genre exact que le filtre du livre écarte.
+
+Tout tenait à une note de bas de page d'édition critique, en une ligne. **La
+stratigraphie avait été écrite sur une traduction sans son apparat.**
+
+#### Ce que l'auteur en a décidé
+
+Restituer le témoin, gloser la divergence avec *Bereshit* 11:32, ne pas
+harmoniser. La raison vaut au-delà de ce livre : **on ne corrige pas un témoin
+sur la foi d'un autre.** Écarter reviendrait à réécrire le livre d'après la
+Torah ; harmoniser reviendrait à refaire ce que les copistes ont fait et qu'on
+vient d'écarter.
+
+**Pour les trois dépôts :** toute affirmation tirée d'une traduction se
+revérifie sur une édition qui porte son apparat. Un motif peut reposer
+entièrement sur des manuscrits interpolés sans que la traduction le dise dans
+son corps.
+
+### 1ᵉʳ septembre 2026 — le seuil de contraste du projet a enfin une raison
+
+Les trois dépôts ont convergé, chacun de son côté, sur un plancher de contraste
+**au-dessus du seuil AA** — environ 6,1:1 — sans qu'aucun sache d'où venait
+l'exigence. Elle était tenue partout et écrite nulle part.
+
+Elle a maintenant un motif : **l'auteur du corpus lit à 0,6/10 corrigé**, d'un
+kératocône bilatéral sévère où les verres n'apportent rien.
+
+Deux conséquences de conception qui en découlent, et qui valent pour les trois :
+
+- **l'italique est le plus faible des discriminants** pour un astigmatisme
+  irrégulier — il multiplie les images fantômes au lieu de séparer. Ce qui tient
+  est la **couleur**, la **taille**, l'**espace** ;
+- les bascules d'affichage — masquer les gloses, masquer le niveau 3 — ne sont
+  pas un confort. Ce sont **les** fonctions d'accessibilité du corpus.
+
+**Une exigence dont on connaît la raison se défend ; une exigence orpheline se
+fait raboter au premier arbitrage.**
+
+### 2 septembre 2026 — un texte écrit sur son plan, et non sur sa source
+
+Les **parashiot** ① et ② du *Chazon Avraham* ont été refaites entièrement, sur
+les deux témoins. Elles avaient été écrites sur le plan de la stratigraphie —
+lui-même établi sans le texte sous les yeux.
+
+Ce que le témoin porte et qu'elles n'avaient pas : le temple et ses six
+matières ; l'idole **trouvée déjà tombée** aux pieds d'un autre dieu, quand la
+rédaction faisait choir une idole des mains de l'enfant ; **la vente de cinq
+dieux au marché** — l'âne, les marchands, le cri d'un chameau, trois brisés,
+les morceaux jetés au fleuve ; et l'échelle des éléments **prononcée à voix
+haute devant le père**, non ruminée. Une scène entière était au mauvais
+chapitre. Dans la ③, la voix **appelle le nom deux fois** et c'est l'homme qui
+répond *me voici* — la rédaction attribuait ce *me voici* à la voix.
+
+**Le motif est celui que le journal traque depuis le 30 août**, dans un
+matériau nouveau : une sortie cohérente, bien formée, complète, et qui ne
+répond pas à la source. Il s'était présenté sur un instrument de mesure, puis
+sur un compte de balises. Ici c'est du texte — et c'est plus grave, parce
+qu'**un build faux se refait et qu'un texte faux se lit**.
+
+**Pour les trois dépôts :** un plan n'est pas une source. Un document
+intermédiaire — stratigraphie, inventaire, schéma, note de conception — est un
+instrument comme un autre, et il se valide contre ce qu'il prétend décrire
+avant qu'on bâtisse dessus. Ce qui a rattrapé celui-ci n'est pas une relecture :
+c'est d'être allé chercher les chapitres.
+
+**Ce que le vault déclare maintenant, et qui manquait :** la feuille
+d'introduction décrivait la chaîne du *texte* — hébreu, grec, slavon — comme si
+c'était celle de **notre accès**. Les deux ne se recouvrent pas. Aucun
+manuscrit slavon n'est transcrit en accès ouvert et aucune édition n'en est
+lisible par machine : l'ONT travaille sur deux traductions savantes du domaine
+public. La chaîne est écrite maillon par maillon, avec ce qu'elle coûte et ce
+qui la rend tenable. **Un dépôt doit déclarer sur quoi il travaille, pas
+seulement d'où vient ce qu'il travaille.**
+
+### 2 septembre 2026 — le pipeline d'un arbre périmé rend un rapport faux
+
+Même vault, même commande, deux exemplaires du pipeline :
+
+    ~/ONTBible/ONTBibleApp   (branche de travail abandonnée)   204 fiches orphelines
+    worktree détaché @ origin/dev                                2 fiches orphelines
+
+L'écart n'est pas une régression : la branche est **en amont** du correctif des
+Shemot, de 939 lignes sur `pipeline/`. C'est la troisième forme de prémisse
+fausse déjà nommée — **juste ici, fausse là-bas, sans que rien n'ait bougé** —,
+et elle a failli produire un signalement de régression 3 → 204 à la session app.
+
+**Pour les trois dépôts :** un outil de contrôle se mesure **avec la référence
+sur laquelle il tourne**, au même titre qu'un `grep`. `git worktree add -f
+--detach <scratch> origin/dev` coûte une ligne et donne l'état publié.
+
+Deux faits utiles au passage. Le binaire du pipeline résout le vault en relatif
+depuis son propre chemin : hors de l'arbre habituel il faut `ONT_VAULT`, et il
+s'arrête net avec un message clair si on l'oublie — bon comportement. Et
+`scripts/corpus.sh` ne se lance **pas** sur un arbre partagé : il fait `rm -rf
+app/Resources/data`, réécrit les DTO Swift et rejoue `xcodegen`. Le binaire
+seul écrit dans `dist/`, qui est ignoré.
+
+**Et un défaut réel, trouvé en se faisant contredire.** J'avais avancé que le
+balayage ne collectait les `[[Nom]]` que depuis les unités d'un livre. La
+session app l'a **réfuté sur pièces** — les fiches produisent bien leurs nœuds
+de lien, et l'app les rend touchables. Elle a en même temps donné **la date de
+son propre corpus**, vieux de deux jours, plutôt que la conclusion sans elle :
+c'est ce qui m'a fait remesurer au lieu de conclure.
+
+Le vrai défaut est ailleurs, et il est plus large. Sur `dist/` fraîchement
+construit depuis `origin/dev` :
+
+    liens émis          corps de chapitre 4447   ·   fiches 2948
+    lemmes introuvables corps de chapitre  133   ·   fiches   88
+
+**Deux causes distinctes, et il faut les séparer parce que le remède diffère.**
+
+- **Une forme dérivée s'émet elle-même comme lemme.** `**gibborim**` sort en
+  `lemma: "gibborim"`, quand l'entrée s'appelle `gibbor` et déclare
+  `forms: [gibbor, gibborim, gibor]`. Le rapport dit « 0 mot d'or sans fiche »
+  parce que **lui** traverse `forms` ; le nœud livré, non. Et pour une partie
+  d'entre elles la traversée ne suffirait pas : `forms` garde le texte brut —
+  `mal'akhim`, `le'olam`, `kohen gadol` — tandis que `lemma` est passé par
+  `slugify`, qui **laisse tomber l'apostrophe sans séparateur**. `mal'akhim`
+  devient `malakhim`, qui n'est dans aucune liste de formes. Ces liens-là sont
+  morts quel que soit le consommateur : **25 occurrences pour le seul
+  `mal'akhim`, dans des corps de chapitre.**
+- **Une fiche citée seulement par d'autres fiches est écartée de l'index — et
+  les liens vers elle continuent d'être émis.** `shem-fils-de-noach` est visé
+  **37 fois** et `kasdim` **6 fois** depuis d'autres fiches ; ni l'un ni l'autre
+  n'entre dans `shemot.json`. C'était bien un chemin de traversée qui ne voit
+  pas une source, mais ce n'est pas celui que j'avais nommé : ce n'est pas le
+  *rendu* qui rate les fiches, c'est le **critère d'inclusion**.
+
+**Pour les trois dépôts :** un rapport qui rend `0` peut être exact et
+n'attester de rien pour le lecteur, parce qu'il **normalise autrement que le
+consommateur**. Le rapport résout la forme dérivée ; le fichier livré ne la
+résout pas. La mesure qui compte n'est pas « le contrôle passe » mais
+**« chaque lien émis retombe-t-il sur une entrée du même fichier »** — et elle
+se fait sur `dist/`, pas sur le rapport.
+
+**Confirmé indépendamment, et c'est pire que des liens morts.** La session app
+a mesuré de son côté, sur un corpus plus ancien : `126` morts dans les corps et
+`131` dans les fiches, ==les mêmes coupables==. Et elle a lu le consommateur :
+
+    LexiconModel.swift:24   byLemma = Dictionary(entries.map { ($0.lemma, $0) }, …)
+    LexiconModel.swift:36   func entry(_ lemma: String) -> GlossaryEntry? { byLemma[lemma] }
+
+**Lemme exact, rien d'autre** — le consommateur ne traverse pas `forms`. La
+première cause vaut donc les 133, non les quatre.
+
+Et l'app ne reste pas muette devant un lemme absent : elle ouvre une feuille et
+écrit *« Terme non documenté — ce mot est balisé dans le texte mais n'a pas
+encore d'entrée dans le glossaire »*. ==C'est faux== : l'entrée existe, sous le
+lemme du singulier. **Un lien mort qui ne fait rien est un défaut ; un lien mort
+qui affirme une lacune inexistante est une perte de confiance** — le lecteur en
+conclut que le glossaire est plus creux qu'il n'est, cent vingt-six fois.
+
+**Le remède est à l'émission, non chez les consommateurs**, et la raison vaut
+d'être gardée : corriger côté app en indexant `forms` obligerait chaque
+plateforme à réécrire sa propre version de `slugify` pour faire se rejoindre
+`mal'akhim` et `malakhim`. ==Deux normalisations écrites séparément divergent==,
+et le défaut deviendrait intermittent au lieu d'être systématique — pire que
+maintenant. Le pipeline, lui, tient les deux au moment d'émettre : la forme
+rencontrée et l'entrée qu'elle désigne.
+
+**Décision réservée à l'auteur**, parce que le pipeline sert les trois
+plateformes : une correction de normalisation change ce que le site compile
+autant que ce que l'app lit.
+
+Corollaire de méthode, gagné en se trompant : **une hypothèse réfutée par un
+pair est le meilleur moment pour remesurer**, pas pour clore. La réfutation
+était juste et le défaut existait quand même — deux étages plus bas.
+
+---
+
+## 3 septembre 2026 — l'expurgation ne tenait pas en français, et les deux apps la portaient
+
+Android a des testeurs depuis aujourd'hui, donc un rapporteur d'erreurs. En
+portant celui d'iOS, deux défauts sont apparus — **dans le motif d'iOS**, pas
+seulement dans la copie.
+
+Le critère de prose y est « douze signes et une espace ». Il sépare la note d'un
+lecteur, qu'on ne doit jamais laisser sortir, d'un identifiant de ressource,
+qu'on veut garder parce qu'il *est* le diagnostic.
+
+### Les guillemets français encadrent d'espaces
+
+    clé « bereshit-1-verset-30 » absente   →   clé <texte> absente
+
+Une clé qui ne révèle rien porte deux espaces de typographie, donc le critère la
+prend pour de la prose. Le diagnostic disparaît avec le risque — le même défaut
+que la sur-expurgation de `data/corpus.json`, déjà corrigée une fois, revenue
+par une autre porte.
+
+### L'apostrophe n'est pas un guillemet
+
+    échec « ce passage m'a bouleversé hier soir »
+      →  échec <texte>a bouleversé hier soir »
+
+L'apostrophe était dans la classe des délimiteurs. Celle de `m'` ferme donc la
+citation : le début de la note est expurgé, **et la fin part en clair**.
+
+C'est le sens qui compte ici. La première lecture — « la note traverse
+intacte » — était fausse dans le sens qui rassure : ce n'est pas que rien n'est
+filtré, c'est que **la moitié qui porte le propos** est celle qui passe.
+« a bouleversé hier soir » en dit plus long que « ce passage m ».
+
+En français, l'apostrophe est dans un mot sur cinq.
+
+### Ce que ça dit du portage
+
+Un port fidèle reproduit les défauts de sa source, et c'est **le test qui les
+révèle** — pas la relecture. Les deux cas ci-dessus ont été écrits comme des
+attentes ordinaires, et ils ont échoué sur la première version du port.
+
+C'est le troisième cas cette semaine où une chose portée d'une plateforme à
+l'autre s'est révélée fausse **des deux côtés** : le libellé d'unité qu'iOS
+recopiait dans trois vues, la forme du partage écrite deux fois, et maintenant
+l'expurgation.
+
+### Ce qui reste vrai partout
+
+Les annotations d'un lecteur de Bible relèvent de l'**article 9 du RGPD** —
+convictions religieuses. Aucune remontée d'erreur, sur aucune plateforme, ne
+doit porter le texte d'une note, le contenu d'un verset ou la liste des
+passages surlignés. Ni capture d'écran, ni hiérarchie de vues, ni rejeu de
+session : un film du parcours de lecture est précisément cette donnée.
+
+Le site ne remonte rien aujourd'hui. S'il s'y met, la règle est celle-ci, et le
+critère de prose doit être celui d'après — pas celui d'avant.
+
+---
+
+## 3 septembre 2026 — Android a un compte, et l'audit qui l'a établi
+
+Le dernier écart de parité entre les deux liseuses est fermé. Ce qui suit tient
+surtout par ce que l'audit a **corrigé** en chemin.
+
+### Aucune console n'était nécessaire, contrairement à ce qu'on croyait
+
+Le backend détient les secrets clients et fait la danse OAuth de bout en bout.
+Les identifiants qui voyagent dans une app sont **publics** — ils sont dans
+l'URL d'autorisation, que le navigateur affiche — et l'adresse de retour est
+une URL HTTPS du backend. Ce sont donc des clients « application web », et un
+client web ne connaît pas la plateforme qui l'emploie.
+
+Les mêmes identifiants servent aux deux liseuses. Rien à déclarer, rien à
+créer. On l'a cru bloqué une journée entière faute d'avoir lu le flux d'iOS.
+
+### Les parutions n'ont jamais dépendu du compte
+
+L'écran d'Android affirmait « il faut donc un compte pour qu'il sache où
+l'envoyer ». C'est l'inverse d'une décision explicite du backend :
+
+> un lecteur qui vient d'installer l'app n'a pas de compte, et l'obliger à s'en
+> créer un pour être prévenu d'une parution reviendrait à faire payer la
+> notification d'une identité.
+
+La vraie cause est structurelle, et elle est **côté serveur** : `Appareil.valide()`
+exige exactement soixante-quatre caractères hexadécimaux — un jeton APNs — et le
+diffuseur ne connaît que les hôtes d'Apple. Un jeton FCM serait refusé à
+l'entrée.
+
+Ce qui manque : une plateforme sur `Appareil`, une validation qui accepte les
+deux formes, un notificateur FCM. **Chantier backend, indépendant du compte.**
+
+Et l'erreur d'analyse mérite d'être notée : les deux avaient été liés en lisant
+l'écran de l'app plutôt que le serveur. Un texte d'app est une affirmation sur
+le logiciel que le logiciel ne vérifie pas — en faire sa source, c'est la
+troisième forme du motif de la semaine.
+
+### Ce que le contrat impose, et qui n'était écrit dans aucun type
+
+`snake_case` littéral, et `expires_in` en **secondes** quand tout le reste du
+projet compte en millisecondes. iOS s'en remet à `convertFromSnakeCase` sur son
+décodeur partagé : le contrat n'y est donc constaté nulle part. Les
+`@SerialName` de Kotlin et les dix épreuves qui les entourent sont le seul
+endroit des deux plateformes où il l'est.
+
+Les charges de ces épreuves sont copiées des formes réelles du backend, jamais
+de ce que notre client produit — un test qui relirait notre propre écriture
+mesurerait la cohérence, pas la justesse. Même raison pour PKCE, éprouvé contre
+le vecteur publié en annexe B de la RFC 7636.
+
+### PKCE compte plus sur Android que sur iOS
+
+Le code d'autorisation revient par `ont://`, et **n'importe quelle app installée
+peut déclarer le même schéma** et se voir proposer l'intention, dans une feuille
+de choix que le lecteur traverse sans lire. iOS attribue un schéma à une seule
+app.
+
+Le vérificateur se range donc chiffré **avant** que le lecteur ne parte, et non
+au retour : le processus peut mourir pendant l'aller-retour.
+
+### Et la couleur inconnue a maintenant un chemin vers le serveur
+
+`HighlightColor.depuis` ramène à l'or ce qu'elle ne connaît pas, et l'envoi
+réécrit `gold`. Tant que l'arbitrage n'est pas tranché — ignorer la ligne comme
+iOS, ou garder la clé d'origine —, la synchronisation d'Android **écrasera pour
+tout le monde** la marque qu'un client plus récent aurait posée en turquoise.
+
+Une épreuve dit exactement ce que le code fait aujourd'hui, et elle échouera le
+jour où on décidera autrement. C'est le but : une décision différée doit être
+visible, pas oubliée.

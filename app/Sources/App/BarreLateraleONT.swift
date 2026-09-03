@@ -211,7 +211,9 @@ struct LigneDeBarre: View {
 
     var body: some View {
         Button {
-            router.tab = cible
+            // `aller(a:)` et non `tab = cible` : cliquer la ligne déjà choisie
+            // ramène à la racine de sa pile, comme le fait `TabView` sur iOS.
+            router.aller(a: cible)
         } label: {
             HStack(spacing: espace.s) {
                 switch icone {
