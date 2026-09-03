@@ -38,7 +38,7 @@ public struct ONTChampDeRecherche: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(theme.ink.opacity(0.35))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ontPresse)
             }
         }
         .padding(.horizontal, espace.m)

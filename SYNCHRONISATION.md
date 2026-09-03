@@ -3093,3 +3093,56 @@ là-bas. Le chantier suivant est décidé avec l'auteur : micro-animations
 (survol, pression) sur tout ce qui se clique, et la palette en **gammes
 50→900** à la Tailwind avec les rôles sémantiques (accent, danger…) par-dessus
 — ancrée sur les couleurs relevées du logo et du site, pas redessinée.
+
+## 3 septembre 2026 — la refonte du mouvement, couche des fondations
+
+L'auteur, designer : « en termes d'UI/UX motion design on est loin, je veux une
+refonte ». Ses références : Craft, CleanMyMac pour la densité de micro-
+animations, ChatGPT iOS pour la tenue du branding. Sa signature, choisie sur
+deux options : **rebond assumé** (amortis 0,66–0,78, dépassement visible). Sa
+dose : « limite trop — si y en a trop c'est moi qui te dirai ».
+
+### La gamme, générée et ancrée
+
+`ONTGamme` — six teintes × onze crans (50→950), interpolées en **OKLCH** autour
+des couleurs relevées : `#421B26` **est** `aubergine800`, `#CDBE83` **est**
+`or300`, la nuit du site **est** `aubergine950`, au bit près. Trois teintes
+fonctionnelles accordées à la DA : `braise` (danger — terre cuite qui penche
+bordeaux), `cedre` (succès — sauge boisée), `ambre` (avertissement). Le
+générateur vit hors dépôt ; ses contrastes sont vérifiés à la génération **et**
+re-vérifiés par `GammeContrastTests`, qui a refusé le cèdre 600 (4,4:1 sur
+parchemin) avant qu'il ne soit committé — le rôle prend le 700.
+
+Les rôles passent par le thème : `theme.danger`, `theme.succes`,
+`theme.avertissement` + leurs surfaces, et deux voiles d'interaction nommés
+(`voileSurvol` 7 %, `voilePression` 13 % d'encre).
+
+### Les états d'interaction, qui n'existaient pas
+
+Vingt-quatre `buttonStyle(.plain)` dans l'app du Mac, **aucun état de
+pression**. `ONTInteraction` pose : `ONTPresse` (l'échelle cède, l'encre se
+voile, le ressort ramène — `.ontPresse` / `.ontLigne`), `ontSurvol(dans:)` (le
+voile épouse la forme, levée optionnelle), `ontApparition(_:)` (la cascade de
+Craft — huit points plus bas, remonte au `pop`, décalée par le rang, bornée au
+douzième).
+
+Appliqué : cases du sélecteur (survol levé + pression + cascade des grilles
+d'unités et de versets), segments (pression + glissement du choisi au ressort),
+barre latérale (pression rejoint le survol), boutons de cadre des fiches, croix
+des feuilles, balai du champ de recherche.
+
+### Ce qui traverse
+
+**iOS reçoit les mêmes jetons** — la gamme, les rôles, `ONTMouvement` — mais la
+cascade et les survols sont posés là où iOS a déjà ses réponses système ; rien
+ne double. Le site : sa palette CSS et la gamme partagent les ancres — le jour
+où `ontbible.com` veut ses crans, la gamme se transpose en variables CSS depuis
+le même générateur. Android : les initiatives restent à iOS ; le portage des
+jetons attendra que la refonte soit arbitrée ici.
+
+### Reste à faire, dit à l'auteur
+
+Les listes en cartes par ligne (corpus, lexique, Vous, résultats), les rangées
+restantes (NavigationLink du corpus), l'orchestration d'arrivée des écrans, le
+survol des intraduisibles dans le texte, la pastille de la barre. Vue par vue,
+planche à l'appui.

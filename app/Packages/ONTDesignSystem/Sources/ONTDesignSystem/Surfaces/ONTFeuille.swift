@@ -369,7 +369,7 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
                     .contentShape(.circle)
                     .scaleEffect(survolé ? 1.08 : 1)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.ontPresse)
             .help("Fermer")
             .accessibilityLabel("Fermer")
             .onHover { survolé = $0 }

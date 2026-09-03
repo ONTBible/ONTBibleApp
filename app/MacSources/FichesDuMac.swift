@@ -314,7 +314,7 @@ private struct BoutonDeCadre: View {
                 .contentShape(.circle)
                 .scaleEffect(survolé ? 1.08 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ontPresse)
         .help(titre)
         .accessibilityLabel(titre)
         .onHover { survolé = $0 }

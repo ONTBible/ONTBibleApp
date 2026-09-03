@@ -166,7 +166,7 @@ public struct ReferencePicker: View {
                                 .background(theme.ink.opacity(0.05), in: .circle)
                                 .contentShape(.circle)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.ontLigne)
                     }
                     if let titre = titreDEtape(etape) {
                         Text(titre)
@@ -223,7 +223,7 @@ public struct ReferencePicker: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(.rect)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.ontLigne)
                             // Un slot vide reste **visible mais éteint** : le
                             // corpus est un chantier, et masquer les vides
                             // donnerait une fausse idée de sa forme.
@@ -290,11 +290,11 @@ public struct ReferencePicker: View {
                                 )
                                 .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.ontLigne)
                     }
 
                     LazyVGrid(columns: grille, spacing: spacing.s) {
-                        ForEach(livre.chapters) { unite in
+                        ForEach(Array(livre.chapters.enumerated()), id: \.element.id) { rang, unite in
                             Case(
                                 titre: "\(unite.n)",
                                 courant: unite.id == current?.id,
@@ -302,6 +302,11 @@ public struct ReferencePicker: View {
                             ) {
                                 chemin.append(.versets(book: bookId, chapter: unite.id))
                             }
+                            // La grille *arrive*, case après case — voir
+                            // `ONTApparition`. Le rang est borné dans la
+                            // cascade elle-même : les soixante-dix ne font
+                            // pas la queue.
+                            .ontApparition(rang)
                         }
                     }
                 }
@@ -392,7 +397,7 @@ public struct ChoixDuVerset: View {
                     )
                     .contentShape(.rect)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ontLigne)
 
                 if let unite, unite.verseCount > 0 {
                     // **Le verset où l'on est se marque.**
@@ -407,6 +412,7 @@ public struct ChoixDuVerset: View {
                             Case(titre: "\(n)", courant: n == courant, brouillon: false) {
                                 choisir(n)
                             }
+                            .ontApparition(n - 1)
                         }
                     }
                 }
@@ -464,6 +470,9 @@ private struct Case: View {
                     RoundedRectangle(cornerRadius: ONTRadius.card)
                         .fill(courant ? theme.accent : theme.ink.opacity(0.06))
                 )
+                // La case se lève sous le curseur et s'enfonce sous le clic —
+                // c'est une touche, elle répond comme une touche.
+                .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.card), souleve: true)
                 .overlay(alignment: .topTrailing) {
                     // Un brouillon se signale sans se refuser : §12 dit qu'il
                     // ne fait pas référence, pas qu'on ne peut pas le lire.
@@ -475,7 +484,7 @@ private struct Case: View {
                     }
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ontPresse)
         .accessibilityAddTraits(courant ? [.isButton, .isSelected] : .isButton)
     }
 }

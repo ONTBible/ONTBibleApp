@@ -23,7 +23,11 @@ import SwiftUI
 /// tremble. On veut une étoffe, pas un jouet.
 public enum ONTMouvement {
     /// Le ressort courant — état qui change, sélection qui se pose.
-    public static let ressort = Animation.spring(response: 0.38, dampingFraction: 0.8)
+    ///
+    /// 0,74 d'amortissement : le dépassement se voit. C'est la signature que
+    /// l'auteur a choisie le 3 septembre 2026 — « rebond assumé » — contre la
+    /// retenue de Craft, proposée et écartée.
+    public static let ressort = Animation.spring(response: 0.38, dampingFraction: 0.74)
 
     /// Le vif — survol, petits témoins, ce qui doit répondre sous le curseur.
     ///
@@ -37,4 +41,20 @@ public enum ONTMouvement {
     /// place et s'y dépose. L'amortissement à 0,72 est ce « un peu » : à 0,8 le
     /// dépassement disparaît, à 0,6 la carte gigote.
     public static let arrivee = Animation.spring(response: 0.42, dampingFraction: 0.72)
+
+    /// L'apparition d'un petit élément — une case de grille, une pastille.
+    ///
+    /// Plus détendu encore que `arrivee` : à cette taille, le rebond est ce
+    /// qui rend l'élément *vivant* plutôt que posé là.
+    public static let pop = Animation.spring(response: 0.32, dampingFraction: 0.66)
+
+    /// La cascade — le même ressort, décalé par l'indice de l'élément.
+    ///
+    /// C'est l'orchestration de Craft : les éléments d'un écran n'arrivent pas
+    /// tous en même temps, ils se suivent de peu. Le pas est court (28 ms) et
+    /// **borné** : au-delà du douzième, tout arrive ensemble — une grille de
+    /// soixante-dix cases n'a pas à se déplier pendant deux secondes.
+    public static func cascade(_ indice: Int, base: Animation = pop) -> Animation {
+        base.delay(Double(min(indice, 12)) * 0.028)
+    }
 }

@@ -92,7 +92,7 @@ struct BarreLateraleONT: View {
                         .foregroundStyle(theme.ink.opacity(0.55))
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.ontLigne)
                     .textCase(nil)
                     .padding(.vertical, espace.xs)
                 }
@@ -286,7 +286,7 @@ struct LigneDeBarre: View {
             .background(fond, in: .capsule)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ontLigne)
         .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)

@@ -49,7 +49,9 @@ public struct ONTSegments<Valeur: Hashable>: View {
             ForEach(Array(segments.enumerated()), id: \.element.valeur) { rang, segment in
                 let choisi = segment.valeur == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.22)) { selection = segment.valeur }
+                    // Le ressort de la maison : la capsule du choisi glisse et
+                    // se pose avec le rebond, comme tout ce qui bouge ici.
+                    withAnimation(ONTMouvement.ressort) { selection = segment.valeur }
                 } label: {
                     Text(segment.libelle)
                         .font(ONTUI.subheadline.weight(choisi ? .semibold : .regular))
@@ -94,6 +96,7 @@ public struct ONTSegments<Valeur: Hashable>: View {
                 // les autres se serrent autour de lui.
                 .layoutPriority(choisi ? 1 : 0)
                 .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
+                .buttonStyle(.ontPresse)
 
                 if rang < segments.count - 1 {
                     Spacer(minLength: 0)
