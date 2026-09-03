@@ -2680,3 +2680,61 @@ autant que ce que l'app lit.
 Corollaire de méthode, gagné en se trompant : **une hypothèse réfutée par un
 pair est le meilleur moment pour remesurer**, pas pour clore. La réfutation
 était juste et le défaut existait quand même — deux étages plus bas.
+
+---
+
+## 3 septembre 2026 — l'expurgation ne tenait pas en français, et les deux apps la portaient
+
+Android a des testeurs depuis aujourd'hui, donc un rapporteur d'erreurs. En
+portant celui d'iOS, deux défauts sont apparus — **dans le motif d'iOS**, pas
+seulement dans la copie.
+
+Le critère de prose y est « douze signes et une espace ». Il sépare la note d'un
+lecteur, qu'on ne doit jamais laisser sortir, d'un identifiant de ressource,
+qu'on veut garder parce qu'il *est* le diagnostic.
+
+### Les guillemets français encadrent d'espaces
+
+    clé « bereshit-1-verset-30 » absente   →   clé <texte> absente
+
+Une clé qui ne révèle rien porte deux espaces de typographie, donc le critère la
+prend pour de la prose. Le diagnostic disparaît avec le risque — le même défaut
+que la sur-expurgation de `data/corpus.json`, déjà corrigée une fois, revenue
+par une autre porte.
+
+### L'apostrophe n'est pas un guillemet
+
+    échec « ce passage m'a bouleversé hier soir »
+      →  échec <texte>a bouleversé hier soir »
+
+L'apostrophe était dans la classe des délimiteurs. Celle de `m'` ferme donc la
+citation : le début de la note est expurgé, **et la fin part en clair**.
+
+C'est le sens qui compte ici. La première lecture — « la note traverse
+intacte » — était fausse dans le sens qui rassure : ce n'est pas que rien n'est
+filtré, c'est que **la moitié qui porte le propos** est celle qui passe.
+« a bouleversé hier soir » en dit plus long que « ce passage m ».
+
+En français, l'apostrophe est dans un mot sur cinq.
+
+### Ce que ça dit du portage
+
+Un port fidèle reproduit les défauts de sa source, et c'est **le test qui les
+révèle** — pas la relecture. Les deux cas ci-dessus ont été écrits comme des
+attentes ordinaires, et ils ont échoué sur la première version du port.
+
+C'est le troisième cas cette semaine où une chose portée d'une plateforme à
+l'autre s'est révélée fausse **des deux côtés** : le libellé d'unité qu'iOS
+recopiait dans trois vues, la forme du partage écrite deux fois, et maintenant
+l'expurgation.
+
+### Ce qui reste vrai partout
+
+Les annotations d'un lecteur de Bible relèvent de l'**article 9 du RGPD** —
+convictions religieuses. Aucune remontée d'erreur, sur aucune plateforme, ne
+doit porter le texte d'une note, le contenu d'un verset ou la liste des
+passages surlignés. Ni capture d'écran, ni hiérarchie de vues, ni rejeu de
+session : un film du parcours de lecture est précisément cette donnée.
+
+Le site ne remonte rien aujourd'hui. S'il s'y met, la règle est celle-ci, et le
+critère de prose doit être celui d'après — pas celui d'avant.
