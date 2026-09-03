@@ -376,6 +376,35 @@ targets:
         CFBundleVersion: "1"
         # Le même contrat de lien public que sur iOS.
         ONTWebBaseURL: https://ontbible.com
+        # **L'adresse du backend, et les deux identifiants clients.**
+        #
+        # Ils manquaient ici, et la connexion ne pouvait donc pas marcher sur le
+        # Mac — jamais, pas « parfois ». `Composition` lit
+        # `ONTAPIBaseURL` dans l'`Info.plist`, retombe sur « » quand la clé est
+        # absente, et de là sur `https://invalide.local` : un hôte qui n'existe
+        # pas, donc un `cannotFindHost`, donc `AccountError.offline`, donc
+        # « Pas de connexion. Vos annotations restent sur cet appareil. » en
+        # rouge sous les trois boutons.
+        #
+        # **Le message était juste et la cause n'avait rien à voir.** C'est ce
+        # qui rend ce défaut coûteux : il se lit comme un problème de réseau, il
+        # invite à réessayer, et réessayer ne peut rien donner. Le repli en dur
+        # est délibéré — il évite un `!` sur une URL — mais il transforme un
+        # oubli de configuration en panne de réseau.
+        #
+        # Une clé de l'`Info.plist` n'est **pas** partagée entre deux cibles,
+        # même quand elles partagent tout leur code et jusqu'à leur identifiant
+        # de bundle. Le compilateur ne lit pas ce fichier : rien ici ne peut
+        # rougir. D'où l'épreuve dans `MacTests/ConfigurationDuBundleTests`.
+        ONTAPIBaseURL: https://j451hq8d3k.execute-api.eu-west-3.amazonaws.com
+        # Publics par nature — ils voyagent dans l'URL d'autorisation. Les
+        # *secrets*, eux, ne quittent jamais la Lambda.
+        ONTGoogleClientID: "154337904456-de9o2u3res51203irei6o0ggk1lvlkq5.apps.googleusercontent.com"
+        ONTGitHubClientID: "Ov23liKe17kibtPWeUE1"
+        # **Pas de `ONTSentryDSN` ici, et ce n'est pas un oubli.**
+        #
+        # `App/Observability.swift` est exclu de la cible du Mac : la clé serait
+        # déclarée et personne ne la lirait.
         # **Le schéma interne, qu'il manquait ici.**
         #
         # `RacineMac` appelle `onOpenURL` et `Router.open` depuis le premier
