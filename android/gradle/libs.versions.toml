@@ -8,6 +8,7 @@
 # `codegen` : une valeur écrite deux fois finit par différer.
 
 [versions]
+sentry = "8.30.0"
 # Relevés en août 2026. AGP 9.3.0 est sorti en juillet, Kotlin 2.4.10 est la
 # stable en cours, et le BOM de Compose suit son propre calendrier daté.
 agp = "9.3.0"
@@ -29,6 +30,14 @@ espresso = "3.6.1"
 kotlinxCoroutinesTest = "1.9.0"
 
 [libraries]
+# — La remontée d'erreurs
+#
+# Le même Sentry qu'iOS, et pour la même raison : un plantage se voit dans la
+# Play Console, une erreur **rattrapée** ne se voit nulle part. C'est
+# précisément ce qu'une liseuse fait le plus — retomber sur le corpus embarqué,
+# renoncer à une mise à jour, ignorer un fichier illisible.
+sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" }
+
 # — Le socle Android
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }

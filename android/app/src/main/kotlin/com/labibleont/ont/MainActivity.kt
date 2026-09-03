@@ -92,6 +92,7 @@ import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
 import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.reader.Partage
+import com.labibleont.ont.observabilite.SentryReporter
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -262,7 +263,8 @@ public class MainActivity : ComponentActivity() {
         val shemot = DiskShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
-        val lecteur = FileReaderStore(applicationContext)
+        val rapporteur = SentryReporter()
+        val lecteur = FileReaderStore(applicationContext, rapporteur)
 
         // **La mise à jour du corpus, en fond, à chaque lancement.**
         //
@@ -275,7 +277,14 @@ public class MainActivity : ComponentActivity() {
         // délai qu'on économise.
         //
         // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
-        Thread { runCatching { CorpusUpdater(applicationContext).synchroniser() } }
+        Thread {
+            runCatching { CorpusUpdater(applicationContext, rapporteur = rapporteur).synchroniser() }
+                // La prise la plus large de l'app : elle enveloppait toute la
+                // synchronisation et jetait tout. Un corpus qui ne se met
+                // jamais à jour se voit — le texte ne bouge plus — mais rien
+                // ne dit pourquoi, ni à qui.
+                .onFailure { rapporteur.report(it, "synchronisation du corpus") }
+        }
             .apply { isDaemon = true }
             .start()
 
