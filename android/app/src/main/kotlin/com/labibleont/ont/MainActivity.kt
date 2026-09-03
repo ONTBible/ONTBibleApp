@@ -92,6 +92,11 @@ import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
 import com.labibleont.ont.kit.corpus.LibelleDUnite
 import com.labibleont.ont.kit.reader.Partage
+import com.labibleont.ont.compte.FluxDeConnexion
+import com.labibleont.ont.data.account.CoffreDeJetons
+import com.labibleont.ont.data.account.ServiceDeCompte
+import com.labibleont.ont.kit.account.Fournisseur
+import com.labibleont.ont.kit.account.RetourDAutorisation
 import com.labibleont.ont.observabilite.SentryReporter
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
@@ -266,6 +271,16 @@ public class MainActivity : ComponentActivity() {
         val rapporteur = SentryReporter()
         val lecteur = FileReaderStore(applicationContext, rapporteur)
 
+        // Le compte. Trois objets, et chacun ne sait qu'une chose : le coffre
+        // range, le service parle au backend, le flux ouvre le navigateur.
+        val coffre = CoffreDeJetons(applicationContext, rapporteur)
+        val compte = ServiceDeCompte(getString(R.string.api_base), coffre)
+        val flux = FluxDeConnexion(
+            racineApi = getString(R.string.api_base),
+            clientGoogle = getString(R.string.client_google),
+            clientGitHub = getString(R.string.client_github),
+        )
+
         // **La mise à jour du corpus, en fond, à chaque lancement.**
         //
         // Une correction de traduction ne devrait pas attendre une revue de
@@ -327,6 +342,9 @@ public class MainActivity : ComponentActivity() {
                     onPreferences = { lecture.changerLesPreferences(it) },
                     adresse = adresse,
                     onAdresseSuivie = { adresseRecue.value = null },
+                    coffre = coffre,
+                    compte = compte,
+                    flux = flux,
                 )
                 }
             }
@@ -351,6 +369,9 @@ private fun Racine(
     qahal: QahalModel,
     preferences: ReadingPreferences,
     onPreferences: (ReadingPreferences) -> Unit,
+    coffre: CoffreDeJetons,
+    compte: ServiceDeCompte,
+    flux: FluxDeConnexion,
 ) {
     val theme = LocalReadingTheme.current
     val contexte = LocalContext.current
@@ -381,6 +402,11 @@ private fun Racine(
     var shem: String? by rememberSaveable { mutableStateOf(null) }
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
+
+    // Lu une fois au coffre, tenu en mémoire ensuite : le coffre déchiffre à
+    // chaque lecture, et cet état est consulté à chaque recomposition de
+    // l'onglet « Vous ».
+    var fournisseurConnecte by remember { mutableStateOf(coffre.fournisseur()) }
     val portee = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
@@ -394,7 +420,49 @@ private fun Racine(
     // La sélection est posée après `ouvrir`, jamais avant : `ouvrir` charge
     // l'unité et remet la sélection à zéro. L'ordre inverse désignait des
     // versets puis les oubliait aussitôt.
+    // ## Le retour d'autorisation passe par le même canal que les liens
+    //
+    // `ont://auth/callback` arrive dans `adresseRecue` comme un renvoi
+    // biblique. Il faut donc le reconnaître **avant** `LienProfond.lire`, qui
+    // rendrait `null` et le laisserait tomber en silence — le lecteur serait
+    // revenu du navigateur sans être connecté, et sans rien pour le dire.
     LaunchedEffect(adresse) {
+        val retour = RetourDAutorisation.lire(adresse)
+        if (retour != null) {
+            val attente = coffre.enAttente()
+            // Qu'on réussisse ou qu'on échoue, l'attente est consommée : un
+            // vérificateur qui traîne serait réemployé au prochain retour, et
+            // un vérificateur réemployé n'en est plus un.
+            coffre.oublierLAttente()
+            when {
+                retour is RetourDAutorisation.Accorde && attente != null -> {
+                    runCatching {
+                        compte.ouvrir(
+                            retour.fournisseur,
+                            retour.code,
+                            flux.adresseDeRetour(retour.fournisseur),
+                            attente.second,
+                        )
+                    }.onSuccess {
+                        coffre.noterLeFournisseur(retour.fournisseur.cle)
+                        fournisseurConnecte = retour.fournisseur.cle
+                        messages.showSnackbar("Vous êtes connecté.")
+                    }.onFailure {
+                        messages.showSnackbar("La connexion n'a pas abouti.")
+                    }
+                }
+                // Un retour accordé sans vérificateur veut dire que le
+                // processus est mort pendant l'aller-retour et que le coffre
+                // n'a pas rendu ce qu'on y avait rangé. On ne tente pas
+                // l'échange : il échouerait chez le fournisseur, et le message
+                // parlerait d'autre chose.
+                retour is RetourDAutorisation.Accorde ->
+                    messages.showSnackbar("La connexion s'est perdue en chemin. Réessayez.")
+                else -> Unit
+            }
+            onAdresseSuivie()
+            return@LaunchedEffect
+        }
         val lien = adresse?.let { LienProfond.lire(it) } ?: return@LaunchedEffect
         when (lien) {
             is LienProfond.Lecture -> {
@@ -833,7 +901,22 @@ private fun Racine(
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,
                     entreesDeLexique = lexique.entrees.size,
+                    fournisseurConnecte = fournisseurConnecte,
                     onAller = { ecran = Ecran.Reglage(it) },
+                    onConnecter = { cle ->
+                        val fournisseur = Fournisseur.entries.first { it.cle == cle }
+                        // Ranger **avant** d'ouvrir : le lecteur quitte l'app,
+                        // et le processus peut mourir pendant qu'il est chez le
+                        // fournisseur.
+                        val pkce = flux.preparer()
+                        coffre.poserEnAttente(cle, pkce.verificateur)
+                        flux.ouvrir(contexte, fournisseur, pkce.defi)
+                    },
+                    onDeconnecter = {
+                        compte.fermer()
+                        fournisseurConnecte = null
+                        portee.launch { messages.showSnackbar("Vous êtes déconnecté.") }
+                    },
                     enDeveloppement = BuildConfig.DEBUG,
                     onPasEncore = {
                         portee.launch {

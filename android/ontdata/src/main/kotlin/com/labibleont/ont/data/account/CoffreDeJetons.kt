@@ -86,9 +86,60 @@ public class CoffreDeJetons(
         prefs?.edit()?.clear()?.apply()
     }
 
+    /**
+     * Ce qu'on garde le temps d'un aller-retour par le navigateur.
+     *
+     * ## Pourquoi le coffre et non un champ en mémoire
+     *
+     * Le lecteur quitte l'app pour un onglet du système. Android peut tuer le
+     * processus pendant ce temps — c'est le cas ordinaire sur un appareil
+     * chargé — et un vérificateur gardé en mémoire disparaîtrait avec lui. Au
+     * retour, l'échange se ferait sans vérificateur et le fournisseur
+     * refuserait, avec un message qui ne dit rien de la cause.
+     *
+     * Et c'est bien un secret : le vérificateur est ce qui empêche une autre
+     * app d'employer un code intercepté. Le ranger en clair reviendrait à
+     * n'avoir pas de PKCE.
+     */
+    public fun poserEnAttente(fournisseur: String, verificateur: String) {
+        prefs?.edit()
+            ?.putString(ATTENTE_FOURNISSEUR, fournisseur)
+            ?.putString(ATTENTE_VERIFICATEUR, verificateur)
+            ?.apply()
+    }
+
+    /** Le couple en attente, ou `null`. Ne le consomme pas. */
+    public fun enAttente(): Pair<String, String>? {
+        val p = prefs ?: return null
+        val f = p.getString(ATTENTE_FOURNISSEUR, null) ?: return null
+        val v = p.getString(ATTENTE_VERIFICATEUR, null) ?: return null
+        return f to v
+    }
+
+    /**
+     * Oublie l'attente.
+     *
+     * À appeler que l'échange ait réussi **ou** échoué : un vérificateur qui
+     * traîne serait réemployé au prochain retour, et un vérificateur réemployé
+     * n'en est plus un.
+     */
+    public fun oublierLAttente() {
+        prefs?.edit()?.remove(ATTENTE_FOURNISSEUR)?.remove(ATTENTE_VERIFICATEUR)?.apply()
+    }
+
+    /** Le fournisseur de la session ouverte, pour le dire au lecteur. */
+    public fun fournisseur(): String? = prefs?.getString(FOURNISSEUR, null)
+
+    public fun noterLeFournisseur(cle: String) {
+        prefs?.edit()?.putString(FOURNISSEUR, cle)?.apply()
+    }
+
     private companion object {
         const val ACCES = "acces"
         const val RAFRAICHISSEMENT = "rafraichissement"
         const val EXPIRATION = "expiration"
+        const val FOURNISSEUR = "fournisseur"
+        const val ATTENTE_FOURNISSEUR = "attente_fournisseur"
+        const val ATTENTE_VERIFICATEUR = "attente_verificateur"
     }
 }
