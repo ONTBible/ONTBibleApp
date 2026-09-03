@@ -1566,46 +1566,99 @@ private struct NoteEditor: View {
     @State private var text = ""
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
-                    // `TextEditor` porte son propre fond, et il ne vient pas
-                    // de la ligne : il reste gris système au milieu d'une nuit
-                    // aubergine, même quand la section qui l'entoure est
-                    // habillée. On le cache pour laisser voir la surface du
-                    // thème derrière, et l'encre suit le thème comme le reste.
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(theme.ink)
-                        .frame(minHeight: 140)
-                }
-                .ontRow()
-            }
-            .ontFormulaire()
-            .navigationTitle("Note")
-            .ontTitreCompact()
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+        #if os(macOS)
+            // **Pas de pile ni de barre d'outils ici : la carte est la chrome.**
+            //
+            // Dans la surimpression du Mac, un `NavigationStack` projette ses
+            // boutons dans la barre de titre de la **fenêtre** — « Annuler »
+            // et « Enregistrer » se sont retrouvés en haut à droite de l'écran,
+            // à quatre cents points de la carte qu'ils commandent. Mesuré sur
+            // capture, comme le lac de vide sous la note : le formulaire étant
+            // avide de hauteur, la carte figée faisait 756 pt pour 250 de
+            // contenu. Une pile compacte se blottit, la carte suit.
+            VStack(alignment: .leading, spacing: espaceNote.m) {
+                Text("\(chapter.title):\(verse)")
+                    .font(ONTUI.enteteDeListe)
+                    .foregroundStyle(theme.ink.opacity(0.55))
+                TextEditor(text: $text)
+                    .scrollContentBackground(.hidden)
+                    .font(ONTUI.body)
+                    .foregroundStyle(theme.ink)
+                    .padding(espaceNote.s)
+                    .frame(minHeight: 160, maxHeight: 320)
+                    .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+                HStack(spacing: espaceNote.s) {
+                    Spacer(minLength: 0)
+                    Button("Annuler") { fermerLaNote() }
+                        .keyboardShortcut(.cancelAction)
                     Button("Enregistrer") {
                         model.setNote(text, verse: verse, in: chapter)
-                        dismiss()
+                        fermerLaNote()
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                 }
             }
+            .padding(espaceNote.page)
+            .ontScreen()
             .onAppear {
                 text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
             }
-            // Une feuille reste un écran, et suit donc le thème comme les
-            // autres. Sans ces deux lignes, écrire une note faisait surgir un
-            // formulaire gris système au milieu de la nuit aubergine.
-            .ontRow()
-            .ontScreen()
-        }
-        .ontHauteurDeFeuille([.medium])
+        #else
+            NavigationStack {
+                Form {
+                    Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
+                        // `TextEditor` porte son propre fond, et il ne vient pas
+                        // de la ligne : il reste gris système au milieu d'une nuit
+                        // aubergine, même quand la section qui l'entoure est
+                        // habillée. On le cache pour laisser voir la surface du
+                        // thème derrière, et l'encre suit le thème comme le reste.
+                        TextEditor(text: $text)
+                            .scrollContentBackground(.hidden)
+                            .foregroundStyle(theme.ink)
+                            .frame(minHeight: 140)
+                    }
+                    .ontRow()
+                }
+                .ontFormulaire()
+                .navigationTitle("Note")
+                .ontTitreCompact()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annuler") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Enregistrer") {
+                            model.setNote(text, verse: verse, in: chapter)
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear {
+                    text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
+                }
+                // Une feuille reste un écran, et suit donc le thème comme les
+                // autres. Sans ces deux lignes, écrire une note faisait surgir un
+                // formulaire gris système au milieu de la nuit aubergine.
+                .ontRow()
+                .ontScreen()
+            }
+            .ontHauteurDeFeuille([.medium])
+        #endif
     }
+
+    #if os(macOS)
+        /// La marge de la carte — le jeton, pas un nombre local.
+        private var espaceNote: ONTSpacing { ONTSpacing() }
+
+        /// Comment la présentation veut être refermée — la carte du Mac le dit
+        /// par `ontFermer` ; `dismiss` resterait muet dans une surimpression.
+        @Environment(\.ontFermer) private var fermer
+
+        private func fermerLaNote() {
+            if let fermer { fermer() } else { dismiss() }
+        }
+    #endif
 }
 
 

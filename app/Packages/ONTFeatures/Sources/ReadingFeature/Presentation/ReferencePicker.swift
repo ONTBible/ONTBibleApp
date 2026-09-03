@@ -60,39 +60,150 @@ public struct ReferencePicker: View {
     @State private var recherche = ""
 
     public var body: some View {
-        NavigationStack(path: $chemin) {
-            livres
-                .navigationTitle("Aller à")
-                .ontTitreCompact()
-                .navigationDestination(for: Etape.self) { etape in
-                    switch etape {
-                    case .unites(let book):
-                        unites(of: book)
-                    case .versets(let book, let chapter):
-                        versets(book: book, chapter: chapter)
-                    }
+        #if os(macOS)
+            // **Pas de pile dans la carte — elle tuait l'app.**
+            //
+            // Un `NavigationStack` qui pousse une étape va inscrire son bouton
+            // retour dans la barre d'outils de la **fenêtre** ; dans une
+            // surimpression, `NSToolbar` lève une exception en plein layout et
+            // AppKit abat le processus — trois crashs identiques au lancement,
+            // le rapport nomme `AppKitToolbarStrategy.update` sous
+            // `_insertNewItemWithItemIdentifier:`. Le modèle d'étapes reste le
+            // même `chemin` ; seul le rendu change : à la main, avec le retour
+            // dans la carte et des transitions au ressort.
+            etapesDansLaCarte
+                .onAppear {
+                    chemin = depart.map { [$0] } ?? [.unites(book: current?.bookId ?? "")]
                 }
-                .toolbar {
-                    // Voir `SearchView` : sur le Mac la carte porte déjà sa
-                    // croix, et la barre d'outils d'une pile en surimpression
-                    // remonte dans la barre de titre de la fenêtre.
-                    if fermer == nil {
+        #else
+            NavigationStack(path: $chemin) {
+                livres
+                    .navigationTitle("Aller à")
+                    .ontTitreCompact()
+                    .navigationDestination(for: Etape.self) { etape in
+                        switch etape {
+                        case .unites(let book):
+                            unites(of: book)
+                        case .versets(let book, let chapter):
+                            versets(book: book, chapter: chapter)
+                        }
+                    }
+                    .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Fermer") { dismiss() }
                         }
                     }
-                }
-        }
-        .onAppear {
-            // On ouvre sur le livre courant : le lecteur cherche presque
-            // toujours à côté de là où il est.
-            chemin = depart.map { [$0] } ?? [.unites(book: current?.bookId ?? "")]
-        }
+            }
+            .onAppear {
+                // On ouvre sur le livre courant : le lecteur cherche presque
+                // toujours à côté de là où il est.
+                chemin = depart.map { [$0] } ?? [.unites(book: current?.bookId ?? "")]
+            }
+        #endif
     }
+
+    #if os(macOS)
+        /// Vrai quand on vient d'avancer — la transition part alors du bord
+        /// droit ; au retour, du gauche. Sans ça, revenir glisserait dans le
+        /// même sens qu'avancer, et la main perdrait le fil.
+        @State private var enAvant = true
+
+        private var etapesDansLaCarte: some View {
+            VStack(spacing: 0) {
+                barreDEtape
+                ZStack {
+                    switch chemin.last {
+                    case nil:
+                        VStack(spacing: 0) {
+                            ONTChampDeRecherche($recherche, invite: "Chercher un livre")
+                                .padding(.horizontal, spacing.m)
+                                .padding(.vertical, spacing.s)
+                            livresSansRecherche
+                        }
+                        .transition(glissement)
+                    case .unites(let book):
+                        unites(of: book).id(book).transition(glissement)
+                    case .versets(let book, let chapter):
+                        versets(book: book, chapter: chapter).id(chapter).transition(glissement)
+                    }
+                }
+                .animation(ONTMouvement.ressort, value: chemin)
+                // Avancer remet la marche avant ; le bouton retour l'a coupée
+                // juste avant de retirer son étape, et un `onChange` qui voit
+                // le chemin raccourcir la laisse coupée.
+                .onChange(of: chemin.count) { avant, apres in
+                    if apres > avant { enAvant = true }
+                }
+            }
+        }
+
+        private var glissement: AnyTransition {
+            .asymmetric(
+                insertion: .move(edge: enAvant ? .trailing : .leading).combined(with: .opacity),
+                removal: .move(edge: enAvant ? .leading : .trailing).combined(with: .opacity))
+        }
+
+        /// Le retour et le nom de l'étape, dans la carte — à la place de la
+        /// barre que la pile aurait donnée.
+        @ViewBuilder
+        private var barreDEtape: some View {
+            if let etape = chemin.last, peutRevenir(de: etape) || titreDEtape(etape) != nil {
+                HStack(spacing: spacing.s) {
+                    if peutRevenir(de: etape) {
+                        Button {
+                            enAvant = false
+                            if chemin.count > 1 {
+                                chemin.removeLast()
+                            } else {
+                                chemin = []
+                            }
+                        } label: {
+                            Label("Retour", systemImage: "chevron.left")
+                                .labelStyle(.iconOnly)
+                                .font(.system(size: echelle(12), weight: .semibold))
+                                .frame(width: echelle(26), height: echelle(26))
+                                .foregroundStyle(theme.ink.opacity(0.7))
+                                .background(theme.ink.opacity(0.05), in: .circle)
+                                .contentShape(.circle)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if let titre = titreDEtape(etape) {
+                        Text(titre)
+                            .font(.custom(ONTFonts.navigation, size: ONTUI.points(13)))
+                            .foregroundStyle(theme.ink.opacity(0.7))
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, spacing.m)
+                .padding(.top, spacing.s)
+            }
+        }
+
+        /// Depuis le sommaire, la grille est la seule étape : il n'y a pas de
+        /// « retour » vers un choix que le lecteur n'a jamais fait ici.
+        private func peutRevenir(de etape: Etape) -> Bool {
+            depart == nil
+        }
+
+        private func titreDEtape(_ etape: Etape) -> String? {
+            switch etape {
+            case .unites(let book):
+                model.outline(book)?.title
+            case .versets(let book, _):
+                model.outline(book)?.title
+            }
+        }
+    #endif
 
     // MARK: - 1. Les livres
 
     private var livres: some View {
+        livresSansRecherche
+            .searchable(text: $recherche, prompt: "Chercher un livre")
+    }
+
+    private var livresSansRecherche: some View {
         List {
             ForEach(model.corpora) { corpus in
                 let livresDuCorpus = corpus.modes
@@ -129,7 +240,6 @@ public struct ReferencePicker: View {
             }
         }
         .listStyle(ONTPlacement.listeGroupee)
-        .searchable(text: $recherche, prompt: "Chercher un livre")
         .ontScreen()
     }
 

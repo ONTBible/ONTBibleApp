@@ -170,7 +170,9 @@ struct BarreLateraleONT: View {
     @State private var repliés: Set<String> = []
 
     private func basculer(_ corpus: Corpus) {
-        withAnimation(.easeOut(duration: 0.18)) {
+        // Le ressort et non la rampe : le pli d'une section est le geste le
+        // plus visible de la barre, c'est lui qui donne le tempérament.
+        withAnimation(ONTMouvement.ressort) {
             if repliés.contains(corpus.id) {
                 repliés.remove(corpus.id)
             } else {
@@ -290,9 +292,10 @@ struct LigneDeBarre: View {
         .listRowBackground(Color.clear)
         .onHover { survolée = $0 }
         // Le survol se pose vite et se retire vite : au-delà, la barre traîne
-        // derrière le curseur et donne l'impression que l'app rame.
-        .animation(.easeOut(duration: 0.12), value: survolée)
-        .animation(.easeOut(duration: 0.14), value: choisie)
+        // derrière le curseur et donne l'impression que l'app rame. Le ressort
+        // vif tient la même réponse, avec la détente de l'iPhone en plus.
+        .animation(ONTMouvement.ressortVif, value: survolée)
+        .animation(ONTMouvement.ressort, value: choisie)
     }
 
     /// L'aplat de marque quand la ligne est choisie ; un voile d'encre au

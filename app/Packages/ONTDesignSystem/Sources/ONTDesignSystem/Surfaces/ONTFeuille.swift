@@ -139,7 +139,10 @@ private struct PorteLesFeuilles: ViewModifier {
                         .id(derniere.id)
                     }
                 }
-                .animation(.easeOut(duration: 0.16), value: feuilles.posees.count)
+                // Le ressort d'arrivée de l'iPhone — la carte dépasse d'un
+                // rien et se pose. C'était un `easeOut` : une rampe qui
+                // s'arrête net, et la moitié du « rigide » relevé sur planche.
+                .animation(ONTMouvement.arrivee, value: feuilles.posees.count)
         #else
             content.environment(feuilles)
         #endif
@@ -267,23 +270,33 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
 
                 GeometryReader { geo in
                     CarteDeFeuille(titre: titre, fermer: fermer, contenu: contenu)
-                        .frame(
-                            // Assez large pour qu'une glose tienne sur une
-                            // ligne, borné pour qu'elle ne s'étale pas sur un
-                            // grand écran : au-delà, l'œil perd le début de la
-                            // ligne suivante.
-                            width: min(max(geo.size.width * 0.66, 460), 860),
-                            height: min(geo.size.height * 0.84, 900))
-                        .background(theme.background, in: .rect(cornerRadius: ONTRadius.card))
-                        .clipShape(.rect(cornerRadius: ONTRadius.card))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: ONTRadius.card)
-                                .strokeBorder(theme.separator, lineWidth: 1)
-                        }
-                        .shadow(color: .black.opacity(0.28), radius: 30, y: 12)
+                        // Assez large pour qu'une glose tienne sur une ligne,
+                        // borné pour qu'elle ne s'étale pas sur un grand écran :
+                        // au-delà, l'œil perd le début de la ligne suivante.
+                        .frame(width: min(max(geo.size.width * 0.66, 460), 860))
+                        // Les coins d'une feuille, pas d'une boîte de dialogue,
+                        // et **pas de liseré** : l'iPad n'en trace aucun, c'est
+                        // l'ombre qui détache. Le trait d'un pixel donnait le
+                        // contour d'une fenêtre — dur — là où l'ombre donne une
+                        // épaisseur.
+                        .background(theme.background, in: .rect(cornerRadius: ONTRadius.feuille))
+                        .clipShape(.rect(cornerRadius: ONTRadius.feuille))
+                        .shadow(color: .black.opacity(0.32), radius: 38, y: 16)
+                        // Le plafond se pose **après** la peinture, et c'est ce
+                        // qui fait qu'il est un plafond : `frame(maxHeight:)`
+                        // s'étire jusqu'à sa borne — c'est la règle du
+                        // `maxWidth: .infinity` — et peint avant lui, le fond
+                        // suivait l'étirement : la carte de la note faisait
+                        // 756 pt pour 470 de contenu, le vide au milieu.
+                        // Posé après, il propose la borne sans rien peindre :
+                        // une liste la remplit, une note s'y blottit.
+                        .frame(maxHeight: min(geo.size.height * 0.84, 900))
                         .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 }
-                .transition(.scale(scale: 0.97).combined(with: .opacity))
+                // Elle part d'un peu plus loin qu'avant (0,94 contre 0,97) :
+                // avec le ressort, ce trajet en plus est ce qui rend le
+                // dépassement visible.
+                .transition(.scale(scale: 0.94).combined(with: .opacity))
             }
             // ⎋ ferme aussi. Un bouton invisible, parce que `keyboardShortcut`
             // s'attache à une commande et qu'il n'y a pas de commande à montrer.
@@ -320,9 +333,11 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
                     Spacer(minLength: 0)
                     BoutonDeFermeture(action: fermer)
                 }
-                .padding(.horizontal, espace.s)
-                .padding(.vertical, espace.xs + 2)
-                Divider()
+                .padding(.horizontal, espace.s + 4)
+                .padding(.vertical, espace.xs + 4)
+                // Le filet du thème, à demi-mot — le `Divider` du système
+                // traçait une règle grise sur l'aubergine.
+                Rectangle().fill(theme.separator.opacity(0.6)).frame(height: 1)
                 contenu()
                     // Le contenu porte souvent son propre « Fermer », et celui-ci
                     // appelle `dismiss` — qui ne ferme pas une surimpression. On
@@ -348,16 +363,17 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
                     .font(.system(size: échelle(12), weight: .medium))
                     .frame(width: échelle(26), height: échelle(26))
                     .foregroundStyle(survolé ? theme.ink : theme.ink.opacity(0.55))
-                    .background(
-                        survolé ? theme.ink.opacity(0.09) : .clear,
-                        in: .rect(cornerRadius: ONTRadius.highlight))
-                    .contentShape(.rect)
+                    // Un cercle, comme la pastille de fermeture des feuilles
+                    // d'iOS — le carré arrondi de 6 pt se lisait « case ».
+                    .background(theme.ink.opacity(survolé ? 0.12 : 0.05), in: .circle)
+                    .contentShape(.circle)
+                    .scaleEffect(survolé ? 1.08 : 1)
             }
             .buttonStyle(.plain)
             .help("Fermer")
             .accessibilityLabel("Fermer")
             .onHover { survolé = $0 }
-            .animation(.easeOut(duration: 0.12), value: survolé)
+            .animation(ONTMouvement.ressortVif, value: survolé)
         }
     }
 

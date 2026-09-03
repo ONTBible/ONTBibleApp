@@ -3040,3 +3040,56 @@ geste déposé est bien celui qu'on rend, que retirer n'enlève que la sienne, e
 que c'est la dernière posée qui se dessine. Chacune a été retournée contre son
 propre défaut — geste jeté, `removeAll()`, `.first` au lieu de `.last` — et
 rougit sur lui seul.
+
+## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé
+
+« L'app macOS paraît rigide, formes strictes ; iOS est fluffy, rebondie. » Le
+constat de l'auteur, vérifié en capturant **chaque vue** du Mac — quatorze — et
+quatre références iPad, en planche-contact.
+
+### Ce que la planche a montré
+
+- **le mouvement d'abord** : tout le Mac bougeait en `easeOut` 0,12–0,18 s, une
+  rampe qui s'arrête net ; l'iPhone bouge en ressorts. Aucune animation du Mac
+  ne rebondissait, pas une. D'où `ONTMouvement` — trois ressorts nommés
+  (`ressort`, `ressortVif`, `arrivee`) au lieu de valeurs posées sur place ;
+- **les formes** : cartes à 22 pt + liseré d'1 px + Divider sec, contre la
+  feuille iPad à ~40 pt sans bordure. D'où `ONTRadius.feuille` (34), l'ombre
+  seule, le filet du thème ;
+- **la taille figée** : la carte faisait 66 % × 84 % de la fenêtre quel que soit
+  le contenu — la note flottait dans 500 pt de vide. Le plafond se pose
+  **après** la peinture : `frame(maxHeight:)` s'étire jusqu'à sa borne (la
+  règle du `maxWidth: .infinity`), et peint avant lui, le fond suivait.
+
+### Trois défauts fonctionnels, qu'on ne voit qu'en regardant chaque vue
+
+- la **note** : « Annuler / Enregistrer » projetés dans la barre de la
+  *fenêtre*, à 400 pt de la carte. Sur le Mac elle a maintenant sa mise en page
+  propre, boutons dans la carte ;
+- la **recherche** : son *champ* projeté pareil — `.searchable` est un vœu
+  adressé à la barre d'outils la plus proche, et dans une surimpression c'est
+  celle de la fenêtre. D'où `ONTChampDeRecherche`, le champ des cartes ;
+- le **sélecteur** : trois captures identiques — l'app *morte*. Un
+  `NavigationStack` qui pousse une étape inscrit son bouton retour dans le
+  `NSToolbar` de la fenêtre ; dans une surimpression, l'insertion lève une
+  exception en plein layout et AppKit abat le processus
+  (`AppKitToolbarStrategy.update` sous `_insertNewItemWithItemIdentifier:`).
+
+### Le crasheur venait de la veille, et la leçon est là
+
+La migration `.sheet` → carte (la veille au soir) avait éprouvé quatre modales
+et pas le sélecteur — le seul dont la pile **pousse** à l'ouverture. La règle
+qui en sort : **dans une carte du Mac, pas de `NavigationStack` qui navigue**.
+Le sélecteur garde son modèle d'étapes (`chemin`) et le rend à la main,
+transitions au ressort, retour dans la carte. Ce qui projette vers la barre de
+fenêtre — toolbar, searchable, bouton retour — n'a rien à faire dans une
+surimpression.
+
+### Ce qui traverse
+
+Rien de `dist/` ni du schéma. Android : ses modales sont des `ModalBottomSheet`
+Material, le système y tient la chrome — la classe de défaut n'existe pas
+là-bas. Le chantier suivant est décidé avec l'auteur : micro-animations
+(survol, pression) sur tout ce qui se clique, et la palette en **gammes
+50→900** à la Tailwind avec les rôles sémantiques (accent, danger…) par-dessus
+— ancrée sur les couleurs relevées du logo et du site, pas redessinée.

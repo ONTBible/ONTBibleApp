@@ -31,6 +31,22 @@ public struct SearchView: View {
 
         NavigationStack {
             List {
+                #if os(macOS)
+                    // **Le champ vit dans la carte, pas dans la fenêtre.**
+                    //
+                    // `.searchable` est un vœu adressé à la barre d'outils la
+                    // plus proche — et dans la surimpression du Mac, c'est
+                    // celle de la *fenêtre* : le champ est allé s'asseoir en
+                    // haut à droite de l'écran, hors de la carte qui contenait
+                    // tout le reste. Mesuré sur capture. Ici, un champ posé où
+                    // l'œil est déjà.
+                    Section {
+                        ONTChampDeRecherche($model.query, invite: "Un mot, un intraduisible, ou de l'hébreu")
+                            .listRowInsets(.init(top: 6, leading: 16, bottom: 2, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                #endif
                 Section {
                     // La portée de recherche est un choix qu'on révise en
                     // lisant les résultats : elle reste à l'écran.
@@ -63,11 +79,7 @@ public struct SearchView: View {
             .ontScreen()
             .navigationTitle("Rechercher")
             .ontTitreCompact()
-            .searchable(
-                text: $model.query,
-                placement: ONTPlacement.recherche,
-                prompt: "Un mot, un intraduisible, ou de l'hébreu"
-            )
+            .rechercheDeLaPlateforme(texte: $model.query)
             .toolbar {
                 // Seulement quand la présentation n'a pas sa propre croix — la
                 // carte du Mac en pose une, et un `NavigationStack` dans une
@@ -97,6 +109,23 @@ public struct SearchView: View {
             verse: hit.record.verse
         )
         dismiss()
+    }
+}
+
+extension View {
+    /// `.searchable` là où il atteint la bonne barre — c'est-à-dire pas sur le
+    /// Mac, où la carte porte déjà son champ.
+    @ViewBuilder
+    fileprivate func rechercheDeLaPlateforme(texte: Binding<String>) -> some View {
+        #if os(macOS)
+            self
+        #else
+            searchable(
+                text: texte,
+                placement: ONTPlacement.recherche,
+                prompt: "Un mot, un intraduisible, ou de l'hébreu"
+            )
+        #endif
     }
 }
 
