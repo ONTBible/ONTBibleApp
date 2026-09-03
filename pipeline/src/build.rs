@@ -24,6 +24,7 @@ use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
+use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;
@@ -611,6 +612,23 @@ pub struct BuildResult {
     /// part, jamais que ce quelque part **dise** quelque chose. C'est plus
     /// facile à écrire, et c'est ce qui reste faux.
     pub sans_definition: usize,
+    /// Le nombre d'**occurrences** de liens livrés qui n'ouvrent rien.
+    pub liens_morts: usize,
+    /// Le nombre de **lemmes distincts** concernés — ce qu'il y a à corriger.
+    pub liens_morts_lemmes: usize,
+    /// Les unités dont la densité d'apparat tombe sous la moitié de la
+    /// référence du §4.1.
+    pub sous_glosees: usize,
+    /// Combien de chapitres la mesure a couverts — le dénominateur du chiffre
+    /// précédent, sans lequel il ne veut rien dire.
+    pub chapitres_mesures: usize,
+    /// La moins glosée, et sa valeur.
+    ///
+    /// **Un compteur seul devient un décor.** « 24 unités sous le seuil » ne
+    /// change pas d'un build à l'autre et cesse d'être lu ; le nom de la
+    /// dernière, lui, bouge dès qu'on travaille — et c'est celle par laquelle
+    /// on commencerait.
+    pub moins_glosee: Option<(String, f64)>,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -1053,6 +1071,33 @@ pub fn build() -> Result<BuildResult, String> {
     )
     .map_err(|e| e.to_string())?;
 
+    // **Les deux contrôles se calculent sur ce qui vient d'être écrit.**
+    //
+    // Pas sur le vault, pas sur une structure intermédiaire : sur les mêmes
+    // valeurs que `write_json` a sérialisées quelques lignes plus haut. C'est
+    // toute leur raison d'être — le rapport rendait `0` en normalisant
+    // autrement que le fichier livré.
+    let unites_publiees: Vec<&Chapter> = written.iter().flat_map(|b| unites(b)).collect();
+    let liens_morts = controles::liens_morts(&unites_publiees, &glossary, &shemot);
+    // **Les introductions sont hors de ce contrôle, et par construction.**
+    //
+    // Le §2.7 leur donne exactement la fonction inverse : elles portent le
+    // cadre *une fois, en amont*, « afin que le corps garde la voix vécue et
+    // que les gloses restent légères ». Une feuille d'introduction sans glose
+    // fait donc son travail. La signaler, c'est reprocher à une chose d'être
+    // ce qu'elle doit être — et six intros signalées d'office suffiraient à
+    // faire de cette section un bruit qu'on cesse de lire.
+    let mut densites: Vec<controles::Densite> = written
+        .iter()
+        .flat_map(|b| b.chapters.iter())
+        .map(controles::densite)
+        .collect();
+    densites.sort_by(|a, b| {
+        a.pour_mille()
+            .partial_cmp(&b.pour_mille())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     let rapport = format_report(
         &corpora,
         &glossary,
@@ -1063,6 +1108,8 @@ pub fn build() -> Result<BuildResult, String> {
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
             shemot_sans_fiche: &shemot_sans_fiche,
+            liens_morts: &liens_morts,
+            densites: &densites,
         },
         &racine,
     );
@@ -1076,6 +1123,14 @@ pub fn build() -> Result<BuildResult, String> {
         ors_morts: ors_morts.len(),
         shemot_sans_fiche: shemot_sans_fiche.len(),
         sans_definition: sans_definition.len(),
+        liens_morts: liens_morts.iter().map(|l| l.occurrences).sum(),
+        liens_morts_lemmes: liens_morts.len(),
+        sous_glosees: densites
+            .iter()
+            .filter(|d| sous_glosee(d, &densites))
+            .count(),
+        chapitres_mesures: densites.len(),
+        moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
     })
 }
 
@@ -1158,6 +1213,31 @@ struct Anomalies<'a> {
     /// faire. Les trois autres compteurs ont tous leur section ; celui-ci
     /// était le seul à n'avoir qu'un nombre.
     shemot_sans_fiche: &'a [String],
+    /// Les liens **livrés** qui ne retombent sur aucune entrée livrée.
+    ///
+    /// Distinct de `ors_morts` et de `shemot_sans_fiche`, qui demandent « une
+    /// fiche existe-t-elle pour ce terme ? » en traversant `forms`. Celui-ci
+    /// demande « le lemme écrit dans le nœud est-il une clé du fichier
+    /// d'index ? » — la question que se pose la liseuse, et la seule qui dise
+    /// ce que le lecteur obtiendra.
+    liens_morts: &'a [controles::LienMort],
+    /// La densité d'apparat par unité, §4.1.
+    densites: &'a [controles::Densite],
+}
+
+/// Une unité tombe-t-elle **très en dessous** de la référence du §4.1 ?
+///
+/// Le §4.1 écrit *« très en dessous »* sans le chiffrer, et il a raison de ne
+/// pas le faire : c'est un jugement. Le contrôle doit pourtant trancher pour
+/// nommer quelqu'un, donc il pose son seuil **ici, en clair, à la moitié** —
+/// et le rapport l'écrit, afin que le seuil se discute au lieu de se subir.
+fn sous_glosee(d: &controles::Densite, toutes: &[controles::Densite]) -> bool {
+    let Some(reference) = toutes.iter().find(|r| r.unite == controles::REFERENCE) else {
+        // Sans la référence dans le corpus bâti, on ne compare rien plutôt que
+        // de comparer à une constante inventée.
+        return false;
+    };
+    d.unite != controles::REFERENCE && d.pour_mille() < reference.pour_mille() / 2.0
 }
 
 fn format_report(
@@ -1173,6 +1253,8 @@ fn format_report(
         fiches_orphelines,
         ors_morts,
         shemot_sans_fiche,
+        liens_morts,
+        densites,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1339,6 +1421,158 @@ fn format_report(
         }
     }
 
+    if !liens_morts.is_empty() {
+        let occurrences: usize = liens_morts.iter().map(|l| l.occurrences).sum();
+        let (recuperables, a_ecrire): (Vec<_>, Vec<_>) =
+            liens_morts.iter().partition(|l| l.entree_reelle.is_some());
+        l.extend([
+            String::new(),
+            "## Liens livrés qui n'ouvrent rien".into(),
+            String::new(),
+            format!(
+                "**{occurrences} occurrences, {} lemmes distincts.** Mesuré sur `dist/` et",
+                liens_morts.len()
+            ),
+            "non sur le vault : chaque `lemma` émis est comparé aux clés du fichier".into(),
+            "d'index livré **dans le même build**. C'est la question que se pose la".into(),
+            "liseuse, et la seule qui dise ce que le lecteur obtiendra.".into(),
+            String::new(),
+            "Les autres sections demandent *« une fiche existe-t-elle pour ce".into(),
+            "terme ? »* en traversant `forms`, et peuvent donc rendre `0` pendant".into(),
+            "que celle-ci compte des centaines : c'est exactement l'écart qui a".into(),
+            "laissé passer le défaut — le rapport normalisait autrement que le".into(),
+            "consommateur.".into(),
+        ]);
+
+        if !recuperables.is_empty() {
+            l.extend([
+                String::new(),
+                "### L'entrée existe, sous un autre lemme".into(),
+                String::new(),
+                "La forme est **déclarée** au §2.5 et retombe bien sur une entrée —".into(),
+                "mais le nœud livré porte la forme fléchie au lieu du lemme canonique,".into(),
+                "et la liseuse indexe par lemme exact. ==Le lecteur reçoit un démenti".into(),
+                "faux== : le mot est documenté, on lui dit qu'il ne l'est pas.".into(),
+                String::new(),
+                "Le remède est **à l'émission**. Le porter chez les consommateurs".into(),
+                "obligerait chaque plateforme à réécrire sa propre normalisation pour".into(),
+                "faire se rejoindre `mal'akhim` et `malakhim` — et deux normalisations".into(),
+                "écrites séparément divergent, ce qui rendrait le défaut intermittent".into(),
+                "au lieu de systématique.".into(),
+                String::new(),
+                "| Affiché | Lemme émis | Entrée réelle | Occ. | Vu d'abord |".into(),
+                "|---|---|---|---:|---|".into(),
+            ]);
+            for m in &recuperables {
+                l.push(format!(
+                    "| {} | `{}` | `{}` | {} | `{}` |",
+                    m.forme,
+                    m.lemme,
+                    m.entree_reelle.as_deref().unwrap_or("—"),
+                    m.occurrences,
+                    m.ou
+                ));
+            }
+        }
+
+        if !a_ecrire.is_empty() {
+            l.extend([
+                String::new(),
+                "### Aucune entrée ne déclare cette forme".into(),
+                String::new(),
+                "Ceux-là sont une vraie liste de travail : la fiche est à écrire, ou".into(),
+                "la balise est à retirer.".into(),
+                String::new(),
+                "| Affiché | Lemme émis | Couche | Occ. | Vu d'abord |".into(),
+                "|---|---|---|---:|---|".into(),
+            ]);
+            for m in &a_ecrire {
+                l.push(format!(
+                    "| {} | `{}` | {} | {} | `{}` |",
+                    m.forme, m.lemme, m.couche, m.occurrences, m.ou
+                ));
+            }
+        }
+    }
+
+    if !densites.is_empty() {
+        let reference = densites.iter().find(|d| d.unite == controles::REFERENCE);
+        l.extend([
+            String::new(),
+            "## Densité d'apparat, par unité".into(),
+            String::new(),
+            "Le §4.1 impose de compter avant de clore — *« le seul contrôle qui ne".into(),
+            "dépende pas de ce que le traducteur a fini par trouver évident »*. Une".into(),
+            "commande qu'il faut penser à lancer est une commande qu'on oublie ;".into(),
+            "elle tourne donc ici.".into(),
+            String::new(),
+            "**On rapporte aux mots du corps, non aux versets.** Un verset ONT n'a".into(),
+            "pas de longueur fixe — le *Chazon Avraham* découpe une phrase de témoin".into(),
+            "en plusieurs versets courts là où *Bereshit* suit le verset biblique.".into(),
+            "Un ratio par verset dirait ce qu'on a décidé du découpage, pas ce qu'on".into(),
+            "a écrit d'apparat.".into(),
+            String::new(),
+            "Deux colonnes, et il faut les deux : la **fréquence** dit si".into(),
+            "l'implicite a été explicité *là où il se trouve*, le **volume** dit".into(),
+            "s'il l'a été du tout. Une unité peut porter tout le volume attendu en".into(),
+            "quelques blocs énormes — c'est lisible sur la page et illisible pour".into(),
+            "l'œil qui suit le texte.".into(),
+            String::new(),
+        ]);
+        match reference {
+            Some(r) => l.push(format!(
+                "Référence §4.1 — `{}` : **{:.1}** gloses / 1000 mots, volume **{:.2}**.",
+                r.unite,
+                r.pour_mille(),
+                r.volume()
+            )),
+            None => l.push(
+                "*La référence `bereshit-4` n'est pas dans ce build : aucune unité \
+n'est signalée, faute de point de comparaison.*"
+                    .into(),
+            ),
+        }
+        l.extend([
+            String::new(),
+            "| Unité | Versets | Gloses | gl./1000 mots | Volume | Plus longue | |".into(),
+            "|---|---:|---:|---:|---:|---:|:-:|".into(),
+        ]);
+        for d in densites {
+            let marque = if d.unite == controles::REFERENCE {
+                "réf."
+            } else if sous_glosee(d, densites) {
+                "⚠"
+            } else {
+                ""
+            };
+            l.push(format!(
+                "| `{}` | {} | {} | {:.1} | {:.2} | {} | {} |",
+                d.unite,
+                d.versets,
+                d.gloses,
+                d.pour_mille(),
+                d.volume(),
+                d.plus_longue,
+                marque
+            ));
+        }
+        if reference.is_some() {
+            l.extend([
+                String::new(),
+                "⚠ = sous **la moitié** de la référence. Le §4.1 écrit *« très en".into(),
+                "dessous »* sans le chiffrer, et il a raison — c'est un jugement. Le".into(),
+                "seuil est posé ici, en clair, pour qu'il se discute plutôt qu'il ne".into(),
+                "se subisse. Un signalement n'est pas une faute : un livre peut".into(),
+                "déclarer un régime allégé, et sa feuille d'introduction le dit.".into(),
+                String::new(),
+                "**Les feuilles d'introduction ne sont pas mesurées.** Le §2.7 leur".into(),
+                "donne la fonction inverse — porter le cadre une fois en amont *afin".into(),
+                "que* les gloses du corps restent légères. Une intro sans glose fait".into(),
+                "son travail.".into(),
+            ]);
+        }
+    }
+
     if !issues.is_empty() {
         // `BTreeSet` sur les fichiers : l'ordre du rapport ne doit pas dépendre
         // de l'ordre de parcours.
@@ -1498,6 +1732,8 @@ mod tests {
                 fiches_orphelines: &[],
                 ors_morts: &[],
                 shemot_sans_fiche: &sans,
+                liens_morts: &[],
+                densites: &[],
             },
             Path::new("/vault"),
         );
@@ -1521,6 +1757,8 @@ mod tests {
                 fiches_orphelines: &[],
                 ors_morts: &[],
                 shemot_sans_fiche: &[],
+                liens_morts: &[],
+                densites: &[],
             },
             Path::new("/vault"),
         );
