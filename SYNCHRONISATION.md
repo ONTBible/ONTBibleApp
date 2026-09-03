@@ -2984,3 +2984,53 @@ les deux ont failli manquer :
 Et il se contrôle en CI par régénération et comparaison — l'échec ==dit la
 commande== et ne régénère pas en silence, la CI n'écrivant pas à la place de
 qui a relu.
+## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté
+
+Deux captures, deux griefs : « le bas de l'interface est pas ouf, en plus cliquer
+à l'extérieur ne ferme pas la modal ». Les deux sortent de la **présentation**,
+et aucun n'est réparable depuis le contenu.
+
+- **Le bandeau gris.** Un `ToolbarItem(.confirmationAction)` posé dans une
+  `.sheet` du Mac descend dans une barre qu'**AppKit** dessine, en gris du
+  système, sous une carte qui porte l'aubergine. Ni `presentationBackground` ni
+  le thème ne l'atteignent : la barre est hors de la vue.
+- **Le clic à côté.** Une feuille du Mac est modale à sa fenêtre par
+  construction. Il n'existe pas d'API pour la refermer d'un clic dehors — ce
+  n'est pas un réglage manquant, c'est ce qu'est une feuille.
+
+D'où `ONTFeuille` : sur iOS `.sheet` reste `.sheet`, à l'identique ; sur le Mac
+l'app dessine la carte, avec le voile, la croix et ⎋.
+
+### Ce qui traverse
+
+**La règle vaut pour les trois plateformes, pas seulement pour le Mac** : une
+modale se ferme au clic à côté. iOS l'a déjà par le glissement, le Mac vient de
+l'avoir, **Android l'a par le bouton retour mais pas par le tap dehors** — un
+`Dialog` de Compose le fait par défaut, un `ModalBottomSheet` aussi, une
+`Surface` posée à la main non. À vérifier là-bas ; l'arbitrage reste à iOS.
+
+### La surimpression est la sœur, pas la fille
+
+Posée **après** `.ontTheme(from:)`, la carte sortait en clair sur une app en
+aubergine, et son voile — dont l'opacité dépend du mode — devenait invisible.
+Le contenu d'un `.overlay` est le frère de la vue à laquelle on l'attache : il
+ne voit pas l'environnement que les modificateurs d'avant ont posé.
+
+Vu à la capture, invisible à la lecture. C'est aussi pourquoi la carte se rend à
+la **racine** et non au point d'appel : dans un `NavigationSplitView`, un voile
+posé dans `ChapterView` s'arrêterait au bord de la barre latérale, qui resterait
+allumée et cliquable sous une modale.
+
+### Ce qui n'a pas pu être éprouvé, et pourquoi c'est écrit
+
+**Le clic dans le voile lui-même ne l'a pas été.** Un poseur d'événements
+CoreGraphics a été écrit ; il ne passe pas — l'accessibilité est refusée sur
+cette machine, comme à `osascript`. Les captures d'avant et d'après le clic sont
+identiques au bit près, y compris en visant la croix : cela ne prouve rien sinon
+que l'événement n'arrive pas.
+
+Les trois épreuves gardées portent donc sur ce que le clic **appelle** : que le
+geste déposé est bien celui qu'on rend, que retirer n'enlève que la sienne, et
+que c'est la dernière posée qui se dessine. Chacune a été retournée contre son
+propre défaut — geste jeté, `removeAll()`, `.first` au lieu de `.last` — et
+rougit sur lui seul.

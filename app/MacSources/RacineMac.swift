@@ -90,6 +90,19 @@ struct RacineMac: View {
 
             if vault.vault != nil { BandeauDuVault(mode: vault) }
         }
+        // **Les modales se dessinent ici, et pas là où on les demande.**
+        //
+        // Une surimpression posée à l'endroit de l'appel ne couvrirait que la
+        // colonne de détail : le voile s'arrêterait au bord de la barre
+        // latérale, qui resterait allumée et cliquable sous une modale. Posée
+        // ici, elle prend la fenêtre — voir `ONTFeuilles`.
+        //
+        // **Et avant `ontTheme`, pas après.** Le contenu d'une surimpression est
+        // le *frère* de la vue à laquelle on l'attache, pas son enfant : posée
+        // au-dessus du thème, la carte sortait en clair sur une app en
+        // aubergine, et son voile — dont l'opacité dépend du mode — ne se
+        // voyait plus. Vu à l'écran, invisible à la lecture.
+        .ontPorteLesFeuilles(feuilles)
         .ontTheme(from: reading.preferences)
         .ontNavigationChrome()
         // Toucher un intraduisible n'ouvre pas une page : ça soulève une fiche
@@ -103,6 +116,9 @@ struct RacineMac: View {
         .onChange(of: reading.corpora.count) { rabattreCeQuiNExistePas() }
         .apercuDeFiche(shemot: composition.shemotSurDisque)
     }
+
+    /// Les modales que les vues déposent, et que cette racine dessine.
+    @State private var feuilles = ONTFeuilles()
 
     /// La largeur d'ouverture de la barre latérale, en points.
     ///

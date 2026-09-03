@@ -101,7 +101,7 @@ public struct LexiconTab: View {
                 text: $search,
                 prompt: "Un terme, un mot français, de l'hébreu…"
             )
-            .sheet(item: $selected) { selection in
+            .ontFeuille(objet: $selected) { selection in
                 TermSheet(lemma: selection.id)
             }
             .overlay {

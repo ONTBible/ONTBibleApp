@@ -130,7 +130,7 @@ public struct BibleTab: View {
                     Button("Rechercher", systemImage: "magnifyingglass") { searching = true }
                 }
             }
-            .sheet(isPresented: $searching) { search() }
+            .ontFeuille(presentee: $searching, titre: "Rechercher") { search() }
             .navigationDestination(for: Router.Destination.self) { destination in
                 switch destination {
                 case .book(let id):
@@ -344,7 +344,7 @@ struct BookView: View {
         // choisir son livre et son unité dans la page qui est dessous ; les
         // deux premières étapes du sélecteur lui redemanderaient ce qu'il
         // vient de dire.
-        .sheet(item: $versetsDe) { cible in
+        .ontFeuille(objet: $versetsDe, titre: "Aller au verset") { cible in
             ReferencePicker(book: cible.book, chapter: cible.chapter)
                 .ontTheme(from: model.preferences)
         }

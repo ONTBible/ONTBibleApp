@@ -16,6 +16,9 @@ public struct SearchView: View {
     @Environment(SearchModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    /// Comment la présentation veut être refermée, quand ce n'est pas
+    /// SwiftUI qui l'a présentée — la carte du Mac, par exemple.
+    @Environment(\.ontFermer) private var fermer
 
     var spacing = ONTSpacing()
 
@@ -66,8 +69,15 @@ public struct SearchView: View {
                 prompt: "Un mot, un intraduisible, ou de l'hébreu"
             )
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fermer") { dismiss() }
+                // Seulement quand la présentation n'a pas sa propre croix — la
+                // carte du Mac en pose une, et un `NavigationStack` dans une
+                // surimpression projette sa barre d'outils dans la barre de
+                // titre de la fenêtre. Le « Fermer » irait s'y asseoir, loin de
+                // ce qu'il ferme. Voir `ONTFermeture`.
+                if fermer == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
             }
             .overlay {

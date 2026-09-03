@@ -16,6 +16,9 @@ public struct ReferencePicker: View {
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    /// Comment la présentation veut être refermée, quand ce n'est pas
+    /// SwiftUI qui l'a présentée — la carte du Mac, par exemple.
+    @Environment(\.ontFermer) private var fermer
     @Environment(\.ontTheme) private var theme
 
     var spacing = ONTSpacing()
@@ -70,8 +73,13 @@ public struct ReferencePicker: View {
                     }
                 }
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Fermer") { dismiss() }
+                    // Voir `SearchView` : sur le Mac la carte porte déjà sa
+                    // croix, et la barre d'outils d'une pile en surimpression
+                    // remonte dans la barre de titre de la fenêtre.
+                    if fermer == nil {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fermer") { dismiss() }
+                        }
                     }
                 }
         }
