@@ -2812,3 +2812,41 @@ tout le monde** la marque qu'un client plus récent aurait posée en turquoise.
 Une épreuve dit exactement ce que le code fait aujourd'hui, et elle échouera le
 jour où on décidera autrement. C'est le but : une décision différée doit être
 visible, pas oubliée.
+
+### 2 septembre 2026 — faire taire le `fetch` dont dépend toute la conclusion
+
+Une session a relu la feuille d'introduction du *Chazon Avraham* et conclu
+qu'elle ne déclarait pas son assise textuelle. Elle avait raison ==l'avant-veille==
+et tort depuis : le paragraphe manquant avait été ajouté la veille. Elle
+s'apprêtait à porter à l'auteur que son livre ne dit pas sur quoi il repose —
+inquiétude qu'il avait déjà eue une fois, et sur un point faux.
+
+Elle a trouvé la mécanique elle-même, et ==elle est meilleure que l'erreur== :
+
+    git fetch origin --quiet 2>/dev/null; git show origin/main:<fichier>
+
+**Deux silencements indépendants sur la commande qui établissait la prémisse**,
+et l'un ou l'autre aurait suffi :
+
+- `2>/dev/null` jette le message d'échec du `fetch` ;
+- et le `;` jette son **code de sortie** — le code du couple est celui du
+  `git show`, qui réussit parfaitement en lisant ==la référence locale
+  périmée==. Rien ne distingue « `origin/main` à jour » de « `origin/main` d'il
+  y a deux jours » : `git show` répond dans les deux cas, sans un mot.
+
+Le motif de la semaine était jusqu'ici *l'instrument qui avale son erreur*.
+Celui-ci est plus net et plus embarrassant : **l'instrument n'a pas avalé son
+erreur, on la lui a fait avaler** — délibérément, pour garder une sortie propre
+à lire. C'est la première fois qu'on voit le défaut ==construit à dessein==,
+et par souci de lisibilité.
+
+**Pour les trois dépôts, et la règle tient en une ligne : jamais de
+`2>/dev/null` sur ce qui établit la prémisse — seulement sur ce qui décore.**
+Et son corollaire de forme : enchaîner par `&&` plutôt que par `;` ce dont la
+suite dépend, faute de quoi on lit vraiment quelque chose, mais pas ce qu'on
+croit lire.
+
+Ce qui a rattrapé celui-ci : la session avertie a **refusé de laisser relayer**
+et donné la commande de vérification plutôt que la conclusion. Trois lignes
+suffisaient — le commit qui introduit la phrase, l'état parent qui ne la porte
+pas, l'état courant qui la porte.
