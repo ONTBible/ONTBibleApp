@@ -65,10 +65,17 @@ struct RacineMac: View {
         VStack(spacing: 0) {
             NavigationSplitView {
                 BarreLateraleONT()
+                    // **Les trois bornes suivent le corps réglé au clavier.**
+                    //
+                    // Elles étaient figées, et le facteur d'interface ne les
+                    // touchait pas : ⌘= grossissait le libellé dans une colonne
+                    // qui ne bougeait pas, et « Toledot Adam ve-Chavah » se
+                    // tronquait au cran d'après. Un réglage de confort qui
+                    // ampute les noms n'est pas un réglage de confort.
                     .navigationSplitViewColumnWidth(
-                        min: 180,
-                        ideal: Self.largeurDeBarreParDefaut,
-                        max: 460)
+                        min: ONTUI.points(180),
+                        ideal: ONTUI.points(Self.largeurDeBarreParDefaut),
+                        max: ONTUI.points(460))
             } detail: {
                 Detail()
                     // Les listes du détail reprennent la fonte du système à leurs
@@ -110,6 +117,10 @@ struct RacineMac: View {
     /// des préférences — vérifié, elle y est. J'avais écrit une sonde pour la
     /// garder ; elle ne trouvait jamais rien, et elle était de toute façon
     /// inutile.
+    ///
+    /// Elle est en points **avant** le facteur d'interface : c'est l'appel qui
+    /// la met à l'échelle, pour que la colonne grandisse avec le texte qu'elle
+    /// porte au lieu de le tronquer.
     static let largeurDeBarreParDefaut: CGFloat = 264
 
     /// Ramène la sélection sur la Bible quand ce qu'elle désigne a disparu.

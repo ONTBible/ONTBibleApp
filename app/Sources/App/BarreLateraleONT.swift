@@ -62,10 +62,16 @@ struct BarreLateraleONT: View {
                     // **Un en-tête à nous, et non celui du système.**
                     //
                     // Celui du style `sidebar` compose en très petit, tout en
-                    // capitales et en gris — trois écarts d'un coup avec la
-                    // barre de l'iPad, relevés sur captures côte à côte. Le
-                    // nom d'un corpus n'est pas une étiquette de rangement :
-                    // « Kenesset » se lit, comme les livres en dessous.
+                    // capitales et en gris. Deux de ces trois traits sont de
+                    // vrais écarts avec la barre de l'iPad, où l'en-tête lit
+                    // « Kenesset » et non « KENESSET » : la casse et le gris
+                    // restent donc à nous.
+                    //
+                    // **Le corps, lui, était l'erreur.** Il valait 14 comme
+                    // les lignes, et un en-tête au corps de ses lignes n'est
+                    // plus un en-tête : « Kenesset » se lisait comme un livre
+                    // de plus. Sur l'iPad il est nettement plus petit. Il
+                    // redescend donc à 10, l'encre avec.
                     //
                     // **Et le chevron est dessiné, pas hérité.**
                     // `Section(isExpanded:)` replie bien, mais n'affiche aucun
@@ -77,13 +83,13 @@ struct BarreLateraleONT: View {
                     } label: {
                         HStack(spacing: espace.xs) {
                             Text(corpus.title)
-                                .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
+                                .font(.custom(ONTFonts.navigation, size: ONTUI.points(10)))
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.down")
-                                .font(.system(size: ONTUI.points(11), weight: .semibold))
+                                .font(.system(size: ONTUI.points(9), weight: .semibold))
                                 .rotationEffect(.degrees(repliés.contains(corpus.id) ? -90 : 0))
                         }
-                        .foregroundStyle(theme.ink.opacity(0.7))
+                        .foregroundStyle(theme.ink.opacity(0.55))
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
@@ -125,7 +131,25 @@ struct BarreLateraleONT: View {
                     titre: compte.profil.nomDeBarre,
                     icone: .portrait(compte.profil, compte.portrait())
                 )
-                .padding(.horizontal, 6)
+                // **La marge des autres lignes, et non la sienne.**
+                //
+                // `.listRowInsets` est **inerte** ici : ce modificateur n'agit
+                // que sur une ligne de `List`, et celle-ci vit dans un
+                // `safeAreaInset`. Il ne restait donc que 6 pt, là où une
+                // ligne de la liste en a 26 — et la capsule dorée du compte
+                // s'étalait sur toute la colonne.
+                //
+                // Relevé au pixel sur une capture de la fenêtre à 1440 × 900,
+                // facteur 1 : la capsule d'une ligne choisie va de x 26,0 à
+                // x 295,5 dans une colonne de 322 pt, celle du compte allait
+                // de 6,0 à 315,5. Vingt points d'écart de chaque côté.
+                //
+                // Il ne suit pas le facteur d'interface, et c'est juste : ni
+                // les `listRowInsets` de la ligne ni la marge propre au style
+                // `sidebar` ne sont mis à l'échelle non plus. Vérifié à 1,5 —
+                // la capsule monte de 36 à 54 pt de haut, et reste de 26,0 à
+                // 295,5 en largeur, des deux côtés.
+                .padding(.horizontal, LigneDeBarre.margeHorsListe)
                 .padding(.vertical, 4)
             }
             // La même surface que la barre : la ligne du compte en fait partie,
@@ -167,13 +191,6 @@ struct BarreLateraleONT: View {
     }
 }
 
-/// Une ligne de la barre latérale.
-///
-/// Le libellé est en Jost, la fonte de titraille et de navigation du projet —
-/// c'est la règle du site, que la barre d'AppKit ne pouvait pas suivre. Elle
-/// vaut ici doublement : `Font.custom(_:size:)` suit Dynamic Type d'office,
-/// là où un `.system(size:)` reste figé. La barre grandit donc avec ⌘=, ce
-/// qu'on lui demandait depuis le début.
 /// Ce qui tient lieu d'icône à une ligne.
 ///
 /// Un enum plutôt qu'un générique : les deux cas sont fermés et le resteront —
@@ -185,7 +202,29 @@ enum IconeDeLigne {
     case portrait(Profil, Data?)
 }
 
+/// Une ligne de la barre latérale.
+///
+/// Le libellé est en Jost, la fonte de navigation du projet — c'est la règle du
+/// site, que la barre d'AppKit ne pouvait pas suivre. Elle vaut ici doublement :
+/// `Font.custom(_:size:)` suit Dynamic Type d'office, là où un `.system(size:)`
+/// reste figé. La barre grandit donc avec ⌘=, ce qu'on lui demandait depuis le
+/// début.
+///
+/// **En `navigation` et non en `display`.** La coupe SemiBold est celle des
+/// titres ; posée sur une ligne de barre elle donnait un cran de graisse de
+/// plus que la barre de l'iPad, que le système compose en graisse normale.
 struct LigneDeBarre: View {
+    /// La marge horizontale d'une ligne, capsule comprise — **relevée**, non
+    /// choisie.
+    ///
+    /// Elle ne vaut pas les 10 pt de `.listRowInsets` ci-dessous : le style
+    /// `sidebar` en ajoute du sien par-dessus, et seule la somme se voit. D'où
+    /// la mesure plutôt que l'addition.
+    ///
+    /// Sert à la ligne du compte, qui vit hors de la `List` et ne peut donc pas
+    /// se la faire poser par `.listRowInsets` — voir le commentaire là-bas.
+    static let margeHorsListe: CGFloat = 26
+
     let cible: Router.TabID
     let titre: String
     let icone: IconeDeLigne
@@ -229,7 +268,7 @@ struct LigneDeBarre: View {
                     Portrait(profil: profil, octets: octets, taille: échelle(20))
                 }
                 Text(titre)
-                    .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
+                    .font(.custom(ONTFonts.navigation, size: ONTUI.points(13)))
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }

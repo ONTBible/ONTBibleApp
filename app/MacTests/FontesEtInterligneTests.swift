@@ -44,6 +44,35 @@ struct FontesDuMacTests {
             """)
     }
 
+    /// **La coupe de navigation, celle des lignes de la barre latérale.**
+    ///
+    /// `ONTFonts.navigation` nomme une **coupe**, pas une famille : « Jost-Regular »
+    /// mal écrit ne fait rien planter. `Font.custom` retombe en silence sur la
+    /// fonte du système, la barre paraît simplement plus légère — et c'est
+    /// précisément l'effet qu'on cherchait en posant ce jeton. **L'erreur se
+    /// lirait donc comme le succès**, ce qui est la seule raison d'écrire cette
+    /// épreuve.
+    ///
+    /// Elle ne se contente pas de vérifier que la coupe répond : elle mesure que
+    /// la navigation est bien **plus légère** que la titraille. Un jeton qui
+    /// pointerait de nouveau sur le SemiBold répondrait, et ne dirait rien.
+    @Test("la navigation est en Jost, et plus légère que la titraille")
+    func laNavigationEstPlusLegereQueLaTitraille() throws {
+        let nav = try #require(
+            NSFont(name: ONTFonts.navigation, size: 13),
+            "« \(ONTFonts.navigation) » ne se résout pas — la barre retombe en fonte système")
+        let titre = try #require(NSFont(name: ONTFonts.display, size: 13))
+        #expect(nav.fontName.contains("Jost"), "rendu : \(nav.fontName)")
+
+        func poids(_ f: NSFont) -> CGFloat {
+            (f.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any])
+                .flatMap { $0[.weight] as? CGFloat } ?? 0
+        }
+        #expect(
+            poids(nav) < poids(titre),
+            "navigation \(poids(nav)) · titraille \(poids(titre)) — la barre n'est pas allégée")
+    }
+
     /// La fonte hébraïque porte le niqqud ; sans elle, les voyelles se
     /// décrochent des consonnes. C'est la seule dont l'absence se *voit*, et
     /// c'est aussi celle qui compte le plus pour la relecture.

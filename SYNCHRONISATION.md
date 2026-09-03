@@ -2812,3 +2812,82 @@ tout le monde** la marque qu'un client plus récent aurait posée en turquoise.
 Une épreuve dit exactement ce que le code fait aujourd'hui, et elle échouera le
 jour où on décidera autrement. C'est le but : une décision différée doit être
 visible, pas oubliée.
+## 3 septembre 2026 — deux barres latérales qui n'étaient pas la même vue
+
+L'auteur pose deux captures côte à côte, iPad et Mac : « tu vois bien par contre
+que la sidebar n'est pas le même ». Elle ne l'était pas, et pas d'un réglage
+près — **ce ne sont pas la même vue**.
+
+| | iPadOS | macOS |
+|---|---|---|
+| qui la dessine | le système (`TabView` + `.sidebarAdaptable`) | l'app (`BarreLateraleONT`) |
+| fonte des lignes | SF, taille du système | Jost-**SemiBold** 14 |
+| en-tête de section | style système, discret | même corps et même graisse que les lignes |
+| « Vous » | `LigneDuCompte`, sans fond, ouvre une feuille | vraie destination, capsule dorée |
+
+`BarreLateraleONT` vit pourtant dans `app/Sources/App/`, elle est compilée dans
+les deux cibles, et le commit qui l'y a mise dit « partager celle-ci entre
+l'iPad et le Mac ». Sur iOS **elle n'est instanciée nulle part**. Le partage
+n'a jamais eu lieu ; seul le concept de la ligne de compte en bas a été repris.
+
+Le Mac ne peut pas revenir à la barre du système — les trois griefs qui l'ont
+fait partir sont consignés dans `RacineMac.swift`. Ce qui restait était de
+ranger la barre peinte à la main sur ce que l'iPad montre.
+
+### Le nombre qu'on ne devine pas
+
+La capsule dorée du compte s'étalait sur toute la colonne. La cause n'est pas
+un oubli de marge : `.listRowInsets` **est inerte** dans un `safeAreaInset` —
+ce modificateur n'agit que sur une ligne de `List`.
+
+Relevé au pixel, fenêtre à 1440 × 900, facteur 1 :
+
+    ligne choisie   x  26,0 → 295,5   270 pt
+    « Vous »        x   6,0 → 315,5   310 pt      dans une colonne de 322
+
+Vingt points d'écart de chaque côté. Après correction, les deux capsules
+tombent sur `26,0 → 295,5` — et y restent au facteur 1,5, où seule la hauteur
+bouge (36 → 54 pt). C'est ce qui autorise à écrire la marge en dur.
+
+### Ce que le site avait déjà tranché
+
+`SYNCHRONISATION.md` demande ce que le travail change chez les voisins. Ici :
+rien de `dist/`, rien du schéma. Mais une question de marque restait ouverte —
+le Mac vient-il de s'écarter du site en quittant le SemiBold ?
+
+Non. `style/main.css` du site compose `h1, h2, h3` en `var(--font-titre)` à
+**`font-weight: 400`**, et ses deux seuls 600 sont `strong` et la lettrine.
+**Le site était déjà en Jost Regular.** C'était le Mac qui divergeait, seul des
+trois, et personne ne pouvait le voir depuis le Mac.
+
+D'où un jeton plutôt qu'une chaîne : `ONTFonts.navigation` — `"Jost-Regular"` —
+à côté de `ONTFonts.display`, qui reste le SemiBold des titres.
+
+### L'épreuve, et pourquoi celle-là
+
+`Font.custom` retombe **en silence** sur la fonte du système quand le nom ne
+répond pas. C'est le défaut du 30 août, où l'hébreu s'affichait sur la machine
+de l'auteur et sur aucune autre. Ici il aurait été pire : un `"Jost-Regularr"`
+mal écrit produit exactement l'effet cherché — une barre plus légère. **La faute
+se serait lue comme le succès.**
+
+L'épreuve mesure donc deux choses, et elle a été retournée contre les deux
+fautes avant d'être gardée :
+
+| variante | ce qui rougit |
+|---|---|
+| `navigation = "Jost-SemiBold"` | `poids(nav) < poids(titre)` — le nom répond, la coupe est fausse |
+| `navigation = "Jost-Regularr"` | le `#require` — la fonte ne se résout pas |
+
+Sans la mesure de poids, le premier cas passait sans un mot.
+
+### Et la troncature n'était pas où on la cherchait
+
+« Toledot Adam ve-… » : les bornes de `navigationSplitViewColumnWidth` étaient
+figées, jamais multipliées par le facteur d'interface. ⌘= grossissait le libellé
+dans une colonne qui ne bougeait pas.
+
+Vérifié par sonde, facteur forcé à 1,5 et `min` porté à 240 : la colonne passe
+de 322 à **360 pt exactement**. La borne prime donc sur la largeur qu'AppKit
+avait gardée sous « NSSplitView Subview Frames » — ce qui n'allait pas de soi,
+et sans quoi le correctif n'aurait servi qu'au premier lancement.
