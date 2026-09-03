@@ -2891,3 +2891,96 @@ Vérifié par sonde, facteur forcé à 1,5 et `min` porté à 240 : la colonne p
 de 322 à **360 pt exactement**. La borne prime donc sur la largeur qu'AppKit
 avait gardée sous « NSSplitView Subview Frames » — ce qui n'allait pas de soi,
 et sans quoi le correctif n'aurait servi qu'au premier lancement.
+
+### 3 septembre 2026 — un rapport qui rend `0` en normalisant autrement que le lecteur
+
+Le rapport de build relevait quatre choses et rendait `0` partout. **Deux cent
+trente-sept liens du corpus livré n'ouvraient rien.**
+
+La raison tient en une phrase, et c'est elle qu'il faut garder : **le rapport
+normalisait autrement que le consommateur.** Pour décider si `**gibborim**` a
+une fiche, il traversait la liste des formes déclarées et retombait sur
+`gibbor` ; le nœud livré, lui, porte `lemma: "gibborim"`, et la liseuse indexe
+par lemme exact. Les deux avaient raison chacun de son côté, et le lecteur
+recevait ==« Terme non documenté »== sur un mot parfaitement documenté.
+
+**Pour les trois dépôts.** La question qu'un contrôle doit poser n'est pas
+« cette chose existe-t-elle ? » mais ==« la référence telle qu'elle est écrite
+dans le fichier livré retombe-t-elle sur une entrée du même fichier ? »== On ne
+mesure pas la source, on mesure ce qu'on livre.
+
+**Deux contrôles neufs en découlent**, tous deux dans le pipeline : chaque
+lemme émis doit retomber sur une entrée du même `dist/`, et la densité de glose
+par unité tourne à chaque build — le §4.1 l'exigeait depuis un mois, et une
+commande qu'il faut penser à lancer avait été oubliée ==le jour même où la
+règle a été écrite==.
+
+**Le cliquet, et pourquoi pas zéro.** Le plafond est posé à la valeur mesurée,
+non à zéro : à zéro il aurait fallu le désactiver, la correction appartenant à
+l'auteur. Or ==un contrôle qu'on branchera « le jour où » ne se branche
+jamais== — le jour venu, personne ne sait plus où le seuil devait aller. À la
+valeur réelle il protège tout de suite contre la seule chose qu'un rapport nu
+ne voit pas : **l'aggravation**. Et il se resserre dès que le compte baisse,
+sinon il cesse de cliqueter.
+
+### 3 septembre 2026 — le contrôle qu'on éprouve, et les 206 qui n'existaient pas
+
+Le premier plafond allait être commis à **206**. La session macOS avait dit
+d'éprouver chaque contrôle contre un état dont on connaît la réponse. Fait —
+**et le compte n'a pas bougé**.
+
+Le parcours ne regardait que `blocks`. Les notes de bas de section vivent dans
+`footer.notes`, et le corpus de *Bereshit* y livre ==170 nœuds touchables à lui
+seul== : l'apparat critique du §2.7 est dense en intraduisibles, il est rendu,
+il est touchable. Le vrai compte était **237**.
+
+**206 n'était pas un plafond, c'était la mesure d'un instrument borgne** — et
+il partait comme référence de tous les builds à venir.
+
+**Pour les trois dépôts.** Un contrôle neuf se retourne contre un état dont on
+connaît la réponse **avant** d'être commis, et la seule épreuve qui vaut est
+celle qui doit le faire ==rougir==. Un compteur qui rend `0` parce que son
+entrée est vide se lit exactement comme un corpus sain.
+
+Le corollaire, qui a servi trois fois dans la journée : **un `0` qui vaut zéro
+parce que le corpus est sain et un `0` qui vaut zéro parce que l'instrument est
+borgne s'écrivent pareil**, et c'est le premier qu'on lit. Le rapport porte
+désormais le compte de ce que les parcours restreints ne voient pas — ==613
+nœuds== — non pour les corriger, mais pour que leur `0` cesse d'être cru sans
+preuve.
+
+**Et une épreuve ratée qui vaut la réussie :** la première tentative de faire
+rougir le contrôle d'index ajoutait une ligne ==à la fin== du fichier, où elle
+ne décale aucun numéro. Le contrôle avait raison de se taire, et j'ai failli le
+croire cassé. ==Un cas dont on croit connaître la réponse n'est pas un cas dont
+on la connaît.==
+
+### 3 septembre 2026 — une table de renvois, et pourquoi elle n'est pas un document de plus
+
+Le savoir du vault est éclaté sur cinq sources qui ont chacune une bonne raison
+d'exister, et les arbitrages récents vivent dans les **pieds de section**, là où
+personne ne pense à chercher. Le coût n'est pas de chercher : c'est de ==ne pas
+trouver et de retrancher==, en croyant décider pour la première fois.
+
+`DECISIONS.md` répond à ça — et ==il est engendré, jamais rédigé==. Le §2.5 ter
+pose la règle : *une seule source par fait*. Une base écrite à la main serait
+une sixième source et elle divergerait. Celle-ci ne copie rien : elle dit **où**
+une décision est écrite, jamais ce qu'elle dit. On ne peut donc pas la
+contredire ; au pire elle est incomplète.
+
+**Pour les trois dépôts.** Un index engendré réclame exactement deux choses, et
+les deux ont failli manquer :
+
+- **l'idempotence** — l'index s'indexait lui-même, recopiait ses propres lignes
+  à chaque exécution et cessait de rendre le même fichier. C'est le seul
+  contrôle qu'un fichier engendré demande vraiment ;
+- **la fidélité au producteur** — l'extraction emploie ==l'expression exacte==
+  du pipeline et ==sa règle de slug exacte==. Deux versions approximatives ont
+  été écrites et jetées : l'une fabriquait un lemme inexistant, l'autre
+  manquait ==neuf réservations sur quatorze== sans que rien ne le signale,
+  puisqu'une liste courte ressemble à une liste. **Un index qui contredit son
+  producteur est pire qu'une absence d'index : il aurait fallu le croire.**
+
+Et il se contrôle en CI par régénération et comparaison — l'échec ==dit la
+commande== et ne régénère pas en silence, la CI n'écrivant pas à la place de
+qui a relu.
