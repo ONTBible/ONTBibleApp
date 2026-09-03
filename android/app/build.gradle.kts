@@ -212,6 +212,7 @@ tasks.matching {
 
 dependencies {
     implementation(libs.sentry.android)
+    implementation(libs.browser)
     implementation(project(":ontkit"))
     implementation(project(":ontdata"))
     implementation(project(":ontdesignsystem"))

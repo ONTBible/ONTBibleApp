@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ce que la connexion a besoin de savoir, et qui n'est pas secret.
+
+  **Les identifiants clients sont publics** : ils voyagent dans l'URL
+  d'autorisation, que le navigateur affiche. Le *client secret*, lui, reste sur
+  la Lambda et ne descend jamais dans une app — c'est tout le montage : le
+  backend tient les secrets et fait la danse, l'app ne fait que l'ouvrir.
+
+  Ce sont les **mêmes** identifiants qu'iOS, et ce n'est pas de la paresse :
+  l'adresse de retour déclarée chez Google et GitHub est une URL HTTPS du
+  backend, donc un client « application web ». Un client web ne connaît pas la
+  plateforme qui l'emploie — il n'y a rien à déclarer de plus pour Android.
+-->
+<resources>
+    <string name="api_base" translatable="false">https://j451hq8d3k.execute-api.eu-west-3.amazonaws.com</string>
+    <string name="client_google" translatable="false">154337904456-de9o2u3res51203irei6o0ggk1lvlkq5.apps.googleusercontent.com</string>
+    <string name="client_github" translatable="false">Ov23liKe17kibtPWeUE1</string>
+</resources>
