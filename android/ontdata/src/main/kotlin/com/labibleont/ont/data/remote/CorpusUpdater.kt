@@ -1,6 +1,8 @@
 package com.labibleont.ont.data.remote
 
 import android.content.Context
+import com.labibleont.ont.kit.ports.Reporter
+import com.labibleont.ont.kit.ports.SilentReporter
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -35,6 +37,12 @@ import kotlinx.serialization.json.Json
 public class CorpusUpdater(
     private val context: Context,
     private val origine: String = "https://ontbible.com/corpus/",
+    /**
+     * Où partent les échecs de mise à jour.
+     *
+     * Muet par défaut, pour que les tests ne remontent rien.
+     */
+    private val rapporteur: Reporter = SilentReporter,
 ) {
 
     /**
@@ -208,6 +216,15 @@ public class CorpusUpdater(
         lire(URL(origine + "manifeste.json"))?.let {
             json.decodeFromString<Manifeste>(it.decodeToString())
         }
+    }.onFailure {
+        // Un manifeste illisible arrête **toute** mise à jour : le lecteur
+        // reste sur le corpus du paquet, indéfiniment, et l'app ne montre
+        // aucun signe. C'est la panne la plus silencieuse de la chaîne.
+        //
+        // Une panne de réseau, elle, ne passe pas ici : `lire` rend `null`
+        // sans lever. Ce qui arrive jusque-là est un manifeste qu'on a reçu
+        // et qu'on n'a pas su lire — donc un vrai défaut, pas un tunnel.
+        rapporteur.report(it, "lecture du manifeste publié")
     }.getOrNull()
 
     private fun telecharger(entree: Manifeste.Entree): ByteArray? =
@@ -235,6 +252,12 @@ public class CorpusUpdater(
         val provisoire = File(cible.parentFile, "${cible.name}.tmp")
         provisoire.writeBytes(octets)
         provisoire.renameTo(cible)
+    }.onFailure {
+        // Le fichier est arrivé et n'a pas pu être posé — disque plein,
+        // permission, interruption. L'empreinte n'est donc pas notée et on
+        // réessaiera, mais si la cause persiste on réessaiera pour toujours,
+        // en silence.
+        rapporteur.report(it, "écriture du corpus téléchargé : $local")
     }.getOrDefault(false)
 
     private fun empreintesConnues(): Map<String, String> = runCatching {
