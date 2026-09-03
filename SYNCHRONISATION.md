@@ -2738,3 +2738,77 @@ session : un film du parcours de lecture est précisément cette donnée.
 
 Le site ne remonte rien aujourd'hui. S'il s'y met, la règle est celle-ci, et le
 critère de prose doit être celui d'après — pas celui d'avant.
+
+---
+
+## 3 septembre 2026 — Android a un compte, et l'audit qui l'a établi
+
+Le dernier écart de parité entre les deux liseuses est fermé. Ce qui suit tient
+surtout par ce que l'audit a **corrigé** en chemin.
+
+### Aucune console n'était nécessaire, contrairement à ce qu'on croyait
+
+Le backend détient les secrets clients et fait la danse OAuth de bout en bout.
+Les identifiants qui voyagent dans une app sont **publics** — ils sont dans
+l'URL d'autorisation, que le navigateur affiche — et l'adresse de retour est
+une URL HTTPS du backend. Ce sont donc des clients « application web », et un
+client web ne connaît pas la plateforme qui l'emploie.
+
+Les mêmes identifiants servent aux deux liseuses. Rien à déclarer, rien à
+créer. On l'a cru bloqué une journée entière faute d'avoir lu le flux d'iOS.
+
+### Les parutions n'ont jamais dépendu du compte
+
+L'écran d'Android affirmait « il faut donc un compte pour qu'il sache où
+l'envoyer ». C'est l'inverse d'une décision explicite du backend :
+
+> un lecteur qui vient d'installer l'app n'a pas de compte, et l'obliger à s'en
+> créer un pour être prévenu d'une parution reviendrait à faire payer la
+> notification d'une identité.
+
+La vraie cause est structurelle, et elle est **côté serveur** : `Appareil.valide()`
+exige exactement soixante-quatre caractères hexadécimaux — un jeton APNs — et le
+diffuseur ne connaît que les hôtes d'Apple. Un jeton FCM serait refusé à
+l'entrée.
+
+Ce qui manque : une plateforme sur `Appareil`, une validation qui accepte les
+deux formes, un notificateur FCM. **Chantier backend, indépendant du compte.**
+
+Et l'erreur d'analyse mérite d'être notée : les deux avaient été liés en lisant
+l'écran de l'app plutôt que le serveur. Un texte d'app est une affirmation sur
+le logiciel que le logiciel ne vérifie pas — en faire sa source, c'est la
+troisième forme du motif de la semaine.
+
+### Ce que le contrat impose, et qui n'était écrit dans aucun type
+
+`snake_case` littéral, et `expires_in` en **secondes** quand tout le reste du
+projet compte en millisecondes. iOS s'en remet à `convertFromSnakeCase` sur son
+décodeur partagé : le contrat n'y est donc constaté nulle part. Les
+`@SerialName` de Kotlin et les dix épreuves qui les entourent sont le seul
+endroit des deux plateformes où il l'est.
+
+Les charges de ces épreuves sont copiées des formes réelles du backend, jamais
+de ce que notre client produit — un test qui relirait notre propre écriture
+mesurerait la cohérence, pas la justesse. Même raison pour PKCE, éprouvé contre
+le vecteur publié en annexe B de la RFC 7636.
+
+### PKCE compte plus sur Android que sur iOS
+
+Le code d'autorisation revient par `ont://`, et **n'importe quelle app installée
+peut déclarer le même schéma** et se voir proposer l'intention, dans une feuille
+de choix que le lecteur traverse sans lire. iOS attribue un schéma à une seule
+app.
+
+Le vérificateur se range donc chiffré **avant** que le lecteur ne parte, et non
+au retour : le processus peut mourir pendant l'aller-retour.
+
+### Et la couleur inconnue a maintenant un chemin vers le serveur
+
+`HighlightColor.depuis` ramène à l'or ce qu'elle ne connaît pas, et l'envoi
+réécrit `gold`. Tant que l'arbitrage n'est pas tranché — ignorer la ligne comme
+iOS, ou garder la clé d'origine —, la synchronisation d'Android **écrasera pour
+tout le monde** la marque qu'un client plus récent aurait posée en turquoise.
+
+Une épreuve dit exactement ce que le code fait aujourd'hui, et elle échouera le
+jour où on décidera autrement. C'est le but : une décision différée doit être
+visible, pas oubliée.
