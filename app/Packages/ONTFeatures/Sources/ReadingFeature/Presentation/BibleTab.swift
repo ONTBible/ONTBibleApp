@@ -58,72 +58,8 @@ public struct BibleTab: View {
         @Bindable var router = router
 
         NavigationStack(path: $router.biblePath) {
-            List {
-                if let position = model.position {
-                    Section {
-                        ResumeRow(position: position) {
-                            // Le verset, explicitement : « Reprendre » promet
-                            // de rendre l'endroit, pas le chapitre. Il était
-                            // omis, et la vue devait le retrouver toute seule
-                            // dans la position enregistrée — un détour qui
-                            // n'avait aucune raison d'exister.
-                            router.open(
-                                book: position.bookId,
-                                chapter: position.chapterId,
-                                verse: position.verse
-                            )
-                        }
-                        .ontRow()
-                    }
-                }
-
-                ForEach(model.corpora) { corpus in
-                    Section {
-                        // **Situé, pas seulement nommé.** Voir `ModeSitue` :
-                        // trois modes portent le même identifiant dans les deux
-                        // corpus, et une `List` les range tous dans la même
-                        // suite de lignes.
-                        ForEach(
-                            corpus.modes
-                                .sorted(by: { $0.order < $1.order })
-                                .map { ModeSitue(corpus: corpus.id, mode: $0) }
-                        ) { situe in
-                            DisclosureGroup {
-                                ForEach(disposer(situe.mode)) { element in
-                                    switch element.contenu {
-                                    case .entete(let groupe):
-                                        ConteneurLabel(groupe: groupe)
-                                    case .livre(let book):
-                                        BookRow(book: book)
-                                    }
-                                }
-                            } label: {
-                                ModeLabel(mode: situe.mode)
-                            }
-                            .ontRow()
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(corpus.title)
-                                .font(.custom(ONTFonts.display, size: ONTUI.points(15)))
-                                .textCase(nil)
-                                .foregroundStyle(ONTColors.brandInk(theme.mode))
-                            // Le second nom, dans le registre choisi. Rien ne
-                            // s'affiche quand il n'y a rien à dire — une
-                            // section dont la glose redirait le pont n'en
-                            // porte pas.
-                            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
-                                Text(second)
-                                    .font(ONTUI.caption)
-                                    .textCase(nil)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(ONTPlacement.listeGroupee)
-            .ontScreen()
+            sommaire
+                .ontScreen()
             .navigationTitle("La Bible ONT")
             .toolbar {
                 ToolbarItem(placement: ONTPlacement.principale) {
@@ -153,7 +89,240 @@ public struct BibleTab: View {
         }
         .ontColumn()
     }
+
+    /// L'action de « Reprendre » — le verset, explicitement : la promesse est
+    /// de rendre l'endroit, pas le chapitre.
+    private func reprendre(_ position: ReadingPosition) {
+        router.open(
+            book: position.bookId,
+            chapter: position.chapterId,
+            verse: position.verse
+        )
+    }
+
+    /// L'en-tête d'un corpus — le titre, et le second nom dans le registre.
+    @ViewBuilder
+    private func enteteDeCorpus(_ corpus: Corpus) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(corpus.title)
+                .font(.custom(ONTFonts.display, size: ONTUI.points(15)))
+                .textCase(nil)
+                .foregroundStyle(ONTColors.brandInk(theme.mode))
+            // Rien ne s'affiche quand il n'y a rien à dire — une section dont
+            // la glose redirait le pont n'en porte pas.
+            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
+                Text(second)
+                    .font(ONTUI.caption)
+                    .textCase(nil)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func situes(_ corpus: Corpus) -> [ModeSitue] {
+        corpus.modes
+            .sorted(by: { $0.order < $1.order })
+            .map { ModeSitue(corpus: corpus.id, mode: $0) }
+    }
+
+    #if os(macOS)
+        /// Les rayons dépliés — l'état vit ici, pas dans un `DisclosureGroup` :
+        /// c'est ce qui permet au **bloc entier** de plier et déplier.
+        @State private var rayonsOuverts: Set<String> = []
+
+        /// Le sommaire du Mac — des cartes, pas des lignes de liste.
+        ///
+        /// **Le bloc entier est la cible.** Le `DisclosureGroup` du système ne
+        /// répondait que sur son chevron : viser un triangle de huit points
+        /// pour ouvrir un rayon, c'est de la rigidité d'UX avant d'être de
+        /// l'UI — relevé par l'auteur, capture à l'appui. Ici la tête du rayon
+        /// est un bouton de bord à bord ; le chevron tourne au ressort et les
+        /// livres arrivent en cascade.
+        private var sommaire: some View {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: spacing.s) {
+                    if let position = model.position {
+                        CarteDeReprise(position: position) { reprendre(position) }
+                    }
+                    ForEach(model.corpora) { corpus in
+                        enteteDeCorpus(corpus)
+                            .padding(.top, spacing.m)
+                            .padding(.leading, spacing.xs)
+                        ForEach(situes(corpus)) { situe in
+                            CarteDeRayon(
+                                mode: situe.mode,
+                                ouvert: rayonsOuverts.contains(situe.id)
+                            ) {
+                                withAnimation(ONTMouvement.ressort) {
+                                    if rayonsOuverts.contains(situe.id) {
+                                        rayonsOuverts.remove(situe.id)
+                                    } else {
+                                        rayonsOuverts.insert(situe.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, spacing.page)
+                .padding(.vertical, spacing.m)
+            }
+        }
+    #else
+        /// Le sommaire d'iOS — la `List` du système, qui a déjà ses réponses.
+        private var sommaire: some View {
+            List {
+                if let position = model.position {
+                    Section {
+                        ResumeRow(position: position) { reprendre(position) }
+                            .ontRow()
+                    }
+                }
+
+                ForEach(model.corpora) { corpus in
+                    Section {
+                        // **Situé, pas seulement nommé.** Voir `ModeSitue` :
+                        // trois modes portent le même identifiant dans les deux
+                        // corpus, et une `List` les range tous dans la même
+                        // suite de lignes.
+                        ForEach(situes(corpus)) { situe in
+                            DisclosureGroup {
+                                ForEach(disposer(situe.mode)) { element in
+                                    switch element.contenu {
+                                    case .entete(let groupe):
+                                        ConteneurLabel(groupe: groupe)
+                                    case .livre(let book):
+                                        BookRow(book: book)
+                                    }
+                                }
+                            } label: {
+                                ModeLabel(mode: situe.mode)
+                            }
+                            .ontRow()
+                        }
+                    } header: {
+                        enteteDeCorpus(corpus)
+                    }
+                }
+            }
+            .listStyle(ONTPlacement.listeGroupee)
+        }
+    #endif
 }
+
+#if os(macOS)
+    /// La carte « Reprendre » — de bord à bord, elle se lève et s'enfonce.
+    private struct CarteDeReprise: View {
+        @Environment(\.ontTheme) private var theme
+        let position: ReadingPosition
+        let open: () -> Void
+        private var spacing = ONTSpacing()
+
+        init(position: ReadingPosition, open: @escaping () -> Void) {
+            self.position = position
+            self.open = open
+        }
+
+        var body: some View {
+            Button(action: open) {
+                // Un `HStack` et non un `LabeledContent` : hors d'une `List`,
+                // celui-ci n'écarte plus ses deux bouts, et la flèche venait
+                // se coller au libellé.
+                HStack(spacing: spacing.s) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
+                        Text("\(position.chapterTitle):\(position.verse)")
+                            .font(ONTUI.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.turn.down.right")
+                        .foregroundStyle(ONTColors.accent(theme.mode))
+                }
+                .padding(spacing.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+                .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.block), souleve: true)
+                .contentShape(.rect(cornerRadius: ONTRadius.block))
+            }
+            .buttonStyle(.ontLigne)
+            // L'anneau de focus du système se posait sur la carte **dès
+            // l'ouverture** — premier répondeur de la fenêtre — et se lisait
+            // comme une sélection. La carte a déjà trois autres chemins au
+            // clavier : la barre latérale, le menu, ⌘1.
+            .focusEffectDisabled()
+        }
+    }
+
+    /// Un rayon du sommaire — la carte entière est la cible, le chevron tourne,
+    /// les livres arrivent en cascade.
+    private struct CarteDeRayon: View {
+        @Environment(\.ontTheme) private var theme
+        @Environment(ReadingModel.self) private var model
+        let mode: Mode
+        let ouvert: Bool
+        let basculer: () -> Void
+        private var spacing = ONTSpacing()
+
+        init(mode: Mode, ouvert: Bool, basculer: @escaping () -> Void) {
+            self.mode = mode
+            self.ouvert = ouvert
+            self.basculer = basculer
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                Button(action: basculer) {
+                    HStack(spacing: spacing.s) {
+                        ModeLabel(mode: mode)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.ink.opacity(0.55))
+                            .rotationEffect(.degrees(ouvert ? 0 : -90))
+                    }
+                    .padding(spacing.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // De bord à bord : sans forme de contact, seul le dessiné
+                    // répond, et le vide entre le compte et le chevron tombait
+                    // à côté.
+                    .contentShape(.rect)
+                    .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.block))
+                }
+                .buttonStyle(.ontLigne)
+                .focusEffectDisabled()
+
+                if ouvert {
+                    Rectangle()
+                        .fill(theme.separator.opacity(0.5))
+                        .frame(height: 1)
+                        .padding(.horizontal, spacing.m)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(disposer(mode).enumerated()), id: \.element.id) { rang, element in
+                            switch element.contenu {
+                            case .entete(let groupe):
+                                ConteneurLabel(groupe: groupe)
+                                    .padding(.horizontal, spacing.m)
+                                    .padding(.vertical, spacing.s)
+                                    .ontApparition(rang)
+                            case .livre(let book):
+                                BookRow(book: book)
+                                    .padding(.horizontal, spacing.m)
+                                    .padding(.vertical, spacing.s)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect(cornerRadius: 10))
+                                    .ontSurvol(dans: RoundedRectangle(cornerRadius: 10))
+                                    .ontApparition(rang)
+                            }
+                        }
+                    }
+                    .padding(.bottom, spacing.xs)
+                    .transition(.opacity)
+                }
+            }
+            .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+        }
+    }
+#endif
 
 private struct ResumeRow: View {
     @Environment(\.ontTheme) private var theme
