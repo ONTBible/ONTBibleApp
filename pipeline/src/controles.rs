@@ -255,11 +255,19 @@ pub fn liens_morts(
 /// le contrôle devient une vraie garde. **C'est un chiffre à changer, pas un
 /// mécanisme à écrire.**
 ///
-/// La valeur a déjà bougé une fois avant d'être commise, et il faut le dire :
-/// posée à `206`, elle a fait échouer le build **du même vault** dès que le
-/// parcours a cessé d'oublier les pieds de section. Le premier nombre n'était
-/// pas un plafond, c'était la mesure d'un instrument borgne.
-pub const PLAFOND_LIENS_MORTS: usize = 237;
+/// **Un cliquet se resserre dès que le compte baisse, sinon il cesse de
+/// cliqueter.** Laissé au-dessus du réel, il autorise en silence le retour de
+/// ce qu'on vient de corriger — et c'est le pire état, puisqu'il reste vert.
+///
+/// La valeur a bougé deux fois, et les deux méritent d'être dites :
+///
+/// - `206` d'abord, qui a fait échouer le build **du même vault** dès que le
+///   parcours a cessé d'oublier les pieds de section. Ce n'était pas un
+///   plafond, c'était la mesure d'un instrument borgne ;
+/// - puis `237`, descendu à `224` quand les dix-neuf gras d'emphase du
+///   `CLAUDE.md` ont été retirés — treize liens de moins, dans les notes de
+///   balisage que le contrôle venait de rendre visibles.
+pub const PLAFOND_LIENS_MORTS: usize = 224;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contrôle 2 — la densité de glose, §4.1
