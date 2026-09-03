@@ -121,6 +121,30 @@ pub struct LienMort {
     pub entree_reelle: Option<String>,
 }
 
+/// Applique `f` à chaque nœud **livré** d'une unité — titre, corps et pied.
+///
+/// **Le pied compte, et l'oublier était le premier défaut de ce contrôle.**
+/// Écrit d'abord sur `blocks` seuls, il rendait le même nombre après qu'on eut
+/// ajouté un lien mort dans le vault : le texte était atterri dans les notes de
+/// bas de section, que `blocks` ne contient pas. Or `bereshit.json` livre à lui
+/// seul **170 nœuds `term` dans ses pieds** — l'apparat critique du §2.7 est
+/// dense en intraduisibles, et il est rendu, et il est touchable.
+///
+/// Trouvé parce qu'une session voisine avait dit d'éprouver chaque contrôle
+/// contre un cas dont on connaît la réponse. Sans cette épreuve, le compte
+/// aurait paru juste : il l'était pour tout ce qu'il regardait.
+pub fn pour_chaque_inline_livre(unite: &Chapter, f: &mut impl FnMut(&Inline)) {
+    descendre(&unite.title_nodes, f);
+    for bloc in &unite.blocks {
+        pour_chaque_inline(bloc, f);
+    }
+    if let Some(pied) = &unite.footer {
+        for bloc in &pied.notes {
+            pour_chaque_inline(bloc, f);
+        }
+    }
+}
+
 /// Relève tous les liens livrés qui ne retombent sur aucune entrée livrée.
 ///
 /// `unites` et `fiches` sont parcourus tous les deux : une fiche de lexique est
@@ -170,13 +194,11 @@ pub fn liens_morts(
     };
 
     for unite in unites {
-        for bloc in &unite.blocks {
-            pour_chaque_inline(bloc, &mut |n| match n {
-                Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
-                Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
-                _ => {}
-            });
-        }
+        pour_chaque_inline_livre(unite, &mut |n| match n {
+            Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
+            Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
+            _ => {}
+        });
     }
     for e in glossaire {
         let ou = format!("lexique/{}", e.lemma);
@@ -213,6 +235,31 @@ pub fn liens_morts(
     });
     morts
 }
+
+/// Le cliquet : au-dessus de ce compte, le build échoue.
+///
+/// **Ce n'est pas une cible, c'est un plafond.** Le nombre est celui qui a été
+/// *mesuré* le jour où le contrôle a été écrit, non zéro : le poser à zéro
+/// aurait fait rougir la CI tout de suite, sur un défaut dont la correction
+/// appartient à l'auteur et engage les trois plateformes. Il aurait donc fallu
+/// désactiver le mécanisme, et un contrôle qu'on branchera « le jour où » ne se
+/// branche jamais — le jour venu, personne ne sait plus où le seuil devait
+/// aller.
+///
+/// À cette valeur il protège **immédiatement** contre la seule chose qu'un
+/// rapport nu ne voit pas : l'aggravation. Un `**gibborim**` de plus dans une
+/// **parashah** neuve fait rougir la CI, et c'est ce qu'on veut — le corpus ne
+/// doit pas continuer d'accumuler des liens que le lecteur touchera en vain.
+///
+/// Le jour où l'émission rendra le lemme canonique, ce nombre descend à `0` et
+/// le contrôle devient une vraie garde. **C'est un chiffre à changer, pas un
+/// mécanisme à écrire.**
+///
+/// La valeur a déjà bougé une fois avant d'être commise, et il faut le dire :
+/// posée à `206`, elle a fait échouer le build **du même vault** dès que le
+/// parcours a cessé d'oublier les pieds de section. Le premier nombre n'était
+/// pas un plafond, c'était la mesure d'un instrument borgne.
+pub const PLAFOND_LIENS_MORTS: usize = 237;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contrôle 2 — la densité de glose, §4.1
@@ -371,7 +418,7 @@ pub fn densite(unite: &Chapter) -> Densite {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{ChapterKind, Status, Verse};
+    use crate::schema::{ChapterKind, Footer, Status, Verse};
 
     fn entree(lemma: &str, title: &str, forms: &[&str]) -> GlossaryEntry {
         GlossaryEntry {
@@ -451,6 +498,30 @@ mod tests {
         );
     }
 
+    /// **Le pied de section est livré, donc il est mesuré.**
+    ///
+    /// Ce test verrouille le défaut qui a failli passer : le contrôle ne
+    /// regardait que `blocks`, et un lien mort écrit dans les notes de bas de
+    /// section restait invisible. `bereshit.json` en porte 170 par ses seuls
+    /// pieds.
+    #[test]
+    fn le_pied_de_section_est_mesure_comme_le_corps() {
+        let mut u = unite(vec![]);
+        u.footer = Some(Footer {
+            version: None,
+            locked: false,
+            notes: vec![Block::Para {
+                nodes: vec![Inline::Term {
+                    v: "dans-le-pied".into(),
+                    lemma: "dans-le-pied".into(),
+                }],
+            }],
+        });
+        let morts = liens_morts(&[&u], &[], &[]);
+        assert_eq!(morts.len(), 1);
+        assert_eq!(morts[0].lemme, "dans-le-pied");
+    }
+
     /// **Éprouvé sur un cas dont on connaît la réponse.** Un lemme vivant ne
     /// doit rien produire — sans quoi le contrôle crierait toujours, et une
     /// garde qui crie toujours ne garde plus rien.
@@ -522,6 +593,59 @@ mod tests {
         assert_eq!(d.mots_gloses, 2);
         assert_eq!(d.gloses, 1);
         assert_eq!(d.plus_longue, 2);
+    }
+
+    /// **Le piège du zéro, éprouvé de front.**
+    ///
+    /// Un compteur de liens morts qui rend `0` parce que son entrée est vide se
+    /// lit exactement comme un corpus sain — et un zéro est ce qu'on vérifie le
+    /// moins, puisqu'il ressemble à une absence et qu'une absence ne se relit
+    /// pas. Le contrôle doit donc rendre `0` sur du vide **et** rendre autre
+    /// chose dès qu'il y a quelque chose à trouver, sans quoi il ne mesure rien.
+    #[test]
+    fn un_corpus_vide_et_un_corpus_fautif_ne_rendent_pas_le_meme_zero() {
+        assert!(liens_morts(&[], &[], &[]).is_empty());
+
+        let u = unite(vec![Block::Para {
+            nodes: vec![Inline::Term {
+                v: "inconnu".into(),
+                lemma: "inconnu".into(),
+            }],
+        }]);
+        assert_eq!(liens_morts(&[&u], &[], &[]).len(), 1);
+    }
+
+    /// **Le contrôle de densité, retourné contre un cas connu.**
+    ///
+    /// Une unité qui porte la moitié de la fréquence de la référence doit
+    /// passer ; une unité qui n'en porte que le quart doit être signalée. Sans
+    /// cette épreuve, un seuil mal branché laisserait tout passer en silence —
+    /// et c'est le cas exact où l'on ne le verrait jamais, puisque le rapport
+    /// dirait « aucune unité signalée ».
+    #[test]
+    fn le_seuil_de_densite_separe_bien_les_deux_cotes() {
+        // Une unité de 100 mots de corps, avec n gloses d'un mot.
+        let fabrique = |id: &str, n: usize| {
+            let mut nodes = vec![texte(&"mot ".repeat(100))];
+            for _ in 0..n {
+                nodes.push(Inline::Gloss {
+                    children: vec![texte("glose")],
+                });
+            }
+            let mut u = unite(vec![Block::Para { nodes }]);
+            u.id = id.into();
+            u
+        };
+        let reference = densite(&fabrique(REFERENCE, 8)); // 80 pour mille
+        let moitie = densite(&fabrique("moitie", 5)); // 50 — au-dessus du seuil
+        let quart = densite(&fabrique("quart", 2)); // 20 — en dessous
+        assert_eq!(reference.pour_mille().round(), 80.0);
+        assert_eq!(moitie.pour_mille().round(), 50.0);
+        assert_eq!(quart.pour_mille().round(), 20.0);
+        // Le seuil vit dans `build.rs` ; on éprouve ici la grandeur sur
+        // laquelle il s'appuie, qui est la seule chose que ce module possède.
+        assert!(moitie.pour_mille() > reference.pour_mille() / 2.0);
+        assert!(quart.pour_mille() < reference.pour_mille() / 2.0);
     }
 
     /// Le niveau 3 est hors du dénominateur : sinon une unité dense en

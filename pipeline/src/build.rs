@@ -1098,6 +1098,11 @@ pub fn build() -> Result<BuildResult, String> {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+    //
+    // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+    // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+    // le relevé que le pipeline vient de faire.
     let rapport = format_report(
         &corpora,
         &glossary,
@@ -1114,6 +1119,26 @@ pub fn build() -> Result<BuildResult, String> {
         &racine,
     );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
+
+    let occurrences_mortes: usize = liens_morts.iter().map(|l| l.occurrences).sum();
+    if occurrences_mortes > controles::PLAFOND_LIENS_MORTS {
+        return Err(format!(
+            "{occurrences_mortes} liens livrés n'ouvrent rien, le plafond est à {}.\n\
+             \n\
+             Le compte a monté : une balise neuve pointe sur un lemme qui n'existe\n\
+             pas dans l'index livré. `dist/report.md` vient d'être écrit et nomme\n\
+             lesquels, section « Liens livrés qui n'ouvrent rien ».\n\
+             \n\
+             Deux issues, et une seule est bonne selon le cas :\n\
+             — si la forme est déclarée au §2.5, l'entrée existe sous le lemme du\n\
+             singulier et c'est l'émission qu'il faut corriger, pas la balise ;\n\
+             — si rien ne la déclare, c'est une fiche à écrire ou un gras à retirer.\n\
+             \n\
+             Relever `PLAFOND_LIENS_MORTS` est possible, et se dit dans le commit :\n\
+             un cliquet qu'on desserre sans le nommer ne cliquette plus.",
+            controles::PLAFOND_LIENS_MORTS
+        ));
+    }
 
     Ok(BuildResult {
         stats,
@@ -1722,6 +1747,11 @@ mod tests {
     #[test]
     fn le_rapport_nomme_les_shemot_sans_fiche() {
         let sans = ["**Par'oh** — `lexique/paroh.md`".to_string()];
+        // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+        //
+        // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+        // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+        // le relevé que le pipeline vient de faire.
         let rapport = format_report(
             &[],
             &[],
@@ -1747,6 +1777,11 @@ mod tests {
     /// Une section vide ne s'écrit pas — comme les trois autres.
     #[test]
     fn sans_shem_orphelin_la_section_ne_parait_pas() {
+        // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+        //
+        // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+        // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+        // le relevé que le pipeline vient de faire.
         let rapport = format_report(
             &[],
             &[],
