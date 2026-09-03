@@ -95,6 +95,7 @@ import com.labibleont.ont.kit.reader.Partage
 import com.labibleont.ont.compte.FluxDeConnexion
 import com.labibleont.ont.data.account.CoffreDeJetons
 import com.labibleont.ont.data.account.ServiceDeCompte
+import com.labibleont.ont.data.account.ServiceDeSynchronisation
 import com.labibleont.ont.kit.account.Fournisseur
 import com.labibleont.ont.kit.account.RetourDAutorisation
 import com.labibleont.ont.observabilite.SentryReporter
@@ -275,6 +276,13 @@ public class MainActivity : ComponentActivity() {
         // range, le service parle au backend, le flux ouvre le navigateur.
         val coffre = CoffreDeJetons(applicationContext, rapporteur)
         val compte = ServiceDeCompte(getString(R.string.api_base), coffre)
+        val synchronisation = ServiceDeSynchronisation(
+            racine = getString(R.string.api_base),
+            compte = compte,
+            marques = lecteur,
+            positions = lecteur,
+            rapporteur = rapporteur,
+        )
         val flux = FluxDeConnexion(
             racineApi = getString(R.string.api_base),
             clientGoogle = getString(R.string.client_google),
@@ -292,6 +300,23 @@ public class MainActivity : ComponentActivity() {
         // délai qu'on économise.
         //
         // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
+        // ## Les marques du lecteur, s'il a un compte
+        //
+        // Au lancement, une fois, et sans rien bloquer. Le corpus et les
+        // marques voyagent séparément : l'un vient du site et ne demande aucun
+        // compte, l'autre du backend et n'existe que s'il y en a un.
+        //
+        // `runBlocking` dans un fil à part plutôt qu'une coroutine de l'écran :
+        // l'échange doit survivre à une rotation, et une portée liée à la
+        // composition l'annulerait au milieu.
+        Thread {
+            runCatching {
+                kotlinx.coroutines.runBlocking { synchronisation.synchroniser() }
+            }.onFailure { rapporteur.report(it, "synchronisation des marques") }
+        }
+            .apply { isDaemon = true }
+            .start()
+
         Thread {
             runCatching { CorpusUpdater(applicationContext, rapporteur = rapporteur).synchroniser() }
                 // La prise la plus large de l'app : elle enveloppait toute la
