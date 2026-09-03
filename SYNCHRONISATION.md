@@ -3004,10 +3004,16 @@ l'app dessine la carte, avec le voile, la croix et ⎋.
 ### Ce qui traverse
 
 **La règle vaut pour les trois plateformes, pas seulement pour le Mac** : une
-modale se ferme au clic à côté. iOS l'a déjà par le glissement, le Mac vient de
-l'avoir, **Android l'a par le bouton retour mais pas par le tap dehors** — un
-`Dialog` de Compose le fait par défaut, un `ModalBottomSheet` aussi, une
-`Surface` posée à la main non. À vérifier là-bas ; l'arbitrage reste à iOS.
+modale se ferme au clic à côté. iOS l'a par le glissement, le Mac vient de
+l'avoir — **et Android l'avait déjà**, vérifié plutôt que supposé : ses trois
+modales (`MainActivity.kt:961`, `:976`, `:987`) sont des `ModalBottomSheet` de
+Material 3, dont le tap sur le voile appelle `onDismissRequest`, et les trois y
+vident bien leur état.
+
+Rien à porter, donc. Ça méritait d'être écrit quand même : le jour où l'une
+d'elles deviendrait une `Surface` posée à la main, elle perdrait le geste sans
+que rien ne le dise — c'est un défaut de la présentation, invisible dans le
+contenu, exactement comme celui qu'on vient de corriger ici.
 
 ### La surimpression est la sœur, pas la fille
 
