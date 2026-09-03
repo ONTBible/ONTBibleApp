@@ -1,5 +1,7 @@
 import java.io.File
 import java.util.Properties
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 // La racine de composition — le seul module qui connaît tout le monde.
 //
@@ -39,6 +41,50 @@ fun secret(nomEnv: String, nomProp: String): String? =
 
 val magasinDeCles: File? = secret("ANDROID_KEYSTORE_PATH", "magasin")?.let(::File)?.takeIf { it.exists() }
 
+
+/**
+ * Le numéro de version, dérivé de l'horloge.
+ *
+ * ## Pourquoi ce n'est plus un nombre écrit à la main
+ *
+ * Play refuse un `versionCode` déjà téléversé, **définitivement** — y compris
+ * celui d'une release de test supprimée. Le 1 a été brûlé le 27 août 2026, le 2
+ * le 2 septembre.
+ *
+ * La consigne « à monter avant chaque téléversement » était juste et ne tenait
+ * rien : c'est une étape que rien ne rappelle, dont l'oubli ne se voit qu'au
+ * téléversement, et dont le message — « Version code has already been used » —
+ * envoie chercher du côté de l'authentification quand on ne connaît pas la
+ * règle. Avec des testeurs, on téléverse souvent ; on oubliera.
+ *
+ * ## La forme, et pourquoi elle tient jusqu'en 2040
+ *
+ *     (année − 2020) × 100 000 000
+ *     + mois          ×   1 000 000
+ *     + jour          ×      10 000
+ *     + heure         ×         100
+ *     + minute
+ *
+ * Le 3 septembre 2026 à 12 h 55 donne `609 031 255`. Play plafonne à
+ * 2 100 000 000, ce que cette forme atteint en 2041 — largement au-delà de
+ * l'horizon où quelqu'un relira cette ligne.
+ *
+ * La minute est la résolution : deux builds dans la même minute rendent le même
+ * numéro, et le second sera refusé. C'est le seul cas de collision, il est
+ * visible immédiatement, et il se règle en attendant soixante secondes.
+ *
+ * **`versionName` reste écrit à la main** : c'est ce que le lecteur lit, et rien
+ * ne l'oblige à suivre un compteur.
+ */
+fun numeroDeVersion(): Int {
+    val maintenant = LocalDateTime.now(ZoneOffset.UTC)
+    return (maintenant.year - 2020) * 100_000_000 +
+        maintenant.monthValue * 1_000_000 +
+        maintenant.dayOfMonth * 10_000 +
+        maintenant.hour * 100 +
+        maintenant.minute
+}
+
 android {
     namespace = "com.labibleont.ont"
     compileSdk = 36
@@ -68,7 +114,7 @@ android {
         //
         // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
         // ne l'oblige à suivre le compteur.
-        versionCode = 2
+        versionCode = numeroDeVersion()
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
