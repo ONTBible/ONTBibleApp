@@ -165,6 +165,7 @@ tasks.matching {
 }.configureEach { dependsOn("copierLesDonnees") }
 
 dependencies {
+    implementation(libs.sentry.android)
     implementation(project(":ontkit"))
     implementation(project(":ontdata"))
     implementation(project(":ontdesignsystem"))

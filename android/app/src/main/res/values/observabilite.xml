@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  L'adresse d'envoi de Sentry.
+
+  Ce n'est pas une clé : un DSN ne sert qu'à *écrire*, il ne donne accès à rien,
+  et il voyage dans chaque copie de l'app. Le ranger dans un secret de CI
+  donnerait l'illusion d'une protection que le paquet livré dément aussitôt.
+
+  C'est aujourd'hui **le projet Sentry d'iOS**, faute d'un projet Android. Les
+  événements des deux plateformes s'y mélangent, distingués par leur balise
+  `os`. Un projet propre à Android se pose en changeant cette seule ligne.
+-->
+<resources>
+    <string name="sentry_dsn" translatable="false">https://16810c8790d47c067a9df70b99059ebe@o4511490425159680.ingest.de.sentry.io/4511893874278480</string>
+</resources>
