@@ -269,6 +269,62 @@ pub fn liens_morts(
 ///   balisage que le contrôle venait de rendre visibles.
 pub const PLAFOND_LIENS_MORTS: usize = 224;
 
+/// Ce que les parcours restreints du pipeline ne voient pas.
+///
+/// **Mesurer, non corriger.** `collect_shem_lemmes` et
+/// `collect_shemot_sans_fiche` ne lisent que `Heading`, `Para` et `Verses` de
+/// `blocks` : ni pied de section, ni liste, ni citation, ni tableau. Leur
+/// verdict est peut-être juste — mais un `0` qui vaut zéro parce que le corpus
+/// est sain et un `0` qui vaut zéro parce que l'instrument est borgne
+/// **s'écrivent pareil**, et c'est le premier qu'on lit.
+///
+/// Cette fonction ne répare rien et ne juge rien : elle dit combien de nœuds
+/// touchables vivent hors de leur portée. Si le nombre est nul, leur zéro est
+/// un zéro. S'il ne l'est pas, il reste à vérifier — et on saura qu'il faut.
+pub fn hors_de_portee(unites: &[&Chapter]) -> usize {
+    let mut total = 0usize;
+    let mut restreint = 0usize;
+    for u in unites {
+        pour_chaque_inline_livre(u, &mut |n| {
+            if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+                total += 1;
+            }
+        });
+        for bloc in &u.blocks {
+            if matches!(
+                bloc,
+                Block::Heading { .. } | Block::Para { .. } | Block::Verses { .. }
+            ) {
+                pour_chaque_inline(bloc, &mut |n| {
+                    if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+                        restreint += 1;
+                    }
+                });
+            }
+        }
+    }
+    total.saturating_sub(restreint)
+}
+
+/// Les formes qu'une seule entrée devrait déclarer et que deux revendiquent.
+///
+/// Le §2.5 cite `**El Elyon**` dans la puce d'`**El**` pour l'en *écarter* ;
+/// l'extraction ne lit que les formes entre accents graves et ne distingue pas
+/// une citation d'une déclaration. Aujourd'hui sans conséquence — la forme sort
+/// avec le lemme de sa propre entrée. **Le jour où l'ordre de lecture
+/// changera, elle sortira avec l'autre, et plus personne ne saura pourquoi.**
+///
+/// Un avertissement qui ne coûte rien tant qu'il ne se produit pas.
+pub fn formes_a_deux_proprietaires(glossaire: &[GlossaryEntry]) -> Vec<(String, Vec<String>)> {
+    let mut qui: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for e in glossaire {
+        for f in &e.forms {
+            qui.entry(f.clone()).or_default().push(e.lemma.clone());
+        }
+    }
+    qui.into_iter().filter(|(_, l)| l.len() > 1).collect()
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Contrôle 2 — la densité de glose, §4.1
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,6 +335,9 @@ pub const REFERENCE: &str = "bereshit-4";
 /// Ce qu'une unité porte comme apparat, mesuré sur ce qui est livré.
 pub struct Densite {
     pub unite: String,
+    /// Le livre dont l'unité relève — la question de régime se pose par livre,
+    /// non par chapitre.
+    pub livre: String,
     pub versets: u32,
     pub gloses: usize,
     /// Les mots du corps seul — gloses, translittérations et hébreu retirés.
@@ -415,6 +474,7 @@ pub fn densite(unite: &Chapter) -> Densite {
 
     Densite {
         unite: unite.id.clone(),
+        livre: unite.book_id.clone(),
         versets: unite.verse_count,
         gloses,
         mots_corps,

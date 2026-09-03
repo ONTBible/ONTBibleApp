@@ -1079,6 +1079,8 @@ pub fn build() -> Result<BuildResult, String> {
     // autrement que le fichier livré.
     let unites_publiees: Vec<&Chapter> = written.iter().flat_map(|b| unites(b)).collect();
     let liens_morts = controles::liens_morts(&unites_publiees, &glossary, &shemot);
+    let hors_de_portee = controles::hors_de_portee(&unites_publiees);
+    let formes_partagees = controles::formes_a_deux_proprietaires(&glossary);
     // **Les introductions sont hors de ce contrôle, et par construction.**
     //
     // Le §2.7 leur donne exactement la fonction inverse : elles portent le
@@ -1115,6 +1117,8 @@ pub fn build() -> Result<BuildResult, String> {
             shemot_sans_fiche: &shemot_sans_fiche,
             liens_morts: &liens_morts,
             densites: &densites,
+            hors_de_portee,
+            formes_partagees: &formes_partagees,
         },
         &racine,
     );
@@ -1248,6 +1252,10 @@ struct Anomalies<'a> {
     liens_morts: &'a [controles::LienMort],
     /// La densité d'apparat par unité, §4.1.
     densites: &'a [controles::Densite],
+    /// Les nœuds touchables que les parcours restreints ne visitent pas.
+    hors_de_portee: usize,
+    /// Les formes que deux entrées revendiquent.
+    formes_partagees: &'a [(String, Vec<String>)],
 }
 
 /// Une unité tombe-t-elle **très en dessous** de la référence du §4.1 ?
@@ -1280,6 +1288,8 @@ fn format_report(
         shemot_sans_fiche,
         liens_morts,
         densites,
+        hors_de_portee,
+        formes_partagees,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1520,6 +1530,46 @@ fn format_report(
         }
     }
 
+    if hors_de_portee > 0 || !formes_partagees.is_empty() {
+        l.extend([
+            String::new(),
+            "## Ce que les autres parcours ne voient pas".into(),
+            String::new(),
+            "Deux relevés qui ne corrigent rien et ne jugent rien. Ils disent".into(),
+            "seulement si un `0` affiché ailleurs est un zéro de corpus ou un zéro".into(),
+            "d'instrument — **les deux s'écrivent pareil, et c'est le premier qu'on**".into(),
+            "**lit**.".into(),
+            String::new(),
+        ]);
+        if hors_de_portee > 0 {
+            l.extend([
+                format!(
+                    "- **{hors_de_portee} nœuds touchables hors de portée des parcours restreints.**"
+                ),
+                "  `collect_shem_lemmes` et `collect_shemot_sans_fiche` ne lisent que".into(),
+                "  `Heading`, `Para` et `Verses` de `blocks` : ni pied de section, ni".into(),
+                "  liste, ni citation, ni tableau. Leur verdict peut être juste ; il".into(),
+                "  n'est pas *démontré* tant que ce nombre n'est pas nul.".into(),
+            ]);
+        }
+        if !formes_partagees.is_empty() {
+            l.extend([
+                format!(
+                    "- **{} formes revendiquées par plusieurs entrées.** Le §2.5 en cite",
+                    formes_partagees.len()
+                ),
+                "  certaines dans la puce voisine pour les en *écarter*, et l'extraction".into(),
+                "  ne distingue pas une citation d'une déclaration. Sans conséquence".into(),
+                "  aujourd'hui — la forme sort avec le lemme de sa propre entrée. Le jour".into(),
+                "  où l'ordre de lecture changera, elle sortira avec l'autre :".into(),
+                String::new(),
+            ]);
+            for (forme, lemmes) in formes_partagees {
+                l.push(format!("  - `{forme}` → {}", lemmes.join(", ")));
+            }
+        }
+    }
+
     if !densites.is_empty() {
         let reference = densites.iter().find(|d| d.unite == controles::REFERENCE);
         l.extend([
@@ -1557,7 +1607,54 @@ n'est signalée, faute de point de comparaison.*"
                     .into(),
             ),
         }
+        // **Par livre d'abord.** La question que ce relevé pose n'est pas
+        // « ce chapitre est-il assez glosé ? » mais « ce livre est-il sur un
+        // autre régime ? » — et vingt-six lignes qui la répètent à chaque build
+        // sont vingt-cinq façons de cesser de la lire.
+        let mut par_livre: BTreeMap<&str, (usize, usize, usize, usize)> = BTreeMap::new();
+        for d in densites {
+            let e = par_livre.entry(d.livre.as_str()).or_default();
+            e.0 += 1;
+            e.1 += d.gloses;
+            e.2 += d.mots_corps;
+            if sous_glosee(d, densites) {
+                e.3 += 1;
+            }
+        }
         l.extend([
+            String::new(),
+            "| Livre | Chapitres | gl./1000 mots | Sous le seuil |".into(),
+            "|---|---:|---:|---:|".into(),
+        ]);
+        let mut lignes: Vec<(f64, String)> = par_livre
+            .iter()
+            .map(|(livre, (n, gl, mots, sous))| {
+                let pm = if *mots == 0 {
+                    0.0
+                } else {
+                    1000.0 * *gl as f64 / *mots as f64
+                };
+                (
+                    pm,
+                    format!(
+                        "| `{livre}` | {n} | {pm:.1} | {} |",
+                        if *sous == 0 {
+                            "—".to_string()
+                        } else {
+                            format!("{sous} / {n}")
+                        }
+                    ),
+                )
+            })
+            .collect();
+        lignes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        for (_, ligne) in lignes {
+            l.push(ligne);
+        }
+
+        l.extend([
+            String::new(),
+            "<details><summary>Le détail par chapitre</summary>".into(),
             String::new(),
             "| Unité | Versets | Gloses | gl./1000 mots | Volume | Plus longue | |".into(),
             "|---|---:|---:|---:|---:|---:|:-:|".into(),
@@ -1581,6 +1678,7 @@ n'est signalée, faute de point de comparaison.*"
                 marque
             ));
         }
+        l.extend([String::new(), "</details>".into()]);
         if reference.is_some() {
             l.extend([
                 String::new(),
@@ -1764,6 +1862,8 @@ mod tests {
                 shemot_sans_fiche: &sans,
                 liens_morts: &[],
                 densites: &[],
+                hors_de_portee: 0,
+                formes_partagees: &[],
             },
             Path::new("/vault"),
         );
@@ -1794,6 +1894,8 @@ mod tests {
                 shemot_sans_fiche: &[],
                 liens_morts: &[],
                 densites: &[],
+                hors_de_portee: 0,
+                formes_partagees: &[],
             },
             Path::new("/vault"),
         );
