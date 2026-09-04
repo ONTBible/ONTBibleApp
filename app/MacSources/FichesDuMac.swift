@@ -151,9 +151,8 @@ private struct PanneauDeFiche: ViewModifier, PorteLesFiches {
                 .transition(.move(edge: .trailing))
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: ouverte)
-        .animation(
-            .spring(response: 0.32, dampingFraction: 0.86), value: reglages.modeDeFiche)
+        .animation(ONTMouvement.ressort, value: ouverte)
+        .animation(ONTMouvement.ressort, value: reglages.modeDeFiche)
     }
 }
 
@@ -174,9 +173,11 @@ private struct ApercuDeFicheModifier: ViewModifier, PorteLesFiches {
                     .ontTheme(from: reading.preferences)
                 }
             }
-            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: ouverte)
-            .animation(
-                .spring(response: 0.32, dampingFraction: 0.86), value: reglages.modeDeFiche)
+            // `arrivee` et non le ressort courant : la carte doit se poser
+            // comme la feuille de l'iPad — l'amortissement de 0,86 qu'il y
+            // avait là gommait tout dépassement, et la fiche s'arrêtait net.
+            .animation(ONTMouvement.arrivee, value: ouverte)
+            .animation(ONTMouvement.ressort, value: reglages.modeDeFiche)
     }
 }
 
@@ -203,25 +204,25 @@ private struct ApercuDeFiche<Contenu: View>: View {
 
             GeometryReader { geo in
                 CadreDeFiche(mode: .apercu, contenu: contenu, basculer: basculer, fermer: fermer)
-                    .frame(
-                        // Assez large pour qu'une glose tienne sur une ligne,
-                        // borné pour qu'elle ne s'étale pas sur un grand écran :
-                        // au-delà, l'œil perd le début de la ligne suivante.
-                        width: min(max(geo.size.width * 0.66, 460), 860),
-                        height: min(geo.size.height * 0.84, 900))
-                    .background(theme.background, in: .rect(cornerRadius: ONTRadius.card))
-                    .clipShape(.rect(cornerRadius: ONTRadius.card))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: ONTRadius.card)
-                            .strokeBorder(theme.separator, lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(0.28), radius: 30, y: 12)
+                    // Assez large pour qu'une glose tienne sur une ligne,
+                    // borné pour qu'elle ne s'étale pas sur un grand écran :
+                    // au-delà, l'œil perd le début de la ligne suivante. La
+                    // hauteur est un plafond — voir `ONTFeuille`, même peau.
+                    .frame(width: min(max(geo.size.width * 0.66, 460), 860))
+                    .background(theme.background, in: .rect(cornerRadius: ONTRadius.feuille))
+                    .clipShape(.rect(cornerRadius: ONTRadius.feuille))
+                    .shadow(color: .black.opacity(0.32), radius: 38, y: 16)
+                    // Après la peinture — un `frame(maxHeight:)` s'étire
+                    // jusqu'à sa borne, voir `ONTFeuille` : posé avant, le
+                    // fond suivait l'étirement.
+                    .frame(maxHeight: min(geo.size.height * 0.84, 900))
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
             }
-            // Elle vient de l'endroit qu'elle occupera, à peine plus petite :
+            // Elle vient de l'endroit qu'elle occupera, un peu plus petite :
             // un glissement depuis un bord ferait croire à un changement de
-            // page, ce qu'elle n'est pas.
-            .transition(.scale(scale: 0.97).combined(with: .opacity))
+            // page, ce qu'elle n'est pas. 0,94 — le trajet qui rend le
+            // dépassement du ressort visible.
+            .transition(.scale(scale: 0.94).combined(with: .opacity))
         }
         // ⎋ ferme, comme partout ailleurs sur le Mac. Un bouton invisible,
         // parce que `keyboardShortcut` s'attache à une commande et qu'il n'y a
@@ -307,16 +308,17 @@ private struct BoutonDeCadre: View {
                 .font(.system(size: échelle(12), weight: .medium))
                 .frame(width: échelle(26), height: échelle(26))
                 .foregroundStyle(survolé ? theme.ink : theme.ink.opacity(0.55))
-                .background(
-                    survolé ? theme.ink.opacity(0.09) : .clear,
-                    in: .rect(cornerRadius: ONTRadius.highlight))
-                .contentShape(.rect)
+                // Un cercle, comme la pastille de fermeture des feuilles
+                // d'iOS — le carré arrondi se lisait « case à cocher ».
+                .background(theme.ink.opacity(survolé ? 0.12 : 0.05), in: .circle)
+                .contentShape(.circle)
+                .scaleEffect(survolé ? 1.08 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ontPresse)
         .help(titre)
         .accessibilityLabel(titre)
         .onHover { survolé = $0 }
-        .animation(.easeOut(duration: 0.12), value: survolé)
+        .animation(ONTMouvement.ressortVif, value: survolé)
     }
 }
 

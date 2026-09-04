@@ -65,10 +65,23 @@ struct RacineMac: View {
         VStack(spacing: 0) {
             NavigationSplitView {
                 BarreLateraleONT()
+                    // **Aucun fond, aucun panneau : la barre est celle du
+                    // système.** Trois constructions à la main ont été
+                    // essayées puis retirées — opaque, flottante, toile — et
+                    // la sonde a montré que la matière native fait déjà le
+                    // travail dès que plus personne ne peint par-dessus. Le
+                    // journal du 4 septembre porte le récit complet.
+                    // **Les trois bornes suivent le corps réglé au clavier.**
+                    //
+                    // Elles étaient figées, et le facteur d'interface ne les
+                    // touchait pas : ⌘= grossissait le libellé dans une colonne
+                    // qui ne bougeait pas, et « Toledot Adam ve-Chavah » se
+                    // tronquait au cran d'après. Un réglage de confort qui
+                    // ampute les noms n'est pas un réglage de confort.
                     .navigationSplitViewColumnWidth(
-                        min: 180,
-                        ideal: Self.largeurDeBarreParDefaut,
-                        max: 460)
+                        min: ONTUI.points(180),
+                        ideal: ONTUI.points(Self.largeurDeBarreParDefaut),
+                        max: ONTUI.points(460))
             } detail: {
                 Detail()
                     // Les listes du détail reprennent la fonte du système à leurs
@@ -83,6 +96,19 @@ struct RacineMac: View {
 
             if vault.vault != nil { BandeauDuVault(mode: vault) }
         }
+        // **Les modales se dessinent ici, et pas là où on les demande.**
+        //
+        // Une surimpression posée à l'endroit de l'appel ne couvrirait que la
+        // colonne de détail : le voile s'arrêterait au bord de la barre
+        // latérale, qui resterait allumée et cliquable sous une modale. Posée
+        // ici, elle prend la fenêtre — voir `ONTFeuilles`.
+        //
+        // **Et avant `ontTheme`, pas après.** Le contenu d'une surimpression est
+        // le *frère* de la vue à laquelle on l'attache, pas son enfant : posée
+        // au-dessus du thème, la carte sortait en clair sur une app en
+        // aubergine, et son voile — dont l'opacité dépend du mode — ne se
+        // voyait plus. Vu à l'écran, invisible à la lecture.
+        .ontPorteLesFeuilles(feuilles)
         .ontTheme(from: reading.preferences)
         .ontNavigationChrome()
         // Toucher un intraduisible n'ouvre pas une page : ça soulève une fiche
@@ -97,6 +123,9 @@ struct RacineMac: View {
         .apercuDeFiche(shemot: composition.shemotSurDisque)
     }
 
+    /// Les modales que les vues déposent, et que cette racine dessine.
+    @State private var feuilles = ONTFeuilles()
+
     /// La largeur d'ouverture de la barre latérale, en points.
     ///
     /// Relevée sur la fenêtre que l'auteur a montrée en référence — 21 % d'une
@@ -110,6 +139,10 @@ struct RacineMac: View {
     /// des préférences — vérifié, elle y est. J'avais écrit une sonde pour la
     /// garder ; elle ne trouvait jamais rien, et elle était de toute façon
     /// inutile.
+    ///
+    /// Elle est en points **avant** le facteur d'interface : c'est l'appel qui
+    /// la met à l'échelle, pour que la colonne grandisse avec le texte qu'elle
+    /// porte au lieu de le tronquer.
     static let largeurDeBarreParDefaut: CGFloat = 264
 
     /// Ramène la sélection sur la Bible quand ce qu'elle désigne a disparu.

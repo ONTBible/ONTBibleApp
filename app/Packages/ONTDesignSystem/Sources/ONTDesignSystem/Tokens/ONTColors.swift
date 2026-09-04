@@ -16,6 +16,45 @@ import SwiftUI
 /// **Ne jamais écrire une couleur en dur ailleurs.** Une teinte qui n'est pas
 /// ici est une teinte qu'on ne pourra pas décliner en thème sombre.
 public enum ONTColors {
+    // MARK: - Les rôles fonctionnels
+
+    /// Le danger — supprimer, échouer, perdre.
+    ///
+    /// La braise de la gamme : une terre cuite qui penche bordeaux, pas un
+    /// rouge d'alerte industriel — la maison garde sa voix jusque dans ses
+    /// refus. 600 sur les fonds clairs (4,9:1 sur parchemin), 300 sur les
+    /// nuits (10,3:1) — vérifié à la génération de la gamme.
+    public static func danger(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.braise300 : ONTGamme.braise600
+    }
+
+    /// Le voile derrière un propos de danger — pastille, fond de ligne.
+    public static func dangerSurface(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.braise900.opacity(0.55) : ONTGamme.braise100
+    }
+
+    /// Le succès — validé, synchronisé, verrouillé.
+    ///
+    /// **700 sur clair et non 600** : le cèdre 600 rend 4,4:1 sur parchemin,
+    /// juste sous la barre des 4,5. Le cran au-dessus la passe sans changer de
+    /// voix.
+    public static func succes(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.cedre300 : ONTGamme.cedre700
+    }
+
+    public static func succesSurface(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.cedre900.opacity(0.55) : ONTGamme.cedre100
+    }
+
+    /// L'avertissement — en attente, brouillon, à vérifier.
+    public static func avertissement(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.ambre300 : ONTGamme.ambre600
+    }
+
+    public static func avertissementSurface(_ theme: ReadingTheme) -> Color {
+        theme.isDark ? ONTGamme.ambre900.opacity(0.55) : ONTGamme.ambre100
+    }
+
     // MARK: - Marque
 
     /// Le bordeaux du logo — fond des cartes, accent, titres de section.

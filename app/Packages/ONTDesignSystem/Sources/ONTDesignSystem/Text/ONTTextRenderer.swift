@@ -282,6 +282,8 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = termURL(lemma)
+                // La marque que le rendu de survol lit — voir `MarqueDeTerme`.
+                piece[MarqueDeTerme.self] = true
                 output += piece
 
             case .shem(let value, let lemma):
@@ -289,6 +291,7 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = shemURL(lemma)
+                piece[MarqueDeTerme.self] = true
                 output += piece
 
             case .hebrew(let value):

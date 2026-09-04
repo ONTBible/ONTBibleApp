@@ -2812,3 +2812,514 @@ tout le monde** la marque qu'un client plus récent aurait posée en turquoise.
 Une épreuve dit exactement ce que le code fait aujourd'hui, et elle échouera le
 jour où on décidera autrement. C'est le but : une décision différée doit être
 visible, pas oubliée.
+## 3 septembre 2026 — deux barres latérales qui n'étaient pas la même vue
+
+L'auteur pose deux captures côte à côte, iPad et Mac : « tu vois bien par contre
+que la sidebar n'est pas le même ». Elle ne l'était pas, et pas d'un réglage
+près — **ce ne sont pas la même vue**.
+
+| | iPadOS | macOS |
+|---|---|---|
+| qui la dessine | le système (`TabView` + `.sidebarAdaptable`) | l'app (`BarreLateraleONT`) |
+| fonte des lignes | SF, taille du système | Jost-**SemiBold** 14 |
+| en-tête de section | style système, discret | même corps et même graisse que les lignes |
+| « Vous » | `LigneDuCompte`, sans fond, ouvre une feuille | vraie destination, capsule dorée |
+
+`BarreLateraleONT` vit pourtant dans `app/Sources/App/`, elle est compilée dans
+les deux cibles, et le commit qui l'y a mise dit « partager celle-ci entre
+l'iPad et le Mac ». Sur iOS **elle n'est instanciée nulle part**. Le partage
+n'a jamais eu lieu ; seul le concept de la ligne de compte en bas a été repris.
+
+Le Mac ne peut pas revenir à la barre du système — les trois griefs qui l'ont
+fait partir sont consignés dans `RacineMac.swift`. Ce qui restait était de
+ranger la barre peinte à la main sur ce que l'iPad montre.
+
+### Le nombre qu'on ne devine pas
+
+La capsule dorée du compte s'étalait sur toute la colonne. La cause n'est pas
+un oubli de marge : `.listRowInsets` **est inerte** dans un `safeAreaInset` —
+ce modificateur n'agit que sur une ligne de `List`.
+
+Relevé au pixel, fenêtre à 1440 × 900, facteur 1 :
+
+    ligne choisie   x  26,0 → 295,5   270 pt
+    « Vous »        x   6,0 → 315,5   310 pt      dans une colonne de 322
+
+Vingt points d'écart de chaque côté. Après correction, les deux capsules
+tombent sur `26,0 → 295,5` — et y restent au facteur 1,5, où seule la hauteur
+bouge (36 → 54 pt). C'est ce qui autorise à écrire la marge en dur.
+
+### Ce que le site avait déjà tranché
+
+`SYNCHRONISATION.md` demande ce que le travail change chez les voisins. Ici :
+rien de `dist/`, rien du schéma. Mais une question de marque restait ouverte —
+le Mac vient-il de s'écarter du site en quittant le SemiBold ?
+
+Non. `style/main.css` du site compose `h1, h2, h3` en `var(--font-titre)` à
+**`font-weight: 400`**, et ses deux seuls 600 sont `strong` et la lettrine.
+**Le site était déjà en Jost Regular.** C'était le Mac qui divergeait, seul des
+trois, et personne ne pouvait le voir depuis le Mac.
+
+D'où un jeton plutôt qu'une chaîne : `ONTFonts.navigation` — `"Jost-Regular"` —
+à côté de `ONTFonts.display`, qui reste le SemiBold des titres.
+
+### L'épreuve, et pourquoi celle-là
+
+`Font.custom` retombe **en silence** sur la fonte du système quand le nom ne
+répond pas. C'est le défaut du 30 août, où l'hébreu s'affichait sur la machine
+de l'auteur et sur aucune autre. Ici il aurait été pire : un `"Jost-Regularr"`
+mal écrit produit exactement l'effet cherché — une barre plus légère. **La faute
+se serait lue comme le succès.**
+
+L'épreuve mesure donc deux choses, et elle a été retournée contre les deux
+fautes avant d'être gardée :
+
+| variante | ce qui rougit |
+|---|---|
+| `navigation = "Jost-SemiBold"` | `poids(nav) < poids(titre)` — le nom répond, la coupe est fausse |
+| `navigation = "Jost-Regularr"` | le `#require` — la fonte ne se résout pas |
+
+Sans la mesure de poids, le premier cas passait sans un mot.
+
+### Et la troncature n'était pas où on la cherchait
+
+« Toledot Adam ve-… » : les bornes de `navigationSplitViewColumnWidth` étaient
+figées, jamais multipliées par le facteur d'interface. ⌘= grossissait le libellé
+dans une colonne qui ne bougeait pas.
+
+Vérifié par sonde, facteur forcé à 1,5 et `min` porté à 240 : la colonne passe
+de 322 à **360 pt exactement**. La borne prime donc sur la largeur qu'AppKit
+avait gardée sous « NSSplitView Subview Frames » — ce qui n'allait pas de soi,
+et sans quoi le correctif n'aurait servi qu'au premier lancement.
+
+### 3 septembre 2026 — un rapport qui rend `0` en normalisant autrement que le lecteur
+
+Le rapport de build relevait quatre choses et rendait `0` partout. **Deux cent
+trente-sept liens du corpus livré n'ouvraient rien.**
+
+La raison tient en une phrase, et c'est elle qu'il faut garder : **le rapport
+normalisait autrement que le consommateur.** Pour décider si `**gibborim**` a
+une fiche, il traversait la liste des formes déclarées et retombait sur
+`gibbor` ; le nœud livré, lui, porte `lemma: "gibborim"`, et la liseuse indexe
+par lemme exact. Les deux avaient raison chacun de son côté, et le lecteur
+recevait ==« Terme non documenté »== sur un mot parfaitement documenté.
+
+**Pour les trois dépôts.** La question qu'un contrôle doit poser n'est pas
+« cette chose existe-t-elle ? » mais ==« la référence telle qu'elle est écrite
+dans le fichier livré retombe-t-elle sur une entrée du même fichier ? »== On ne
+mesure pas la source, on mesure ce qu'on livre.
+
+**Deux contrôles neufs en découlent**, tous deux dans le pipeline : chaque
+lemme émis doit retomber sur une entrée du même `dist/`, et la densité de glose
+par unité tourne à chaque build — le §4.1 l'exigeait depuis un mois, et une
+commande qu'il faut penser à lancer avait été oubliée ==le jour même où la
+règle a été écrite==.
+
+**Le cliquet, et pourquoi pas zéro.** Le plafond est posé à la valeur mesurée,
+non à zéro : à zéro il aurait fallu le désactiver, la correction appartenant à
+l'auteur. Or ==un contrôle qu'on branchera « le jour où » ne se branche
+jamais== — le jour venu, personne ne sait plus où le seuil devait aller. À la
+valeur réelle il protège tout de suite contre la seule chose qu'un rapport nu
+ne voit pas : **l'aggravation**. Et il se resserre dès que le compte baisse,
+sinon il cesse de cliqueter.
+
+### 3 septembre 2026 — le contrôle qu'on éprouve, et les 206 qui n'existaient pas
+
+Le premier plafond allait être commis à **206**. La session macOS avait dit
+d'éprouver chaque contrôle contre un état dont on connaît la réponse. Fait —
+**et le compte n'a pas bougé**.
+
+Le parcours ne regardait que `blocks`. Les notes de bas de section vivent dans
+`footer.notes`, et le corpus de *Bereshit* y livre ==170 nœuds touchables à lui
+seul== : l'apparat critique du §2.7 est dense en intraduisibles, il est rendu,
+il est touchable. Le vrai compte était **237**.
+
+**206 n'était pas un plafond, c'était la mesure d'un instrument borgne** — et
+il partait comme référence de tous les builds à venir.
+
+**Pour les trois dépôts.** Un contrôle neuf se retourne contre un état dont on
+connaît la réponse **avant** d'être commis, et la seule épreuve qui vaut est
+celle qui doit le faire ==rougir==. Un compteur qui rend `0` parce que son
+entrée est vide se lit exactement comme un corpus sain.
+
+Le corollaire, qui a servi trois fois dans la journée : **un `0` qui vaut zéro
+parce que le corpus est sain et un `0` qui vaut zéro parce que l'instrument est
+borgne s'écrivent pareil**, et c'est le premier qu'on lit. Le rapport porte
+désormais le compte de ce que les parcours restreints ne voient pas — ==613
+nœuds== — non pour les corriger, mais pour que leur `0` cesse d'être cru sans
+preuve.
+
+**Et une épreuve ratée qui vaut la réussie :** la première tentative de faire
+rougir le contrôle d'index ajoutait une ligne ==à la fin== du fichier, où elle
+ne décale aucun numéro. Le contrôle avait raison de se taire, et j'ai failli le
+croire cassé. ==Un cas dont on croit connaître la réponse n'est pas un cas dont
+on la connaît.==
+
+### 3 septembre 2026 — une table de renvois, et pourquoi elle n'est pas un document de plus
+
+Le savoir du vault est éclaté sur cinq sources qui ont chacune une bonne raison
+d'exister, et les arbitrages récents vivent dans les **pieds de section**, là où
+personne ne pense à chercher. Le coût n'est pas de chercher : c'est de ==ne pas
+trouver et de retrancher==, en croyant décider pour la première fois.
+
+`DECISIONS.md` répond à ça — et ==il est engendré, jamais rédigé==. Le §2.5 ter
+pose la règle : *une seule source par fait*. Une base écrite à la main serait
+une sixième source et elle divergerait. Celle-ci ne copie rien : elle dit **où**
+une décision est écrite, jamais ce qu'elle dit. On ne peut donc pas la
+contredire ; au pire elle est incomplète.
+
+**Pour les trois dépôts.** Un index engendré réclame exactement deux choses, et
+les deux ont failli manquer :
+
+- **l'idempotence** — l'index s'indexait lui-même, recopiait ses propres lignes
+  à chaque exécution et cessait de rendre le même fichier. C'est le seul
+  contrôle qu'un fichier engendré demande vraiment ;
+- **la fidélité au producteur** — l'extraction emploie ==l'expression exacte==
+  du pipeline et ==sa règle de slug exacte==. Deux versions approximatives ont
+  été écrites et jetées : l'une fabriquait un lemme inexistant, l'autre
+  manquait ==neuf réservations sur quatorze== sans que rien ne le signale,
+  puisqu'une liste courte ressemble à une liste. **Un index qui contredit son
+  producteur est pire qu'une absence d'index : il aurait fallu le croire.**
+
+Et il se contrôle en CI par régénération et comparaison — l'échec ==dit la
+commande== et ne régénère pas en silence, la CI n'écrivant pas à la place de
+qui a relu.
+## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté
+
+Deux captures, deux griefs : « le bas de l'interface est pas ouf, en plus cliquer
+à l'extérieur ne ferme pas la modal ». Les deux sortent de la **présentation**,
+et aucun n'est réparable depuis le contenu.
+
+- **Le bandeau gris.** Un `ToolbarItem(.confirmationAction)` posé dans une
+  `.sheet` du Mac descend dans une barre qu'**AppKit** dessine, en gris du
+  système, sous une carte qui porte l'aubergine. Ni `presentationBackground` ni
+  le thème ne l'atteignent : la barre est hors de la vue.
+- **Le clic à côté.** Une feuille du Mac est modale à sa fenêtre par
+  construction. Il n'existe pas d'API pour la refermer d'un clic dehors — ce
+  n'est pas un réglage manquant, c'est ce qu'est une feuille.
+
+D'où `ONTFeuille` : sur iOS `.sheet` reste `.sheet`, à l'identique ; sur le Mac
+l'app dessine la carte, avec le voile, la croix et ⎋.
+
+### Ce qui traverse
+
+**La règle vaut pour les trois plateformes, pas seulement pour le Mac** : une
+modale se ferme au clic à côté. iOS l'a par le glissement, le Mac vient de
+l'avoir — **et Android l'avait déjà**, vérifié plutôt que supposé : ses trois
+modales (`MainActivity.kt:961`, `:976`, `:987`) sont des `ModalBottomSheet` de
+Material 3, dont le tap sur le voile appelle `onDismissRequest`, et les trois y
+vident bien leur état.
+
+Rien à porter, donc. Ça méritait d'être écrit quand même : le jour où l'une
+d'elles deviendrait une `Surface` posée à la main, elle perdrait le geste sans
+que rien ne le dise — c'est un défaut de la présentation, invisible dans le
+contenu, exactement comme celui qu'on vient de corriger ici.
+
+### La surimpression est la sœur, pas la fille
+
+Posée **après** `.ontTheme(from:)`, la carte sortait en clair sur une app en
+aubergine, et son voile — dont l'opacité dépend du mode — devenait invisible.
+Le contenu d'un `.overlay` est le frère de la vue à laquelle on l'attache : il
+ne voit pas l'environnement que les modificateurs d'avant ont posé.
+
+Vu à la capture, invisible à la lecture. C'est aussi pourquoi la carte se rend à
+la **racine** et non au point d'appel : dans un `NavigationSplitView`, un voile
+posé dans `ChapterView` s'arrêterait au bord de la barre latérale, qui resterait
+allumée et cliquable sous une modale.
+
+### Ce qui n'a pas pu être éprouvé, et pourquoi c'est écrit
+
+**Le clic dans le voile lui-même ne l'a pas été.** Un poseur d'événements
+CoreGraphics a été écrit ; il ne passe pas — l'accessibilité est refusée sur
+cette machine, comme à `osascript`. Les captures d'avant et d'après le clic sont
+identiques au bit près, y compris en visant la croix : cela ne prouve rien sinon
+que l'événement n'arrive pas.
+
+Les trois épreuves gardées portent donc sur ce que le clic **appelle** : que le
+geste déposé est bien celui qu'on rend, que retirer n'enlève que la sienne, et
+que c'est la dernière posée qui se dessine. Chacune a été retournée contre son
+propre défaut — geste jeté, `removeAll()`, `.first` au lieu de `.last` — et
+rougit sur lui seul.
+
+## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé
+
+« L'app macOS paraît rigide, formes strictes ; iOS est fluffy, rebondie. » Le
+constat de l'auteur, vérifié en capturant **chaque vue** du Mac — quatorze — et
+quatre références iPad, en planche-contact.
+
+### Ce que la planche a montré
+
+- **le mouvement d'abord** : tout le Mac bougeait en `easeOut` 0,12–0,18 s, une
+  rampe qui s'arrête net ; l'iPhone bouge en ressorts. Aucune animation du Mac
+  ne rebondissait, pas une. D'où `ONTMouvement` — trois ressorts nommés
+  (`ressort`, `ressortVif`, `arrivee`) au lieu de valeurs posées sur place ;
+- **les formes** : cartes à 22 pt + liseré d'1 px + Divider sec, contre la
+  feuille iPad à ~40 pt sans bordure. D'où `ONTRadius.feuille` (34), l'ombre
+  seule, le filet du thème ;
+- **la taille figée** : la carte faisait 66 % × 84 % de la fenêtre quel que soit
+  le contenu — la note flottait dans 500 pt de vide. Le plafond se pose
+  **après** la peinture : `frame(maxHeight:)` s'étire jusqu'à sa borne (la
+  règle du `maxWidth: .infinity`), et peint avant lui, le fond suivait.
+
+### Trois défauts fonctionnels, qu'on ne voit qu'en regardant chaque vue
+
+- la **note** : « Annuler / Enregistrer » projetés dans la barre de la
+  *fenêtre*, à 400 pt de la carte. Sur le Mac elle a maintenant sa mise en page
+  propre, boutons dans la carte ;
+- la **recherche** : son *champ* projeté pareil — `.searchable` est un vœu
+  adressé à la barre d'outils la plus proche, et dans une surimpression c'est
+  celle de la fenêtre. D'où `ONTChampDeRecherche`, le champ des cartes ;
+- le **sélecteur** : trois captures identiques — l'app *morte*. Un
+  `NavigationStack` qui pousse une étape inscrit son bouton retour dans le
+  `NSToolbar` de la fenêtre ; dans une surimpression, l'insertion lève une
+  exception en plein layout et AppKit abat le processus
+  (`AppKitToolbarStrategy.update` sous `_insertNewItemWithItemIdentifier:`).
+
+### Le crasheur venait de la veille, et la leçon est là
+
+La migration `.sheet` → carte (la veille au soir) avait éprouvé quatre modales
+et pas le sélecteur — le seul dont la pile **pousse** à l'ouverture. La règle
+qui en sort : **dans une carte du Mac, pas de `NavigationStack` qui navigue**.
+Le sélecteur garde son modèle d'étapes (`chemin`) et le rend à la main,
+transitions au ressort, retour dans la carte. Ce qui projette vers la barre de
+fenêtre — toolbar, searchable, bouton retour — n'a rien à faire dans une
+surimpression.
+
+### Ce qui traverse
+
+Rien de `dist/` ni du schéma. Android : ses modales sont des `ModalBottomSheet`
+Material, le système y tient la chrome — la classe de défaut n'existe pas
+là-bas. Le chantier suivant est décidé avec l'auteur : micro-animations
+(survol, pression) sur tout ce qui se clique, et la palette en **gammes
+50→900** à la Tailwind avec les rôles sémantiques (accent, danger…) par-dessus
+— ancrée sur les couleurs relevées du logo et du site, pas redessinée.
+
+## 3 septembre 2026 — la refonte du mouvement, couche des fondations
+
+L'auteur, designer : « en termes d'UI/UX motion design on est loin, je veux une
+refonte ». Ses références : Craft, CleanMyMac pour la densité de micro-
+animations, ChatGPT iOS pour la tenue du branding. Sa signature, choisie sur
+deux options : **rebond assumé** (amortis 0,66–0,78, dépassement visible). Sa
+dose : « limite trop — si y en a trop c'est moi qui te dirai ».
+
+### La gamme, générée et ancrée
+
+`ONTGamme` — six teintes × onze crans (50→950), interpolées en **OKLCH** autour
+des couleurs relevées : `#421B26` **est** `aubergine800`, `#CDBE83` **est**
+`or300`, la nuit du site **est** `aubergine950`, au bit près. Trois teintes
+fonctionnelles accordées à la DA : `braise` (danger — terre cuite qui penche
+bordeaux), `cedre` (succès — sauge boisée), `ambre` (avertissement). Le
+générateur vit hors dépôt ; ses contrastes sont vérifiés à la génération **et**
+re-vérifiés par `GammeContrastTests`, qui a refusé le cèdre 600 (4,4:1 sur
+parchemin) avant qu'il ne soit committé — le rôle prend le 700.
+
+Les rôles passent par le thème : `theme.danger`, `theme.succes`,
+`theme.avertissement` + leurs surfaces, et deux voiles d'interaction nommés
+(`voileSurvol` 7 %, `voilePression` 13 % d'encre).
+
+### Les états d'interaction, qui n'existaient pas
+
+Vingt-quatre `buttonStyle(.plain)` dans l'app du Mac, **aucun état de
+pression**. `ONTInteraction` pose : `ONTPresse` (l'échelle cède, l'encre se
+voile, le ressort ramène — `.ontPresse` / `.ontLigne`), `ontSurvol(dans:)` (le
+voile épouse la forme, levée optionnelle), `ontApparition(_:)` (la cascade de
+Craft — huit points plus bas, remonte au `pop`, décalée par le rang, bornée au
+douzième).
+
+Appliqué : cases du sélecteur (survol levé + pression + cascade des grilles
+d'unités et de versets), segments (pression + glissement du choisi au ressort),
+barre latérale (pression rejoint le survol), boutons de cadre des fiches, croix
+des feuilles, balai du champ de recherche.
+
+### Ce qui traverse
+
+**iOS reçoit les mêmes jetons** — la gamme, les rôles, `ONTMouvement` — mais la
+cascade et les survols sont posés là où iOS a déjà ses réponses système ; rien
+ne double. Le site : sa palette CSS et la gamme partagent les ancres — le jour
+où `ontbible.com` veut ses crans, la gamme se transpose en variables CSS depuis
+le même générateur. Android : les initiatives restent à iOS ; le portage des
+jetons attendra que la refonte soit arbitrée ici.
+
+### Reste à faire, dit à l'auteur
+
+Les listes en cartes par ligne (corpus, lexique, Vous, résultats), les rangées
+restantes (NavigationLink du corpus), l'orchestration d'arrivée des écrans, le
+survol des intraduisibles dans le texte, la pastille de la barre. Vue par vue,
+planche à l'appui.
+
+## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes
+
+### « Impossible de swiper » — les deux chemins, encore
+
+L'auteur, depuis la vue Reprendre : ni la traîne au clic maintenu, ni le
+glissement à deux doigts. `RepriseDeLecture` rendait **`ChapterView` nu**, quand
+le chemin du sommaire rend `ChapterSwipe` — l'enveloppe qui porte le geste
+horizontal. La même unité glissait par une porte et pas par l'autre. C'est le
+motif « deux chemins, une vue » du 30 août, revenu par une porte de plus ; le
+balayage n'a trouvé aucun autre `ChapterView` nu.
+
+L'audit demandé (« scrute tout ») sur la classe cible-partielle : les rangées du
+lexique et les cases de versets portaient déjà leur `contentShape` ; les
+`DisclosureGroup` ont tous quitté le Mac ; les `onTapGesture` restants couvrent
+leur boîte entière.
+
+### Lexique et Vous en cartes par ligne
+
+La leçon du lexique : deux `listRowBackground` sur la même rangée, c'est
+**l'intérieur** qui gagne — le `clear` posé par-dessus n'éteignait pas la
+surface d'`ontRow`, et les cartes se noyaient dans un bloc. D'où
+`ontLigneDeCarte()`, un seul appel qui choisit par plateforme, au lieu de deux
+qui s'empilent. Et le style : la `List` était déjà `.plain` — le bloc n'était
+pas le style groupé, c'était nous.
+
+Vous : chaque rangée sa carte, l'échec de connexion en **braise dans sa
+pastille** (`theme.danger` sur `dangerSurface`) au lieu du `.red` système,
+« Supprimer mon compte » teinté braise, capsules de connexion avec levée au
+survol et pression. Les capsules ont servi le soir même : l'auteur s'est
+connecté avec Apple sur le Mac — première connexion réussie de la plateforme.
+
+## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt
+
+« Tu te moques de moi pour la sidebar ? » — et le reproche était juste : le
+panneau flottant avait été posé, mais la barre peignait encore son fond opaque
+par-dessus la vitre. Un demi-pas livré comme un pas. La leçon est celle
+d'`implementer-plutot-que-declarer`, version visuelle : une translucidité
+annoncée dont rien ne traverse.
+
+### La vitre, la vraie
+
+`NSVisualEffectView` en `.behindWindow` — pas un matériau SwiftUI, qui ne
+floute que ce que la fenêtre dessine : la translucidité de Craft traverse la
+**fenêtre**, c'est le bureau qu'on devine. Voile aubergine à 0,65 par-dessus
+(à 0,5, mesuré sur capture, la barre tirait au gris du système), coins 18,
+marges 12, filet qui prend la lumière. La barre elle-même ne peint **plus
+rien** — quatre jours de `background(theme.surface)` retirés.
+
+### L'anneau qui se déplaçait
+
+Le focus initial de la fenêtre a montré l'anneau du système sur la carte
+« Reprendre », puis — celle-ci l'ayant décliné — sur le bouton de barre
+d'outils, cerceau mauve au lancement sur les captures de l'auteur. Éteindre
+l'anneau élément par élément ne faisait que le déplacer : la fenêtre s'ouvre
+maintenant **sans premier répondeur**.
+
+### Le ratio volé par les captures
+
+`defaultSize` portait déjà le 1,29 relevé sur la référence de l'auteur — mais
+chaque campagne de captures forçait 1440 × 900, et la restauration d'état le
+gardait : les lancements normaux rouvraient au format App Store. Le mode
+capture pose désormais `isRestorable = false`. Un outil de mesure qui modifie
+l'état qu'il mesure — la troisième fois que ce motif coûte, après la vignette
+de Stage Manager et le garde-fou qui mesurait la fenêtre d'avant.
+
+### Les haptiques et le verre
+
+`ONTHaptique` — tic (pression), cran (plis, segments), palier (cartes) — sur
+le moteur que `ChapterSwipe` éprouvait déjà. Câblé dans `ONTPresse` même :
+tout bouton au style de la maison sonne, sans site à instrumenter.
+`ontVerre(dans:)` pose le verre du système (macOS 26, matière fine en repli)
+sur ce qui flotte au-dessus du texte — la pastille de lecture d'abord. Sur
+iOS, les deux ne font rien : le système y donne déjà ses retours.
+
+## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas
+
+La table d'un livre et les résultats de recherche ont rejoint les cartes par
+ligne — même recette, cascade comprise ; la carte du Qahal a pris la pression.
+Le morceau qui se raconte est ailleurs : **le survol des intraduisibles**, mot
+à mot, dans un `Text` de SwiftUI qui n'offre rien pour ça.
+
+### Le mécanisme
+
+`TextRenderer` (macOS 15) : le point du curseur descend dans le rendu, chaque
+run du layout expose ses indices de caractères, et le run marqué qui contient
+le point reçoit son voile avant d'être dessiné. Pas de relayout — du dessin.
+Posé sur le mode étude seulement : sur la prose continue, chaque mouvement de
+souris redessinerait le chapitre entier, et c'est le canon de performance.
+
+### L'attribut qui ne voyageait pas — l'épreuve l'a tué avant un lecteur
+
+Premier essai : une double conformité `TextAttribute` + `AttributedStringKey`,
+en espérant que la marque voyage de l'`AttributedString` jusqu'aux runs du
+layout. **Elle ne voyage pas.** Et rien ne l'aurait dit : un attribut perdu
+donne exactement l'écran d'un survol au repos.
+
+D'où le mode **sonde** — tous les runs marqués voilés, sans curseur — et une
+épreuve de pixels : sonde et repos doivent différer sur un texte qui porte un
+terme, et rester identiques sur un texte qui n'en porte pas. Elle a rougi du
+premier coup sur la double conformité, et c'est elle qui a imposé le chemin
+qui marche : des **plages de caractères** extraites de la chaîne finale
+(césures comprises), passées au rendu comme données, recollées aux runs par
+`CharacterIndex` — opaque, mais `Strideable` : le minimum du layout est le
+caractère zéro, `distance(to:)` rend chaque index absolu. Le minimum et non le
+premier run : l'hébreu en RTL réordonne les runs visuellement.
+
+## 4 septembre 2026 — la barre flottante, construite puis écartée en main
+
+Trois états en une soirée : la barre opaque, la barre flottante à la Craft
+(coins, marges, ombre, sol unifié), puis — l'auteur l'ayant prise en main —
+le retour au **bord à bord** : « on voit que ce rendu est pas natif, ça fait
+bizarre ». Il avait raison sur la sensation : les barres du Mac sont des
+colonnes, pas des cartes.
+
+Ce qui reste du voyage est le morceau qui comptait : la **translucidité** —
+`NSVisualEffectView` en `.behindWindow`, le bureau qui se devine, le voile
+aubergine à 0,65 — et une barre qui ne peint plus son propre fond. Le détour
+n'était pas gratuit : c'est en la voyant flotter qu'on a su que ce n'était pas
+elle. Décision d'auteur, consignée pour que personne ne la reconstruise.
+
+## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon
+
+« Non, la sidebar Craft elle flotte, mec. » Exact — et la relecture de sa
+capture a montré ce que la première tentative avait raté : **ce n'est pas la
+barre qui flotte, c'est tout ce que la fenêtre porte**. Chez Craft, la fenêtre
+est une toile plus sombre, et DEUX panneaux y sont posés — la barre *et* le
+contenu — coins ronds fins, retraits de ~8 pt, ni bordure ni ombre : la
+séparation se fait au ton.
+
+C'est pour ça que la version « carte flottante » sonnait faux : un panneau
+seul contre une page pleine est un objet collé sur un mur. Le flottement est
+un écosystème, pas une propriété d'objet.
+
+Construit : `Toile` (marge 8, coin 12), `PanneauDeBarre` (vitre arrière +
+voile 0,65, découpé), `PanneauDeContenu` (la page de lecture, découpée),
+`CouleurDeToile` (le fond du thème sous un voile noir à 0,35). Deux pièges
+mesurés au passage : la matière-système de la colonne remplissait les marges
+avec la même vitre que le panneau — marges posées, marges invisibles — et il
+faut recouvrir son sol comme pour la page ; et une prévisualisation réduite
+écrase un écart de ton réel (14,6,8 contre 48,37,40 au pixel) — juger les
+retraits fins à l'échelle 1.
+
+## 4 septembre 2026 — la mesure a clos le débat de la barre
+
+L'entrée précédente (« deux panneaux sur une toile ») était la **troisième
+lecture fausse** de la même capture. L'auteur a corrigé une fois de plus — « les
+trois boutons sont dans la sidebar chez Craft » — et cette fois la capture a été
+**balayée au pixel** au lieu d'être relue à l'œil :
+
+    bord gauche   : fenêtre → barre (76), sans gouttière
+    zone des feux : posés SUR la barre — elle monte jusqu'au bord
+    barre→contenu : 76 → 59 sur ~20 pt → 35
+    bord droit    : 35 → 59 sur ~23 pt → fenêtre
+
+**La barre est soudée ; c'est la page qui flotte**, posée sur une toile visible
+en gouttière, et la hiérarchie des tons est barre > toile > page. Transposé
+dans la peau : 48 > 30 > 22, vérifié sur notre propre capture au même balayage.
+
+Quatre allers-retours pour une capture qui était là depuis le début. La leçon
+est celle de toute la semaine : **une référence visuelle se mesure, elle ne se
+relit pas** — l'œil a affirmé trois architectures différentes du même écran,
+le balayage en a établi une en trente lignes.
+
+## 4 septembre 2026 — la bidouille retirée : la barre est celle du système
+
+Fin du feuilleton de la barre, sur l'ordre de l'auteur : « enlève la bidouille ».
+`PanneauFlottant.swift` est supprimé — vitre à la main, voile, toile, page en
+panneau — et le `NavigationSplitView` rend sa colonne au système, qui la fait
+translucide tout seul depuis que la barre ne peint plus son propre fond.
+
+Le solde net de l'aller-retour tient en deux lignes de vrai : **la barre ne
+peint plus rien** (c'était l'opacité d'origine, le seul vrai défaut), et la
+fouille — SDK balayé, web croisé, deux sondes — a établi qu'il n'existe pas
+d'API « barre flottante » : sur cette machine, la forme native est la colonne
+de verre pleine hauteur, et ce qui flotte chez Craft est leur page. Quatre
+constructions écrites, une gardée : celle du système.

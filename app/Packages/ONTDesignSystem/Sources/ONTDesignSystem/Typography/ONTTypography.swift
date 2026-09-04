@@ -44,6 +44,20 @@ public enum ONTFonts {
     /// grossi ce qu'il fallait laisser.
     public static let display = "Jost-SemiBold"
 
+    /// La fonte des barres et des listes — Jost en graisse normale.
+    ///
+    /// **Pourquoi une coupe de plus, et pas `display`.** `display` est le
+    /// SemiBold : juste pour un titre, un cran trop lourd pour une ligne de
+    /// navigation. La barre latérale de l'iPad, que le système compose, pose
+    /// ses lignes en graisse normale ; celle du Mac, que l'app peint, les
+    /// posait en SemiBold. Les deux captures côte à côte ne montraient pas la
+    /// même barre, et c'était la première raison.
+    ///
+    /// La coupe est déjà embarquée et déjà inscrite — `Jost-Regular.ttf` dans
+    /// `UIAppFonts` pour iOS, et prise par `ATSApplicationFontsPath` sur le
+    /// Mac. Rien à ajouter au bundle.
+    public static let navigation = "Jost-Regular"
+
     /// Le nom de famille d'une fonte de corps.
     ///
     /// Le nom de **famille**, pas de coupe : c'est lui qui permet à `.italic()`

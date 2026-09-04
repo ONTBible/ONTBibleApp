@@ -364,10 +364,15 @@ struct ChapterView: View {
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(theme.ink.opacity(0.07)))
+                    // Le verre du système sous la pastille — elle flotte
+                    // au-dessus du texte, c'est exactement sa place. Le voile
+                    // d'encre reste par-dessus pour la teinte de la maison.
+                    .ontVerre(dans: Capsule())
+                    .background(Capsule().fill(theme.ink.opacity(0.05)))
+                    .ontSurvol(dans: Capsule(), souleve: true)
                     .contentShape(.capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ontPresse)
                 .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
             ToolbarItem(placement: ONTPlacement.principale) {
@@ -383,37 +388,32 @@ struct ChapterView: View {
         // cette pose, elle repeignait ses surfaces mais gardait le schéma de
         // couleurs du départ, et les commandes d'iOS devenaient illisibles —
         // « Thème » en noir sur l'aubergine. Il fallait relancer l'app.
-        .sheet(isPresented: $showingPicker) {
+        .ontFeuille(presentee: $showingPicker, titre: "Aller au passage") {
             ReferencePicker(current: chapter)
                 .ontTheme(from: model.preferences)
         }
-        .sheet(isPresented: $showingSettings) {
-            // La pile et le « OK » appartiennent à la **présentation**, pas au
-            // contenu : depuis « Vous », la même vue est poussée dans une pile
-            // qui existe déjà, et n'a ni l'une ni l'autre à fournir.
-            NavigationStack {
-                // Le thème est reposé **ici aussi**, au plus près du contenu.
-                //
-                // Posé seulement autour de la pile, il repeignait les surfaces
-                // mais laissait la teinte d'origine : la valeur du sélecteur
-                // restait bordeaux sur l'aubergine, soit 1,2:1. Les deux ne
-                // voyagent pas par le même chemin — l'une par l'environnement,
-                // l'autre par `tint`, que la présentation capture plus haut.
-                ReadingSettingsSheet(chapter: chapter)
-                    .ontTheme(from: model.preferences)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("OK") { showingSettings = false }
-                        }
-                    }
-            }
-            // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
-            // grande taille avec les gloses allumées, la mi-hauteur ne laisse
-            // plus voir les réglages.
-            .ontHauteurDeFeuille([.medium, .large])
-            .ontTheme(from: model.preferences)
+        .ontFeuille(presentee: $showingSettings, titre: "Lecture") {
+            // Le thème est reposé **ici aussi**, au plus près du contenu.
+            //
+            // Posé seulement autour de la pile, il repeignait les surfaces
+            // mais laissait la teinte d'origine : la valeur du sélecteur
+            // restait bordeaux sur l'aubergine, soit 1,2:1. Les deux ne
+            // voyagent pas par le même chemin — l'une par l'environnement,
+            // l'autre par `tint`, que la présentation capture plus haut.
+            ReadingSettingsSheet(chapter: chapter)
+                .ontTheme(from: model.preferences)
+                // La pile et le « OK » appartiennent à la **présentation**, pas
+                // au contenu : depuis « Vous », la même vue est poussée dans une
+                // pile qui existe déjà, et n'a ni l'une ni l'autre à fournir. Le
+                // Mac n'en veut aucun des deux — sa carte a déjà sa croix.
+                .ontChromeDeFeuille("OK") { showingSettings = false }
+                // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
+                // grande taille avec les gloses allumées, la mi-hauteur ne laisse
+                // plus voir les réglages.
+                .ontHauteurDeFeuille([.medium, .large])
+                .ontTheme(from: model.preferences)
         }
-        .sheet(item: $noteTarget) { selection in
+        .ontFeuille(objet: $noteTarget, titre: "Note") { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
                 .ontTheme(from: model.preferences)
         }
@@ -663,14 +663,19 @@ private struct VerseRow: View {
             // cette branche, le sol du numéro de verset vient de `dev`. Les
             // deux sont nécessaires — garder l'un ferait taire l'autre sans
             // que rien ne le dise.
-            Text(
-                ONTTextRenderer.compose(
-                    verse: verse, theme: theme, underlined: selected,
-                    surligne: highlight != nil
-                )
-                .cesuree(theme.preferences.hyphenation)
+            // La chaîne est nommée parce que le survol en a besoin : les
+            // plages de termes s'extraient de ce qui part réellement dans le
+            // `Text`, césures comprises.
+            let corps = ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil
             )
-            .lineSpacing(theme.lineSpacing)
+            .cesuree(theme.preferences.hyphenation)
+            Text(corps)
+                // Le mot que le curseur touche s'éclaire — mode étude
+                // seulement, voir `ontSurvolDesTermes` pour la prose continue.
+                .ontSurvolDesTermes(corps)
+                .lineSpacing(theme.lineSpacing)
                 .font(ONTUI.ligneDeListe)
 
             if let note = highlight?.note {
@@ -812,7 +817,7 @@ private struct VerseActionBar: View {
                     }
                 }
         )
-        .sheet(item: $partage) { item in
+        .ontFeuille(objet: $partage, titre: "Partager") { item in
             ONTActivityView(items: item.items)
         }
         .task {
@@ -1571,46 +1576,99 @@ private struct NoteEditor: View {
     @State private var text = ""
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
-                    // `TextEditor` porte son propre fond, et il ne vient pas
-                    // de la ligne : il reste gris système au milieu d'une nuit
-                    // aubergine, même quand la section qui l'entoure est
-                    // habillée. On le cache pour laisser voir la surface du
-                    // thème derrière, et l'encre suit le thème comme le reste.
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(theme.ink)
-                        .frame(minHeight: 140)
-                }
-                .ontRow()
-            }
-            .ontFormulaire()
-            .navigationTitle("Note")
-            .ontTitreCompact()
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+        #if os(macOS)
+            // **Pas de pile ni de barre d'outils ici : la carte est la chrome.**
+            //
+            // Dans la surimpression du Mac, un `NavigationStack` projette ses
+            // boutons dans la barre de titre de la **fenêtre** — « Annuler »
+            // et « Enregistrer » se sont retrouvés en haut à droite de l'écran,
+            // à quatre cents points de la carte qu'ils commandent. Mesuré sur
+            // capture, comme le lac de vide sous la note : le formulaire étant
+            // avide de hauteur, la carte figée faisait 756 pt pour 250 de
+            // contenu. Une pile compacte se blottit, la carte suit.
+            VStack(alignment: .leading, spacing: espaceNote.m) {
+                Text("\(chapter.title):\(verse)")
+                    .font(ONTUI.enteteDeListe)
+                    .foregroundStyle(theme.ink.opacity(0.55))
+                TextEditor(text: $text)
+                    .scrollContentBackground(.hidden)
+                    .font(ONTUI.body)
+                    .foregroundStyle(theme.ink)
+                    .padding(espaceNote.s)
+                    .frame(minHeight: 160, maxHeight: 320)
+                    .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+                HStack(spacing: espaceNote.s) {
+                    Spacer(minLength: 0)
+                    Button("Annuler") { fermerLaNote() }
+                        .keyboardShortcut(.cancelAction)
                     Button("Enregistrer") {
                         model.setNote(text, verse: verse, in: chapter)
-                        dismiss()
+                        fermerLaNote()
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                 }
             }
+            .padding(espaceNote.page)
+            .ontScreen()
             .onAppear {
                 text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
             }
-            // Une feuille reste un écran, et suit donc le thème comme les
-            // autres. Sans ces deux lignes, écrire une note faisait surgir un
-            // formulaire gris système au milieu de la nuit aubergine.
-            .ontRow()
-            .ontScreen()
-        }
-        .ontHauteurDeFeuille([.medium])
+        #else
+            NavigationStack {
+                Form {
+                    Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
+                        // `TextEditor` porte son propre fond, et il ne vient pas
+                        // de la ligne : il reste gris système au milieu d'une nuit
+                        // aubergine, même quand la section qui l'entoure est
+                        // habillée. On le cache pour laisser voir la surface du
+                        // thème derrière, et l'encre suit le thème comme le reste.
+                        TextEditor(text: $text)
+                            .scrollContentBackground(.hidden)
+                            .foregroundStyle(theme.ink)
+                            .frame(minHeight: 140)
+                    }
+                    .ontRow()
+                }
+                .ontFormulaire()
+                .navigationTitle("Note")
+                .ontTitreCompact()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annuler") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Enregistrer") {
+                            model.setNote(text, verse: verse, in: chapter)
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear {
+                    text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
+                }
+                // Une feuille reste un écran, et suit donc le thème comme les
+                // autres. Sans ces deux lignes, écrire une note faisait surgir un
+                // formulaire gris système au milieu de la nuit aubergine.
+                .ontRow()
+                .ontScreen()
+            }
+            .ontHauteurDeFeuille([.medium])
+        #endif
     }
+
+    #if os(macOS)
+        /// La marge de la carte — le jeton, pas un nombre local.
+        private var espaceNote: ONTSpacing { ONTSpacing() }
+
+        /// Comment la présentation veut être refermée — la carte du Mac le dit
+        /// par `ontFermer` ; `dismiss` resterait muet dans une surimpression.
+        @Environment(\.ontFermer) private var fermer
+
+        private func fermerLaNote() {
+            if let fermer { fermer() } else { dismiss() }
+        }
+    #endif
 }
 
 

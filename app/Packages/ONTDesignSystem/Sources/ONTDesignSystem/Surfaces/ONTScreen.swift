@@ -20,6 +20,23 @@ public struct ONTScreenModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
+            // **Un interrupteur, et non une case à cocher.**
+            //
+            // Sur le Mac, un `Toggle` rend une *case à cocher* dans une `List`
+            // et un *interrupteur* dans un `Form` en style groupé. Les réglages
+            // de lecture passent par `ontFormulaire()`, donc par le second ;
+            // « Le français reçu » et « Synchroniser mes annotations » vivent
+            // dans une `List`, donc par le premier. Deux réglages du même écran,
+            // deux commandes différentes, sans que personne l'ait décidé.
+            //
+            // C'est l'interrupteur qu'on garde : c'est ce que rend l'iPhone, et
+            // ce que rend déjà la moitié des réglages ici. Posé au point unique
+            // par lequel tous les écrans passent, pour la même raison que le
+            // grain plus bas — ailleurs, il manquerait quelque part.
+            //
+            // Le style se transmet par l'environnement : un `Form` groupé le
+            // rendait déjà, rien n'y change.
+            .ontInterrupteurs()
             // Le grain de la nuit se pose ici, et **seulement** ici : c'est le
             // point unique par lequel passe le fond de tous les écrans, donc le
             // seul endroit où il ne peut ni manquer quelque part, ni se
@@ -115,6 +132,19 @@ extension View {
 
     /// La surface d'une ligne de liste.
     public func ontRow() -> some View { modifier(ONTRowModifier()) }
+
+    /// Les `Toggle` en interrupteurs, là où la plateforme en ferait des cases.
+    ///
+    /// Sur iOS il n'y a rien à faire : un `Toggle` y est déjà un interrupteur,
+    /// partout. Le `#if` porte donc sur ce que **le système** rend, jamais sur
+    /// ce que le réglage veut dire.
+    public func ontInterrupteurs() -> some View {
+        #if os(macOS)
+            return toggleStyle(.switch)
+        #else
+            return self
+        #endif
+    }
 
     /// La colonne de l'app — à poser autour de la pile de navigation d'un onglet.
     public func ontColumn() -> some View { modifier(ONTColumnModifier()) }

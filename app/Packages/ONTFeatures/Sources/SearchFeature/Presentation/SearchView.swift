@@ -16,6 +16,9 @@ public struct SearchView: View {
     @Environment(SearchModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    /// Comment la présentation veut être refermée, quand ce n'est pas
+    /// SwiftUI qui l'a présentée — la carte du Mac, par exemple.
+    @Environment(\.ontFermer) private var fermer
 
     var spacing = ONTSpacing()
 
@@ -28,6 +31,22 @@ public struct SearchView: View {
 
         NavigationStack {
             List {
+                #if os(macOS)
+                    // **Le champ vit dans la carte, pas dans la fenêtre.**
+                    //
+                    // `.searchable` est un vœu adressé à la barre d'outils la
+                    // plus proche — et dans la surimpression du Mac, c'est
+                    // celle de la *fenêtre* : le champ est allé s'asseoir en
+                    // haut à droite de l'écran, hors de la carte qui contenait
+                    // tout le reste. Mesuré sur capture. Ici, un champ posé où
+                    // l'œil est déjà.
+                    Section {
+                        ONTChampDeRecherche($model.query, invite: "Un mot, un intraduisible, ou de l'hébreu")
+                            .listRowInsets(.init(top: 6, leading: 16, bottom: 2, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                #endif
                 Section {
                     // La portée de recherche est un choix qu'on révise en
                     // lisant les résultats : elle reste à l'écran.
@@ -41,7 +60,7 @@ public struct SearchView: View {
 
                 if !model.hits.isEmpty {
                     Section(header: Text("\(model.hits.count) passage\(model.hits.count > 1 ? "s" : "")").font(ONTUI.enteteDeListe)) {
-                        ForEach(model.hits) { hit in
+                        ForEach(Array(model.hits.enumerated()), id: \.element.id) { rang, hit in
                             Button { open(hit) } label: {
                                 HitRow(hit: hit, title: model.bookTitle(hit.record.bookId),
                                        query: model.query)
@@ -49,9 +68,11 @@ public struct SearchView: View {
                                     // résultat pour l'ouvrir serait un jeu
                                     // d'adresse.
                                     .contentShape(.rect)
+                                    .ontCarteDeLigne()
                             }
-                            .buttonStyle(.plain)
-                            .ontRow()
+                            .buttonStyle(.ontLigne)
+                            .ontLigneDeCarte()
+                            .ontApparition(rang)
                         }
                     }
                 }
@@ -60,14 +81,17 @@ public struct SearchView: View {
             .ontScreen()
             .navigationTitle("Rechercher")
             .ontTitreCompact()
-            .searchable(
-                text: $model.query,
-                placement: ONTPlacement.recherche,
-                prompt: "Un mot, un intraduisible, ou de l'hébreu"
-            )
+            .rechercheDeLaPlateforme(texte: $model.query)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fermer") { dismiss() }
+                // Seulement quand la présentation n'a pas sa propre croix — la
+                // carte du Mac en pose une, et un `NavigationStack` dans une
+                // surimpression projette sa barre d'outils dans la barre de
+                // titre de la fenêtre. Le « Fermer » irait s'y asseoir, loin de
+                // ce qu'il ferme. Voir `ONTFermeture`.
+                if fermer == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
             }
             .overlay {
@@ -87,6 +111,23 @@ public struct SearchView: View {
             verse: hit.record.verse
         )
         dismiss()
+    }
+}
+
+extension View {
+    /// `.searchable` là où il atteint la bonne barre — c'est-à-dire pas sur le
+    /// Mac, où la carte porte déjà son champ.
+    @ViewBuilder
+    fileprivate func rechercheDeLaPlateforme(texte: Binding<String>) -> some View {
+        #if os(macOS)
+            self
+        #else
+            searchable(
+                text: texte,
+                placement: ONTPlacement.recherche,
+                prompt: "Un mot, un intraduisible, ou de l'hébreu"
+            )
+        #endif
     }
 }
 

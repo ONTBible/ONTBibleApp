@@ -37,6 +37,12 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.reference</string>
+	<key>ONTAPIBaseURL</key>
+	<string>https://j451hq8d3k.execute-api.eu-west-3.amazonaws.com</string>
+	<key>ONTGitHubClientID</key>
+	<string>Ov23liKe17kibtPWeUE1</string>
+	<key>ONTGoogleClientID</key>
+	<string>154337904456-de9o2u3res51203irei6o0ggk1lvlkq5.apps.googleusercontent.com</string>
 	<key>ONTWebBaseURL</key>
 	<string>https://ontbible.com</string>
 </dict>

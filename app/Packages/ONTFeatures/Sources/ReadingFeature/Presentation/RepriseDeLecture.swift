@@ -30,7 +30,18 @@ public struct RepriseDeLecture: View {
 
     public var body: some View {
         if let unite {
-            ChapterView(chapter: unite)
+            // `ChapterSwipe` et non `ChapterView` : c'est lui qui porte le
+            // geste horizontal — la traîne au clic maintenu **et** le
+            // glissement à deux doigts. Rendue nue, la reprise affichait un
+            // chapitre où aucun des deux ne répondait : la même unité, ouverte
+            // par le sommaire, glissait ; ouverte par « Reprendre », non.
+            // Relevé par l'auteur — c'est le prix exact des deux chemins qui
+            // ne passent pas par la même vue.
+            //
+            // `.id` pour la même raison que `ChapterLoader` : sans lui,
+            // SwiftUI garderait l'état d'une position précédente.
+            ChapterSwipe(depart: unite)
+                .id(unite.id)
         } else {
             ContentUnavailableView {
                 Label("Rien à reprendre", systemImage: "bookmark")
