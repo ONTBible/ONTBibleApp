@@ -94,6 +94,15 @@ struct BarreLateraleONT: View {
                     }
                     .buttonStyle(.ontLigne)
                     .textCase(nil)
+                    // **La géométrie des lignes, posée au padding — et rien
+                    // qu'au padding.** `listRowInsets` est inerte sur un
+                    // en-tête de section du style `sidebar` : mesuré, deux
+                    // valeurs différentes ont rendu deux captures identiques.
+                    // Les nombres visent les aplombs relevés : le chevron
+                    // s'arrête au bord des capsules (318 pt dans une barre de
+                    // 350), « Kenesset » à l'aplomb des icônes (39).
+                    .padding(.leading, espace.s + 16)
+                    .padding(.trailing, espace.s + 20)
                     .padding(.vertical, espace.xs)
                 }
             }
