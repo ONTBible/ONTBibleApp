@@ -65,9 +65,12 @@ struct RacineMac: View {
         VStack(spacing: 0) {
             NavigationSplitView {
                 BarreLateraleONT()
-                    // Le panneau de la barre, sur la toile — voir `Toile` pour
-                    // l'architecture et ses trois états traversés.
-                    .panneauFlottant()
+                    // **Aucun fond, aucun panneau : la barre est celle du
+                    // système.** Trois constructions à la main ont été
+                    // essayées puis retirées — opaque, flottante, toile — et
+                    // la sonde a montré que la matière native fait déjà le
+                    // travail dès que plus personne ne peint par-dessus. Le
+                    // journal du 4 septembre porte le récit complet.
                     // **Les trois bornes suivent le corps réglé au clavier.**
                     //
                     // Elles étaient figées, et le facteur d'interface ne les
@@ -81,7 +84,6 @@ struct RacineMac: View {
                         max: ONTUI.points(460))
             } detail: {
                 Detail()
-                    .panneauDeContenu()
                     // Les listes du détail reprennent la fonte du système à leurs
                     // lignes ; ces deux styles la leur rendent. Mesuré au pixel —
                     // voir `FonteDesListes`. Posé sur le détail et non sur toute la
@@ -91,9 +93,6 @@ struct RacineMac: View {
                     .panneauDeFiche(shemot: composition.shemotSurDisque)
             }
             .navigationSplitViewStyle(.automatic)
-            // La toile commune — c'est elle qui fait flotter les deux
-            // panneaux, pas leurs ombres.
-            .toileDeFond()
 
             if vault.vault != nil { BandeauDuVault(mode: vault) }
         }

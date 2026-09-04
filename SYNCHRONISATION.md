@@ -3309,3 +3309,17 @@ Quatre allers-retours pour une capture qui était là depuis le début. La leço
 est celle de toute la semaine : **une référence visuelle se mesure, elle ne se
 relit pas** — l'œil a affirmé trois architectures différentes du même écran,
 le balayage en a établi une en trente lignes.
+
+## 4 septembre 2026 — la bidouille retirée : la barre est celle du système
+
+Fin du feuilleton de la barre, sur l'ordre de l'auteur : « enlève la bidouille ».
+`PanneauFlottant.swift` est supprimé — vitre à la main, voile, toile, page en
+panneau — et le `NavigationSplitView` rend sa colonne au système, qui la fait
+translucide tout seul depuis que la barre ne peint plus son propre fond.
+
+Le solde net de l'aller-retour tient en deux lignes de vrai : **la barre ne
+peint plus rien** (c'était l'opacité d'origine, le seul vrai défaut), et la
+fouille — SDK balayé, web croisé, deux sondes — a établi qu'il n'existe pas
+d'API « barre flottante » : sur cette machine, la forme native est la colonne
+de verre pleine hauteur, et ce qui flotte chez Craft est leur page. Quatre
+constructions écrites, une gardée : celle du système.
