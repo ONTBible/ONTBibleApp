@@ -255,9 +255,23 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
     private struct VoileEtCarte<Contenu: View>: View {
         let titre: String?
         let fermer: @MainActor () -> Void
-        @ViewBuilder let contenu: () -> Contenu
+        let contenu: () -> Contenu
 
         @Environment(\.ontTheme) private var theme
+
+        // **Explicite, parce que la CI n'est pas la machine de travail.**
+        // L'init synthétisée d'une struct privée passait sous Xcode 27 bêta
+        // et rougissait sous le 26.3 de la CI — « initializer is inaccessible
+        // due to 'private' protection level ». `CadreDeFiche` porte la même
+        // forme pour la même raison.
+        init(
+            titre: String?, fermer: @escaping @MainActor () -> Void,
+            @ViewBuilder contenu: @escaping () -> Contenu
+        ) {
+            self.titre = titre
+            self.fermer = fermer
+            self.contenu = contenu
+        }
 
         var body: some View {
             ZStack {
@@ -319,10 +333,20 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
     private struct CarteDeFeuille<Contenu: View>: View {
         let titre: String?
         let fermer: @MainActor () -> Void
-        @ViewBuilder let contenu: () -> Contenu
+        let contenu: () -> Contenu
 
         @Environment(\.ontTheme) private var theme
         private var espace = ONTSpacing()
+
+        // Explicite — même raison que `VoileEtCarte`, voir plus haut.
+        init(
+            titre: String?, fermer: @escaping @MainActor () -> Void,
+            @ViewBuilder contenu: @escaping () -> Contenu
+        ) {
+            self.titre = titre
+            self.fermer = fermer
+            self.contenu = contenu
+        }
 
         var body: some View {
             VStack(spacing: 0) {
@@ -358,6 +382,8 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
         @Environment(\.ontTheme) private var theme
         @State private var survolé = false
         private var échelle = ONTScaled()
+
+        init(action: @escaping @MainActor () -> Void) { self.action = action }
 
         var body: some View {
             Button(action: action) {
