@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.labibleont.ont.observabilite.Observabilite
 
 /**
  * L'application, et la racine de composition.
@@ -16,6 +17,10 @@ public class ONTApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Avant tout le reste : une erreur au démarrage est celle qu'on veut le
+        // plus voir, et c'est aussi celle qui arrive avant que quoi que ce soit
+        // d'autre soit prêt à la remonter.
+        Observabilite.demarrer(this, getString(R.string.sentry_dsn))
         declarerLesCanaux()
     }
 

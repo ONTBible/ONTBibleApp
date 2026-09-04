@@ -62,10 +62,16 @@ struct BarreLateraleONT: View {
                     // **Un en-tête à nous, et non celui du système.**
                     //
                     // Celui du style `sidebar` compose en très petit, tout en
-                    // capitales et en gris — trois écarts d'un coup avec la
-                    // barre de l'iPad, relevés sur captures côte à côte. Le
-                    // nom d'un corpus n'est pas une étiquette de rangement :
-                    // « Kenesset » se lit, comme les livres en dessous.
+                    // capitales et en gris. Deux de ces trois traits sont de
+                    // vrais écarts avec la barre de l'iPad, où l'en-tête lit
+                    // « Kenesset » et non « KENESSET » : la casse et le gris
+                    // restent donc à nous.
+                    //
+                    // **Le corps, lui, était l'erreur.** Il valait 14 comme
+                    // les lignes, et un en-tête au corps de ses lignes n'est
+                    // plus un en-tête : « Kenesset » se lisait comme un livre
+                    // de plus. Sur l'iPad il est nettement plus petit. Il
+                    // redescend donc à 10, l'encre avec.
                     //
                     // **Et le chevron est dessiné, pas hérité.**
                     // `Section(isExpanded:)` replie bien, mais n'affiche aucun
@@ -77,36 +83,41 @@ struct BarreLateraleONT: View {
                     } label: {
                         HStack(spacing: espace.xs) {
                             Text(corpus.title)
-                                .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
+                                .font(.custom(ONTFonts.navigation, size: ONTUI.points(10)))
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.down")
-                                .font(.system(size: ONTUI.points(11), weight: .semibold))
+                                .font(.system(size: ONTUI.points(9), weight: .semibold))
                                 .rotationEffect(.degrees(repliés.contains(corpus.id) ? -90 : 0))
                         }
-                        .foregroundStyle(theme.ink.opacity(0.7))
+                        .foregroundStyle(theme.ink.opacity(0.55))
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.ontLigne)
                     .textCase(nil)
+                    // **La géométrie des lignes, posée au padding — et rien
+                    // qu'au padding.** `listRowInsets` est inerte sur un
+                    // en-tête de section du style `sidebar` : mesuré, deux
+                    // valeurs différentes ont rendu deux captures identiques.
+                    // Les nombres visent les aplombs relevés : le chevron
+                    // s'arrête au bord des capsules (318 pt dans une barre de
+                    // 350), « Kenesset » à l'aplomb des icônes (39).
+                    .padding(.leading, espace.s + 16)
+                    .padding(.trailing, espace.s + 20)
                     .padding(.vertical, espace.xs)
                 }
             }
         }
         .listStyle(.sidebar)
-        // **La surface, et non le fond de page.**
+        // **Plus aucun fond ici — c'est le panneau qui porte la vitre.**
         //
-        // Le fond du système ferait deux apps dans une fenêtre — une barre
-        // grise contre un parchemin. Mais le fond de *page* faisait pire : la
-        // barre et le contenu portaient exactement la même couleur, et rien ne
-        // disait où l'une finissait. L'auteur l'a relevé en comparant avec
-        // l'iPad, dont la barre native se détache du contenu.
-        //
-        // `surface` est le cran que la peau a déjà pour ça — en mystique,
-        // l'aubergine passe de (0,094 · 0,035 · 0,051) à
-        // (0,149 · 0,063 · 0,086). Aucune couleur n'est inventée : c'est le
-        // même écart que celui des cartes sur le fond de page.
+        // La barre a peint sa surface pendant quatre jours, et c'était juste
+        // tant qu'elle était une colonne. Depuis qu'elle flotte
+        // (`panneauFlottant`, sur le Mac), son aplat bouchait la translucidité
+        // qu'on venait d'installer : une vitre derrière un mur. Le voile du
+        // thème vit dans le panneau, à demi-opacité, sur l'effet de vitre
+        // arrière — et le bureau se devine au travers, comme chez Craft et
+        // comme sur l'iPad.
         .scrollContentBackground(.hidden)
-        .background(theme.surface)
         // **Le compte en bas, épinglé.**
         //
         // C'est la place qu'Apple Music lui donne, et ce n'est pas une
@@ -125,12 +136,29 @@ struct BarreLateraleONT: View {
                     titre: compte.profil.nomDeBarre,
                     icone: .portrait(compte.profil, compte.portrait())
                 )
-                .padding(.horizontal, 6)
+                // **La marge des autres lignes, et non la sienne.**
+                //
+                // `.listRowInsets` est **inerte** ici : ce modificateur n'agit
+                // que sur une ligne de `List`, et celle-ci vit dans un
+                // `safeAreaInset`. Il ne restait donc que 6 pt, là où une
+                // ligne de la liste en a 26 — et la capsule dorée du compte
+                // s'étalait sur toute la colonne.
+                //
+                // Relevé au pixel sur une capture de la fenêtre à 1440 × 900,
+                // facteur 1 : la capsule d'une ligne choisie va de x 26,0 à
+                // x 295,5 dans une colonne de 322 pt, celle du compte allait
+                // de 6,0 à 315,5. Vingt points d'écart de chaque côté.
+                //
+                // Il ne suit pas le facteur d'interface, et c'est juste : ni
+                // les `listRowInsets` de la ligne ni la marge propre au style
+                // `sidebar` ne sont mis à l'échelle non plus. Vérifié à 1,5 —
+                // la capsule monte de 36 à 54 pt de haut, et reste de 26,0 à
+                // 295,5 en largeur, des deux côtés.
+                .padding(.horizontal, LigneDeBarre.margeHorsListe)
                 .padding(.vertical, 4)
             }
-            // La même surface que la barre : la ligne du compte en fait partie,
-            // elle n'est pas posée dessus.
-            .background(theme.surface)
+            // Aucun fond — la ligne du compte est dans le panneau, et le
+            // panneau porte la vitre. Voir plus haut.
         }
     }
 
@@ -146,7 +174,10 @@ struct BarreLateraleONT: View {
     @State private var repliés: Set<String> = []
 
     private func basculer(_ corpus: Corpus) {
-        withAnimation(.easeOut(duration: 0.18)) {
+        ONTHaptique.cran()
+        // Le ressort et non la rampe : le pli d'une section est le geste le
+        // plus visible de la barre, c'est lui qui donne le tempérament.
+        withAnimation(ONTMouvement.ressort) {
             if repliés.contains(corpus.id) {
                 repliés.remove(corpus.id)
             } else {
@@ -167,13 +198,6 @@ struct BarreLateraleONT: View {
     }
 }
 
-/// Une ligne de la barre latérale.
-///
-/// Le libellé est en Jost, la fonte de titraille et de navigation du projet —
-/// c'est la règle du site, que la barre d'AppKit ne pouvait pas suivre. Elle
-/// vaut ici doublement : `Font.custom(_:size:)` suit Dynamic Type d'office,
-/// là où un `.system(size:)` reste figé. La barre grandit donc avec ⌘=, ce
-/// qu'on lui demandait depuis le début.
 /// Ce qui tient lieu d'icône à une ligne.
 ///
 /// Un enum plutôt qu'un générique : les deux cas sont fermés et le resteront —
@@ -185,7 +209,29 @@ enum IconeDeLigne {
     case portrait(Profil, Data?)
 }
 
+/// Une ligne de la barre latérale.
+///
+/// Le libellé est en Jost, la fonte de navigation du projet — c'est la règle du
+/// site, que la barre d'AppKit ne pouvait pas suivre. Elle vaut ici doublement :
+/// `Font.custom(_:size:)` suit Dynamic Type d'office, là où un `.system(size:)`
+/// reste figé. La barre grandit donc avec ⌘=, ce qu'on lui demandait depuis le
+/// début.
+///
+/// **En `navigation` et non en `display`.** La coupe SemiBold est celle des
+/// titres ; posée sur une ligne de barre elle donnait un cran de graisse de
+/// plus que la barre de l'iPad, que le système compose en graisse normale.
 struct LigneDeBarre: View {
+    /// La marge horizontale d'une ligne, capsule comprise — **relevée**, non
+    /// choisie.
+    ///
+    /// Elle ne vaut pas les 10 pt de `.listRowInsets` ci-dessous : le style
+    /// `sidebar` en ajoute du sien par-dessus, et seule la somme se voit. D'où
+    /// la mesure plutôt que l'addition.
+    ///
+    /// Sert à la ligne du compte, qui vit hors de la `List` et ne peut donc pas
+    /// se la faire poser par `.listRowInsets` — voir le commentaire là-bas.
+    static let margeHorsListe: CGFloat = 26
+
     let cible: Router.TabID
     let titre: String
     let icone: IconeDeLigne
@@ -211,7 +257,9 @@ struct LigneDeBarre: View {
 
     var body: some View {
         Button {
-            router.tab = cible
+            // `aller(a:)` et non `tab = cible` : cliquer la ligne déjà choisie
+            // ramène à la racine de sa pile, comme le fait `TabView` sur iOS.
+            router.aller(a: cible)
         } label: {
             HStack(spacing: espace.s) {
                 switch icone {
@@ -227,7 +275,7 @@ struct LigneDeBarre: View {
                     Portrait(profil: profil, octets: octets, taille: échelle(20))
                 }
                 Text(titre)
-                    .font(.custom(ONTFonts.display, size: ONTUI.points(14)))
+                    .font(.custom(ONTFonts.navigation, size: ONTUI.points(13)))
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -243,15 +291,16 @@ struct LigneDeBarre: View {
             .background(fond, in: .capsule)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.ontLigne)
         .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .onHover { survolée = $0 }
         // Le survol se pose vite et se retire vite : au-delà, la barre traîne
-        // derrière le curseur et donne l'impression que l'app rame.
-        .animation(.easeOut(duration: 0.12), value: survolée)
-        .animation(.easeOut(duration: 0.14), value: choisie)
+        // derrière le curseur et donne l'impression que l'app rame. Le ressort
+        // vif tient la même réponse, avec la détente de l'iPhone en plus.
+        .animation(ONTMouvement.ressortVif, value: survolée)
+        .animation(ONTMouvement.ressort, value: choisie)
     }
 
     /// L'aplat de marque quand la ligne est choisie ; un voile d'encre au

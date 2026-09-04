@@ -1,6 +1,7 @@
 import Foundation
 import ONTDesignSystem
 import ONTKit
+import SwiftUI
 import Observation
 
 /// Ce que le Mac règle, tenu à un seul endroit.
@@ -125,6 +126,33 @@ final class EtatMac {
     }
 
     /// Le thème suivant, en boucle.
+    /// Une option de lecture, sous forme de liaison, pour le menu.
+    ///
+    /// **Générique plutôt que cinq propriétés.** Chaque option d'affichage est
+    /// un booléen de `ReadingPreferences` ; écrire cinq paires de get/set les
+    /// ferait diverger à la première correction, et le menu doit rester le
+    /// reflet exact de l'écran de réglages, pas une seconde source.
+    ///
+    /// Un `Toggle` plutôt qu'un `Button` : le menu montre alors l'état par une
+    /// coche. Un raccourci qui bascule sans qu'on puisse voir dans quel sens
+    /// oblige à regarder le texte pour savoir ce qu'on vient de faire.
+    func option(_ chemin: WritableKeyPath<ReadingPreferences, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { self.composition.reading.preferences[keyPath: chemin] },
+            set: { self.composition.reading.preferences[keyPath: chemin] = $0 })
+    }
+
+    /// La police du corps, l'une après l'autre.
+    ///
+    /// Parcourue et non choisie, comme le thème : quatre polices ne méritent
+    /// pas quatre raccourcis, et l'écran de réglages garde la liste complète
+    /// pour qui veut viser.
+    func policeSuivante() {
+        let ordre = ReadingFont.allCases
+        guard let i = ordre.firstIndex(of: composition.reading.preferences.bodyFont) else { return }
+        composition.reading.preferences.bodyFont = ordre[(i + 1) % ordre.count]
+    }
+
     func themeSuivant() {
         let ordre = ReadingTheme.allCases
         guard let i = ordre.firstIndex(of: composition.reading.preferences.theme) else { return }

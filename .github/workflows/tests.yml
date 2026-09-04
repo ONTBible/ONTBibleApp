@@ -22,7 +22,7 @@ name: Tests
 
 on:
   push:
-    branches: [dev, staging, main]
+    branches: [device, dev, beta-test, app-store]
   pull_request:
   workflow_dispatch:
 

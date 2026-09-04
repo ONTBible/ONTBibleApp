@@ -70,7 +70,7 @@ name: Livraison
 
 on:
   push:
-    branches: [dev, staging, main]
+    branches: [dev, beta-test, app-store]
     # **Ce qui ne peut pas changer le binaire ne déclenche pas de livraison.**
     #
     # Un correctif de CI poussé dans `main` faisait partir un build **et une
@@ -159,8 +159,8 @@ jobs:
           # dans un fichier de CI ne se relit pas, et devient faux le jour où
           # le groupe est recréé.
           case "${{ github.ref }}" in
-            refs/heads/main)    CANAL=appstore; GROUPE= ;;
-            refs/heads/staging) CANAL=beta;     GROUPE=Beta ;;
+            refs/heads/app-store) CANAL=appstore; GROUPE= ;;
+            refs/heads/beta-test) CANAL=beta;     GROUPE=Beta ;;
             refs/heads/dev)     CANAL=interne;  GROUPE=Dev ;;
             *)
               CANAL="${{ inputs.canal || 'interne' }}"
@@ -534,8 +534,8 @@ jobs:
           CANAL="${{ inputs.canal || '' }}"
           if [ -z "$CANAL" ]; then
             case "${{ github.ref }}" in
-              refs/heads/main)    CANAL=appstore ;;
-              refs/heads/staging) CANAL=beta ;;
+              refs/heads/app-store) CANAL=appstore ;;
+              refs/heads/beta-test) CANAL=beta ;;
               *)                  CANAL=interne ;;
             esac
           fi

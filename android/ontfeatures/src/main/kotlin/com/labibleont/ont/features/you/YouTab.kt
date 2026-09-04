@@ -85,7 +85,16 @@ public fun YouTab(
      * donnée n'est pas venue ne se distingue pas d'un corpus vide.
      */
     entreesDeLexique: Int,
+    /**
+     * Le fournisseur de la session ouverte, ou `null` si personne ne l'est.
+     *
+     * Une chaîne et non un type du domaine : cet écran n'a pas à connaître
+     * l'énumération des fournisseurs pour afficher un mot.
+     */
+    fournisseurConnecte: String?,
     onAller: (DestinationVous) -> Unit,
+    onConnecter: (String) -> Unit,
+    onDeconnecter: () -> Unit,
     onPasEncore: () -> Unit,
     /**
      * Vrai en build de développement.
@@ -113,16 +122,41 @@ public fun YouTab(
                     modifier = Modifier.padding(espace.m),
                     verticalArrangement = Arrangement.spacedBy(espace.s),
                 ) {
-                    BoutonDeConnexion("Continuer avec Google") { onPasEncore() }
-                    BoutonDeConnexion("Continuer avec GitHub") { onPasEncore() }
+                    if (fournisseurConnecte == null) {
+                        BoutonDeConnexion("Continuer avec Google") { onConnecter("google") }
+                        BoutonDeConnexion("Continuer avec GitHub") { onConnecter("github") }
+                    } else {
+                        // ## Ce qu'on montre d'un compte ouvert
+                        //
+                        // Le fournisseur, et rien d'autre. Le backend ne rend
+                        // que des jetons à la connexion — pas d'adresse — et
+                        // aller la chercher demanderait une route de plus pour
+                        // afficher une ligne. iOS la montre parce qu'Apple la
+                        // lui donne au passage.
+                        Text(
+                            "Connecté avec " + when (fournisseurConnecte) {
+                                "google" -> "Google"
+                                "github" -> "GitHub"
+                                else -> fournisseurConnecte
+                            },
+                            color = ONTColors.ink(theme),
+                            fontSize = 15.sp,
+                        )
+                        BoutonDeConnexion("Se déconnecter") { onDeconnecter() }
+                    }
                 }
             }
             Text(
                 // Le dire avant qu'on se demande : rien n'oblige à créer un
                 // compte. C'est une propriété de l'app, pas une concession.
-                "La lecture, les surlignages et les notes fonctionnent " +
-                    "entièrement sans compte. La connexion ne sert qu'à les " +
-                    "retrouver sur un autre appareil.",
+                if (fournisseurConnecte == null) {
+                    "La lecture, les surlignages et les notes fonctionnent " +
+                        "entièrement sans compte. La connexion ne sert qu'à les " +
+                        "retrouver sur un autre appareil."
+                } else {
+                    "Vos marques restent sur cet appareil. Se déconnecter ne les " +
+                        "efface pas."
+                },
                 color = ONTColors.inkSoft(theme),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(

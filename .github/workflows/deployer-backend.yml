@@ -52,7 +52,7 @@ name: Déployer le backend
 
 on:
   push:
-    branches: [main]
+    branches: [app-store]
     # Le backend seul. L'app iOS, le pipeline et le vault ont leurs propres
     # chaînes ; les faire tous partir à chaque commit serait du bruit et des
     # minutes.

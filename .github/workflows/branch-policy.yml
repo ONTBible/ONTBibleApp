@@ -27,7 +27,7 @@ name: Chaîne de promotion
 
 on:
   pull_request:
-    branches: [staging, main]
+    branches: [dev, beta-test, app-store]
 
 permissions:
   contents: read
@@ -38,20 +38,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Vers staging, on vient de dev
-        if: github.base_ref == 'staging' && github.head_ref != 'dev'
+      - name: Vers dev, on vient de device
+        if: github.base_ref == 'dev' && github.head_ref != 'device'
         run: |
-          echo "::error::Une PR vers staging vient de dev, pas de « ${{ github.head_ref }} »."
-          echo "Le travail se fusionne d'abord dans dev, où il s'installe sur votre"
-          echo "propre appareil. Une fois vu en vrai, il se promeut dans staging."
+          echo "::error::Une PR vers dev vient de device, pas de « ${{ github.head_ref }} »."
+          echo "Le travail s'accumule dans device, où il s'installe sur vos appareils"
+          echo "par scripts/lancer-sur-iphone.sh et scripts/lancer-sur-le-mac.sh."
+          echo "Rien n'est téléversé chez Apple depuis device — c'est tout son intérêt."
           exit 1
 
-      - name: Vers main, on vient de staging
-        if: github.base_ref == 'main' && github.head_ref != 'staging'
+      - name: Vers beta-test, on vient de dev
+        if: github.base_ref == 'beta-test' && github.head_ref != 'dev'
         run: |
-          echo "::error::Une PR vers main vient de staging, pas de « ${{ github.head_ref }} »."
-          echo "Ce qui atteint main part à l'App Store. Il faut donc que des testeurs"
-          echo "l'aient eu entre les mains — c'est ce que staging garantit."
+          echo "::error::Une PR vers beta-test vient de dev, pas de « ${{ github.head_ref }} »."
+          echo "Le travail passe d'abord par dev, où l'auteur le reçoit sur ses propres"
+          echo "appareils. Une fois vu en vrai, il se promeut vers les testeurs invités."
+          exit 1
+
+      - name: Vers app-store, on vient de beta-test
+        if: github.base_ref == 'app-store' && github.head_ref != 'beta-test'
+        run: |
+          echo "::error::Une PR vers app-store vient de beta-test, pas de « ${{ github.head_ref }} »."
+          echo "Ce qui atteint app-store part à la revue d'Apple. Il faut donc que des"
+          echo "testeurs l'aient eu entre les mains — c'est ce que beta-test garantit."
           exit 1
 
       - name: La chaîne est tenue

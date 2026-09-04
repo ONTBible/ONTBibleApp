@@ -90,6 +90,13 @@ public enum ONTRadius {
     public static let block: CGFloat = 18
     /// Cartes de premier plan.
     public static let card: CGFloat = 22
+    /// Une feuille modale — la carte du Mac, à hauteur de ce que l'iPad donne.
+    ///
+    /// Mesuré sur la feuille système d'iPadOS 27, qui arrondit à ~40 pt : à 22,
+    /// la carte du Mac se lisait comme une boîte de dialogue, pas comme une
+    /// feuille. 34 et non 40 : la carte du Mac est bordée d'air, pas d'un bord
+    /// d'écran, et le plein 40 y paraissait gonflé.
+    public static let feuille: CGFloat = 34
 }
 
 /// La largeur de lecture.

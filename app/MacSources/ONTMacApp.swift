@@ -111,12 +111,6 @@ struct ONTMacApp: App {
                 // alors une fenêtre neuve pour le prouver. Mesuré : deux
                 // fenêtres, dont la première rétractée à 99 × 144 points.
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
-                // L'état du mode vault, en bas de fenêtre et non en alerte :
-                // il change à chaque sauvegarde, et une alerte par phrase
-                // rendrait l'app inutilisable pendant qu'on écrit.
-                .safeAreaInset(edge: .bottom) {
-                    if vault.vault != nil { BandeauDuVault(mode: vault) }
-                }
                 // Reprendre le vault de la session précédente, s'il y en
                 // avait un.
                 //
@@ -126,7 +120,24 @@ struct ONTMacApp: App {
                 // bon moment. `.task` s'attache au cycle de vie de la fenêtre,
                 // qui est précisément quand l'auteur peut voir le bandeau
                 // s'allumer.
-                .task { vault.reprendre() }
+                .task {
+                    // **La même condition que le menu, au même endroit.**
+                    //
+                    // Le menu ne propose « Suivre un vault… » que si le
+                    // pipeline est embarqué. Reprendre un vault suivi à la
+                    // session précédente ne passait pas par lui : sur un build
+                    // sans pipeline — le canal bêta —, l'auteur retrouvait le
+                    // bandeau « pipeline non embarqué » **et aucun moyen de
+                    // l'enlever**, « Cesser de suivre » étant dans le bloc
+                    // caché. Mesuré sur le build 260831.1628.
+                    //
+                    // La garde est ici et non dans `reprendre()` : le modèle
+                    // n'a pas à savoir ce que le bundle contient, et l'y
+                    // mettre a cassé « La reprise du vault » — les tests
+                    // s'exécutent dans un bundle qui n'embarque rien. Une
+                    // décision de présentation appartient à la présentation.
+                    if ModeVault.pipelineEmbarque != nil { vault.reprendre() }
+                }
         }
         // **La taille d'ouverture, mesurée et non choisie.**
         //
@@ -191,10 +202,128 @@ struct ONTMacApp: App {
             // pour lire, sans vouloir qu'une barre latérale enfle et mange la
             // place de ce texte.
             //
-            // **Un seul `CommandGroup`**, et non trois : deux groupes déclarés
-            // au même emplacement se disputent la place, et l'un des deux peut
-            // ne pas paraître du tout — un raccourci qu'on croit posé et qui
-            // n'existe nulle part.
+            // ── Le compte, là où macOS le cherche
+            //
+            // Il n'est ni le texte ni sa mise en page : c'est le lecteur
+            // lui-même. ⌘, est la place que le système lui donne, et il vivait
+            // dans « Présentation », où rien ne l'appelait.
+            CommandGroup(replacing: .appSettings) {
+                Button("Le compte") { etat.composition.router.tab = .you }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
+
+            // ── « Aller » — le corpus, et où l'on est dedans
+            //
+            // **⌘ nu suivi d'un chiffre veut dire « va là ».** C'est l'idiome
+            // que toutes les apps à onglets emploient, et il laisse ⌥⌘ suivi
+            // d'un chiffre libre pour ce qui *change le texte* — les niveaux.
+            // Le même doigt, deux registres : ⌘2 ouvre Qahal, ⌥⌘2 éteint les
+            // gloses, et les deux ne se confondent jamais.
+            //
+            // **Et le raccourci de l'onglet courant ramène à sa racine**, comme
+            // un clic sur la ligne déjà choisie — c'est ce que `TabView` fait
+            // sur iOS, et le geste doit être le même au clavier et à la souris.
+            CommandMenu("Aller") {
+                Button("Reprendre") { etat.composition.router.aller(a: .reprendre) }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Qahal") { etat.composition.router.aller(a: .qahal) }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Bible") { etat.composition.router.aller(a: .bible) }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("Lexique") { etat.composition.router.aller(a: .lexicon) }
+                    .keyboardShortcut("4", modifiers: .command)
+
+                Divider()
+                // ⌘[ est le retour de Safari, du Finder et de Xcode. On dépile
+                // le chemin de la Bible plutôt que d'inventer une notion de
+                // « précédent » que l'app n'a pas.
+                Button("Revenir") {
+                    if !etat.composition.router.biblePath.isEmpty {
+                        etat.composition.router.biblePath.removeLast()
+                    }
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                .disabled(etat.composition.router.biblePath.isEmpty)
+            }
+
+            // ── « Le texte » — les trois niveaux, et la langue des noms
+            //
+            // **Les libellés sont ceux de l'écran de réglages, au mot près.**
+            // Deux formulations pour un même réglage obligent le lecteur à
+            // deviner qu'il s'agit du même, et elles finissent par diverger.
+            //
+            // ⌥⌘2 et ⌥⌘3 parce que c'est ainsi que le projet nomme ces
+            // niveaux — « 2, la voix du projet », « 3, translittération et
+            // hébreu ». Le chiffre est déjà dans le vocabulaire de qui lit ce
+            // corpus ; une lettre serait un mnémonique de plus à retenir.
+            //
+            // Le **niveau 1 n'a pas d'entrée**, et c'est le point : le corps de
+            // la traduction ne s'éteint pas. Un menu qui proposerait de le
+            // masquer le ferait passer pour une option parmi d'autres.
+            //
+            // Et **pas ⌥⌘H pour l'hébreu**, si tentant soit-il : macOS le garde
+            // pour « Masquer les autres ». Un raccourci qu'on croit libre et qui
+            // ne l'est pas rend l'app muette sans rien dire.
+            CommandMenu("Le texte") {
+                Toggle("Gloses", isOn: etat.option(\.showGloss))
+                    .keyboardShortcut("2", modifiers: [.command, .option])
+                Toggle("Translittération et hébreu", isOn: etat.option(\.showLevel3))
+                    .keyboardShortcut("3", modifiers: [.command, .option])
+
+                Divider()
+                // Sous les niveaux et non avec eux : il ne change pas ce qui est
+                // dit, mais le nom sous lequel on le cherche.
+                Toggle("Le français reçu", isOn: etat.option(\.french))
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+            }
+
+            // ── « La lecture » — la forme que le texte prend sous l'œil
+            //
+            // **⌥⌘ bascule, ⌘⇧ règle par crans.** Les deux premiers s'allument
+            // ou s'éteignent, avec leur coche ; les trois derniers se montent et
+            // se descendent. Le modificateur dit lequel des deux avant même
+            // qu'on lise l'entrée.
+            //
+            // Le corps du texte est ici et **la taille de l'interface ne l'est
+            // pas** : deux gestes pour deux choses. On monte le corps très haut
+            // pour lire, sans vouloir qu'une barre latérale enfle et mange la
+            // place de ce texte.
+            CommandMenu("La lecture") {
+                Toggle("Versets à la suite", isOn: etat.option(\.continuous))
+                    .keyboardShortcut("v", modifiers: [.command, .option])
+                Toggle("Couper les mots", isOn: etat.option(\.hyphenation))
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+
+                Divider()
+                // **`=` et non `+`.** `⌘⇧+` demanderait Maj deux fois, ce qui ne
+                // se tape pas : `⌘⇧=` est la frappe qui produit ce que tout le
+                // monde appelle « ⌘⇧+ ».
+                Button("Agrandir le texte") { etat.corps(de: 1) }
+                    .keyboardShortcut("=", modifiers: [.command, .shift])
+                Button("Réduire le texte") { etat.corps(de: -1) }
+                    .keyboardShortcut("-", modifiers: [.command, .shift])
+
+                Divider()
+                // Le thème se change souvent — avec un kératocône, selon la
+                // lumière de la pièce. Le réglage existe dans l'écran de
+                // lecture ; ce raccourci le double, il ne le remplace pas.
+                Button("Thème suivant") { etat.themeSuivant() }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                Button("Police suivante") { etat.policeSuivante() }
+                    .keyboardShortcut("p", modifiers: [.command, .option])
+            }
+
+            // ── Présentation — la fenêtre, qui n'est ni le corpus ni sa lecture
+            //
+            // Ce qui reste ici ne touche pas au texte : ce sont les meubles.
+            // **⌘ nu suivi d'une lettre ou d'un signe**, comme partout ailleurs
+            // sur macOS.
+            //
+            // **Un seul `CommandGroup` à cet ancrage**, et non plusieurs : deux
+            // groupes déclarés au même endroit se disputent la place, et l'un
+            // des deux peut ne paraître nulle part — un raccourci qu'on croit
+            // posé et qui n'existe pas. Les menus ci-dessus n'ont pas ce
+            // problème : `CommandMenu` crée le sien.
             CommandGroup(after: .toolbar) {
                 Divider()
                 // **La barre latérale, par l'action du système.**
@@ -206,10 +335,6 @@ struct ONTMacApp: App {
                 //
                 // ⌘B plutôt que le ⌃⌘S d'AppKit : c'est le geste que les apps
                 // de lecture ont adopté, et le lecteur le connaît d'ailleurs.
-                Button("Le compte") { etat.composition.router.tab = .you }
-                    .keyboardShortcut(",", modifiers: .command)
-
-                Divider()
                 Button("Masquer ou afficher la barre latérale") {
                     NSApp.keyWindow?.firstResponder?.tryToPerform(
                         Selector(("toggleSidebar:")), with: nil)
@@ -218,15 +343,13 @@ struct ONTMacApp: App {
 
                 // **Où paraissent les fiches.** Le réglage est aussi dans la
                 // barre de tête de la fiche elle-même — mais on ne le trouve
-                // là qu'une fois qu'on en a ouvert une. Le menu l'annonce
-                // avant.
+                // là qu'une fois qu'on en a ouvert une. Le menu l'annonce avant.
                 Button(etat.modeDeFiche.titreDeBascule) {
                     etat.modeDeFiche = etat.modeDeFiche.suivant
                 }
                 .keyboardShortcut("i", modifiers: [.command, .option])
 
                 Divider()
-                Button("Agrandir l'interface") { etat.interface(de: 1) }
                 // **`=` et non `+`, et ce n'est pas un détail de forme.**
                 //
                 // Sur un clavier français, `+` s'obtient par Maj+`=`. Un
@@ -236,31 +359,12 @@ struct ONTMacApp: App {
                 //
                 // C'est ce que l'auteur constatait — « ⌘+ ne marche toujours
                 // pas ». Le raccourci n'était pas cassé, il était **intypable**.
-                //
-                // `⌘=` se tape directement, et le menu l'affiche tel quel.
-                .keyboardShortcut("=", modifiers: .command)
+                Button("Agrandir l'interface") { etat.interface(de: 1) }
+                    .keyboardShortcut("=", modifiers: .command)
                 Button("Réduire l'interface") { etat.interface(de: -1) }
-                .keyboardShortcut("-", modifiers: .command)
+                    .keyboardShortcut("-", modifiers: .command)
                 Button("Taille d'interface par défaut") { etat.interfaceParDefaut() }
-                .keyboardShortcut("0", modifiers: .command)
-
-                Divider()
-                // **⌃ et non ⌥.** `⌘⌥+` est pris par le zoom d'accessibilité du
-                // système sur bien des machines : le raccourci partait au
-                // zoom d'écran au lieu d'arriver ici.
-                // Le corps du texte sur **⌘⇧**, à la demande de l'auteur.
-                //
-                // `=` là aussi : `⌘⇧+` demanderait Maj **deux fois**, ce qui ne
-                // se tape pas. `⌘⇧=` est la frappe qui produit ce que tout le
-                // monde appelle « ⌘⇧+ ».
-                Button("Agrandir le texte") { etat.corps(de: 1) }
-                    .keyboardShortcut("=", modifiers: [.command, .shift])
-                Button("Réduire le texte") { etat.corps(de: -1) }
-                    .keyboardShortcut("-", modifiers: [.command, .shift])
-
-                Divider()
-                Button("Thème suivant") { etat.themeSuivant() }
-                .keyboardShortcut("t", modifiers: [.command, .shift])
+                    .keyboardShortcut("0", modifiers: .command)
             }
         }
     }
@@ -285,12 +389,21 @@ struct ONTMacApp: App {
 }
 
 /// L'état du mode vault, discret et permanent.
-private struct BandeauDuVault: View {
+/// L'état du mode vault, en bas de fenêtre et non en alerte : il change à
+/// chaque sauvegarde, et une alerte par phrase rendrait l'app inutilisable
+/// pendant qu'on écrit.
+///
+/// **Monté par `RacineMac` et non par la scène.** Attaché en `safeAreaInset`
+/// au-dessus de la vue, il vivait hors du `.ontTheme(…)` — donc sans les
+/// couleurs du lecteur — et son encart n'atteignait pas la colonne latérale :
+/// il recouvrait « Vous » au lieu de la remonter.
+struct BandeauDuVault: View {
     let mode: ModeVault
+    @Environment(\.ontTheme) private var theme
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: symbole)
+            Image(systemName: symbole).foregroundStyle(theme.accent)
             Text(libelle).font(ONTUI.footnote.monospacedDigit())
             Spacer()
             if let vault = mode.vault {
@@ -301,7 +414,16 @@ private struct BandeauDuVault: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.bar)
+        // **Les couleurs du lecteur, pas celles du système.**
+        //
+        // `.bar` posait un matériau gris dans une app dont le thème mystique
+        // est or sur bordeaux : la bande jurait avec tout ce qu'elle bordait.
+        // `surface` et `accent` la font suivre le thème, quel qu'il soit.
+        .foregroundStyle(theme.ink)
+        .background(theme.surface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(theme.separator).frame(height: 1)
+        }
     }
 
     private var symbole: String {
@@ -367,6 +489,15 @@ final class DelegueMac: NSObject, NSApplicationDelegate {
     /// chemin.
     func applicationDidFinishLaunching(_ notification: Notification) {
         poserLaTailleDeCapture()
+        // **Personne n'a le focus à l'ouverture.** Le premier répondeur de la
+        // fenêtre recevait l'anneau du système — d'abord la carte « Reprendre »,
+        // puis, celle-ci l'ayant décliné, le bouton de barre d'outils : un
+        // cerceau mauve autour du commutateur de barre latérale, dès le
+        // lancement, sur les captures de l'auteur comme sur les nôtres. Une
+        // liseuse s'ouvre sur du texte, pas sur un anneau.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NSApp.windows.first(where: { $0.canBecomeMain })?.makeFirstResponder(nil)
+        }
     }
 
     /// **Reposée à chaque fois, et pas seulement au lancement.**
@@ -393,6 +524,13 @@ final class DelegueMac: NSObject, NSApplicationDelegate {
             NSApp.activate()
             guard let fenetre = NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
             fenetre.orderFrontRegardless()
+            // **La taille de capture ne se mémorise pas.** Elle se posait, et
+            // la restauration d'état la gardait : après une campagne de
+            // captures, les lancements *normaux* de l'auteur rouvraient en
+            // 1440 × 900 — le format d'App Store — au lieu du 1240 × 960 par
+            // défaut. C'est comme ça que « la fenêtre n'a pas le bon ratio »
+            // est revenu alors que `defaultSize` était juste.
+            fenetre.isRestorable = false
             var cadre = fenetre.frame
             cadre.size = NSSize(width: largeur, height: hauteur)
             fenetre.setFrame(cadre, display: true)

@@ -35,6 +35,24 @@
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.ONT">
+        <!--
+          ## Sentry ne s'amorce pas tout seul
+
+          Le SDK s'initialise par un `ContentProvider`, donc **avant**
+          `Application.onCreate`. Sans DSN dans ce manifeste il lève
+          « DSN is required » à cet instant-là — et l'app plante au lancement,
+          avant qu'une seule ligne de notre code ait tourné.
+
+          Deux sorties : poser le DSN ici et laisser faire, ou couper l'amorce
+          et initialiser nous-mêmes. On coupe, parce que la configuration tient
+          en vingt lignes de refus — pas de capture d'écran, pas de hiérarchie
+          de vues, pas de rejeu — et que ces refus doivent vivre dans du code
+          qu'on relit, pas dans des attributs XML.
+
+          Trouvé sur l'émulateur, jamais à la compilation.
+        -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
 
         <!--
           `singleTask` : sans lui, une notification touchée alors que l'app est

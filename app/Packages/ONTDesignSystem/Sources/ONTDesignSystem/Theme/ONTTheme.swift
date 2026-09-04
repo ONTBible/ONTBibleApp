@@ -28,6 +28,21 @@ public struct ONTTheme: Sendable, Equatable {
     public var surface: Color { ONTColors.surface(mode) }
     public var separator: Color { ONTColors.separator(mode) }
     public var accent: Color { ONTColors.accent(mode) }
+    public var danger: Color { ONTColors.danger(mode) }
+    public var dangerSurface: Color { ONTColors.dangerSurface(mode) }
+    public var succes: Color { ONTColors.succes(mode) }
+    public var succesSurface: Color { ONTColors.succesSurface(mode) }
+    public var avertissement: Color { ONTColors.avertissement(mode) }
+    public var avertissementSurface: Color { ONTColors.avertissementSurface(mode) }
+
+    /// Le voile d'un survol — « on peut cliquer », sans annoncer une sélection.
+    ///
+    /// De l'encre diluée plutôt qu'une couleur à soi : le voile doit marcher
+    /// sur n'importe quelle surface du thème, il en prend donc l'encre.
+    public var voileSurvol: Color { ink.opacity(0.07) }
+
+    /// Le voile d'une pression — plus franc que le survol, le doigt est dessus.
+    public var voilePression: Color { ink.opacity(0.13) }
 
     public var type: ONTTypography {
         ONTTypography(size: scaledTextSize, theme: mode, face: preferences.bodyFont)
