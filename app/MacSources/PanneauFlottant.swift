@@ -61,6 +61,18 @@ private struct PanneauFlottant: ViewModifier {
             .shadow(color: .black.opacity(0.22), radius: 18, y: 6)
             .padding(.leading, 12)
             .padding(.vertical, 12)
+            // **Le sol de la colonne est celui de la page.**
+            //
+            // Sans lui, la colonne du `NavigationSplitView` garde sa propre
+            // matière, pleine hauteur et bord à bord — et l'on voyait « une
+            // sidebar sur une sidebar » : le panneau flottait dans une bande
+            // qui avait déjà l'air d'une barre. Relevé par l'auteur, capture à
+            // l'appui. Le fond de page recouvre la matière du système jusqu'au
+            // haut de la fenêtre, et le panneau devient le seul objet posé.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                theme.background.ignoresSafeArea()
+            }
     }
 }
 
