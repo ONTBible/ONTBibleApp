@@ -153,6 +153,7 @@ public struct BibleTab: View {
                                 mode: situe.mode,
                                 ouvert: rayonsOuverts.contains(situe.id)
                             ) {
+                                ONTHaptique.cran()
                                 withAnimation(ONTMouvement.ressort) {
                                     if rayonsOuverts.contains(situe.id) {
                                         rayonsOuverts.remove(situe.id)

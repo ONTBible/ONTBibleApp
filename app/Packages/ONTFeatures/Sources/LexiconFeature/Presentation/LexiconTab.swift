@@ -47,7 +47,7 @@ public struct LexiconTab: View {
                 // offrir à un doigt glissé.
                 ForEach(tranches) { tranche in
                     Section {
-                        ForEach(tranche.entrees) { entry in
+                        ForEach(Array(tranche.entrees.enumerated()), id: \.element.id) { rang, entry in
                             Button {
                                 selected = LemmaSelection(entry.lemma)
                             } label: {
@@ -57,9 +57,13 @@ public struct LexiconTab: View {
                                     // forme tactile, seul le dessin des glyphes
                                     // est touché.
                                     .contentShape(.rect)
+                                    // La carte du Mac — survol, pression, bord
+                                    // à bord. Inerte sur iOS.
+                                    .ontCarteDeLigne()
                             }
-                            .buttonStyle(.plain)
-                            .ontRow()
+                            .buttonStyle(.ontLigne)
+                            .ontLigneDeCarte()
+                            .ontApparition(rang)
                         }
                     } header: {
                         Text(tranche.lettre)

@@ -1,3 +1,6 @@
+#if os(macOS)
+    import AppKit
+#endif
 import SwiftUI
 
 // MARK: - Les états d'interaction
@@ -31,6 +34,11 @@ public struct ONTPresse: ButtonStyle {
             .scaleEffect(configuration.isPressed ? echelle : 1)
             .opacity(configuration.isPressed ? 0.82 : 1)
             .animation(ONTMouvement.ressortVif, value: configuration.isPressed)
+            // Le trackpad marque l'enfoncement — le doigt sent ce que l'œil
+            // voit céder.
+            .onChange(of: configuration.isPressed) { _, presse in
+                if presse { ONTHaptique.tic() }
+            }
     }
 }
 
@@ -101,5 +109,156 @@ extension View {
     /// L'élément arrive en cascade, à son rang.
     public func ontApparition(_ indice: Int) -> some View {
         modifier(ONTApparition(indice: indice))
+    }
+}
+
+// MARK: - La carte de ligne
+
+/// La rangée du Mac — une carte qui survole et s'enfonce, pas une ligne de
+/// tableau.
+///
+/// C'est la forme choisie par l'auteur pour la refonte (3 septembre 2026) :
+/// « cartes par ligne » plutôt que groupes arrondis — celle des deux qui porte
+/// la micro-animation, chaque rangée répondant pour elle-même. Sur iOS, le
+/// modificateur ne fait rien : la `List` du système a déjà sa voix.
+///
+/// À poser sur le **label** d'un bouton de rangée ; `ontLigneNue()` se pose sur
+/// la rangée elle-même pour éteindre la chrome de `List` que la carte remplace.
+public struct ONTCarteDeLigne: ViewModifier {
+    @Environment(\.ontTheme) private var theme
+    private var espace = ONTSpacing()
+
+    public func body(content: Content) -> some View {
+        #if os(macOS)
+            content
+                .padding(.horizontal, espace.m)
+                .padding(.vertical, espace.s + 2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.surface, in: .rect(cornerRadius: 12))
+                .ontSurvol(dans: RoundedRectangle(cornerRadius: 12))
+                // De bord à bord — le vide entre le libellé et le compte
+                // répond comme le reste. C'est la leçon du sommaire.
+                .contentShape(.rect(cornerRadius: 12))
+        #else
+            content
+        #endif
+    }
+}
+
+/// Éteint la chrome de `List` autour d'une rangée-carte du Mac.
+public struct ONTLigneNue: ViewModifier {
+    private var espace = ONTSpacing()
+
+    public func body(content: Content) -> some View {
+        #if os(macOS)
+            content
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 3, leading: espace.m, bottom: 3, trailing: espace.m))
+        #else
+            content
+        #endif
+    }
+}
+
+extension View {
+    public func ontCarteDeLigne() -> some View { modifier(ONTCarteDeLigne()) }
+    public func ontLigneNue() -> some View { modifier(ONTLigneNue()) }
+
+    /// La rangée d'une liste de cartes — nue sur le Mac, `ontRow` sur iOS.
+    ///
+    /// Un seul appel, parce que les empiler ne marche pas : deux
+    /// `listRowBackground` posés sur la même rangée, c'est **l'intérieur** qui
+    /// gagne — mesuré sur capture, le `clear` extérieur n'éteignait pas la
+    /// surface d'`ontRow`, et les cartes se noyaient dans un bloc.
+    @ViewBuilder
+    public func ontLigneDeCarte() -> some View {
+        #if os(macOS)
+            modifier(ONTLigneNue())
+        #else
+            ontRow()
+        #endif
+    }
+}
+
+extension View {
+    /// La liste qui porte des cartes de ligne.
+    ///
+    /// Sur le Mac, le style groupé peint ses blocs de section derrière les
+    /// cartes, qui s'y noient — mesuré sur capture : les rangées se lisaient
+    /// comme avant, en plus espacé. `.plain` retire le décor du système et
+    /// laisse chaque carte porter sa propre surface. Sur iOS, le style groupé
+    /// reste ce que la plateforme attend.
+    public func ontListeDeCartes() -> some View {
+        #if os(macOS)
+            return listStyle(.plain)
+        #else
+            return listStyle(ONTPlacement.listeGroupee)
+        #endif
+    }
+}
+
+// MARK: - Les haptiques de l'interface
+
+/// Le trackpad répond — trois crans, comme le glissement de page en a déjà.
+///
+/// `ChapterSwipe` porte les siens depuis le premier jour (armement, tourne,
+/// renoncement) ; le reste de l'interface était muet, et l'auteur l'a redit :
+/// « ajoute aussi des haptic feedback ». Trois gestes nommés, pour ne plus
+/// choisir un motif à chaque appel :
+///
+/// - `tic()` — un bouton pressé, une case cochée ;
+/// - `cran()` — un pli qui s'ouvre, un segment qui change : quelque chose
+///   s'est aligné ;
+/// - `palier()` — une carte qui s'ouvre ou se ferme : on a changé d'étage.
+///
+/// Sur iOS le fichier ne fait rien : le système y donne déjà ses retours, et
+/// les doubler ferait vibrer deux fois.
+public enum ONTHaptique {
+    #if os(macOS)
+        @MainActor
+        public static func tic() {
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        }
+
+        @MainActor
+        public static func cran() {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+
+        @MainActor
+        public static func palier() {
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        }
+    #else
+        @MainActor public static func tic() {}
+        @MainActor public static func cran() {}
+        @MainActor public static func palier() {}
+    #endif
+}
+
+// MARK: - Le verre liquide
+
+extension View {
+    /// Le verre du système sur un élément de chrome — et rien sur le texte.
+    ///
+    /// Sur macOS 26 c'est le vrai verre (`glassEffect`), avec son bord qui
+    /// prend la lumière ; en dessous, la matière fine du système fait le même
+    /// office sans le lensing. Sur iOS, rien : la plateforme pose déjà le sien
+    /// là où il va.
+    ///
+    /// Réservé à ce qui **flotte au-dessus du contenu** — pastille, segments,
+    /// poignées. Du verre sous un paragraphe, c'est un texte qui nage.
+    @ViewBuilder
+    public func ontVerre(dans forme: some Shape) -> some View {
+        #if os(macOS)
+            if #available(macOS 26.0, *) {
+                glassEffect(.regular, in: forme)
+            } else {
+                background(.ultraThinMaterial, in: forme)
+            }
+        #else
+            self
+        #endif
     }
 }

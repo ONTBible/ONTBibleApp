@@ -54,12 +54,14 @@ public final class ONTFeuilles {
     func poser(
         titre: String?, contenu: @escaping () -> AnyView, fermer: @escaping @MainActor () -> Void
     ) -> UUID {
+        ONTHaptique.palier()
         let id = UUID()
         posees.append(Posee(id: id, titre: titre, contenu: contenu, fermer: ONTFermeture(fermer)))
         return id
     }
 
     func retirer(_ id: UUID) {
+        if posees.contains(where: { $0.id == id }) { ONTHaptique.palier() }
         posees.removeAll { $0.id == id }
     }
 }

@@ -51,6 +51,7 @@ public struct ONTSegments<Valeur: Hashable>: View {
                 Button {
                     // Le ressort de la maison : la capsule du choisi glisse et
                     // se pose avec le rebond, comme tout ce qui bouge ici.
+                    ONTHaptique.cran()
                     withAnimation(ONTMouvement.ressort) { selection = segment.valeur }
                 } label: {
                     Text(segment.libelle)

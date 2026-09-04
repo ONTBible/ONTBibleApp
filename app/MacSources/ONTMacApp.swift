@@ -489,6 +489,15 @@ final class DelegueMac: NSObject, NSApplicationDelegate {
     /// chemin.
     func applicationDidFinishLaunching(_ notification: Notification) {
         poserLaTailleDeCapture()
+        // **Personne n'a le focus à l'ouverture.** Le premier répondeur de la
+        // fenêtre recevait l'anneau du système — d'abord la carte « Reprendre »,
+        // puis, celle-ci l'ayant décliné, le bouton de barre d'outils : un
+        // cerceau mauve autour du commutateur de barre latérale, dès le
+        // lancement, sur les captures de l'auteur comme sur les nôtres. Une
+        // liseuse s'ouvre sur du texte, pas sur un anneau.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NSApp.windows.first(where: { $0.canBecomeMain })?.makeFirstResponder(nil)
+        }
     }
 
     /// **Reposée à chaque fois, et pas seulement au lancement.**
@@ -515,6 +524,13 @@ final class DelegueMac: NSObject, NSApplicationDelegate {
             NSApp.activate()
             guard let fenetre = NSApp.windows.first(where: { $0.canBecomeMain }) else { return }
             fenetre.orderFrontRegardless()
+            // **La taille de capture ne se mémorise pas.** Elle se posait, et
+            // la restauration d'état la gardait : après une campagne de
+            // captures, les lancements *normaux* de l'auteur rouvraient en
+            // 1440 × 900 — le format d'App Store — au lieu du 1240 × 960 par
+            // défaut. C'est comme ça que « la fenêtre n'a pas le bon ratio »
+            // est revenu alors que `defaultSize` était juste.
+            fenetre.isRestorable = false
             var cadre = fenetre.frame
             cadre.size = NSSize(width: largeur, height: hauteur)
             fenetre.setFrame(cadre, display: true)

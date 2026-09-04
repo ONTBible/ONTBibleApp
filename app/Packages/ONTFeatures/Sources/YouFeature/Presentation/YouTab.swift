@@ -53,20 +53,23 @@ public struct YouTab: View {
                         DailyVerseSettings(onChange: onDailyChange)
                     } label: {
                         Label("Verset du jour", systemImage: "sun.horizon")
+                            .ontCarteDeLigne()
                     }
                     NavigationLink {
                         ParutionsSettings(onParutions: onParutions)
                     } label: {
                         Label("Parutions", systemImage: "book.closed")
+                            .ontCarteDeLigne()
                     }
                 }
-                .ontRow()
+                .ontLigneDeCarte()
 
                 Section(header: Text("Lecture").font(ONTUI.enteteDeListe)) {
                     NavigationLink {
                         ReadingSettingsSheet()
                     } label: {
                         Label("Réglages de lecture", systemImage: "textformat.size")
+                            .ontCarteDeLigne()
                     }
                     // **Ce que le lecteur a marqué lui appartient**, et c'était
                     // jusqu'ici la seule chose de l'app qu'il ne pouvait pas
@@ -84,6 +87,7 @@ public struct YouTab: View {
                         OptionsDePartage()
                     } label: {
                         Label("Options de partage", systemImage: "square.and.arrow.up")
+                            .ontCarteDeLigne()
                     }
                     NavigationLink {
                         MesSurlignages()
@@ -94,9 +98,10 @@ public struct YouTab: View {
                         } label: {
                             Label("Surlignages", systemImage: "highlighter")
                         }
+                        .ontCarteDeLigne()
                     }
                 }
-                .ontRow()
+                .ontLigneDeCarte()
 
                 // **Le registre ouvre la section du corpus, et ne s'y confond pas.**
                 //
@@ -114,6 +119,7 @@ public struct YouTab: View {
                     Toggle(isOn: $reading.preferences.french) {
                         Label("Le français reçu", systemImage: "character.book.closed")
                     }
+                    .ontCarteDeLigne()
                 } header: {
                     Text("Le Corpus")
                         .font(ONTUI.enteteDeListe)
@@ -135,7 +141,7 @@ public struct YouTab: View {
                     )
                         .font(ONTUI.piedDeListe)
                 }
-                .ontRow()
+                .ontLigneDeCarte()
 
                 Section {
                     LabeledContent("Slots rédigés") {
@@ -143,14 +149,17 @@ public struct YouTab: View {
                             .monospacedDigit()
                             .font(ONTUI.ligneDeListe)
                     }
+                    .ontCarteDeLigne()
                     LabeledContent("Versets") {
                         Text("\(totalVerses)").monospacedDigit()
                             .font(ONTUI.ligneDeListe)
                     }
+                    .ontCarteDeLigne()
                     LabeledContent("Entrées de lexique") {
                         Text("\(model.glossaryCount)").monospacedDigit()
                             .font(ONTUI.ligneDeListe)
                     }
+                    .ontCarteDeLigne()
                 } footer: {
                     Text(
                         "La Bible ONT est une restitution en cours. Le corpus s'étend "
@@ -160,7 +169,7 @@ public struct YouTab: View {
                     )
                         .font(ONTUI.piedDeListe)
                 }
-                .ontRow()
+                .ontLigneDeCarte()
 
                 #if DEBUG
                 Section {
@@ -168,6 +177,7 @@ public struct YouTab: View {
                         DSCatalog()
                     } label: {
                         Label("Design system", systemImage: "paintpalette")
+                            .ontCarteDeLigne()
                     }
                     // L'éditeur n'existe qu'une fois connecté, et une
                     // connexion réelle demande un fournisseur, un compte et un
@@ -178,6 +188,7 @@ public struct YouTab: View {
                         EditeurDuProfil()
                     } label: {
                         Label("Profil", systemImage: "person.crop.circle")
+                            .ontCarteDeLigne()
                     }
                 } header: {
                     Text("Développement")
@@ -189,7 +200,7 @@ public struct YouTab: View {
                     )
                         .font(ONTUI.piedDeListe)
                 }
-                .ontRow()
+                .ontLigneDeCarte()
                 #endif
 
                 Section(header: Text("Crédits").font(ONTUI.enteteDeListe)) {
@@ -199,13 +210,14 @@ public struct YouTab: View {
                     // lequel l'auteur travaille, pas celui sous lequel il
                     // signe. Cet écran est la seule page de l'app où le crédit
                     // paraît, donc le seul endroit où la confusion se voyait.
-                    LabeledContent("Traduction", value: "Gloire Bikouta")
+                    LabeledContent("Traduction", value: "Gloire Bikouta").ontCarteDeLigne()
                     LabeledContent("Hébreu", value: "Ezra SIL — SIL Open Font License")
-                    LabeledContent("Titres", value: "Frank Ruhl Libre — OFL")
+                        .ontCarteDeLigne()
+                    LabeledContent("Titres", value: "Frank Ruhl Libre — OFL").ontCarteDeLigne()
                 }
-                .ontRow()
+                .ontLigneDeCarte()
             }
-            .ontRow()
+            .ontListeDeCartes()
             .ontScreen()
             .navigationTitle("Vous")
             // Demander à l'ouverture de l'onglet, pas au lancement de l'app :
@@ -278,9 +290,10 @@ private struct AccountSection: View {
                                 .background(
                                     Capsule().fill(ONTColors.brandInk(theme.mode))
                                 )
+                                .ontSurvol(dans: Capsule(), souleve: true)
                                 .contentShape(.capsule)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.ontPresse)
                     }
                 }
                 .padding(.vertical, spacing.xs)
@@ -296,8 +309,15 @@ private struct AccountSection: View {
                 // examinateur de l'App Store le 19 août 2026.
                 VStack(alignment: .leading, spacing: spacing.xs) {
                     if case .failed(let message) = account.state {
-                        Text(message).foregroundStyle(.red)
+                        // La braise de la gamme, dans sa pastille — le rouge
+                        // du système n'a pas voix dans cette maison, et un
+                        // échec se lit sans crier.
+                        Text(message)
                             .font(ONTUI.piedDeListe)
+                            .foregroundStyle(theme.danger)
+                            .padding(.horizontal, spacing.m)
+                            .padding(.vertical, spacing.s)
+                            .background(theme.dangerSurface, in: .rect(cornerRadius: 8))
                     }
                     Text(
                         "La lecture, les surlignages et les notes fonctionnent entièrement "
@@ -307,7 +327,7 @@ private struct AccountSection: View {
                         .font(ONTUI.piedDeListe)
                 }
             }
-            .ontRow()
+            .ontLigneDeCarte()
 
         case .working:
             Section(header: Text("Compte").font(ONTUI.enteteDeListe)) {
@@ -317,7 +337,7 @@ private struct AccountSection: View {
                         .font(ONTUI.ligneDeListe)
                 }
             }
-            .ontRow()
+            .ontLigneDeCarte()
 
         case .signedIn:
             // **Le profil ouvre le compte, avant la synchronisation.**
@@ -334,8 +354,9 @@ private struct AccountSection: View {
             // hors compte n'a pas de sens à cet endroit.
             Section {
                 EnTeteDuProfil()
+                    .ontCarteDeLigne()
             }
-            .ontRow()
+            .ontLigneDeCarte()
 
             Section {
                 // Le consentement est explicite et séparé : les annotations
@@ -343,6 +364,7 @@ private struct AccountSection: View {
                 // (RGPD, article 9), et ne peuvent pas partir sur la foi
                 // d'une case noyée dans des conditions générales.
                 Toggle("Synchroniser mes annotations", isOn: $account.consent)
+                    .ontCarteDeLigne()
 
                 if account.consent {
                     Button {
@@ -371,13 +393,17 @@ private struct AccountSection: View {
                 )
                     .font(ONTUI.piedDeListe)
             }
-            .ontRow()
+            .ontLigneDeCarte()
 
             Section {
                 Button("Se déconnecter") { account.signOut() }
+                    .ontCarteDeLigne()
+                // La braise et non le rouge du système — même refus, même voix.
                 Button("Supprimer mon compte", role: .destructive) {
                     confirmingErasure = true
                 }
+                .tint(theme.danger)
+                .ontCarteDeLigne()
             } footer: {
                 Text(
                     "La suppression efface la copie sur le serveur. Vos annotations restent "
@@ -385,7 +411,7 @@ private struct AccountSection: View {
                 )
                     .font(ONTUI.piedDeListe)
             }
-            .ontRow()
+            .ontLigneDeCarte()
             .confirmDeletion($confirmingErasure) {
                 Task { await account.eraseAccount() }
             }

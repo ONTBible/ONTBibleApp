@@ -364,10 +364,15 @@ struct ChapterView: View {
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(theme.ink.opacity(0.07)))
+                    // Le verre du système sous la pastille — elle flotte
+                    // au-dessus du texte, c'est exactement sa place. Le voile
+                    // d'encre reste par-dessus pour la teinte de la maison.
+                    .ontVerre(dans: Capsule())
+                    .background(Capsule().fill(theme.ink.opacity(0.05)))
+                    .ontSurvol(dans: Capsule(), souleve: true)
                     .contentShape(.capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ontPresse)
                 .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
             ToolbarItem(placement: ONTPlacement.principale) {

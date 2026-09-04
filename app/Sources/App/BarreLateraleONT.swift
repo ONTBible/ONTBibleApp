@@ -99,20 +99,16 @@ struct BarreLateraleONT: View {
             }
         }
         .listStyle(.sidebar)
-        // **La surface, et non le fond de page.**
+        // **Plus aucun fond ici — c'est le panneau qui porte la vitre.**
         //
-        // Le fond du système ferait deux apps dans une fenêtre — une barre
-        // grise contre un parchemin. Mais le fond de *page* faisait pire : la
-        // barre et le contenu portaient exactement la même couleur, et rien ne
-        // disait où l'une finissait. L'auteur l'a relevé en comparant avec
-        // l'iPad, dont la barre native se détache du contenu.
-        //
-        // `surface` est le cran que la peau a déjà pour ça — en mystique,
-        // l'aubergine passe de (0,094 · 0,035 · 0,051) à
-        // (0,149 · 0,063 · 0,086). Aucune couleur n'est inventée : c'est le
-        // même écart que celui des cartes sur le fond de page.
+        // La barre a peint sa surface pendant quatre jours, et c'était juste
+        // tant qu'elle était une colonne. Depuis qu'elle flotte
+        // (`panneauFlottant`, sur le Mac), son aplat bouchait la translucidité
+        // qu'on venait d'installer : une vitre derrière un mur. Le voile du
+        // thème vit dans le panneau, à demi-opacité, sur l'effet de vitre
+        // arrière — et le bureau se devine au travers, comme chez Craft et
+        // comme sur l'iPad.
         .scrollContentBackground(.hidden)
-        .background(theme.surface)
         // **Le compte en bas, épinglé.**
         //
         // C'est la place qu'Apple Music lui donne, et ce n'est pas une
@@ -152,9 +148,8 @@ struct BarreLateraleONT: View {
                 .padding(.horizontal, LigneDeBarre.margeHorsListe)
                 .padding(.vertical, 4)
             }
-            // La même surface que la barre : la ligne du compte en fait partie,
-            // elle n'est pas posée dessus.
-            .background(theme.surface)
+            // Aucun fond — la ligne du compte est dans le panneau, et le
+            // panneau porte la vitre. Voir plus haut.
         }
     }
 
@@ -170,6 +165,7 @@ struct BarreLateraleONT: View {
     @State private var repliés: Set<String> = []
 
     private func basculer(_ corpus: Corpus) {
+        ONTHaptique.cran()
         // Le ressort et non la rampe : le pli d'une section est le geste le
         // plus visible de la barre, c'est lui qui donne le tempérament.
         withAnimation(ONTMouvement.ressort) {

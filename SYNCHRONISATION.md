@@ -3146,3 +3146,77 @@ Les listes en cartes par ligne (corpus, lexique, Vous, résultats), les rangées
 restantes (NavigationLink du corpus), l'orchestration d'arrivée des écrans, le
 survol des intraduisibles dans le texte, la pastille de la barre. Vue par vue,
 planche à l'appui.
+
+## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes
+
+### « Impossible de swiper » — les deux chemins, encore
+
+L'auteur, depuis la vue Reprendre : ni la traîne au clic maintenu, ni le
+glissement à deux doigts. `RepriseDeLecture` rendait **`ChapterView` nu**, quand
+le chemin du sommaire rend `ChapterSwipe` — l'enveloppe qui porte le geste
+horizontal. La même unité glissait par une porte et pas par l'autre. C'est le
+motif « deux chemins, une vue » du 30 août, revenu par une porte de plus ; le
+balayage n'a trouvé aucun autre `ChapterView` nu.
+
+L'audit demandé (« scrute tout ») sur la classe cible-partielle : les rangées du
+lexique et les cases de versets portaient déjà leur `contentShape` ; les
+`DisclosureGroup` ont tous quitté le Mac ; les `onTapGesture` restants couvrent
+leur boîte entière.
+
+### Lexique et Vous en cartes par ligne
+
+La leçon du lexique : deux `listRowBackground` sur la même rangée, c'est
+**l'intérieur** qui gagne — le `clear` posé par-dessus n'éteignait pas la
+surface d'`ontRow`, et les cartes se noyaient dans un bloc. D'où
+`ontLigneDeCarte()`, un seul appel qui choisit par plateforme, au lieu de deux
+qui s'empilent. Et le style : la `List` était déjà `.plain` — le bloc n'était
+pas le style groupé, c'était nous.
+
+Vous : chaque rangée sa carte, l'échec de connexion en **braise dans sa
+pastille** (`theme.danger` sur `dangerSurface`) au lieu du `.red` système,
+« Supprimer mon compte » teinté braise, capsules de connexion avec levée au
+survol et pression. Les capsules ont servi le soir même : l'auteur s'est
+connecté avec Apple sur le Mac — première connexion réussie de la plateforme.
+
+## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt
+
+« Tu te moques de moi pour la sidebar ? » — et le reproche était juste : le
+panneau flottant avait été posé, mais la barre peignait encore son fond opaque
+par-dessus la vitre. Un demi-pas livré comme un pas. La leçon est celle
+d'`implementer-plutot-que-declarer`, version visuelle : une translucidité
+annoncée dont rien ne traverse.
+
+### La vitre, la vraie
+
+`NSVisualEffectView` en `.behindWindow` — pas un matériau SwiftUI, qui ne
+floute que ce que la fenêtre dessine : la translucidité de Craft traverse la
+**fenêtre**, c'est le bureau qu'on devine. Voile aubergine à 0,65 par-dessus
+(à 0,5, mesuré sur capture, la barre tirait au gris du système), coins 18,
+marges 12, filet qui prend la lumière. La barre elle-même ne peint **plus
+rien** — quatre jours de `background(theme.surface)` retirés.
+
+### L'anneau qui se déplaçait
+
+Le focus initial de la fenêtre a montré l'anneau du système sur la carte
+« Reprendre », puis — celle-ci l'ayant décliné — sur le bouton de barre
+d'outils, cerceau mauve au lancement sur les captures de l'auteur. Éteindre
+l'anneau élément par élément ne faisait que le déplacer : la fenêtre s'ouvre
+maintenant **sans premier répondeur**.
+
+### Le ratio volé par les captures
+
+`defaultSize` portait déjà le 1,29 relevé sur la référence de l'auteur — mais
+chaque campagne de captures forçait 1440 × 900, et la restauration d'état le
+gardait : les lancements normaux rouvraient au format App Store. Le mode
+capture pose désormais `isRestorable = false`. Un outil de mesure qui modifie
+l'état qu'il mesure — la troisième fois que ce motif coûte, après la vignette
+de Stage Manager et le garde-fou qui mesurait la fenêtre d'avant.
+
+### Les haptiques et le verre
+
+`ONTHaptique` — tic (pression), cran (plis, segments), palier (cartes) — sur
+le moteur que `ChapterSwipe` éprouvait déjà. Câblé dans `ONTPresse` même :
+tout bouton au style de la maison sonne, sans site à instrumenter.
+`ontVerre(dans:)` pose le verre du système (macOS 26, matière fine en repli)
+sur ce qui flotte au-dessus du texte — la pastille de lecture d'abord. Sur
+iOS, les deux ne font rien : le système y donne déjà ses retours.
