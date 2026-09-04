@@ -71,6 +71,17 @@ jobs:
             echo "::error::Secrets manquants :$manque — voir l'en-tête de cask.yml pour les créer."
             exit 1
           fi
+          # Un jeton présent mais faux échouerait au bout de vingt-cinq
+          # minutes, après build et notarisation — le motif de cocker :
+          # l'authentification se vérifie à la première seconde.
+          HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $TAP" \
+            "https://api.github.com/repos/ONTBible/homebrew-ont")
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN ne s'authentifie pas (HTTP $HTTP) — jeton faux, expiré, ou sans accès à ONTBible/homebrew-ont."
+            exit 1
+          fi
+          echo 'Jeton du tap : authentifié.'
 
       - name: L'app
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
