@@ -3252,3 +3252,17 @@ qui marche : des **plages de caractères** extraites de la chaîne finale
 `CharacterIndex` — opaque, mais `Strideable` : le minimum du layout est le
 caractère zéro, `distance(to:)` rend chaque index absolu. Le minimum et non le
 premier run : l'hébreu en RTL réordonne les runs visuellement.
+
+## 4 septembre 2026 — la barre flottante, construite puis écartée en main
+
+Trois états en une soirée : la barre opaque, la barre flottante à la Craft
+(coins, marges, ombre, sol unifié), puis — l'auteur l'ayant prise en main —
+le retour au **bord à bord** : « on voit que ce rendu est pas natif, ça fait
+bizarre ». Il avait raison sur la sensation : les barres du Mac sont des
+colonnes, pas des cartes.
+
+Ce qui reste du voyage est le morceau qui comptait : la **translucidité** —
+`NSVisualEffectView` en `.behindWindow`, le bureau qui se devine, le voile
+aubergine à 0,65 — et une barre qui ne peint plus son propre fond. Le détour
+n'était pas gratuit : c'est en la voyant flotter qu'on a su que ce n'était pas
+elle. Décision d'auteur, consignée pour que personne ne la reconstruise.

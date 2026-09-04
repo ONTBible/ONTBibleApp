@@ -65,10 +65,10 @@ struct RacineMac: View {
         VStack(spacing: 0) {
             NavigationSplitView {
                 BarreLateraleONT()
-                    // **Flottante, translucide, détachée des bords** — la
-                    // barre de Craft et de l'iPad, demandée trois fois par
-                    // l'auteur. Le panneau porte la vitre ; la barre, elle,
-                    // a cessé de peindre son fond — voir `BarreLateraleONT`.
+                    // **Translucide, bord à bord** — la vitre traverse jusqu'au
+                    // bureau, et la barre a cessé de peindre son fond. La
+                    // version flottante a été construite puis écartée en main
+                    // par l'auteur : « pas natif » — voir `VitreDeBarre`.
                     .panneauFlottant()
                     // **Les trois bornes suivent le corps réglé au clavier.**
                     //
@@ -78,9 +78,9 @@ struct RacineMac: View {
                     // tronquait au cran d'après. Un réglage de confort qui
                     // ampute les noms n'est pas un réglage de confort.
                     .navigationSplitViewColumnWidth(
-                        min: ONTUI.points(196),
-                        ideal: ONTUI.points(Self.largeurDeBarreParDefaut + 16),
-                        max: ONTUI.points(476))
+                        min: ONTUI.points(180),
+                        ideal: ONTUI.points(Self.largeurDeBarreParDefaut),
+                        max: ONTUI.points(460))
             } detail: {
                 Detail()
                     // Les listes du détail reprennent la fonte du système à leurs
