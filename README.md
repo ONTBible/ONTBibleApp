@@ -53,6 +53,25 @@ une expression rationnelle globale dont le `lastIndex` persistait — l'hébreu 
 certaines définitions du lexique n'était pas isolé, donc rendu sans fonte
 hébraïque ni passage en RTL, dans l'app comme sur le site.
 
+
+## Installer la liseuse du Mac
+
+Par [Homebrew](https://brew.sh), sans passer par l'App Store :
+
+```sh
+brew install --cask ontbible/ont/la-bible-ont
+```
+
+Le cask vit dans [`ONTBible/homebrew-ont`](https://github.com/ONTBible/homebrew-ont)
+et se met à jour tout seul : chaque étiquette `brew-vX.Y.Z` de ce dépôt
+construit, signe (Developer ID), notarise et publie le zip, puis réécrit la
+version et le `sha256` du cask — voir `.github/workflows/cask.yml`. Cette voie
+ne consomme aucune place du quota App Store Connect.
+
+Deux écarts avec la version App Store, dits aussi par le cask : « Continuer
+avec Apple » et les notifications poussées demandent des droits réservés à
+l'App Store. Google et GitHub fonctionnent.
+
 ## Le schéma n'est plus décrit qu'à **un** endroit
 
 `pipeline/src/schema.rs`. Tout le reste en découle, et par deux chemins

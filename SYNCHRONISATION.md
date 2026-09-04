@@ -3323,3 +3323,50 @@ fouille — SDK balayé, web croisé, deux sondes — a établi qu'il n'existe p
 d'API « barre flottante » : sur cette machine, la forme native est la colonne
 de verre pleine hauteur, et ce qui flotte chez Craft est leur page. Quatre
 constructions écrites, une gardée : celle du système.
+
+## 4 septembre 2026 — la liseuse du Mac s'installe par Homebrew
+
+Sur la demande de l'auteur, calquée sur `gloiiire/cocker` — dont la formule et
+`sync-homebrew-tap` rodent la mécanique depuis des mois.
+
+### Ce qui a été monté
+
+- **`ONTBible/homebrew-ont`** — un dépôt neuf, le tap : `Casks/la-bible-ont.rb`
+  et une épreuve `eprouver` (le style Homebrew du cask). Installation :
+  `brew install --cask ontbible/ont/la-bible-ont` ;
+- **`scripts/publier-le-cask.sh`** — construit en Release, signe **Developer
+  ID** avec exécution durcie, notarise par `notarytool` (la clé ASC déjà en
+  place), agrafe, zippe, rend le sha256 ;
+- **`.github/workflows/cask.yml`** — sur `brew-vX.Y.Z` : tout ce qui précède
+  sur le runner, release GitHub, puis réécriture du cask par l'API contents —
+  le commit sort signé « GitHub web flow », le chemin exact de cocker ;
+- **`app/ONTMac-cask.entitlements`** — les droits *restreints* retirés
+  (connexion Apple, push, liens universels) : sans profil Developer ID,
+  macOS refuse de lancer une app qui les porte. Le cask le dit en caveats.
+
+### Ce que seul l'auteur peut faire, et qui bloque le premier tir
+
+1. créer le certificat **« Developer ID Application »** (Xcode → Réglages →
+   Comptes → Gérer les certificats — titulaire du compte ; le trousseau n'a
+   que Development et Distribution, vérifiés) → l'exporter en .p12 → secrets
+   `DEVELOPER_ID_P12` (base64) et `DEVELOPER_ID_P12_MDP` ;
+2. un PAT fine-grained sur `ONTBible/homebrew-ont` (Contents : Read/Write) →
+   secret `HOMEBREW_TAP_TOKEN`.
+
+Puis : `git tag brew-v1.0.5 && git push origin brew-v1.0.5` — le reste est
+machine. Le workflow valide les secrets **en premier** et échoue en nommant ce
+qui manque.
+
+### Deux exceptions assumées, écrites pour être relevées
+
+- **le tap n'a pas encore le ruleset commun** : la CI y écrit `main` en
+  direct par l'API. Le protéger exigera le flux PR + auto-merge de cocker
+  (une trentaine de lignes, déjà écrites là-bas) — à faire quand le premier
+  tir aura prouvé la chaîne ;
+- **le tap n'est pas raccordé** à la table des dépôts de la racine — c'est le
+  fichier de l'auteur. Un dépôt satellite écrit par la machine, mais la règle
+  dit qu'un dépôt hors table est un dépôt qu'on oublie : à trancher.
+
+Rien de `dist/` ni du schéma ne bouge. La notarisation ne consomme **aucune**
+place du quota App Store Connect — c'est une voie parallèle, pas un palier de
+plus dans la chaîne de promotion.

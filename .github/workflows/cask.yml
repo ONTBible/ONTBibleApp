@@ -1,0 +1,167 @@
+name: Cask
+
+# Sur chaque étiquette `brew-vX.Y.Z` : construit la liseuse du Mac, la signe
+# Developer ID, la notarise, publie le zip en release GitHub, puis met à jour
+# le cask du tap `ONTBible/homebrew-ont`.
+#
+# La mécanique vient de `gloiiire/cocker` (release + sync-homebrew-tap), qui
+# la rode depuis des mois : validation bruyante des secrets d'abord, écriture
+# du tap par l'API contents — le commit sort signé « GitHub web flow ».
+#
+# ## Les secrets, et où les créer
+#
+# | secret | quoi |
+# |---|---|
+# | `DEVELOPER_ID_P12` | le certificat « Developer ID Application » exporté en .p12, en base64 (`base64 -i cert.p12`) |
+# | `DEVELOPER_ID_P12_MDP` | le mot de passe de cet export |
+# | `HOMEBREW_TAP_TOKEN` | PAT fine-grained sur ONTBible/homebrew-ont — Contents : Read and write |
+# | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` | déjà en place — la notarisation les réutilise |
+#
+# Le certificat se crée dans Xcode → Réglages → Comptes → Gérer les
+# certificats → « + » → Developer ID Application — réservé au titulaire du
+# compte. Ni « Apple Development » ni « Apple Distribution » ne valent hors
+# App Store.
+#
+# ## Ce que cette voie ne consomme pas
+#
+# La notarisation n'est pas un téléversement App Store Connect : ce workflow
+# ne prend aucune place du quota quotidien d'Apple.
+
+on:
+  push:
+    tags:
+      - 'brew-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version à publier (ex. 1.0.5)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publier:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      # Bruyant et tôt — le motif de cocker : sans ça, l'échec était un 401
+      # générique enfoui cinq étapes plus loin.
+      - name: Valider les secrets
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          TAP: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          manque=""
+          [ -z "$P12" ] && manque="$manque DEVELOPER_ID_P12"
+          [ -z "$TAP" ] && manque="$manque HOMEBREW_TAP_TOKEN"
+          if [ -n "$manque" ]; then
+            echo "::error::Secrets manquants :$manque — voir l'en-tête de cask.yml pour les créer."
+            exit 1
+          fi
+
+      - name: L'app
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest
+
+      - name: Les outils
+        run: brew install xcodegen
+
+      - name: Le corpus et le projet
+        working-directory: ONTBibleApp
+        run: ONT_VAULT="$GITHUB_WORKSPACE/ONTBibleTranslation" ./scripts/corpus.sh
+
+      - name: Le certificat Developer ID
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          MDP: ${{ secrets.DEVELOPER_ID_P12_MDP }}
+        run: |
+          echo "$P12" | base64 -d > cert.p12
+          security create-keychain -p ci ci.keychain
+          security default-keychain -s ci.keychain
+          security unlock-keychain -p ci ci.keychain
+          security import cert.p12 -k ci.keychain -P "$MDP" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci ci.keychain >/dev/null
+          rm cert.p12
+
+      - name: La clé App Store Connect
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "$ASC_PRIVATE_KEY" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          chmod 600 ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: Construire, signer, notariser
+        id: paquet
+        working-directory: ONTBibleApp
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          VERSION="${{ inputs.version || '' }}"
+          [ -n "$VERSION" ] || VERSION="${GITHUB_REF_NAME#brew-v}"
+          ./scripts/publier-le-cask.sh "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$(shasum -a 256 "La-Bible-ONT-$VERSION.zip" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: La release GitHub
+        working-directory: ONTBibleApp
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.paquet.outputs.version }}
+        run: |
+          gh release create "brew-v$V" "La-Bible-ONT-$V.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "La Bible ONT $V — Homebrew" \
+            --notes "Build notarisé pour \`brew install --cask ontbible/ont/la-bible-ont\`." \
+            2>/dev/null || gh release upload "brew-v$V" "La-Bible-ONT-$V.zip" --repo "$GITHUB_REPOSITORY" --clobber
+
+      # Le commit sort signé « GitHub web flow » — c'est le chemin de cocker,
+      # qui satisfait un tap à commits signés sans clé GPG au bot.
+      - name: Mettre le tap à jour
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          V: ${{ steps.paquet.outputs.version }}
+          SHA: ${{ steps.paquet.outputs.sha }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.request
+
+          v, sha = os.environ["V"], os.environ["SHA"]
+          depot = "ONTBible/homebrew-ont"
+          chemin = "Casks/la-bible-ont.rb"
+          jeton = os.environ["GH_TOKEN"]
+
+          def api(methode, url, corps=None):
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{depot}/{url}",
+                  data=json.dumps(corps).encode() if corps else None, method=methode,
+                  headers={"Authorization": f"Bearer {jeton}",
+                           "Accept": "application/vnd.github+json"})
+              with urllib.request.urlopen(req) as r:
+                  return json.load(r)
+
+          actuel = api("GET", f"contents/{chemin}")
+          texte = base64.b64decode(actuel["content"]).decode()
+          import re
+          texte = re.sub(r'version "[^"]*"', f'version "{v}"', texte)
+          texte = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', texte)
+          api("PUT", f"contents/{chemin}", {
+              "message": f"# Porter le cask a {v}",
+              "content": base64.b64encode(texte.encode()).decode(),
+              "sha": actuel["sha"],
+          })
+          print(f"cask → {v} ({sha[:12]}…)")
+          PY
