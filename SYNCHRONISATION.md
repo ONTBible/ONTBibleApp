@@ -3288,3 +3288,24 @@ avec la même vitre que le panneau — marges posées, marges invisibles — et 
 faut recouvrir son sol comme pour la page ; et une prévisualisation réduite
 écrase un écart de ton réel (14,6,8 contre 48,37,40 au pixel) — juger les
 retraits fins à l'échelle 1.
+
+## 4 septembre 2026 — la mesure a clos le débat de la barre
+
+L'entrée précédente (« deux panneaux sur une toile ») était la **troisième
+lecture fausse** de la même capture. L'auteur a corrigé une fois de plus — « les
+trois boutons sont dans la sidebar chez Craft » — et cette fois la capture a été
+**balayée au pixel** au lieu d'être relue à l'œil :
+
+    bord gauche   : fenêtre → barre (76), sans gouttière
+    zone des feux : posés SUR la barre — elle monte jusqu'au bord
+    barre→contenu : 76 → 59 sur ~20 pt → 35
+    bord droit    : 35 → 59 sur ~23 pt → fenêtre
+
+**La barre est soudée ; c'est la page qui flotte**, posée sur une toile visible
+en gouttière, et la hiérarchie des tons est barre > toile > page. Transposé
+dans la peau : 48 > 30 > 22, vérifié sur notre propre capture au même balayage.
+
+Quatre allers-retours pour une capture qui était là depuis le début. La leçon
+est celle de toute la semaine : **une référence visuelle se mesure, elle ne se
+relit pas** — l'œil a affirmé trois architectures différentes du même écran,
+le balayage en a établi une en trente lignes.

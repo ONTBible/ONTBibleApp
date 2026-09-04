@@ -2,28 +2,27 @@ import AppKit
 import ONTDesignSystem
 import SwiftUI
 
-// MARK: - La toile et les panneaux
+// MARK: - La construction de Craft, mesurée au pixel
 
-/// La construction de Craft, lue pour de bon sur sa capture : **la fenêtre est
-/// une toile, et deux panneaux flottent dessus** — la barre latérale *et* le
-/// contenu, chacun ses coins ronds, des retraits fins, ni bordure ni ombre.
-/// La séparation se fait au ton : la toile est plus sombre que ce qu'elle
-/// porte.
+/// Trois lectures successives de la même capture, et c'est la **mesure** qui a
+/// tranché (4 septembre 2026, balayages pixel par pixel) :
 ///
-/// ## Les trois états qu'il a fallu traverser
+///     bord gauche  → fenêtre → barre (ton 76), sans gouttière ;
+///     zone des feux → posés SUR la barre — elle monte jusqu'au bord ;
+///     barre → contenu : 76 → **59 sur ~20 pt** → 35 ;
+///     bord droit    : 35 → **59 sur ~23 pt** → fenêtre.
 ///
-/// 1. la barre opaque soudée — « une bande dans la bande » ;
-/// 2. une carte flottante *seule*, marges, ombre, filet — « pas natif, ça fait
-///    bizarre », et l'auteur avait raison : un panneau unique contre une page
-///    pleine est un objet collé sur un mur ;
-/// 3. la lecture correcte de Craft — « non, la sidebar Craft elle flotte » :
-///    elle flotte **avec** le contenu, sur une toile commune. C'est l'écosystème
-///    qui fait le flottement, pas l'objet.
+/// Donc : **la barre est soudée** — gauche, haut avec les feux, bas — et c'est
+/// **le contenu qui flotte**, une page posée sur une toile visible en
+/// gouttière. La hiérarchie des tons : barre > toile > page.
+///
+/// Les deux premières lectures — « tout est soudé », puis « tout flotte » —
+/// avaient chacune la moitié. L'auteur a corrigé les deux fois ; la mesure a
+/// clos le débat.
 enum Toile {
-    /// Le retrait des panneaux sur la toile.
-    static let marge: CGFloat = 8
-    /// Le coin d'un panneau — plus serré que la feuille : un panneau est un
-    /// meuble, pas une carte.
+    /// La gouttière autour de la page.
+    static let marge: CGFloat = 10
+    /// Le coin de la page posée.
     static let coin: CGFloat = 12
 }
 
@@ -39,7 +38,7 @@ private struct VitreArriere: NSViewRepresentable {
     func updateNSView(_ vue: NSVisualEffectView, context: Context) {}
 }
 
-/// Le panneau de la barre — la vitre et le voile, découpés au coin de la toile.
+/// La barre — **soudée**, pleine hauteur, les feux posés dessus, sur sa vitre.
 private struct PanneauDeBarre: ViewModifier {
     @Environment(\.ontTheme) private var theme
 
@@ -52,63 +51,50 @@ private struct PanneauDeBarre: ViewModifier {
                     // grise, la barre doit rester de la maison.
                     theme.surface.opacity(0.65)
                 }
+                // Jusqu'aux bords : chez Craft les feux sont posés sur la
+                // barre, mesuré — elle ne commence pas sous la barre de titre.
+                .ignoresSafeArea()
             }
-            .clipShape(.rect(cornerRadius: Toile.coin))
-            .padding(.leading, Toile.marge)
-            .padding(.vertical, Toile.marge)
-            .padding(.trailing, Toile.marge / 2)
-            // **Le sol de la colonne est la toile.** Sans lui, la matière de
-            // la colonne du système remplit les marges avec la même vitre que
-            // le panneau — marges posées, marges invisibles, mesuré sur
-            // capture. Même remède que pour le sol de page d'hier : recouvrir.
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background { CouleurDeToile().ignoresSafeArea() }
     }
 }
 
-/// Le panneau du contenu — la page de lecture, posée sur la même toile.
+/// La page de lecture — **posée** : découpée, en retrait, la toile en gouttière.
 private struct PanneauDeContenu: ViewModifier {
-    @Environment(\.ontTheme) private var theme
-
     func body(content: Content) -> some View {
         content
             .clipShape(.rect(cornerRadius: Toile.coin))
             .padding(.trailing, Toile.marge)
             .padding(.vertical, Toile.marge)
-            .padding(.leading, Toile.marge / 2)
+            .padding(.leading, Toile.marge)
+            // Le sol de la colonne est la toile — sans lui, la matière du
+            // système remplirait la gouttière, et la page serait posée sur
+            // rien de visible.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background { CouleurDeToile().ignoresSafeArea() }
     }
 }
 
-/// La couleur de la toile — le fond du thème, assombri d'un voile noir.
-///
-/// Un cran plus sombre que la page : c'est cet écart, et lui seul, qui fait
-/// lire les panneaux comme posés. Pas de couleur neuve.
+/// La toile — **entre** les deux tons, comme chez Craft (76 > 59 > 35) : plus
+/// sombre que la barre, plus claire que la page. Le voile de surface sur le
+/// fond — aucune couleur inventée.
 private struct CouleurDeToile: View {
     @Environment(\.ontTheme) private var theme
 
     var body: some View {
         ZStack {
             theme.background
-            Color.black.opacity(0.35)
+            theme.surface.opacity(0.6)
         }
     }
 }
 
-/// La toile — sous les deux panneaux, jusqu'aux bords de la fenêtre.
-private struct ToileDeFond: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background { CouleurDeToile().ignoresSafeArea() }
-    }
-}
-
 extension View {
-    /// La barre latérale en panneau sur la toile.
+    /// La barre soudée sur sa vitre.
     func panneauFlottant() -> some View { modifier(PanneauDeBarre()) }
-    /// Le contenu en panneau sur la toile.
+    /// La page posée sur la toile.
     func panneauDeContenu() -> some View { modifier(PanneauDeContenu()) }
-    /// La toile sous les panneaux — à poser sur le `NavigationSplitView`.
-    func toileDeFond() -> some View { modifier(ToileDeFond()) }
+    /// Le fond de secours du séparateur de colonnes.
+    func toileDeFond() -> some View {
+        background { CouleurDeToile().ignoresSafeArea() }
+    }
 }
