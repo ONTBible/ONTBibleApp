@@ -1,8 +1,14 @@
 name: Cask
 
-# Sur chaque étiquette `brew-vX.Y.Z` : construit la liseuse du Mac, la signe
-# Developer ID, la notarise, publie le zip en release GitHub, puis met à jour
-# le cask du tap `ONTBible/homebrew-ont`.
+# Deux canaux, deux étiquettes, deux casks — le motif de firefox@beta :
+#
+#     brew-vX.Y.Z        → Casks/la-bible-ont.rb        (stable, depuis app-store)
+#     brew-beta-vX.Y.Z-N → Casks/la-bible-ont@beta.rb   (bêta, depuis beta-test)
+#
+# Dans les deux cas : construit la liseuse du Mac, la signe Developer ID, la
+# notarise, publie le zip en release GitHub, puis réécrit le cask du canal
+# dans le tap `ONTBible/homebrew-ont`. L'étiquette se pose sur le commit de la
+# branche du canal — c'est elle qui décide de ce qui part.
 #
 # La mécanique vient de `gloiiire/cocker` (release + sync-homebrew-tap), qui
 # la rode depuis des mois : validation bruyante des secrets d'abord, écriture
@@ -31,11 +37,17 @@ on:
   push:
     tags:
       - 'brew-v*'
+      - 'brew-beta-v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version à publier (ex. 1.0.5)'
+        description: 'Version à publier (ex. 1.0.5, ou 1.0.5-beta.1)'
         required: true
+      canal:
+        description: 'Quel cask réécrire'
+        type: choice
+        options: [stable, beta]
+        default: stable
 
 permissions:
   contents: write
@@ -111,9 +123,17 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           VERSION="${{ inputs.version || '' }}"
-          [ -n "$VERSION" ] || VERSION="${GITHUB_REF_NAME#brew-v}"
+          CANAL="${{ inputs.canal || '' }}"
+          if [ -z "$VERSION" ]; then
+            case "$GITHUB_REF_NAME" in
+              brew-beta-v*) VERSION="${GITHUB_REF_NAME#brew-beta-v}"; CANAL=beta ;;
+              brew-v*)      VERSION="${GITHUB_REF_NAME#brew-v}";      CANAL=stable ;;
+            esac
+          fi
+          [ -n "$CANAL" ] || CANAL=stable
           ./scripts/publier-le-cask.sh "$VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "canal=$CANAL" >> "$GITHUB_OUTPUT"
           echo "sha=$(shasum -a 256 "La-Bible-ONT-$VERSION.zip" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: La release GitHub
@@ -121,12 +141,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.paquet.outputs.version }}
+          CANAL: ${{ steps.paquet.outputs.canal }}
         run: |
-          gh release create "brew-v$V" "La-Bible-ONT-$V.zip" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "La Bible ONT $V — Homebrew" \
-            --notes "Build notarisé pour \`brew install --cask ontbible/ont/la-bible-ont\`." \
-            2>/dev/null || gh release upload "brew-v$V" "La-Bible-ONT-$V.zip" --repo "$GITHUB_REPOSITORY" --clobber
+          if [ "$CANAL" = beta ]; then ETIQUETTE="brew-beta-v$V"; JETON="la-bible-ont@beta"; PRE=--prerelease
+          else ETIQUETTE="brew-v$V"; JETON="la-bible-ont"; PRE=""; fi
+          gh release create "$ETIQUETTE" "La-Bible-ONT-$V.zip" \
+            --repo "$GITHUB_REPOSITORY" $PRE \
+            --title "La Bible ONT $V — Homebrew ($CANAL)" \
+            --notes "Build notarisé pour \`brew install --cask ontbible/ont/$JETON\`." \
+            2>/dev/null || gh release upload "$ETIQUETTE" "La-Bible-ONT-$V.zip" --repo "$GITHUB_REPOSITORY" --clobber
 
       # Le commit sort signé « GitHub web flow » — c'est le chemin de cocker,
       # qui satisfait un tap à commits signés sans clé GPG au bot.
@@ -135,13 +158,15 @@ jobs:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           V: ${{ steps.paquet.outputs.version }}
           SHA: ${{ steps.paquet.outputs.sha }}
+          CANAL: ${{ steps.paquet.outputs.canal }}
         run: |
           python3 - <<'PY'
           import base64, json, os, urllib.request
 
           v, sha = os.environ["V"], os.environ["SHA"]
           depot = "ONTBible/homebrew-ont"
-          chemin = "Casks/la-bible-ont.rb"
+          canal = os.environ.get("CANAL", "stable")
+          chemin = "Casks/la-bible-ont@beta.rb" if canal == "beta" else "Casks/la-bible-ont.rb"
           jeton = os.environ["GH_TOKEN"]
 
           def api(methode, url, corps=None):
@@ -159,7 +184,7 @@ jobs:
           texte = re.sub(r'version "[^"]*"', f'version "{v}"', texte)
           texte = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', texte)
           api("PUT", f"contents/{chemin}", {
-              "message": f"# Porter le cask a {v}",
+              "message": f"# Porter le cask {canal} a {v}",
               "content": base64.b64encode(texte.encode()).decode(),
               "sha": actuel["sha"],
           })

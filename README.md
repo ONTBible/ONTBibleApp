@@ -59,8 +59,14 @@ hébraïque ni passage en RTL, dans l'app comme sur le site.
 Par [Homebrew](https://brew.sh), sans passer par l'App Store :
 
 ```sh
-brew install --cask ontbible/ont/la-bible-ont
+brew install --cask ontbible/ont/la-bible-ont        # stable — l'état App Store
+brew install --cask ontbible/ont/la-bible-ont@beta   # bêta — l'état des testeurs invités
 ```
+
+Deux casks, deux canaux — le motif de `firefox` / `firefox@beta` : l'étiquette
+`brew-vX.Y.Z` se pose sur `app-store`, `brew-beta-vX.Y.Z-N` sur `beta-test`,
+et chacune réécrit son cask. Les deux installent la même app ; on choisit l'un
+ou l'autre.
 
 Le cask vit dans [`ONTBible/homebrew-ont`](https://github.com/ONTBible/homebrew-ont)
 et se met à jour tout seul : chaque étiquette `brew-vX.Y.Z` de ce dépôt
