@@ -137,9 +137,9 @@ private struct VerseOfTheDayCard: View {
         } label: {
             carte
         }
-        // `.plain` et non un style par défaut : la carte porte déjà sa peau,
-        // et un bouton système la repeindrait.
-        .buttonStyle(.plain)
+        // La pression de la maison : la carte porte déjà sa peau, le style
+        // n'y touche pas — il la fait céder sous le clic.
+        .buttonStyle(.ontPresse)
         .accessibilityHint("Ouvre le passage dans la Bible")
     }
 

@@ -60,7 +60,7 @@ public struct SearchView: View {
 
                 if !model.hits.isEmpty {
                     Section(header: Text("\(model.hits.count) passage\(model.hits.count > 1 ? "s" : "")").font(ONTUI.enteteDeListe)) {
-                        ForEach(model.hits) { hit in
+                        ForEach(Array(model.hits.enumerated()), id: \.element.id) { rang, hit in
                             Button { open(hit) } label: {
                                 HitRow(hit: hit, title: model.bookTitle(hit.record.bookId),
                                        query: model.query)
@@ -68,9 +68,11 @@ public struct SearchView: View {
                                     // résultat pour l'ouvrir serait un jeu
                                     // d'adresse.
                                     .contentShape(.rect)
+                                    .ontCarteDeLigne()
                             }
-                            .buttonStyle(.plain)
-                            .ontRow()
+                            .buttonStyle(.ontLigne)
+                            .ontLigneDeCarte()
+                            .ontApparition(rang)
                         }
                     }
                 }

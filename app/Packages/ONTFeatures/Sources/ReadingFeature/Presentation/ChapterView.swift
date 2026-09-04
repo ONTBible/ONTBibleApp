@@ -663,14 +663,19 @@ private struct VerseRow: View {
             // cette branche, le sol du numéro de verset vient de `dev`. Les
             // deux sont nécessaires — garder l'un ferait taire l'autre sans
             // que rien ne le dise.
-            Text(
-                ONTTextRenderer.compose(
-                    verse: verse, theme: theme, underlined: selected,
-                    surligne: highlight != nil
-                )
-                .cesuree(theme.preferences.hyphenation)
+            // La chaîne est nommée parce que le survol en a besoin : les
+            // plages de termes s'extraient de ce qui part réellement dans le
+            // `Text`, césures comprises.
+            let corps = ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil
             )
-            .lineSpacing(theme.lineSpacing)
+            .cesuree(theme.preferences.hyphenation)
+            Text(corps)
+                // Le mot que le curseur touche s'éclaire — mode étude
+                // seulement, voir `ontSurvolDesTermes` pour la prose continue.
+                .ontSurvolDesTermes(corps)
+                .lineSpacing(theme.lineSpacing)
                 .font(ONTUI.ligneDeListe)
 
             if let note = highlight?.note {

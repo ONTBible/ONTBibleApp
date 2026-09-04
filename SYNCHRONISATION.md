@@ -3220,3 +3220,35 @@ tout bouton au style de la maison sonne, sans site à instrumenter.
 `ontVerre(dans:)` pose le verre du système (macOS 26, matière fine en repli)
 sur ce qui flotte au-dessus du texte — la pastille de lecture d'abord. Sur
 iOS, les deux ne font rien : le système y donne déjà ses retours.
+
+## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas
+
+La table d'un livre et les résultats de recherche ont rejoint les cartes par
+ligne — même recette, cascade comprise ; la carte du Qahal a pris la pression.
+Le morceau qui se raconte est ailleurs : **le survol des intraduisibles**, mot
+à mot, dans un `Text` de SwiftUI qui n'offre rien pour ça.
+
+### Le mécanisme
+
+`TextRenderer` (macOS 15) : le point du curseur descend dans le rendu, chaque
+run du layout expose ses indices de caractères, et le run marqué qui contient
+le point reçoit son voile avant d'être dessiné. Pas de relayout — du dessin.
+Posé sur le mode étude seulement : sur la prose continue, chaque mouvement de
+souris redessinerait le chapitre entier, et c'est le canon de performance.
+
+### L'attribut qui ne voyageait pas — l'épreuve l'a tué avant un lecteur
+
+Premier essai : une double conformité `TextAttribute` + `AttributedStringKey`,
+en espérant que la marque voyage de l'`AttributedString` jusqu'aux runs du
+layout. **Elle ne voyage pas.** Et rien ne l'aurait dit : un attribut perdu
+donne exactement l'écran d'un survol au repos.
+
+D'où le mode **sonde** — tous les runs marqués voilés, sans curseur — et une
+épreuve de pixels : sonde et repos doivent différer sur un texte qui porte un
+terme, et rester identiques sur un texte qui n'en porte pas. Elle a rougi du
+premier coup sur la double conformité, et c'est elle qui a imposé le chemin
+qui marche : des **plages de caractères** extraites de la chaîne finale
+(césures comprises), passées au rendu comme données, recollées aux runs par
+`CharacterIndex` — opaque, mais `Strideable` : le minimum du layout est le
+caractère zéro, `distance(to:)` rend chaque index absolu. Le minimum et non le
+premier run : l'hébreu en RTL réordonne les runs visuellement.

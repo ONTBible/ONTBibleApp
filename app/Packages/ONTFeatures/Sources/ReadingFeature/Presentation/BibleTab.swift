@@ -457,8 +457,9 @@ struct BookView: View {
                         value: Router.Destination.chapter(book: outline.id, chapter: intro.id)
                     ) {
                         Label(intro.title, systemImage: "text.book.closed")
+                            .ontCarteDeLigne()
                     }
-                    .ontRow()
+                    .ontLigneDeCarte()
                 }
             }
 
@@ -470,7 +471,7 @@ struct BookView: View {
             // « Parashah 3 ». Trois mots pour une chose, sur un écran dont tout
             // le propos est de n'en enseigner qu'un.
             Section(model.preferences.french ? "Chapitres" : "Parashiot") {
-                ForEach(outline.chapters) { chapter in
+                ForEach(Array(outline.chapters.enumerated()), id: \.element.id) { rang, chapter in
                     // **Deux gestes, deux intentions.**
                     //
                     // Toucher la ligne ouvre l'unité — c'est ce qu'on veut neuf
@@ -491,11 +492,14 @@ struct BookView: View {
                         ChapterRow(stub: chapter) {
                             versetsDe = VersetsAChoisir(book: outline.id, chapter: chapter.id)
                         }
+                        .ontCarteDeLigne()
                     }
-                    .ontRow()
+                    .ontLigneDeCarte()
+                    .ontApparition(rang)
                 }
             }
         }
+        .ontListeDeCartes()
         .ontScreen()
         .navigationTitle(outline.title)
         // Le sous-titre de barre est arrivé avec iOS 26. En dessous, on n'a
