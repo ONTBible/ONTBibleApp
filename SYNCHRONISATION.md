@@ -3266,3 +3266,25 @@ Ce qui reste du voyage est le morceau qui comptait : la **translucidité** —
 aubergine à 0,65 — et une barre qui ne peint plus son propre fond. Le détour
 n'était pas gratuit : c'est en la voyant flotter qu'on a su que ce n'était pas
 elle. Décision d'auteur, consignée pour que personne ne la reconstruise.
+
+## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon
+
+« Non, la sidebar Craft elle flotte, mec. » Exact — et la relecture de sa
+capture a montré ce que la première tentative avait raté : **ce n'est pas la
+barre qui flotte, c'est tout ce que la fenêtre porte**. Chez Craft, la fenêtre
+est une toile plus sombre, et DEUX panneaux y sont posés — la barre *et* le
+contenu — coins ronds fins, retraits de ~8 pt, ni bordure ni ombre : la
+séparation se fait au ton.
+
+C'est pour ça que la version « carte flottante » sonnait faux : un panneau
+seul contre une page pleine est un objet collé sur un mur. Le flottement est
+un écosystème, pas une propriété d'objet.
+
+Construit : `Toile` (marge 8, coin 12), `PanneauDeBarre` (vitre arrière +
+voile 0,65, découpé), `PanneauDeContenu` (la page de lecture, découpée),
+`CouleurDeToile` (le fond du thème sous un voile noir à 0,35). Deux pièges
+mesurés au passage : la matière-système de la colonne remplissait les marges
+avec la même vitre que le panneau — marges posées, marges invisibles — et il
+faut recouvrir son sol comme pour la page ; et une prévisualisation réduite
+écrase un écart de ton réel (14,6,8 contre 48,37,40 au pixel) — juger les
+retraits fins à l'échelle 1.
