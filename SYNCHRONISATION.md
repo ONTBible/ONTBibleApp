@@ -3385,3 +3385,27 @@ Les deux casks se déclarent en conflit mutuel — même app posée — et la CI
 réécrit celui du canal de l'étiquette. La release bêta part en `--prerelease`.
 L'épreuve `eprouver` du tap a encore mordu au passage (six offenses de style
 sur le cask neuf, corrigées par `brew style --fix` avant de pousser).
+
+### Le premier tir du cask — vert, et deux leçons de secret au passage
+
+`brew-beta-v1.0.5-1` : build, signature Developer ID durcie, notarisation,
+release en *prerelease*, cask réécrit (`1.0.5-1`), épreuve du tap verte.
+Vérifié comme Gatekeeper le fera chez un inconnu : sha du cask = sha du zip au
+bit près, `spctl` rend « accepted — source=Notarized Developer ID », agrafe
+valide. `brew install --cask ontbible/ont/la-bible-ont@beta` est réel.
+
+Le tir a coûté trois essais, tous morts **à la validation, en une seconde** —
+ce pour quoi elle existe :
+
+1. un secret **vide** — `gh secret set` interactif sans terminal lit un stdin
+   vide et pose le vide sans un mot ;
+2. le **texte d'exemple** posé tel quel — attrapé par le contrôle
+   d'authentification ajouté entre les deux (le curl de cocker) : un jeton
+   présent mais faux n'aurait rougi qu'après vingt-cinq minutes de build ;
+3. le vrai jeton — vert.
+
+La discipline voulue par l'auteur est structurelle : le tap n'a aucun autre
+écrivain que `cask.yml`, qui ne part que sur étiquette et **crée** la release.
+Son README de profil balaie déjà l'organisation : les stables y paraîtront
+d'eux-mêmes ; les bêtas, marquées *prerelease*, en sont filtrées par son
+propre script — le profil annonce le stable, la bêta reste entre testeurs.
