@@ -3409,3 +3409,65 @@ La discipline voulue par l'auteur est structurelle : le tap n'a aucun autre
 Son README de profil balaie déjà l'organisation : les stables y paraîtront
 d'eux-mêmes ; les bêtas, marquées *prerelease*, en sont filtrées par son
 propre script — le profil annonce le stable, la bêta reste entre testeurs.
+
+### 31 août 2026 — Android avait la moitié du remède
+
+Le corpus publié qui écrase un bundle plus neuf a été corrigé en deux temps sur
+iOS : d'abord la **cause** — `synchroniser` refuse un manifeste plus vieux que
+le corpus embarqué —, puis l'**effet**, quand la 1.0.5 a embarqué la couche des
+Shemot et n'a affiché aucun nom. Le disque portait le corpus de l'avant-veille
+et répondait à sa place ; refuser d'en *poser* un mauvais ne fait rien à celui
+qui est déjà là.
+
+**Android n'avait reçu que le premier temps.** `plusRecentQueLeBundle` y était,
+mot pour mot ; `purgerSiLeBundleEstPlusNeuf` n'existait pas. Le montage étant
+identique — le disque recouvre le bundle fichier par fichier, sans condition —
+le défaut y attendait à l'identique, et indéfiniment : jusqu'au jour où le site
+publie plus récent que la copie périmée.
+
+- **Android** — la purge portée, appelée dans `MainActivity` **avant** la
+  construction des dépôts. Après eux, elle ne réparerait que le lancement
+  suivant. L'estampille du disque est désormais écrite, après les fichiers,
+  pour la même raison que le registre d'empreintes ;
+- **iOS** — rien : c'est de lui que vient le remède ;
+- **site** — rien : `corpus-publie.py` refuse déjà de publier un corpus
+  indatable, et c'est ce refus qui rend l'ordre calculable des deux côtés ;
+- **vault** — rien.
+
+**Ce que ça dit du portage.** Une correction en deux temps se porte en un seul
+si l'on ne lit que le premier commit. Le second ne se voyait pas comme une
+correction — il fermait un trou laissé *par* la correction, sur une autre
+fonction, dans un autre fichier. Chercher `plusRecent` chez le voisin le
+trouvait et concluait « c'est porté ».
+
+**Et le piège de l'égalité, qui n'existait que côté Kotlin.** Écrire la purge
+comme `!plusRecent(disque, bundle)` paraît juste : `plusRecent` est déjà la
+comparaison, et la nier semble donner « le disque est périmé ». Mais elle est
+**stricte**, et l'égalité est le cas *ordinaire* — le disque porte alors
+exactement le corpus du bundle. L'app aurait purgé et retéléchargé vingt méga à
+chaque lancement, sur le forfait du lecteur, pour reposer les mêmes octets.
+Aucune erreur, aucun texte faux : seulement une app qui consomme. L'épreuve
+`a date egale le disque est garde` tient ce cas, et rougit contre cette
+écriture-là.
+
+**Et sous le trou, la garde était creuse.** En vérifiant la purge sur
+l'émulateur — elle n'effaçait rien —, on a trouvé pourquoi : le manifeste **du
+bundle** porte `generatedAt`, celui **du site** porte `genere`, et Android les
+décodait avec la même classe. Kotlinx cherchait `genere` dans le document du
+pipeline, ne le trouvait pas, prenait la valeur par défaut. `dateDuBundle()`
+rendait la chaîne vide **depuis toujours**.
+
+Ce n'est pas une dégradation de la garde, c'est son **annulation** : un bundle
+indatable n'a rien à opposer — à raison, sinon ses lecteurs n'auraient plus
+jamais de mise à jour —, donc `plusRecentQueLeBundle` acceptait tout. Android
+avait la fonction, ses six épreuves, sa documentation, et aucune protection.
+
+Les épreuves étaient vertes parce qu'elles nourrissaient la date **déjà
+décodée**. Le défaut vivait un cran en amont, dans le décodage, et aucune
+d'elles ne le traversait. C'est la même famille que tout le reste de ces deux
+jours : l'instrument mesurait exactement, à côté.
+
+Trois épreuves de plus partent maintenant d'un vrai document du pipeline. iOS
+lisait la bonne clé — `objet["generatedAt"]` —, le site aussi ; le défaut était
+propre à Kotlin, et il venait de réutiliser un type parce que les deux
+documents s'appelaient « manifeste ».
