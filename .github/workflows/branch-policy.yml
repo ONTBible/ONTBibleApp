@@ -103,7 +103,15 @@ jobs:
           else
             echo "docs=non" >> "$GITHUB_OUTPUT"
             echo "$autres fichier(s) hors markdown — la chaîne s'applique :"
-            grep -v '\.md$' /tmp/touches | head -20
+            # `| head` ferme le tuyau dès la vingtième ligne ; `grep` reçoit
+            # alors un SIGPIPE, et `pipefail` fait échouer l'étape **après**
+            # qu'elle a conclu correctement. Le verdict était juste, la
+            # promotion a été bloquée quand même — sur la PR de mise en revue,
+            # là où ça coûtait le plus cher.
+            #
+            # `|| true` sur le tuyau entier : cet affichage est un confort de
+            # journal, il n'a aucun droit de décider du sort de l'étape.
+            { grep -v '\.md$' /tmp/touches | head -20; } || true
           fi
 
       - name: Rien que des docs — la chaîne ne s'applique pas
