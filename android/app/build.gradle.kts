@@ -192,18 +192,39 @@ tasks.register<Sync>("copierLesDonnees") {
  *
  * ## Le silence que cette tâche brise
  *
- * `Sync` recopie **tout** `dist/` dans les assets. Un nouveau dossier produit
- * par le pipeline arrive donc dans l'app sans que rien ne soit écrit pour lui :
- * il grossit le paquet, il part chez le lecteur, et il n'est jamais ouvert.
+ * `Sync` recopie **tout** `app/Resources/data` dans les assets. Ce dossier est
+ * peuplé par `corpus.sh`, qui nomme ce qu'il prend — les `.json` de `dist` et
+ * `dist/books` —, donc un dossier neuf du pipeline n'y arrive pas tout seul.
  *
- * Le compilateur ne dit rien, parce qu'il n'y a rien à compiler — un fichier
+ * (Le motif du script ne s'écrit pas ici tel quel : **Kotlin imbrique les
+ * commentaires de bloc**, donc un `/` suivi d'une étoile ouvrirait un
+ * commentaire dans le commentaire, et le `*` `/` final ne refermerait que
+ * celui-là. Tout le code en dessous se retrouve avalé — sans erreur de
+ * compilation, seulement une tâche que Gradle ne trouve plus.)
+ *
+ * **Le couplage est ailleurs, et il est plus discret :** le jour où `corpus.sh`
+ * copiera une chose de plus, pour le bénéfice d'iOS par exemple, elle atterrira
+ * ici et Android l'embarquera. Aucune décision n'aura été prise de ce côté-ci —
+ * seulement une ligne ajoutée dans un script partagé par les deux liseuses.
+ *
+ * Le compilateur ne dira rien, parce qu'il n'y a rien à compiler : un fichier
  * n'a pas de type. C'est l'exact contraire d'un nœud ajouté à `schema.rs`, qui
  * traverse jusqu'à un `when` exhaustif et fait rougir la compilation.
  *
- * Le cas est **imminent** : le chantier des langues sources ouvert le 7
- * septembre 2026 produira `dist/sources/`, un fichier par livre et par témoin.
- * Sans cette garde, Android l'embarquerait en silence — et on s'en apercevrait
- * à la taille du paquet, longtemps après.
+ * Le chantier des langues sources, ouvert le 7 septembre 2026, produira
+ * `dist/sources/` — un fichier par livre et par témoin, 52 Mo. iOS l'exclut par
+ * dessein : ces textes se téléchargent à la demande et ne s'embarquent jamais.
+ * Si cette décision changeait un jour d'un seul côté, c'est ici qu'on
+ * l'apprendrait.
+ *
+ * ## Une raison fausse a précédé celle-ci
+ *
+ * La première version de ce commentaire disait « `Sync` recopie tout `dist/` ».
+ * C'était surestimer le risque et se tromper de mécanisme. La session macOS l'a
+ * fait apparaître en vérifiant son propre côté du mur — et en constatant que
+ * `corpus.sh` filtre, j'ai vu que mon défaut n'était pas celui que j'annonçais.
+ *
+ * La garde reste juste ; sa justification ne l'était pas.
  *
  * ## Pourquoi une liste et non une exclusion
  *
