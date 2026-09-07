@@ -78,6 +78,8 @@ targets:
       - package: ONTFeatures
         product: LexiconFeature
       - package: ONTFeatures
+        product: KhuqqimFeature
+      - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
         product: QahalFeature
@@ -315,6 +317,8 @@ targets:
         product: ReadingFeature
       - package: ONTFeatures
         product: LexiconFeature
+      - package: ONTFeatures
+        product: KhuqqimFeature
       - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
