@@ -1,3 +1,4 @@
+import KhuqqimFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -296,6 +297,20 @@ private struct OngletsFixes: TabContent {
         }
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
+        }
+        // **Khuqqim** — חֻקִּים, ce qui est *gravé*.
+        //
+        // Entre le Lexique et Vous, délibérément : ce qui se lit reste à
+        // gauche, ce qui vous appartient reste à droite. Le lexique explique
+        // les mots du corpus, les khuqqim en tirent ce qui oblige — les deux
+        // sont de la lecture, et ils se suivent.
+        //
+        // Cinquième onglet sur l'iPhone. La barre en accepte cinq ; au-delà
+        // iOS replierait le surplus derrière « Plus », ce qui enterrerait le
+        // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
+        // qu'on repense la barre entière.
+        Tab("Khuqqim", systemImage: "square.stack.3d.up", value: Router.TabID.khuqqim) {
+            KhuqqimTab()
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
         //

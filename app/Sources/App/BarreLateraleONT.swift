@@ -38,6 +38,9 @@ struct BarreLateraleONT: View {
                 LigneDeBarre(
                     cible: .lexicon, titre: "Lexique",
                     symbole: "character.book.closed.fill")
+                LigneDeBarre(
+                    cible: .khuqqim, titre: "Khuqqim",
+                    symbole: "square.stack.3d.up")
             }
             // Seulement les corpus qui ont un livre à proposer : un en-tête
             // « Berit Hadashah » suivi de rien annoncerait un rayon vide.

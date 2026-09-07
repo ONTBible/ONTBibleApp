@@ -232,6 +232,8 @@ struct ONTMacApp: App {
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Lexique") { etat.composition.router.aller(a: .lexicon) }
                     .keyboardShortcut("4", modifiers: .command)
+                Button("Khuqqim") { etat.composition.router.aller(a: .khuqqim) }
+                    .keyboardShortcut("5", modifiers: .command)
 
                 Divider()
                 // ⌘[ est le retour de Safari, du Finder et de Xcode. On dépile
