@@ -962,22 +962,17 @@ pub fn build() -> Result<BuildResult, String> {
     // Facultative : un vault sans `sources/` construit comme avant. Ce n'est
     // pas une branche morte — c'est ce qui fait que la chaîne du site et de
     // l'app n'est pas otage de cette couche-ci.
-    let numero_vers_slug: BTreeMap<u32, String> = skeleton
-        .iter()
-        .map(|b| (b.slot, b.id.clone()))
-        .collect();
+    let numero_vers_slug: BTreeMap<u32, String> =
+        skeleton.iter().map(|b| (b.slot, b.id.clone())).collect();
     let transmissions = crate::sources::lire_transmissions(&racine)?;
     let unites_toutes: Vec<crate::schema::Chapter> = written
         .iter()
         .flat_map(|b| unites(b).into_iter().cloned())
         .collect();
 
-    if let Some((manifeste_sources, fichiers, sautees, releves)) = crate::sources::preparer(
-        &racine,
-        &unites_toutes,
-        &transmissions,
-        &numero_vers_slug,
-    )? {
+    if let Some((manifeste_sources, fichiers, sautees, releves)) =
+        crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?
+    {
         bytes += write_json(&sortie.join("sources/manifeste.json"), &manifeste_sources)
             .map_err(|e| e.to_string())?;
         for (relatif, livre) in &fichiers {

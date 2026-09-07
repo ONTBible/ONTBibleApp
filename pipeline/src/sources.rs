@@ -219,7 +219,15 @@ pub fn preparer(
     unites: &[Chapter],
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
-) -> Result<Option<(ManifesteSources, Vec<(String, LivreSources)>, Vec<String>, Vec<String>)>, String> {
+) -> Result<
+    Option<(
+        ManifesteSources,
+        Vec<(String, LivreSources)>,
+        Vec<String>,
+        Vec<String>,
+    )>,
+    String,
+> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
     if !manifeste.is_file() {
@@ -261,12 +269,11 @@ pub fn preparer(
             for ligne in contenu.lines().filter(|l| !l.trim().is_empty()) {
                 let v: VersetSource = serde_json::from_str(ligne)
                     .map_err(|e| format!("{} : ligne illisible — {e}", chemin.display()))?;
-                let texte = v
-                    .w
-                    .iter()
-                    .map(|m| m.t.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                let texte =
+                    v.w.iter()
+                        .map(|m| m.t.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
                 par_ref.insert((v.c, v.v), texte);
                 let e = par_chapitre.entry(v.c).or_insert(0);
                 *e = (*e).max(v.v);
@@ -471,13 +478,16 @@ fn sha256(octets: &[u8]) -> String {
 /// traducteur, pas au lecteur.
 pub fn lire_transmissions(racine: &Path) -> Result<BTreeMap<u32, (String, String)>, String> {
     let chemin = racine.join("corpus-order.md");
-    let texte = fs::read_to_string(&chemin)
-        .map_err(|e| format!("lecture de {}: {e}", chemin.display()))?;
+    let texte =
+        fs::read_to_string(&chemin).map_err(|e| format!("lecture de {}: {e}", chemin.display()))?;
     let Some(debut) = texte.find("## Les livres sans texte en langue source") else {
         return Ok(BTreeMap::new());
     };
     let section = &texte[debut..];
-    let fin = section[3..].find("\n## ").map(|i| i + 3).unwrap_or(section.len());
+    let fin = section[3..]
+        .find("\n## ")
+        .map(|i| i + 3)
+        .unwrap_or(section.len());
 
     let mut out = BTreeMap::new();
     for ligne in section[..fin].lines() {
