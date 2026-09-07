@@ -39,6 +39,7 @@ faire à la main, et sans elles la soumission est refusée.
 
 import argparse
 import hashlib
+import os
 import pathlib
 import re
 import sys
@@ -55,11 +56,21 @@ PROJET = RACINE / "app" / "project.yml"
 # `soumettre.py`, qui les tient pour la même raison.
 MODIFIABLES = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED")
 
-# Les deux tailles qu'Apple exige, et le nom qu'il leur donne. Il redimensionne
-# lui-même pour les écrans plus petits : ces deux-là suffisent.
+# Les tailles qu'Apple exige, par plateforme, et le nom qu'il leur donne. Il
+# redimensionne lui-même pour les écrans plus petits.
+#
+# **Le Mac n'a qu'un format**, `APP_DESKTOP`, et pas de simulateur : l'app y
+# tourne nativement, donc la capture est celle de la vraie fenêtre. Une fenêtre
+# de 1440 × 900 points capturée en Retina rend 2880 × 1800, l'une des quatre
+# tailles acceptées.
 FORMATS = {
-    "iphone-6.9": "APP_IPHONE_67",
-    "ipad-13": "APP_IPAD_PRO_3GEN_129",
+    "IOS": {
+        "iphone-6.9": "APP_IPHONE_67",
+        "ipad-13": "APP_IPAD_PRO_3GEN_129",
+    },
+    "MAC_OS": {
+        "mac": "APP_DESKTOP",
+    },
 }
 
 # Le texte de la fiche. Ici et non dans un formulaire : il se relit en diff,
@@ -109,7 +120,7 @@ def numero_du_projet() -> str:
     return trouve.group(1)
 
 
-def version_a_remplir(c: Client, app: str) -> str:
+def version_a_remplir(c: Client, app: str, plateforme: str) -> str:
     """La version en préparation — reprise si elle existe, créée sinon.
 
     Une version déjà en vente n'est plus modifiable. Tant que la suivante
@@ -117,7 +128,22 @@ def version_a_remplir(c: Client, app: str) -> str:
     ici sur un message demandant d'aller cliquer dans l'interface web.
     `soumettre.py` avait déjà tranché dans l'autre sens pour la même raison.
     """
-    toutes = c.get(f"apps/{app}/appStoreVersions", limit=20)["data"]
+    # **Filtré par plateforme, et le filtre est écrit à l'envers.**
+    #
+    # L'achat universel range les versions des deux plateformes dans la même
+    # collection. Le 31 août 2026, l'ajout de la plateforme macOS a créé une
+    # version « 1.0 » en `PREPARE_FOR_SUBMISSION` — donc modifiable — pendant
+    # que l'iOS était `READY_FOR_SALE` et ne l'était plus. Sans ce filtre, la
+    # fiche de l'iPhone se serait écrite sur la version du Mac : description,
+    # mots-clés et captures.
+    #
+    # « Garder ce qui ne contredit pas » plutôt que « garder ce qui
+    # correspond » : si Apple cessait de rendre `platform`, la seconde forme
+    # viderait la liste et l'on créerait une version de plus à chaque passage.
+    toutes = [
+        v for v in c.get(f"apps/{app}/appStoreVersions", limit=50)["data"]
+        if v["attributes"].get("platform", plateforme) == plateforme
+    ]
     for v in toutes:
         if v["attributes"]["appStoreState"] in MODIFIABLES:
             print(
@@ -133,7 +159,7 @@ def version_a_remplir(c: Client, app: str) -> str:
             "data": {
                 "type": "appStoreVersions",
                 "attributes": {
-                    "platform": "IOS",
+                    "platform": plateforme,
                     "versionString": numero,
                     "releaseType": "AFTER_APPROVAL",
                 },
@@ -145,7 +171,7 @@ def version_a_remplir(c: Client, app: str) -> str:
     return cree["data"]["id"]
 
 
-def televerser_captures(c: Client, version: str) -> None:
+def televerser_captures(c: Client, version: str, plateforme: str) -> None:
     """Les captures, réservées puis poussées puis validées.
 
     Apple ne prend pas un fichier d'un coup : on **réserve** une place en
@@ -168,7 +194,7 @@ def televerser_captures(c: Client, version: str) -> None:
 
     existants = c.get(f"appStoreVersionLocalizations/{loc}/appScreenshotSets")["data"]
 
-    for dossier, format_apple in FORMATS.items():
+    for dossier, format_apple in FORMATS[plateforme].items():
         images = sorted((CAPTURES / dossier).glob("*.png"))
         if not images:
             print(f"  {dossier} : aucune capture, sauté")
@@ -245,14 +271,18 @@ def televerser_captures(c: Client, version: str) -> None:
 def main() -> None:
     arguments = argparse.ArgumentParser()
     arguments.add_argument("--captures", action="store_true", help="téléverser les captures")
+    arguments.add_argument("--plateforme", default=os.environ.get("PLATEFORME", "IOS"),
+                           choices=sorted(FORMATS), help="IOS ou MAC_OS")
     options = arguments.parse_args()
+    plateforme = options.plateforme
+    print(f"  plateforme {plateforme}")
 
     c = Client()
     app = application(c)
     print(f"  app {app}")
 
     # Le texte, sur la localisation française de la version en préparation.
-    version = version_a_remplir(c, app)
+    version = version_a_remplir(c, app, plateforme)
 
     loc = c.get(f"appStoreVersions/{version}/appStoreVersionLocalizations")["data"][0]
     c.patch(
@@ -319,7 +349,7 @@ def main() -> None:
     print("  droits sur le contenu déclarés")
 
     if options.captures:
-        televerser_captures(c, version)
+        televerser_captures(c, version, plateforme)
 
     print(
         "\n  Restent à faire à la main, l'API d'Apple ne les expose pas :\n"

@@ -7,6 +7,36 @@ import SwiftUI
 /// L'ordre affiché est l'ordre **fonctionnel** du `corpus-order.md`, pas
 /// l'alphabétique. Les slots encore vides restent visibles : le corpus est un
 /// projet en cours, et les masquer donnerait une fausse idée de sa forme.
+/// Un mode **et le corpus qui le porte**.
+///
+/// ## Pourquoi l'identifiant du mode ne suffit pas
+///
+/// Un identifiant de mode n'est unique que **dans son corpus** — c'est ainsi que
+/// le vault les nomme, et c'est juste : `ketouvim` désigne les Écrits, dans
+/// l'un comme dans l'autre. Mais trois d'entre eux existent des deux côtés :
+///
+///     kenesset       torah · neviim · ketouvim · nistarot
+///     berit-hadashah besorot · ketouvim · neviim · nistarot
+///
+/// Or le sommaire range les deux corpus dans **une seule** `List`, et SwiftUI y
+/// identifie les lignes à plat. Deux `DisclosureGroup` portant le même
+/// identifiant partagent alors leur état : toucher « Ketouvim » du Kenesset
+/// dépliait celui de la Berit Hadashah.
+///
+/// Le défaut est dans la vue, pas dans le domaine : c'est elle qui aplatit deux
+/// espaces de noms en un. Elle doit donc porter l'identité composée.
+///
+/// C'est la même forme que le défaut des résultats de recherche, réparé le
+/// 28 août : **un identifiant local employé là où il faut un identifiant
+/// global**. Il ne se voit jamais à la relecture — les deux lignes sont
+/// correctes chacune de son côté.
+private struct ModeSitue: Identifiable {
+    let corpus: String
+    let mode: Mode
+
+    var id: String { "\(corpus)/\(mode.id)" }
+}
+
 public struct BibleTab: View {
     @Environment(\.ontTheme) private var theme
     @Environment(ReadingModel.self) private var model
@@ -28,71 +58,15 @@ public struct BibleTab: View {
         @Bindable var router = router
 
         NavigationStack(path: $router.biblePath) {
-            List {
-                if let position = model.position {
-                    Section {
-                        ResumeRow(position: position) {
-                            // Le verset, explicitement : « Reprendre » promet
-                            // de rendre l'endroit, pas le chapitre. Il était
-                            // omis, et la vue devait le retrouver toute seule
-                            // dans la position enregistrée — un détour qui
-                            // n'avait aucune raison d'exister.
-                            router.open(
-                                book: position.bookId,
-                                chapter: position.chapterId,
-                                verse: position.verse
-                            )
-                        }
-                        .ontRow()
-                    }
-                }
-
-                ForEach(model.corpora) { corpus in
-                    Section {
-                        ForEach(corpus.modes.sorted(by: { $0.order < $1.order })) { mode in
-                            DisclosureGroup {
-                                ForEach(disposer(mode)) { element in
-                                    switch element.contenu {
-                                    case .entete(let groupe):
-                                        ConteneurLabel(groupe: groupe)
-                                    case .livre(let book):
-                                        BookRow(book: book)
-                                    }
-                                }
-                            } label: {
-                                ModeLabel(mode: mode)
-                            }
-                            .ontRow()
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(corpus.title)
-                                .font(.custom(ONTFonts.display, size: 15))
-                                .textCase(nil)
-                                .foregroundStyle(ONTColors.brandInk(theme.mode))
-                            // Le second nom, dans le registre choisi. Rien ne
-                            // s'affiche quand il n'y a rien à dire — une
-                            // section dont la glose redirait le pont n'en
-                            // porte pas.
-                            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
-                                Text(second)
-                                    .font(.caption)
-                                    .textCase(nil)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .ontScreen()
+            sommaire
+                .ontScreen()
             .navigationTitle("La Bible ONT")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: ONTPlacement.principale) {
                     Button("Rechercher", systemImage: "magnifyingglass") { searching = true }
                 }
             }
-            .sheet(isPresented: $searching) { search() }
+            .ontFeuille(presentee: $searching, titre: "Rechercher") { search() }
             .navigationDestination(for: Router.Destination.self) { destination in
                 switch destination {
                 case .book(let id):
@@ -115,7 +89,241 @@ public struct BibleTab: View {
         }
         .ontColumn()
     }
+
+    /// L'action de « Reprendre » — le verset, explicitement : la promesse est
+    /// de rendre l'endroit, pas le chapitre.
+    private func reprendre(_ position: ReadingPosition) {
+        router.open(
+            book: position.bookId,
+            chapter: position.chapterId,
+            verse: position.verse
+        )
+    }
+
+    /// L'en-tête d'un corpus — le titre, et le second nom dans le registre.
+    @ViewBuilder
+    private func enteteDeCorpus(_ corpus: Corpus) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(corpus.title)
+                .font(.custom(ONTFonts.display, size: ONTUI.points(15)))
+                .textCase(nil)
+                .foregroundStyle(ONTColors.brandInk(theme.mode))
+            // Rien ne s'affiche quand il n'y a rien à dire — une section dont
+            // la glose redirait le pont n'en porte pas.
+            if let second = Registre.second(french: corpus.french, glose: corpus.glose, francaisRecu: model.preferences.french) {
+                Text(second)
+                    .font(ONTUI.caption)
+                    .textCase(nil)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func situes(_ corpus: Corpus) -> [ModeSitue] {
+        corpus.modes
+            .sorted(by: { $0.order < $1.order })
+            .map { ModeSitue(corpus: corpus.id, mode: $0) }
+    }
+
+    #if os(macOS)
+        /// Les rayons dépliés — l'état vit ici, pas dans un `DisclosureGroup` :
+        /// c'est ce qui permet au **bloc entier** de plier et déplier.
+        @State private var rayonsOuverts: Set<String> = []
+
+        /// Le sommaire du Mac — des cartes, pas des lignes de liste.
+        ///
+        /// **Le bloc entier est la cible.** Le `DisclosureGroup` du système ne
+        /// répondait que sur son chevron : viser un triangle de huit points
+        /// pour ouvrir un rayon, c'est de la rigidité d'UX avant d'être de
+        /// l'UI — relevé par l'auteur, capture à l'appui. Ici la tête du rayon
+        /// est un bouton de bord à bord ; le chevron tourne au ressort et les
+        /// livres arrivent en cascade.
+        private var sommaire: some View {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: spacing.s) {
+                    if let position = model.position {
+                        CarteDeReprise(position: position) { reprendre(position) }
+                    }
+                    ForEach(model.corpora) { corpus in
+                        enteteDeCorpus(corpus)
+                            .padding(.top, spacing.m)
+                            .padding(.leading, spacing.xs)
+                        ForEach(situes(corpus)) { situe in
+                            CarteDeRayon(
+                                mode: situe.mode,
+                                ouvert: rayonsOuverts.contains(situe.id)
+                            ) {
+                                ONTHaptique.cran()
+                                withAnimation(ONTMouvement.ressort) {
+                                    if rayonsOuverts.contains(situe.id) {
+                                        rayonsOuverts.remove(situe.id)
+                                    } else {
+                                        rayonsOuverts.insert(situe.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, spacing.page)
+                .padding(.vertical, spacing.m)
+            }
+        }
+    #else
+        /// Le sommaire d'iOS — la `List` du système, qui a déjà ses réponses.
+        private var sommaire: some View {
+            List {
+                if let position = model.position {
+                    Section {
+                        ResumeRow(position: position) { reprendre(position) }
+                            .ontRow()
+                    }
+                }
+
+                ForEach(model.corpora) { corpus in
+                    Section {
+                        // **Situé, pas seulement nommé.** Voir `ModeSitue` :
+                        // trois modes portent le même identifiant dans les deux
+                        // corpus, et une `List` les range tous dans la même
+                        // suite de lignes.
+                        ForEach(situes(corpus)) { situe in
+                            DisclosureGroup {
+                                ForEach(disposer(situe.mode)) { element in
+                                    switch element.contenu {
+                                    case .entete(let groupe):
+                                        ConteneurLabel(groupe: groupe)
+                                    case .livre(let book):
+                                        BookRow(book: book)
+                                    }
+                                }
+                            } label: {
+                                ModeLabel(mode: situe.mode)
+                            }
+                            .ontRow()
+                        }
+                    } header: {
+                        enteteDeCorpus(corpus)
+                    }
+                }
+            }
+            .listStyle(ONTPlacement.listeGroupee)
+        }
+    #endif
 }
+
+#if os(macOS)
+    /// La carte « Reprendre » — de bord à bord, elle se lève et s'enfonce.
+    private struct CarteDeReprise: View {
+        @Environment(\.ontTheme) private var theme
+        let position: ReadingPosition
+        let open: () -> Void
+        private var spacing = ONTSpacing()
+
+        init(position: ReadingPosition, open: @escaping () -> Void) {
+            self.position = position
+            self.open = open
+        }
+
+        var body: some View {
+            Button(action: open) {
+                // Un `HStack` et non un `LabeledContent` : hors d'une `List`,
+                // celui-ci n'écarte plus ses deux bouts, et la flèche venait
+                // se coller au libellé.
+                HStack(spacing: spacing.s) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
+                        Text("\(position.chapterTitle):\(position.verse)")
+                            .font(ONTUI.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.turn.down.right")
+                        .foregroundStyle(ONTColors.accent(theme.mode))
+                }
+                .padding(spacing.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+                .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.block), souleve: true)
+                .contentShape(.rect(cornerRadius: ONTRadius.block))
+            }
+            .buttonStyle(.ontLigne)
+            // L'anneau de focus du système se posait sur la carte **dès
+            // l'ouverture** — premier répondeur de la fenêtre — et se lisait
+            // comme une sélection. La carte a déjà trois autres chemins au
+            // clavier : la barre latérale, le menu, ⌘1.
+            .focusEffectDisabled()
+        }
+    }
+
+    /// Un rayon du sommaire — la carte entière est la cible, le chevron tourne,
+    /// les livres arrivent en cascade.
+    private struct CarteDeRayon: View {
+        @Environment(\.ontTheme) private var theme
+        @Environment(ReadingModel.self) private var model
+        let mode: Mode
+        let ouvert: Bool
+        let basculer: () -> Void
+        private var spacing = ONTSpacing()
+
+        init(mode: Mode, ouvert: Bool, basculer: @escaping () -> Void) {
+            self.mode = mode
+            self.ouvert = ouvert
+            self.basculer = basculer
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                Button(action: basculer) {
+                    HStack(spacing: spacing.s) {
+                        ModeLabel(mode: mode)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.ink.opacity(0.55))
+                            .rotationEffect(.degrees(ouvert ? 0 : -90))
+                    }
+                    .padding(spacing.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // De bord à bord : sans forme de contact, seul le dessiné
+                    // répond, et le vide entre le compte et le chevron tombait
+                    // à côté.
+                    .contentShape(.rect)
+                    .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.block))
+                }
+                .buttonStyle(.ontLigne)
+                .focusEffectDisabled()
+
+                if ouvert {
+                    Rectangle()
+                        .fill(theme.separator.opacity(0.5))
+                        .frame(height: 1)
+                        .padding(.horizontal, spacing.m)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(disposer(mode).enumerated()), id: \.element.id) { rang, element in
+                            switch element.contenu {
+                            case .entete(let groupe):
+                                ConteneurLabel(groupe: groupe)
+                                    .padding(.horizontal, spacing.m)
+                                    .padding(.vertical, spacing.s)
+                                    .ontApparition(rang)
+                            case .livre(let book):
+                                BookRow(book: book)
+                                    .padding(.horizontal, spacing.m)
+                                    .padding(.vertical, spacing.s)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect(cornerRadius: 10))
+                                    .ontSurvol(dans: RoundedRectangle(cornerRadius: 10))
+                                    .ontApparition(rang)
+                            }
+                        }
+                    }
+                    .padding(.bottom, spacing.xs)
+                    .transition(.opacity)
+                }
+            }
+            .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+        }
+    }
+#endif
 
 private struct ResumeRow: View {
     @Environment(\.ontTheme) private var theme
@@ -129,9 +337,9 @@ private struct ResumeRow: View {
                     .foregroundStyle(ONTColors.accent(theme.mode))
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Reprendre").font(.subheadline.weight(.medium))
+                    Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
                     Text("\(position.chapterTitle):\(position.verse)")
-                        .font(.caption)
+                        .font(ONTUI.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -152,14 +360,14 @@ private struct ModeLabel: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 1) {
-                Text(mode.title).font(.headline)
+                Text(mode.title).font(ONTUI.headline)
                 if let second = Registre.second(french: mode.french, glose: mode.glose, francaisRecu: model.preferences.french) {
-                    Text(second).font(.caption).foregroundStyle(.secondary)
+                    Text(second).font(ONTUI.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
             Text("\(mode.books.filter { !$0.empty }.count)/\(mode.books.count)")
-                .font(.caption.monospacedDigit())
+                .font(ONTUI.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
     }
@@ -172,7 +380,7 @@ private struct BookRow: View {
     var body: some View {
         if book.empty {
             LabeledContent {
-                Text("à venir").font(.caption).foregroundStyle(.tertiary)
+                Text("à venir").font(ONTUI.caption).foregroundStyle(.tertiary)
             } label: {
                 title
             }
@@ -180,7 +388,7 @@ private struct BookRow: View {
             NavigationLink(value: Router.Destination.book(book.id)) {
                 LabeledContent {
                     Text("\(book.verseCount) v.")
-                        .font(.caption.monospacedDigit())
+                        .font(ONTUI.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 } label: {
                     title
@@ -193,12 +401,12 @@ private struct BookRow: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
                 Text("\(book.slot)")
-                    .font(.caption2.monospacedDigit())
+                    .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .frame(minWidth: 20, alignment: .trailing)
                 // Le nom hébreu translittéré est le vrai titre du livre (§2.6).
                 Text(book.title)
-                    .font(.body.italic())
+                    .font(ONTUI.body.italic())
                     .foregroundStyle(book.empty ? .secondary : .primary)
             }
             // Le second nom, dans le registre choisi. Le français n'est qu'un
@@ -212,7 +420,7 @@ private struct BookRow: View {
             // site disait « les gevurot de YHWH par ses neviim ».
             if let second = Registre.second(french: book.french, glose: book.glose, francaisRecu: model.preferences.french) {
                 Text(second)
-                    .font(.caption)
+                    .font(ONTUI.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 28)
             }
@@ -244,13 +452,14 @@ struct BookView: View {
     private func list(_ outline: BookOutline) -> some View {
         List {
             if let intro = outline.intro {
-                Section("Introduction") {
+                Section(header: Text("Introduction").font(ONTUI.enteteDeListe)) {
                     NavigationLink(
                         value: Router.Destination.chapter(book: outline.id, chapter: intro.id)
                     ) {
                         Label(intro.title, systemImage: "text.book.closed")
+                            .ontCarteDeLigne()
                     }
-                    .ontRow()
+                    .ontLigneDeCarte()
                 }
             }
 
@@ -262,7 +471,7 @@ struct BookView: View {
             // « Parashah 3 ». Trois mots pour une chose, sur un écran dont tout
             // le propos est de n'en enseigner qu'un.
             Section(model.preferences.french ? "Chapitres" : "Parashiot") {
-                ForEach(outline.chapters) { chapter in
+                ForEach(Array(outline.chapters.enumerated()), id: \.element.id) { rang, chapter in
                     // **Deux gestes, deux intentions.**
                     //
                     // Toucher la ligne ouvre l'unité — c'est ce qu'on veut neuf
@@ -283,11 +492,14 @@ struct BookView: View {
                         ChapterRow(stub: chapter) {
                             versetsDe = VersetsAChoisir(book: outline.id, chapter: chapter.id)
                         }
+                        .ontCarteDeLigne()
                     }
-                    .ontRow()
+                    .ontLigneDeCarte()
+                    .ontApparition(rang)
                 }
             }
         }
+        .ontListeDeCartes()
         .ontScreen()
         .navigationTitle(outline.title)
         // Le sous-titre de barre est arrivé avec iOS 26. En dessous, on n'a
@@ -306,7 +518,7 @@ struct BookView: View {
         // choisir son livre et son unité dans la page qui est dessous ; les
         // deux premières étapes du sélecteur lui redemanderaient ce qu'il
         // vient de dire.
-        .sheet(item: $versetsDe) { cible in
+        .ontFeuille(objet: $versetsDe, titre: "Aller au verset") { cible in
             ReferencePicker(book: cible.book, chapter: cible.chapter)
                 .ontTheme(from: model.preferences)
         }
@@ -344,9 +556,9 @@ private struct ChapterRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(libelle)
+                Text(libelle).font(ONTUI.body)
                 if let reference = stub.reference {
-                    Text(reference).font(.caption).foregroundStyle(.tertiary)
+                    Text(reference).font(ONTUI.caption).foregroundStyle(.tertiary)
                 }
             }
             Spacer()
@@ -366,8 +578,8 @@ private struct ChapterRow: View {
             // toucher, et le nombre ne répondrait jamais.
             Button(action: choisirUnVerset) {
                 HStack(spacing: 3) {
-                    Text("\(stub.verseCount)").font(.caption.monospacedDigit())
-                    Image(systemName: "list.number").font(.caption2)
+                    Text("\(stub.verseCount)").font(ONTUI.caption.monospacedDigit())
+                    Image(systemName: "list.number").font(ONTUI.caption2)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 6)
@@ -489,15 +701,15 @@ private struct ConteneurLabel: View {
                     .frame(height: 2)
                     .padding(.top, 8)
                 Text(rupture)
-                    .font(.footnote.italic())
+                    .font(ONTUI.footnote.italic())
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 6)
             }
             Text(groupe.title)
-                .font(.caption.smallCaps())
+                .font(ONTUI.caption.smallCaps())
                 .foregroundStyle(.secondary)
             Text(model.preferences.french ? groupe.french : (groupe.glose ?? groupe.french))
-                .font(.caption2)
+                .font(ONTUI.caption2)
                 .foregroundStyle(.tertiary)
         }
         .listRowSeparator(.hidden)

@@ -46,9 +46,30 @@ respectivement par `xcodegen` depuis `project.yml` et par le pipeline depuis
 `schema.rs`. Committer un fichier engendré, c'est garantir qu'il divergera de sa
 source le jour où quelqu'un le corrigera à la main.
 
-**La branche nomme un destinataire, pas une manœuvre.** `dev` livre au groupe
-interne, `staging` aux testeurs invités, `main` à la revue de l'App Store. On ne
-saute pas un palier — `branch-policy.yml` le tient.
+**La branche nomme un destinataire, pas une manœuvre.** Et depuis le 31 août
+2026 elle le nomme jusqu'au bout : `main` et `staging` disaient une manœuvre,
+pas un destinataire.
 
-**`main` est protégée, les commits sont signés, on passe par pull request.** Les
-trois dépôts portent le même ruleset.
+    device  →  dev  →  beta-test  →  app-store
+
+| branche | qui reçoit |
+|---|---|
+| `device` | **personne** — les appareils de l'auteur, par `scripts/lancer-sur-*` |
+| `dev` | le groupe de test interne |
+| `beta-test` | les testeurs invités |
+| `app-store` | la revue d'Apple |
+
+On ne saute pas un palier — `branch-policy.yml` le tient.
+
+**`device` ne livre rien**, et c'est tout son intérêt. Apple limite les
+téléversements **par plateforme et par jour** : le 31 août, dix des onze places
+de la journée sont parties sur `dev`, et c'est la promotion vers les testeurs
+qui s'est fait refuser. On vérifie donc sur l'appareil, et l'on ne consomme une
+place que pour ce qui la mérite.
+
+**Les trois autres sont protégées et se fusionnent sur décision de l'auteur** —
+`dev` compris, depuis le même jour et pour la même raison. `device` porte les
+signatures et interdit la réécriture, mais pas la pull request : c'est la voie
+de travail.
+
+**Les commits sont signés partout.** Les trois dépôts portent le même ruleset.

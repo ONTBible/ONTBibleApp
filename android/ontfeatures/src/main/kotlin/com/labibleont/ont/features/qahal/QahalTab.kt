@@ -35,6 +35,8 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.designsystem.typography.ONTTypography
 import com.labibleont.ont.kit.corpus.Chapter
+import com.labibleont.ont.kit.reader.LienPublic
+import com.labibleont.ont.kit.reader.Partage
 import com.labibleont.ont.kit.corpus.Verse
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import androidx.compose.foundation.layout.width
@@ -192,7 +194,22 @@ private fun CarteDuVersetDuJour(
                 // restent jumelles.
                 .background(ONTColors.gold.copy(alpha = 0.18f))
                 .clickable {
-                    onPartager("« ${texte.text} »\n\n$renvoi — La Bible ONT")
+                    // ## Le lien manquait ici, et nulle part ailleurs
+                    //
+                    // La lecture en posait un, ce carreau non. C'est pourtant
+                    // le partage le plus fréquent — un verset du jour se
+                    // transmet, un passage étudié beaucoup moins — et c'était
+                    // donc le seul que le destinataire ne pouvait pas ouvrir.
+                    //
+                    // L'oubli ne se voyait pas : le texte a l'air complet tant
+                    // qu'on le relit depuis l'app.
+                    onPartager(
+                        Partage.texte(
+                            texte.text,
+                            renvoi,
+                            LienPublic.passage(chapitre.bookId, chapitre.id, setOf(verset.n)),
+                        ),
+                    )
                 }
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )

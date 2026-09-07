@@ -18,6 +18,22 @@ public enum Inline: Hashable, Sendable {
     case text(String)
     /// Un intraduisible. `lemma` est la clé qui ouvre sa fiche de lexique.
     case term(String, lemma: String)
+    /// Un **Shem** — un nom propre, balisé `[[Ainsi]]` dans le vault.
+    ///
+    /// **Ce n'est pas un intraduisible**, et la distinction porte toute cette
+    /// couche : `chesed` reste en hébreu parce que « bonté » rate quelque
+    /// chose ; `Avraham` est simplement **non traduit**. Un nom propre n'a pas
+    /// de traduction qui échouerait — il a un **sens** que le porteur reçoit,
+    /// et c'est ce que sa fiche dit : Avraham est « père d'une multitude »,
+    /// Peleg le partage.
+    ///
+    /// L'accentuation les portait avant, en bordeaux : elle disait « ceci est
+    /// une personne » et s'arrêtait là.
+    ///
+    /// Sa fiche vit dans `shemot.json`, **pas dans le glossaire** : y verser
+    /// trois cents noms ferait promettre une fiche de concept là où il y a un
+    /// porteur, et remplirait le Lexique de ce qui n'y a rien à faire.
+    case shem(String, lemma: String)
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
@@ -84,6 +100,11 @@ public extension [Inline] {
                 repliage.ajouter(value)
             case .term(let value, _):
                 repliage.ajouter(value)
+            // Un Shem s'écrit comme il se lit : c'est un nom, pas un
+            // marquage. Il reste dans un partage, dans une recherche et
+            // dans un résumé — au contraire de l'hébreu, qu'on omet.
+            case .shem(let value, _):
+                repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }
             case .translit(let translit, let hebrew):
@@ -149,6 +170,11 @@ public extension [Inline] {
         flatMap { node -> [String] in
             switch node {
             case .term(_, let lemma): [lemma]
+            // **Un Shem n'entre pas ici.** `lemmas` sert à joindre le
+            // glossaire ; y verser les noms propres ferait chercher une fiche
+            // de concept pour un porteur, et la jointure échouerait en
+            // silence. Leur fiche vit dans `shemot.json`.
+            case .shem: []
             case .gloss(let children), .emphasis(let children), .accentuation(let children),
                 .link(let children, _):
                 children.lemmas

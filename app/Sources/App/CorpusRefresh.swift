@@ -1,4 +1,6 @@
-import BackgroundTasks
+#if os(iOS)
+    import BackgroundTasks
+#endif
 import Foundation
 import ONTData
 import os
@@ -46,6 +48,15 @@ enum CorpusRefresh {
     private static let interval: TimeInterval = 12 * 60 * 60
 
     private static let log = Logger(subsystem: "com.labibleont.ONT", category: "corpus")
+    // MARK: - La mise à jour de fond, propre à iOS
+    //
+    // **Le Mac n'a pas de `BGTaskScheduler`, et n'en a pas besoin.** Ce
+    // mécanisme existe parce qu'un téléphone dort : il faut demander au
+    // système une fenêtre d'exécution et espérer qu'il l'accorde. Une machine
+    // de bureau est allumée, et la mise à jour à l'ouverture suffit.
+    //
+    // Ce n'est donc pas un manque à combler mais une contrainte qui disparaît.
+    #if os(iOS)
 
     /// À appeler **au lancement**, avant que l'app ne finisse de démarrer.
     ///
@@ -126,4 +137,5 @@ enum CorpusRefresh {
             log.debug("fenêtre d'arrière-plan expirée")
         }
     }
+    #endif
 }

@@ -55,6 +55,35 @@ pub enum Inline {
     /// glossaire. La liseuse rend `v` et ouvre la fiche `lemma`.
     Term { v: String, lemma: String },
 
+    /// Un **Shem** — un nom propre, balisé `[[Ainsi]]`.
+    ///
+    /// ## Pourquoi ce n'est pas un intraduisible
+    ///
+    /// `**chesed**` est en hébreu parce que « bonté » rate quelque chose :
+    /// l'intraduisible promet une fiche de **concept**, et la fiche l'honore.
+    /// `[[Avraham]]` n'est pas intraduisible, il est simplement **non traduit**.
+    /// Les confondre promettrait un concept là où il y a un porteur.
+    ///
+    /// ## Pourquoi ce n'est pas un lien
+    ///
+    /// La marque est le lien natif d'Obsidian, que le pipeline lisait déjà. Mais
+    /// l'émettre en [`Inline::Link`] obligerait chaque liseuse à distinguer « une
+    /// chaîne sans schéma » d'une URL — une règle qui casse au premier cas
+    /// particulier, et il y en a : l'apostrophe de `Na'amah`, le composé de
+    /// `Tuval-Qayin`, un jour un renvoi interne écrit en relatif.
+    ///
+    /// Mesuré avant de trancher : le site classe extérieur tout `href` qui ne
+    /// commence pas par son adresse, et un Shem y serait devenu un lien souligné
+    /// ouvrant un onglet neuf vers une page inexistante. Pas un lien mort — un
+    /// lien mort qui arrache le lecteur de sa page.
+    ///
+    /// Le type déplace la décision là où l'information existe : le pipeline sait
+    /// qu'il a lu `[[…]]` et qu'une fiche répond. Aucune liseuse n'a à le
+    /// redéduire d'une forme de chaîne.
+    ///
+    /// `v` garde la casse du texte, `lemma` est la clé de jointure vers la fiche.
+    Shem { v: String, lemma: String },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :
@@ -627,6 +656,35 @@ pub struct CorpusFile {
 pub struct GlossaryFile {
     pub schema: u32,
     pub entries: Vec<GlossaryEntry>,
+}
+
+/// La fiche d'un **Shem** — un porteur de nom.
+///
+/// Elle a la tenue d'une fiche d'intraduisible sans en être une : le §2.10 veut
+/// qu'elle dise le sens de la racine, ce que le nom met sur les épaules de qui
+/// le porte, et ce qui reste à venir. D'où les titres de section, que les fiches
+/// de concepts n'ont pas — 197 sur 305 en portent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShemEntry {
+    /// La clé de jointure avec [`Inline::Shem::lemma`].
+    pub lemma: String,
+    /// La forme d'affichage — `Qayin`, `Tuval-Qayin`, `Na'amah`.
+    pub title: String,
+    /// Le corps de la fiche, titres de section compris.
+    pub definition: Vec<Block>,
+}
+
+/// `dist/shemot.json` — les fiches des noms propres.
+///
+/// **Un fichier à part, et pas des entrées de glossaire.** Le lexique publie les
+/// intraduisibles : y verser les Shemot ferait promettre une fiche de concept
+/// là où il y a un porteur, et remplirait l'onglet Lexique de trois cents noms
+/// qui n'y ont rien à faire. C'est la distinction que toute cette couche existe
+/// pour tenir ; l'effacer au dernier moment n'aurait pas de sens.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShemotFile {
+    pub schema: u32,
+    pub entries: Vec<ShemEntry>,
 }
 
 /// `dist/occurrences.json` — lemme → toutes ses occurrences.

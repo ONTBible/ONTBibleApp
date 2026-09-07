@@ -17,6 +17,117 @@ pub fn vault() -> PathBuf {
     }
 }
 
+/// L'estampille du corpus — la date de son **contenu**, pas de sa compilation.
+///
+/// ## Pourquoi elle vient de l'extérieur
+///
+/// Le pipeline est une fonction pure de ses entrées, et il le reste : lire
+/// `.git` lui-même le rendrait dépendant de la forme du checkout — un export
+/// d'archive, un `--depth 1`, un vault copié sans `.git`, et il tombe. C'est
+/// l'appelant qui sait trouver la date :
+///
+/// ```sh
+/// ONT_GENERE="$(git -C "$VAULT" log -1 --format=%cI)"
+/// ```
+///
+/// ## Pourquoi la date du contenu et non celle du build
+///
+/// Deux exécutions sur le même vault doivent produire le même octet — c'est ce
+/// qui garantit la même empreinte, donc aucun retéléchargement inutile chez les
+/// lecteurs. Un horodatage de compilation romprait cette garantie et republierait
+/// tout le corpus à chaque passage de CI.
+///
+/// La date du dernier commit du vault donne l'ordre qu'il faut **et** reste
+/// déterministe : le même vault rend toujours la même date.
+///
+/// ## Ce qu'elle sert à trancher
+///
+/// Rien, jusqu'à ce qu'un bundle devienne plus récent que le corpus publié. Une
+/// empreinte dit que deux corpus **diffèrent** ; elle ne dit jamais lequel vient
+/// après. Sans cet ordre, une app neuve se fait écraser au premier lancement par
+/// le corpus publié, et la fonctionnalité qu'elle apporte arrive invisible.
+///
+/// ## Vide plutôt que fausse
+///
+/// Sans `ONT_GENERE`, l'estampille reste vide, et les liseuses **refusent** un
+/// manifeste qui n'en porte pas. Un corpus figé se voit et se répare ; un corpus
+/// silencieusement remplacé par du plus ancien ne se voit pas.
+pub fn genere() -> String {
+    let brut = std::env::var("ONT_GENERE").unwrap_or_default();
+    let candidat = brut.trim();
+    if bien_formee(candidat) {
+        candidat.to_string()
+    } else {
+        // Une date mal formée est pire qu'aucune : les liseuses comparent ces
+        // chaînes, et une forme voisine s'ordonne n'importe comment. On refuse
+        // plutôt que de publier un ordre faux.
+        String::new()
+    }
+}
+
+/// `2026-08-30T22:45:48Z` — vingt signes, UTC, secondes obligatoires.
+///
+/// ## Pourquoi une seule forme
+///
+/// Les liseuses comparent ces dates **comme des chaînes**, parce qu'un ordre
+/// lexicographique suffit quand la forme est fixe, et qu'aucune ne veut
+/// embarquer un analyseur de dates. Deux écritures du même instant s'ordonnent
+/// alors à l'envers dès que le fuseau diffère :
+///
+/// ```text
+/// "2026-08-30T00:14:00Z"  <  "2026-08-30T02:14:00+02:00"     → vrai
+/// ```
+///
+/// L'app garderait le plus ancien en croyant garder le plus récent. C'est le
+/// défaut qu'on corrige, sous une date bien formée — donc bien plus difficile à
+/// voir qu'un champ vide.
+///
+/// Les millisecondes et les offsets sont refusés, même valides en ISO 8601.
+fn bien_formee(s: &str) -> bool {
+    let o = s.as_bytes();
+    o.len() == 20
+        && o[..4].iter().all(u8::is_ascii_digit)
+        && o[4] == b'-'
+        && o[5..7].iter().all(u8::is_ascii_digit)
+        && o[7] == b'-'
+        && o[8..10].iter().all(u8::is_ascii_digit)
+        && o[10] == b'T'
+        && o[11..13].iter().all(u8::is_ascii_digit)
+        && o[13] == b':'
+        && o[14..16].iter().all(u8::is_ascii_digit)
+        && o[16] == b':'
+        && o[17..19].iter().all(u8::is_ascii_digit)
+        && o[19] == b'Z'
+}
+
+#[cfg(test)]
+mod tests_estampille {
+    use super::bien_formee;
+
+    #[test]
+    fn la_forme_attendue_passe() {
+        assert!(bien_formee("2026-08-30T22:45:48Z"));
+    }
+
+    #[test]
+    fn les_formes_voisines_sont_refusees() {
+        // Toutes valides en ISO 8601, toutes inutilisables pour un ordre
+        // lexicographique dès qu'elles se mélangent.
+        for cas in [
+            "2026-08-30T22:45:48+02:00",
+            "2026-08-30T22:45:48.123Z",
+            "2026-08-30T22:45Z",
+            "2026-08-30 22:45:48Z",
+            "2026-08-30T22:45:48",
+            "26-08-30T22:45:48Z",
+            "2026-08-30T22:45:48z",
+            "",
+        ] {
+            assert!(!bien_formee(cas), "aurait dû être refusée : {cas}");
+        }
+    }
+}
+
 /// Où le pipeline dépose ses données.
 pub fn out() -> PathBuf {
     match std::env::var("ONT_OUT") {

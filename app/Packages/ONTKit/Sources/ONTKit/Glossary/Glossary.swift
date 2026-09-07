@@ -21,6 +21,24 @@ public struct GlossaryEntry: Hashable, Sendable, Identifiable {
     /// Le champ sémantique complet — ce que le terme signifie, et ce qu'il
     /// n'est pas.
     public let definition: [Block]?
+
+    /// Vrai quand la fiche n'a **rien à dire** du terme.
+    ///
+    /// Cinq intraduisibles ont vécu ainsi : déclarés au §2.5, balisés dans tout
+    /// le corpus, affichés en or et touchables — et sans aucune entrée au §3.
+    /// Les compteurs du pipeline restaient au vert : il vérifie qu'un terme a
+    /// une **fiche**, jamais qu'il a une **définition**.
+    ///
+    /// Le lecteur touchait le mot et recevait un en-tête, des repères, et rien
+    /// entre les deux. Un écran qui a l'air complet.
+    ///
+    /// **On distingue « pas de champ » de « champ vide »** — les deux
+    /// arrivent : un terme absent du §3 rend `nil`, un terme dont la section
+    /// existe sans prose rend une liste vide. La fiche est creuse dans les deux
+    /// cas, et c'est la seule chose qui compte pour qui la lit.
+    public var sansDefinition: Bool {
+        definition?.isEmpty ?? true
+    }
     /// La note de balisage (§2.5) — règles de rendu, formes dérivées.
     public let taggingNote: [Block]?
     /// Le premier emploi déclaré — `Bereshit 15:6`.

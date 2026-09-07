@@ -251,7 +251,7 @@ struct ReadingModelTests {
         let url = try #require(URL(string: "https://ontbible.com/fr/lire/bereshit/bereshit-1?v=12-15"))
         #expect(router.open(url))
         #expect(router.tab == .bible)
-        #expect(router.pendingVerse == 12)
+        #expect(router.pendingVerse?.n == 12)
         // Et surtout : le passage est désigné, pas seulement atteint.
         #expect(router.pendingSelection == [12, 13, 14, 15])
     }

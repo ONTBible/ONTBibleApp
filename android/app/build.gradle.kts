@@ -1,5 +1,7 @@
 import java.io.File
 import java.util.Properties
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 // La racine de composition — le seul module qui connaît tout le monde.
 //
@@ -39,6 +41,50 @@ fun secret(nomEnv: String, nomProp: String): String? =
 
 val magasinDeCles: File? = secret("ANDROID_KEYSTORE_PATH", "magasin")?.let(::File)?.takeIf { it.exists() }
 
+
+/**
+ * Le numéro de version, dérivé de l'horloge.
+ *
+ * ## Pourquoi ce n'est plus un nombre écrit à la main
+ *
+ * Play refuse un `versionCode` déjà téléversé, **définitivement** — y compris
+ * celui d'une release de test supprimée. Le 1 a été brûlé le 27 août 2026, le 2
+ * le 2 septembre.
+ *
+ * La consigne « à monter avant chaque téléversement » était juste et ne tenait
+ * rien : c'est une étape que rien ne rappelle, dont l'oubli ne se voit qu'au
+ * téléversement, et dont le message — « Version code has already been used » —
+ * envoie chercher du côté de l'authentification quand on ne connaît pas la
+ * règle. Avec des testeurs, on téléverse souvent ; on oubliera.
+ *
+ * ## La forme, et pourquoi elle tient jusqu'en 2040
+ *
+ *     (année − 2020) × 100 000 000
+ *     + mois          ×   1 000 000
+ *     + jour          ×      10 000
+ *     + heure         ×         100
+ *     + minute
+ *
+ * Le 3 septembre 2026 à 12 h 55 donne `609 031 255`. Play plafonne à
+ * 2 100 000 000, ce que cette forme atteint en 2041 — largement au-delà de
+ * l'horizon où quelqu'un relira cette ligne.
+ *
+ * La minute est la résolution : deux builds dans la même minute rendent le même
+ * numéro, et le second sera refusé. C'est le seul cas de collision, il est
+ * visible immédiatement, et il se règle en attendant soixante secondes.
+ *
+ * **`versionName` reste écrit à la main** : c'est ce que le lecteur lit, et rien
+ * ne l'oblige à suivre un compteur.
+ */
+fun numeroDeVersion(): Int {
+    val maintenant = LocalDateTime.now(ZoneOffset.UTC)
+    return (maintenant.year - 2020) * 100_000_000 +
+        maintenant.monthValue * 1_000_000 +
+        maintenant.dayOfMonth * 10_000 +
+        maintenant.hour * 100 +
+        maintenant.minute
+}
+
 android {
     namespace = "com.labibleont.ont"
     compileSdk = 36
@@ -68,7 +114,7 @@ android {
         //
         // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
         // ne l'oblige à suivre le compteur.
-        versionCode = 2
+        versionCode = numeroDeVersion()
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -141,6 +187,94 @@ tasks.register<Sync>("copierLesDonnees") {
     into(File(assetsEngendres, "data"))
 }
 
+/**
+ * Ce que le pipeline embarque et que personne ne lit.
+ *
+ * ## Le silence que cette tâche brise
+ *
+ * `Sync` recopie **tout** `app/Resources/data` dans les assets. Ce dossier est
+ * peuplé par `corpus.sh`, qui nomme ce qu'il prend — les `.json` de `dist` et
+ * `dist/books` —, donc un dossier neuf du pipeline n'y arrive pas tout seul.
+ *
+ * (Le motif du script ne s'écrit pas ici tel quel : **Kotlin imbrique les
+ * commentaires de bloc**, donc un `/` suivi d'une étoile ouvrirait un
+ * commentaire dans le commentaire, et le `*` `/` final ne refermerait que
+ * celui-là. Tout le code en dessous se retrouve avalé — sans erreur de
+ * compilation, seulement une tâche que Gradle ne trouve plus.)
+ *
+ * **Le couplage est ailleurs, et il est plus discret :** le jour où `corpus.sh`
+ * copiera une chose de plus, pour le bénéfice d'iOS par exemple, elle atterrira
+ * ici et Android l'embarquera. Aucune décision n'aura été prise de ce côté-ci —
+ * seulement une ligne ajoutée dans un script partagé par les deux liseuses.
+ *
+ * Le compilateur ne dira rien, parce qu'il n'y a rien à compiler : un fichier
+ * n'a pas de type. C'est l'exact contraire d'un nœud ajouté à `schema.rs`, qui
+ * traverse jusqu'à un `when` exhaustif et fait rougir la compilation.
+ *
+ * Le chantier des langues sources, ouvert le 7 septembre 2026, produira
+ * `dist/sources/` — un fichier par livre et par témoin, 52 Mo. iOS l'exclut par
+ * dessein : ces textes se téléchargent à la demande et ne s'embarquent jamais.
+ * Si cette décision changeait un jour d'un seul côté, c'est ici qu'on
+ * l'apprendrait.
+ *
+ * ## Une raison fausse a précédé celle-ci
+ *
+ * La première version de ce commentaire disait « `Sync` recopie tout `dist/` ».
+ * C'était surestimer le risque et se tromper de mécanisme. La session macOS l'a
+ * fait apparaître en vérifiant son propre côté du mur — et en constatant que
+ * `corpus.sh` filtre, j'ai vu que mon défaut n'était pas celui que j'annonçais.
+ *
+ * La garde reste juste ; sa justification ne l'était pas.
+ *
+ * ## Pourquoi une liste et non une exclusion
+ *
+ * Exclure ce qu'on ne connaît pas laisserait passer la prochaine arrivée sans
+ * rien dire, ce qui est le défaut qu'on ferme. La liste **nomme ce qu'on lit**,
+ * et tout le reste arrête le build en se nommant.
+ *
+ * Ajouter une entrée ici n'est pas une formalité : c'est déclarer qu'un lecteur
+ * existe. Le faire sans l'écrire rendrait cette tâche muette.
+ */
+val connusDuCorpus = setOf(
+    "books", "corpus.json", "daily.json", "glossary.json",
+    "manifest.json", "occurrences.json", "report.md", "search.json",
+    "shemot.json",
+)
+
+tasks.register("verifierLeCorpus") {
+    description = "Refuse d'embarquer un fichier du pipeline que rien ne lit."
+    // Des valeurs simples, capturées à la configuration : le cache de
+    // configuration ne sait pas sérialiser une référence à un objet du script,
+    // et refuse le build entier plutôt que de la perdre en silence.
+    val dossier = donneesDuPipeline.asFile
+    val connus = connusDuCorpus.toSet()
+    doLast {
+        val inattendus = dossier.listFiles()
+            .orEmpty()
+            .map { it.name }
+            .filterNot { it in connus || it.startsWith(".") }
+            .sorted()
+        if (inattendus.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Le pipeline produit ce qu'Android embarquerait sans le lire :")
+                    inattendus.forEach { appendLine("    $it") }
+                    appendLine()
+                    appendLine("Ces fichiers partiraient dans le paquet, chez le lecteur, sans")
+                    appendLine("qu'aucune ligne ne les ouvre — et rien ne l'aurait signalé.")
+                    appendLine()
+                    appendLine("Deux sorties, jamais une troisième :")
+                    appendLine("  · écrire le lecteur, puis ajouter le nom à `connusDuCorpus` ;")
+                    appendLine("  · exclure explicitement le dossier de `copierLesDonnees`,")
+                    appendLine("    en disant pourquoi — pour ne pas l'embarquer en attendant.")
+                },
+            )
+        }
+    }
+}
+
+tasks.named("copierLesDonnees") { dependsOn("verifierLeCorpus") }
+
 // Un `File` et non un `Provider` : l'API des sources Android refuse les
 // seconds, parce qu'Android Studio doit pouvoir dire à l'indexation où sont les
 // fichiers sans exécuter le build.
@@ -165,6 +299,8 @@ tasks.matching {
 }.configureEach { dependsOn("copierLesDonnees") }
 
 dependencies {
+    implementation(libs.sentry.android)
+    implementation(libs.browser)
     implementation(project(":ontkit"))
     implementation(project(":ontdata"))
     implementation(project(":ontdesignsystem"))

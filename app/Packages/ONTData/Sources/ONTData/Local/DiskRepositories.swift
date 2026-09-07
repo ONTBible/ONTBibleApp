@@ -25,7 +25,7 @@ import ONTKit
 /// `@unchecked Sendable` assumé, comme pour le bundle : le cache est protégé
 /// par un verrou, et le contenu décodé est immuable.
 public final class DiskCorpusRepository: CorpusRepository, @unchecked Sendable {
-    private let dossier: URL
+    private var dossier: URL
     private let socle: any CorpusRepository
     private let lock = NSLock()
     private var cachedCorpora: [Corpus]?
@@ -93,11 +93,33 @@ public final class DiskCorpusRepository: CorpusRepository, @unchecked Sendable {
         cachedCorpora = nil
         cachedBooks.removeAll()
     }
+
+    /// **Change la source, sans changer le dépôt.**
+    ///
+    /// Le mode développeur du Mac reconstruit le corpus depuis le vault et
+    /// l'écrit à côté du corpus publié. Sans ce point d'entrée, il l'écrivait
+    /// et **personne ne le lisait** : le dossier était fixé à la construction.
+    ///
+    /// Le défaut ne se voyait pas, parce que le bandeau affichait le compte que
+    /// le pipeline venait de rendre — un nombre juste, sur un corpus que la
+    /// liseuse n'ouvrait pas. C'est l'auteur qui l'a pris, en cherchant le
+    /// **chapitre** plutôt que le nombre : « y avait certes écrit 45 mais le
+    /// chapitre 20 n'est jamais apparu ».
+    ///
+    /// On vide les caches dans le même verrou : les rendre séparément
+    /// laisserait une fenêtre où le dossier est neuf et le contenu ancien.
+    public func regarder(_ nouveau: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        dossier = nouveau
+        cachedCorpora = nil
+        cachedBooks.removeAll()
+    }
 }
 
 /// Le lexique, même principe.
 public final class DiskGlossaryRepository: GlossaryRepository, @unchecked Sendable {
-    private let dossier: URL
+    private var dossier: URL
     private let socle: any GlossaryRepository
     private let lock = NSLock()
     private var cachedEntries: [GlossaryEntry]?
@@ -154,6 +176,16 @@ public final class DiskGlossaryRepository: GlossaryRepository, @unchecked Sendab
     public func oublier() {
         lock.lock()
         defer { lock.unlock() }
+        cachedEntries = nil
+        cachedOccurrences = nil
+    }
+
+    /// Voir `DiskCorpusRepository.regarder(_:)` — le lexique suit le corpus,
+    /// sans quoi l'aperçu montrerait des fiches d'un autre texte.
+    public func regarder(_ nouveau: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        dossier = nouveau
         cachedEntries = nil
         cachedOccurrences = nil
     }

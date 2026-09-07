@@ -59,7 +59,7 @@ public struct QahalTab: View {
     private var comingSoon: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("À venir")
-                .font(.caption.smallCaps())
+                .font(ONTUI.caption.smallCaps())
                 .foregroundStyle(.secondary)
 
             ForEach(
@@ -73,8 +73,9 @@ public struct QahalTab: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
+                            .font(ONTUI.ligneDeListe)
                         Text(subtitle)
-                            .font(.caption)
+                            .font(ONTUI.caption)
                             .foregroundStyle(.tertiary)
                     }
                 } icon: {
@@ -88,9 +89,10 @@ public struct QahalTab: View {
                 "Ces fonctions demandent un serveur. La lecture, elle, fonctionne "
                     + "entièrement hors ligne."
             )
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(.tertiary)
             .padding(.top, 4)
+                .font(ONTUI.ligneDeListe)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,13 +129,17 @@ private struct VerseOfTheDayCard: View {
         // l'onglet, le livre, l'unité, et désigne le verset — qui est déjà
         // surligné à l'arrivée.
         Button {
-            router.open(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
+            // `designer` et non `open` : cette carte montre **un** verset, et y
+            // toucher dit « celui-ci ». Il doit être sélectionné à l'arrivée,
+            // comme lorsqu'on vient du widget — sinon on atterrit dans un
+            // chapitre et l'on cherche des yeux ce qu'on venait de lire.
+            router.designer(book: chapter.bookId, chapter: chapter.id, verse: verse.n)
         } label: {
             carte
         }
-        // `.plain` et non un style par défaut : la carte porte déjà sa peau,
-        // et un bouton système la repeindrait.
-        .buttonStyle(.plain)
+        // La pression de la maison : la carte porte déjà sa peau, le style
+        // n'y touche pas — il la fait céder sous le clic.
+        .buttonStyle(.ontPresse)
         .accessibilityHint("Ouvre le passage dans la Bible")
     }
 
@@ -162,16 +168,27 @@ private struct VerseOfTheDayCard: View {
         }
     }
 
-    private var shareText: String {
-        // `plainText()` replie déjà ses espaces — et mieux : il respecte les
-        // retours à la ligne et la ponctuation française, là où ce `{2,}`
-        // écrasait tout. Le garder ferait croire que la question est encore
-        // ouverte ici.
-        let body = verse.nodes.plainText()
-        return """
-            \(body)
+    /// Les réglages viennent du **thème**, et non d'un modèle de lecture.
+    ///
+    /// `ONTTheme` porte déjà les préférences et traverse tout l'écran ;
+    /// importer `ReadingFeature` ici pour cinq booléens créerait une
+    /// dépendance entre deux features qui n'ont rien d'autre à se dire.
+    private var reglages: ReglagesDePartage { theme.preferences.partage }
 
-            — \(chapter.title):\(verse.n), La Bible ONT
-            """
+    /// **Le même compositeur que la liseuse**, et donc les mêmes réglages.
+    ///
+    /// Cette carte écrivait sa propre forme, en dur. Deux endroits qui
+    /// composent un partage finissent par n'en avoir qu'un seul de juste : les
+    /// bascules auraient valu pour un passage lu et pas pour le verset du jour,
+    /// et personne n'aurait su pourquoi.
+    ///
+    /// `plainText()` replie déjà ses espaces — retours à la ligne préservés,
+    /// ponctuation française respectée.
+    private var shareText: String {
+        Partage.composer(
+            [Partage.Morceau(numero: verse.n, texte: verse.nodes.plainText())],
+            reference: "\(chapter.title):\(verse.n)",
+            reglages: reglages
+        )
     }
 }

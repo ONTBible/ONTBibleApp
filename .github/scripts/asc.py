@@ -125,17 +125,39 @@ def application(client: Client) -> str:
     return apps[0]["id"]
 
 
-def attendre_le_build(client: Client, app: str, numero: str) -> str:
+def attendre_le_build(
+    client: Client, app: str, numero: str, plateforme: str = "IOS"
+) -> str:
     """Le build, attendu jusqu'à ce qu'Apple l'ait traité.
 
     Le téléversement ne suffit pas : Apple le déchiffre, le valide et l'indexe,
     ce qui prend de cinq à trente minutes. Tant qu'il n'est pas `VALID`, on ne
     peut ni le rattacher à un groupe ni le soumettre.
+
+    ## Pourquoi la plateforme est un filtre et non un détail
+
+    L'app est en **achat universel** : `com.labibleont.ONT` est le même
+    identifiant sur l'iPhone et sur le Mac, donc une seule fiche App Store
+    Connect porte les builds des deux. Et le numéro de build est **daté à la
+    minute** — `250831.1430`. Les deux livraisons partant du même push, elles
+    tombent dans la même minute dès que les deux chaînes vont à la même vitesse.
+
+    Sans ce filtre, `filter[version]` rendrait alors deux builds et `limit: 1`
+    en choisirait un au hasard : on attendrait l'iPhone en croyant attendre le
+    Mac, on rattacherait le mauvais au groupe, et rien ne le dirait — les deux
+    réponses sont `VALID`.
+
+    `IOS` ou `MAC_OS`, les valeurs d'Apple.
     """
     for _ in range(60):  # trente minutes, à trente secondes près
         builds = client.get(
             "builds",
-            **{"filter[app]": app, "filter[version]": numero, "limit": 1},
+            **{
+                "filter[app]": app,
+                "filter[version]": numero,
+                "filter[preReleaseVersion.platform]": plateforme,
+                "limit": 1,
+            },
         )["data"]
         if builds:
             etat = builds[0]["attributes"]["processingState"]

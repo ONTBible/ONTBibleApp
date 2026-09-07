@@ -183,3 +183,30 @@ public final class BundleDailyVerseRepository: DailyVerseRepository, @unchecked 
 
 // `DailyFile` était déclarée ici, à la main. Elle est engendrée maintenant —
 // `ONTSchema.DailyFile` — comme les cinq autres enveloppes de fichier.
+
+/// Les fiches des Shemot, embarquées avec l'app.
+///
+/// La même forme que le glossaire, et un fichier à part — `shemot.json`, 564 Ko
+/// pour 194 fiches. Le charger paresseusement compte : c'est le plus gros
+/// fichier du bundle après le corpus, et un lecteur qui ne touche jamais un nom
+/// propre n'a aucune raison de le payer.
+public final class BundleShemotRepository: ShemotRepository, @unchecked Sendable {
+    private let bundle: Foundation.Bundle
+    private let lock = NSLock()
+    private var cached: [ShemEntry]?
+
+    public init(bundle: Foundation.Bundle = .main) {
+        self.bundle = bundle
+    }
+
+    public func entries() throws -> [ShemEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cached { return cached }
+        let file: ONTSchema.ShemotFile = try BundleLoader.decode("shemot", bundle: bundle)
+        let entries = file.entries.map(ShemEntry.init)
+        cached = entries
+        return entries
+    }
+}

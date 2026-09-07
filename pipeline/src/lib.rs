@@ -20,6 +20,7 @@
 //! le démarrage à froid se compte déjà en centaines de millisecondes.
 
 pub mod schema;
+pub mod sources;
 
 #[cfg(feature = "codegen")]
 pub mod codegen;
@@ -32,6 +33,8 @@ pub mod build;
 pub mod chapter;
 #[cfg(feature = "parsers")]
 pub mod config;
+#[cfg(feature = "parsers")]
+pub mod controles;
 #[cfg(feature = "parsers")]
 pub mod inline;
 #[cfg(feature = "parsers")]

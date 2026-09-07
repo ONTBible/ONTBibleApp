@@ -20,6 +20,23 @@ public struct ONTScreenModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
+            // **Un interrupteur, et non une case à cocher.**
+            //
+            // Sur le Mac, un `Toggle` rend une *case à cocher* dans une `List`
+            // et un *interrupteur* dans un `Form` en style groupé. Les réglages
+            // de lecture passent par `ontFormulaire()`, donc par le second ;
+            // « Le français reçu » et « Synchroniser mes annotations » vivent
+            // dans une `List`, donc par le premier. Deux réglages du même écran,
+            // deux commandes différentes, sans que personne l'ait décidé.
+            //
+            // C'est l'interrupteur qu'on garde : c'est ce que rend l'iPhone, et
+            // ce que rend déjà la moitié des réglages ici. Posé au point unique
+            // par lequel tous les écrans passent, pour la même raison que le
+            // grain plus bas — ailleurs, il manquerait quelque part.
+            //
+            // Le style se transmet par l'environnement : un `Form` groupé le
+            // rendait déjà, rien n'y change.
+            .ontInterrupteurs()
             // Le grain de la nuit se pose ici, et **seulement** ici : c'est le
             // point unique par lequel passe le fond de tous les écrans, donc le
             // seul endroit où il ne peut ni manquer quelque part, ni se
@@ -80,11 +97,32 @@ public struct ONTColumnModifier: ViewModifier {
 /// La ligne de liste type — surface du thème, séparateur du thème.
 public struct ONTRowModifier: ViewModifier {
     @Environment(\.ontTheme) private var theme
+    private var spacing = ONTSpacing()
 
     public func body(content: Content) -> some View {
         content
             .listRowBackground(theme.surface)
             .listRowSeparatorTint(theme.separator)
+            // **Les marges d'une rangée, sur le Mac.**
+            //
+            // iOS les donne avec `insetGrouped` — des groupes détachés, dont le
+            // contenu respire. Le Mac n'a pas ce style ; `inset`, son plus
+            // proche, en pose beaucoup moins, et le texte d'une fiche venait
+            // toucher les deux bords de la feuille.
+            //
+            // Ce n'est pas une coquetterie : une colonne de lecture sans marge
+            // fatigue, et l'œil perd sa ligne au retour. C'est la même raison
+            // qui donne à la fenêtre une largeur minimale.
+            //
+            // On les pose sur la **rangée** plutôt que sur la feuille : chaque
+            // écran qui emploie `ontRow` en profite, et un futur écran de
+            // réglages n'aura pas à y penser.
+            #if os(macOS)
+                .listRowInsets(
+                    EdgeInsets(
+                        top: spacing.m, leading: spacing.page,
+                        bottom: spacing.m, trailing: spacing.page))
+            #endif
     }
 }
 
@@ -94,6 +132,19 @@ extension View {
 
     /// La surface d'une ligne de liste.
     public func ontRow() -> some View { modifier(ONTRowModifier()) }
+
+    /// Les `Toggle` en interrupteurs, là où la plateforme en ferait des cases.
+    ///
+    /// Sur iOS il n'y a rien à faire : un `Toggle` y est déjà un interrupteur,
+    /// partout. Le `#if` porte donc sur ce que **le système** rend, jamais sur
+    /// ce que le réglage veut dire.
+    public func ontInterrupteurs() -> some View {
+        #if os(macOS)
+            return toggleStyle(.switch)
+        #else
+            return self
+        #endif
+    }
 
     /// La colonne de l'app — à poser autour de la pile de navigation d'un onglet.
     public func ontColumn() -> some View { modifier(ONTColumnModifier()) }

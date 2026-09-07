@@ -11,6 +11,8 @@ import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPosition
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.kit.reader.ReadingTheme
+import com.labibleont.ont.kit.ports.Reporter
+import com.labibleont.ont.kit.ports.SilentReporter
 import java.io.File
 import java.time.Instant
 import kotlinx.serialization.Serializable
@@ -46,6 +48,13 @@ import kotlinx.serialization.json.Json
  */
 public class FileReaderStore(
     private val fichier: File,
+    /**
+     * Où partent les échecs que cette classe rattrape.
+     *
+     * Muet par défaut : les tests et les aperçus ne doivent rien remonter, et
+     * un module construit sans rapporteur ne doit jamais planter pour autant.
+     */
+    private val rapporteur: Reporter = SilentReporter,
 ) : HighlightRepository, PositionRepository, PreferencesRepository {
 
     /**
@@ -57,8 +66,11 @@ public class FileReaderStore(
      * et c'est ce qui manquait le jour où « Le français reçu » s'est laissé
      * basculer puis a disparu à la réouverture.
      */
-    public constructor(context: Context, nom: String = "lecteur.json") :
-        this(File(context.filesDir, nom))
+    public constructor(
+        context: Context,
+        rapporteur: Reporter = SilentReporter,
+        nom: String = "lecteur.json",
+    ) : this(File(context.filesDir, nom), rapporteur)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var etat: Etat
 
@@ -74,7 +86,18 @@ public class FileReaderStore(
     init {
         etat = runCatching {
             if (fichier.exists()) json.decodeFromString<Etat>(fichier.readText()) else Etat()
-        }.getOrElse {
+        }.getOrElse { echec ->
+            // **La perte la plus grave que cette classe puisse causer.**
+            //
+            // L'état illisible est mis de côté et on repart d'un état vide :
+            // le lecteur retrouve son app sans ses surlignages, sans ses notes
+            // et sans ses réglages, et rien ne le lui dit. Sans cette
+            // remontée, personne ne l'apprend jamais — il réinstalle, ou il
+            // s'en va.
+            //
+            // Le nom du fichier ne dit rien du lecteur ; son contenu, si. On
+            // ne remonte que l'erreur et l'endroit.
+            rapporteur.report(echec, "relecture de l'état du lecteur")
             mettreDeCoteLIllisible()
             Etat()
         }
@@ -239,6 +262,11 @@ public class FileReaderStore(
             val provisoire = File(fichier.parentFile, "${fichier.name}.tmp")
             provisoire.writeText(json.encodeToString(etat))
             provisoire.renameTo(fichier)
+        }.onFailure {
+            // Le surlignage que le lecteur vient de poser n'est pas enregistré.
+            // Il le voit à l'écran — l'état en mémoire, lui, a changé — et il
+            // le perdra au prochain lancement sans avoir rien vu.
+            rapporteur.report(it, "écriture de l'état du lecteur")
         }
     }
 

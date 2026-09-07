@@ -4,6 +4,7 @@
 //! dist/corpus.json        l'arborescence de navigation, les 70 slots
 //! dist/books/<id>.json    le contenu complet d'un livre
 //! dist/glossary.json      le lexique des intraduisibles
+//! dist/shemot.json        les fiches des noms propres
 //! dist/occurrences.json   lemme → toutes ses occurrences
 //! dist/search.json        l'index de recherche
 //! dist/daily.json         le vivier du verset du jour
@@ -23,13 +24,15 @@ use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
+use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, Status, Stub, TermLevel,
+    Occurrence, OccurrencesFile, SearchFile, SearchRecord, ShemEntry, ShemotFile, Status, Stub,
+    TermLevel,
 };
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
@@ -591,6 +594,41 @@ pub struct BuildResult {
     /// texte : une fiche ne passe pas par l'indexation des chapitres, et sa
     /// faute restait donc muette.
     pub ors_morts: usize,
+    /// Les `[[…]]` du corpus qui ne mènent à aucune fiche.
+    ///
+    /// Ce ne sont **pas des erreurs** : le §2.10 veut qu'une fiche dise ce qui
+    /// reste à venir, et le vault porte des renvois vers des porteurs pas encore
+    /// écrits. C'est la liste de ce qui manque, et c'est pour ça qu'on ne
+    /// dégrade pas le Shem en texte nu — dégrader ferait disparaître la liste.
+    pub shemot_sans_fiche: usize,
+    /// Les intraduisibles **déclarés au §2.5 et jamais définis au §3**.
+    ///
+    /// Le trou que ce compteur bouche : `neshamah`, `emunah`, `tsadiq`,
+    /// `tsedaqah` et `mabbul` étaient balisés dans tout le corpus, affichés en
+    /// or et touchables, et le §3 ne disait rien d'eux. Trois gardes les ont
+    /// laissés passer — celle du site, et les deux d'ici.
+    ///
+    /// Aucune ne se trompait. Toutes vérifiaient que le mot **mène** quelque
+    /// part, jamais que ce quelque part **dise** quelque chose. C'est plus
+    /// facile à écrire, et c'est ce qui reste faux.
+    pub sans_definition: usize,
+    /// Le nombre d'**occurrences** de liens livrés qui n'ouvrent rien.
+    pub liens_morts: usize,
+    /// Le nombre de **lemmes distincts** concernés — ce qu'il y a à corriger.
+    pub liens_morts_lemmes: usize,
+    /// Les unités dont la densité d'apparat tombe sous la moitié de la
+    /// référence du §4.1.
+    pub sous_glosees: usize,
+    /// Combien de chapitres la mesure a couverts — le dénominateur du chiffre
+    /// précédent, sans lequel il ne veut rien dire.
+    pub chapitres_mesures: usize,
+    /// La moins glosée, et sa valeur.
+    ///
+    /// **Un compteur seul devient un décor.** « 24 unités sous le seuil » ne
+    /// change pas d'un build à l'autre et cesse d'être lu ; le nom de la
+    /// dernière, lui, bouge dès qu'on travaille — et c'est celle par laquelle
+    /// on commencerait.
+    pub moins_glosee: Option<(String, f64)>,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -619,15 +657,12 @@ pub fn build() -> Result<BuildResult, String> {
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
     let fiches = read_fiches(&racine);
-    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
-    let mut fiches_orphelines: Vec<String> = fiches
-        .keys()
-        .filter(|l| !lemmes.contains(l.as_str()))
-        .cloned()
-        .collect();
-    fiches_orphelines.sort();
+    // `fiches_orphelines` se calcule plus bas, une fois les Shemot connus : le
+    // dossier `lexique/` porte deux espèces de fiches depuis la troisième
+    // couche, et il fallait les deux pour savoir laquelle est orpheline.
     for entry in glossary.iter_mut() {
-        if let Some(blocs) = fiches.get(&entry.lemma) {
+        if let Some(fiche) = fiches.get(&entry.lemma) {
+            let blocs = &fiche.blocs;
             entry.definition = Some(blocs.clone());
         }
     }
@@ -671,6 +706,16 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.sort();
     ors_morts.dedup();
 
+    // **Déclaré n'est pas défini.** `tagged` dit que le terme est balisé (§2.5),
+    // `definition` qu'il a un champ sémantique (§3). Un terme peut avoir l'un
+    // sans l'autre : il paraît alors en or, il est touchable, et sa fiche
+    // n'apprend rien.
+    let sans_definition: Vec<String> = glossary
+        .iter()
+        .filter(|e| e.tagged && e.definition.is_none())
+        .map(|e| e.title.clone())
+        .collect();
+
     let lu = read_chapters(&racine);
     let mut corpora = assemble(&skeleton, &lu.chapters, &book_names);
 
@@ -685,7 +730,10 @@ pub fn build() -> Result<BuildResult, String> {
         for corpus in &mut corpora {
             for mode in &mut corpus.modes {
                 for livre in &mut mode.books {
-                    for unite in &mut livre.chapters {
+                    // `intro` **et** `chapters` : un livre peut n'être qu'une
+                    // intro — `chazon-avraham` n'a aucun chapitre —, et un
+                    // renvoi écrit là n'était lié nulle part.
+                    for unite in unites_mut(livre) {
                         let origine = unite.id.clone();
                         renvois::lier(&mut unite.blocks, &index, &origine);
                     }
@@ -694,6 +742,124 @@ pub fn build() -> Result<BuildResult, String> {
         }
     }
     let corpora = corpora;
+
+    // **Les Shemot sans fiche**, relevés sur le corpus assemblé — donc sur ce
+    // que le lecteur verra, et non sur ce que le vault contient. Un renvoi dans
+    // une unité non publiée ne doit pas figurer dans la liste de travail.
+    let noms_de_fiches: HashSet<String> = fiches.keys().cloned().collect();
+    let mut shemot_sans_fiche: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in unites(livre) {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shemot_sans_fiche(
+                                    nodes,
+                                    &noms_de_fiches,
+                                    &mut shemot_sans_fiche,
+                                )
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shemot_sans_fiche(
+                                        &v.nodes,
+                                        &noms_de_fiches,
+                                        &mut shemot_sans_fiche,
+                                    )
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_sans_fiche.sort();
+    shemot_sans_fiche.dedup();
+
+    // **L'intro compte autant qu'un chapitre.** Trois parcours l'oubliaient —
+    // celui-ci, celui des Shemot sans fiche, et le lieur de renvois — alors que
+    // le rendu, lui, y arrivait. Deux chemins sur la même donnée, l'un complet
+    // et l'autre non : le lecteur voyait un nom en terre brûlée, le touchait,
+    // et la feuille ne trouvait rien.
+    //
+    // `Yaho'el` était le seul lemme du corpus à n'exister que dans une intro,
+    // rendu huit fois et indexé zéro. `chazon-avraham` n'a **aucun chapitre** :
+    // tout son contenu est une intro, et ses six autres Shemot n'étaient
+    // sauvés que par leurs occurrences ailleurs. Relevé par la session du
+    // vault, en comparant les lemmes rendus dans `dist/books` à l'index.
+    //
+    // **On ne publie que les porteurs que le corpus nomme.** Le vault tient 305
+    // fiches, le corpus publié en emploie 205 : embarquer les cent autres
+    // ferait payer au lecteur des noms qu'aucune unité écrite ne prononce.
+    // Elles arriveront avec leurs unités.
+    let mut shemot_employes: Vec<String> = Vec::new();
+    for corpus in &corpora {
+        for mode in &corpus.modes {
+            for livre in &mode.books {
+                for unite in unites(livre) {
+                    for bloc in &unite.blocks {
+                        match bloc {
+                            Block::Para { nodes } | Block::Heading { nodes, .. } => {
+                                collect_shem_lemmes(nodes, &mut shemot_employes)
+                            }
+                            Block::Verses { verses } => {
+                                for v in verses {
+                                    collect_shem_lemmes(&v.nodes, &mut shemot_employes)
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    shemot_employes.sort();
+    shemot_employes.dedup();
+
+    // **Une fiche orpheline, maintenant qu'il y a deux espèces de fiches.**
+    //
+    // Le contrôle demandait « ce nom de fichier est-il un lemme du
+    // glossaire ? ». C'était la bonne question tant que `lexique/` ne contenait
+    // que des intraduisibles. Depuis la troisième couche il y tient aussi les
+    // fiches de Shemot, **qui n'ont pas d'entrée de glossaire par
+    // construction** — un porteur n'est pas un concept, et c'est toute la
+    // raison d'être de la couche.
+    //
+    // La section listait donc les cent quatre-vingt-dix-sept fiches de noms
+    // propres, toutes fausses. À ce taux elle n'est pas seulement inutile :
+    // elle **noie le signal qu'elle portait**, puisqu'une vraie fiche
+    // d'intraduisible orpheline y serait devenue invisible. Une garde qui crie
+    // toujours ne garde plus rien.
+    //
+    // Un critère par espèce, donc : un lemme du glossaire, ou un Shem que le
+    // corpus nomme. Ce qui n'est ni l'un ni l'autre est bien du travail perdu
+    // — y compris une fiche de Shem écrite pour un nom qu'aucune unité publiée
+    // ne prononce, qui est le même défaut sous l'autre espèce.
+    let lemmes: HashSet<&str> = glossary.iter().map(|e| e.lemma.as_str()).collect();
+    let porteurs: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
+    let mut fiches_orphelines: Vec<String> = fiches
+        .keys()
+        .filter(|l| !lemmes.contains(l.as_str()) && !porteurs.contains(l.as_str()))
+        .cloned()
+        .collect();
+    fiches_orphelines.sort();
+
+    let shemot: Vec<ShemEntry> = shemot_employes
+        .iter()
+        .filter_map(|lemme| {
+            fiches.get(lemme).map(|fiche| ShemEntry {
+                lemma: lemme.clone(),
+                title: fiche.titre.clone(),
+                definition: fiche.blocs.clone(),
+            })
+        })
+        .collect();
+
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -749,6 +915,15 @@ pub fn build() -> Result<BuildResult, String> {
     }
 
     bytes += write_json(
+        &sortie.join("shemot.json"),
+        &ShemotFile {
+            schema: 1,
+            entries: shemot.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+
+    bytes += write_json(
         &sortie.join("glossary.json"),
         &GlossaryFile {
             schema: 1,
@@ -769,7 +944,7 @@ pub fn build() -> Result<BuildResult, String> {
     // L'index de recherche : un enregistrement par verset, titre ou paragraphe.
     let mut search_records: Vec<SearchRecord> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             search_records.extend(index_chapter(unit));
         }
     }
@@ -781,6 +956,33 @@ pub fn build() -> Result<BuildResult, String> {
         },
     )
     .map_err(|e| e.to_string())?;
+
+    // ── La couche des langues sources ────────────────────────────────────
+    //
+    // Facultative : un vault sans `sources/` construit comme avant. Ce n'est
+    // pas une branche morte — c'est ce qui fait que la chaîne du site et de
+    // l'app n'est pas otage de cette couche-ci.
+    let numero_vers_slug: BTreeMap<u32, String> =
+        skeleton.iter().map(|b| (b.slot, b.id.clone())).collect();
+    let transmissions = crate::sources::lire_transmissions(&racine)?;
+    let unites_toutes: Vec<crate::schema::Chapter> =
+        written.iter().flat_map(|b| unites(b).cloned()).collect();
+
+    if let Some(sources) =
+        crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?
+    {
+        bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)
+            .map_err(|e| e.to_string())?;
+        for (relatif, livre) in &sources.fichiers {
+            bytes += write_json(&sortie.join(relatif), livre).map_err(|e| e.to_string())?;
+        }
+        for dit in &sources.ecartees {
+            eprintln!("source écartée — {dit}");
+        }
+        for dit in &sources.releves {
+            eprintln!("numérotation — {dit}");
+        }
+    }
 
     // ── Le vivier du verset du jour ──────────────────────────────────────
     //
@@ -794,7 +996,7 @@ pub fn build() -> Result<BuildResult, String> {
     // d'inline le ferait tomber.
     let mut daily: Vec<DailyVerse> = Vec::new();
     for book in &written {
-        for unit in book.intro.iter().chain(book.chapters.iter()) {
+        for unit in unites(book) {
             // Seules les unités **verrouillées** : un brouillon ne fait pas
             // référence (§12) et n'a rien à faire sur un écran d'accueil. La
             // règle vit ici, dans la fabrique du vivier, et pas dans chacun des
@@ -865,16 +1067,71 @@ pub fn build() -> Result<BuildResult, String> {
         &sortie.join("manifest.json"),
         &Manifest {
             schema: 1,
-            // Sans dépendance de date : l'empreinte du contenu suffit à savoir
-            // si le corpus a changé, et un horodatage rendrait deux builds du
-            // même vault différents pour rien.
-            generated_at: String::new(),
-            vault: racine.to_string_lossy().to_string(),
+            // L'estampille du **contenu**, pas de la compilation — la date du
+            // dernier commit du vault, passée par `ONT_GENERE`.
+            //
+            // Le déterminisme est intact : deux exécutions sur le même vault
+            // rendent la même date, donc le même octet, donc aucun
+            // retéléchargement inutile. Un horodatage de build l'aurait rompu.
+            //
+            // Elle n'a servi à rien jusqu'au jour où un bundle est devenu plus
+            // récent que le corpus publié. Une empreinte dit que deux corpus
+            // diffèrent ; elle ne dit jamais lequel vient après.
+            generated_at: crate::config::genere(),
+            // **Le nom du vault, pas son chemin.**
+            //
+            // Le chemin absolu de la machine qui bâtit se retrouvait dans un
+            // fichier committé : il basculait d'un contributeur à l'autre —
+            // `ONTBibleApp/` chez l'un, `ONTBibleApp-android/` chez l'autre —
+            // et faisait diverger la sortie de deux builds du même vault, ce qui
+            // contredit le déterminisme que tout le reste tient. Il révélait
+            // aussi l'arborescence du disque de qui publie.
+            //
+            // Personne ne le lit — ni les liseuses, ni le site. Il sert à dire
+            // **de quel vault** un corpus vient, et le nom du dossier suffit.
+            vault: racine
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
             stats: stats.clone(),
         },
     )
     .map_err(|e| e.to_string())?;
 
+    // **Les deux contrôles se calculent sur ce qui vient d'être écrit.**
+    //
+    // Pas sur le vault, pas sur une structure intermédiaire : sur les mêmes
+    // valeurs que `write_json` a sérialisées quelques lignes plus haut. C'est
+    // toute leur raison d'être — le rapport rendait `0` en normalisant
+    // autrement que le fichier livré.
+    let unites_publiees: Vec<&Chapter> = written.iter().flat_map(|b| unites(b)).collect();
+    let liens_morts = controles::liens_morts(&unites_publiees, &glossary, &shemot);
+    let hors_de_portee = controles::hors_de_portee(&unites_publiees);
+    let formes_partagees = controles::formes_a_deux_proprietaires(&glossary);
+    // **Les introductions sont hors de ce contrôle, et par construction.**
+    //
+    // Le §2.7 leur donne exactement la fonction inverse : elles portent le
+    // cadre *une fois, en amont*, « afin que le corps garde la voix vécue et
+    // que les gloses restent légères ». Une feuille d'introduction sans glose
+    // fait donc son travail. La signaler, c'est reprocher à une chose d'être
+    // ce qu'elle doit être — et six intros signalées d'office suffiraient à
+    // faire de cette section un bruit qu'on cesse de lire.
+    let mut densites: Vec<controles::Densite> = written
+        .iter()
+        .flat_map(|b| b.chapters.iter())
+        .map(controles::densite)
+        .collect();
+    densites.sort_by(|a, b| {
+        a.pour_mille()
+            .partial_cmp(&b.pour_mille())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+    //
+    // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+    // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+    // le relevé que le pipeline vient de faire.
     let rapport = format_report(
         &corpora,
         &glossary,
@@ -884,10 +1141,35 @@ pub fn build() -> Result<BuildResult, String> {
             superseded: &lu.superseded,
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
+            shemot_sans_fiche: &shemot_sans_fiche,
+            liens_morts: &liens_morts,
+            densites: &densites,
+            hors_de_portee,
+            formes_partagees: &formes_partagees,
         },
         &racine,
     );
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
+
+    let occurrences_mortes: usize = liens_morts.iter().map(|l| l.occurrences).sum();
+    if occurrences_mortes > controles::PLAFOND_LIENS_MORTS {
+        return Err(format!(
+            "{occurrences_mortes} liens livrés n'ouvrent rien, le plafond est à {}.\n\
+             \n\
+             Le compte a monté : une balise neuve pointe sur un lemme qui n'existe\n\
+             pas dans l'index livré. `dist/report.md` vient d'être écrit et nomme\n\
+             lesquels, section « Liens livrés qui n'ouvrent rien ».\n\
+             \n\
+             Deux issues, et une seule est bonne selon le cas :\n\
+             — si la forme est déclarée au §2.5, l'entrée existe sous le lemme du\n\
+             singulier et c'est l'émission qu'il faut corriger, pas la balise ;\n\
+             — si rien ne la déclare, c'est une fiche à écrire ou un gras à retirer.\n\
+             \n\
+             Relever `PLAFOND_LIENS_MORTS` est possible, et se dit dans le commit :\n\
+             un cliquet qu'on desserre sans le nommer ne cliquette plus.",
+            controles::PLAFOND_LIENS_MORTS
+        ));
+    }
 
     Ok(BuildResult {
         stats,
@@ -895,10 +1177,56 @@ pub fn build() -> Result<BuildResult, String> {
         issues: lu.issues.len(),
         bytes,
         ors_morts: ors_morts.len(),
+        shemot_sans_fiche: shemot_sans_fiche.len(),
+        sans_definition: sans_definition.len(),
+        liens_morts: liens_morts.iter().map(|l| l.occurrences).sum(),
+        liens_morts_lemmes: liens_morts.len(),
+        sous_glosees: densites
+            .iter()
+            .filter(|d| sous_glosee(d, &densites))
+            .count(),
+        chapitres_mesures: densites.len(),
+        moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
     })
 }
 
 /// Descend dans un arbre d'inline et relève les termes sans entrée.
+/// Récolte les lemmes de tous les Shemot rencontrés.
+fn collect_shem_lemmes(nodes: &[Inline], out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { lemma, .. } => out.push(lemma.clone()),
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shem_lemmes(children, out),
+            _ => {}
+        }
+    }
+}
+
+/// Récolte les Shemot dont la fiche manque.
+///
+/// Le pendant de [`collect_or_morts`] pour la troisième couche. Il ne dit pas
+/// « ce nom est faux » mais « ce porteur n'a pas encore sa fiche » — c'est une
+/// liste de travail, pas une liste d'erreurs.
+fn collect_shemot_sans_fiche(nodes: &[Inline], fiches: &HashSet<String>, out: &mut Vec<String>) {
+    for n in nodes {
+        match n {
+            Inline::Shem { v, lemma } => {
+                if !fiches.contains(lemma) {
+                    out.push(format!("**{v}** — `lexique/{lemma}.md`"));
+                }
+            }
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => collect_shemot_sans_fiche(children, fiches, out),
+            _ => {}
+        }
+    }
+}
+
 fn collect_or_morts(
     nodes: &[Inline],
     connus: &HashSet<String>,
@@ -932,6 +1260,44 @@ struct Anomalies<'a> {
     superseded: &'a [String],
     fiches_orphelines: &'a [String],
     ors_morts: &'a [String],
+    /// Les Shemot que le corpus nomme et pour lesquels aucune fiche n'existe.
+    ///
+    /// **Ils étaient comptés, triés, dédoublonnés — puis seul `.len()`
+    /// survivait**, et le `Vec` était jeté. Le rapport annonçait « 10 Shemot
+    /// sans fiche » sans dire lesquels, ce qui ne permet à personne d'agir :
+    /// il faut alors refaire à la main le relevé que le pipeline venait de
+    /// faire. Les trois autres compteurs ont tous leur section ; celui-ci
+    /// était le seul à n'avoir qu'un nombre.
+    shemot_sans_fiche: &'a [String],
+    /// Les liens **livrés** qui ne retombent sur aucune entrée livrée.
+    ///
+    /// Distinct de `ors_morts` et de `shemot_sans_fiche`, qui demandent « une
+    /// fiche existe-t-elle pour ce terme ? » en traversant `forms`. Celui-ci
+    /// demande « le lemme écrit dans le nœud est-il une clé du fichier
+    /// d'index ? » — la question que se pose la liseuse, et la seule qui dise
+    /// ce que le lecteur obtiendra.
+    liens_morts: &'a [controles::LienMort],
+    /// La densité d'apparat par unité, §4.1.
+    densites: &'a [controles::Densite],
+    /// Les nœuds touchables que les parcours restreints ne visitent pas.
+    hors_de_portee: usize,
+    /// Les formes que deux entrées revendiquent.
+    formes_partagees: &'a [(String, Vec<String>)],
+}
+
+/// Une unité tombe-t-elle **très en dessous** de la référence du §4.1 ?
+///
+/// Le §4.1 écrit *« très en dessous »* sans le chiffrer, et il a raison de ne
+/// pas le faire : c'est un jugement. Le contrôle doit pourtant trancher pour
+/// nommer quelqu'un, donc il pose son seuil **ici, en clair, à la moitié** —
+/// et le rapport l'écrit, afin que le seuil se discute au lieu de se subir.
+fn sous_glosee(d: &controles::Densite, toutes: &[controles::Densite]) -> bool {
+    let Some(reference) = toutes.iter().find(|r| r.unite == controles::REFERENCE) else {
+        // Sans la référence dans le corpus bâti, on ne compare rien plutôt que
+        // de comparer à une constante inventée.
+        return false;
+    };
+    d.unite != controles::REFERENCE && d.pour_mille() < reference.pour_mille() / 2.0
 }
 
 fn format_report(
@@ -946,6 +1312,11 @@ fn format_report(
         superseded,
         fiches_orphelines,
         ors_morts,
+        shemot_sans_fiche,
+        liens_morts,
+        densites,
+        hors_de_portee,
+        formes_partagees,
     } = *a;
     let books: Vec<&Book> = corpora
         .iter()
@@ -1050,6 +1421,22 @@ fn format_report(
         }
     }
 
+    // Un nom propre que le texte porte sans qu'aucune fiche ne l'explique :
+    // le lecteur touche le mot et n'obtient rien.
+    if !shemot_sans_fiche.is_empty() {
+        l.extend([
+            String::new(),
+            "## Shemot sans fiche".into(),
+            String::new(),
+            "Ces noms propres sont employés dans le corpus publié et n'ont pas".into(),
+            "de fiche dans `lexique/`. Le nom du fichier doit être le lemme.".into(),
+            String::new(),
+        ]);
+        for s in shemot_sans_fiche {
+            l.push(format!("- {s}"));
+        }
+    }
+
     // Le gras d'insistance dans une fiche promet une fiche qui n'existe pas.
     if !ors_morts.is_empty() {
         l.extend([
@@ -1096,6 +1483,246 @@ fn format_report(
         }
     }
 
+    if !liens_morts.is_empty() {
+        let occurrences: usize = liens_morts.iter().map(|l| l.occurrences).sum();
+        let (recuperables, a_ecrire): (Vec<_>, Vec<_>) =
+            liens_morts.iter().partition(|l| l.entree_reelle.is_some());
+        l.extend([
+            String::new(),
+            "## Liens livrés qui n'ouvrent rien".into(),
+            String::new(),
+            format!(
+                "**{occurrences} occurrences, {} lemmes distincts.** Mesuré sur `dist/` et",
+                liens_morts.len()
+            ),
+            "non sur le vault : chaque `lemma` émis est comparé aux clés du fichier".into(),
+            "d'index livré **dans le même build**. C'est la question que se pose la".into(),
+            "liseuse, et la seule qui dise ce que le lecteur obtiendra.".into(),
+            String::new(),
+            "Les autres sections demandent *« une fiche existe-t-elle pour ce".into(),
+            "terme ? »* en traversant `forms`, et peuvent donc rendre `0` pendant".into(),
+            "que celle-ci compte des centaines : c'est exactement l'écart qui a".into(),
+            "laissé passer le défaut — le rapport normalisait autrement que le".into(),
+            "consommateur.".into(),
+        ]);
+
+        if !recuperables.is_empty() {
+            l.extend([
+                String::new(),
+                "### L'entrée existe, sous un autre lemme".into(),
+                String::new(),
+                "La forme est **déclarée** au §2.5 et retombe bien sur une entrée —".into(),
+                "mais le nœud livré porte la forme fléchie au lieu du lemme canonique,".into(),
+                "et la liseuse indexe par lemme exact. ==Le lecteur reçoit un démenti".into(),
+                "faux== : le mot est documenté, on lui dit qu'il ne l'est pas.".into(),
+                String::new(),
+                "Le remède est **à l'émission**. Le porter chez les consommateurs".into(),
+                "obligerait chaque plateforme à réécrire sa propre normalisation pour".into(),
+                "faire se rejoindre `mal'akhim` et `malakhim` — et deux normalisations".into(),
+                "écrites séparément divergent, ce qui rendrait le défaut intermittent".into(),
+                "au lieu de systématique.".into(),
+                String::new(),
+                "| Affiché | Lemme émis | Entrée réelle | Occ. | Vu d'abord |".into(),
+                "|---|---|---|---:|---|".into(),
+            ]);
+            for m in &recuperables {
+                l.push(format!(
+                    "| {} | `{}` | `{}` | {} | `{}` |",
+                    m.forme,
+                    m.lemme,
+                    m.entree_reelle.as_deref().unwrap_or("—"),
+                    m.occurrences,
+                    m.ou
+                ));
+            }
+        }
+
+        if !a_ecrire.is_empty() {
+            l.extend([
+                String::new(),
+                "### Aucune entrée ne déclare cette forme".into(),
+                String::new(),
+                "Ceux-là sont une vraie liste de travail : la fiche est à écrire, ou".into(),
+                "la balise est à retirer.".into(),
+                String::new(),
+                "| Affiché | Lemme émis | Couche | Occ. | Vu d'abord |".into(),
+                "|---|---|---|---:|---|".into(),
+            ]);
+            for m in &a_ecrire {
+                l.push(format!(
+                    "| {} | `{}` | {} | {} | `{}` |",
+                    m.forme, m.lemme, m.couche, m.occurrences, m.ou
+                ));
+            }
+        }
+    }
+
+    if hors_de_portee > 0 || !formes_partagees.is_empty() {
+        l.extend([
+            String::new(),
+            "## Ce que les autres parcours ne voient pas".into(),
+            String::new(),
+            "Deux relevés qui ne corrigent rien et ne jugent rien. Ils disent".into(),
+            "seulement si un `0` affiché ailleurs est un zéro de corpus ou un zéro".into(),
+            "d'instrument — **les deux s'écrivent pareil, et c'est le premier qu'on**".into(),
+            "**lit**.".into(),
+            String::new(),
+        ]);
+        if hors_de_portee > 0 {
+            l.extend([
+                format!(
+                    "- **{hors_de_portee} nœuds touchables hors de portée des parcours restreints.**"
+                ),
+                "  `collect_shem_lemmes` et `collect_shemot_sans_fiche` ne lisent que".into(),
+                "  `Heading`, `Para` et `Verses` de `blocks` : ni pied de section, ni".into(),
+                "  liste, ni citation, ni tableau. Leur verdict peut être juste ; il".into(),
+                "  n'est pas *démontré* tant que ce nombre n'est pas nul.".into(),
+            ]);
+        }
+        if !formes_partagees.is_empty() {
+            l.extend([
+                format!(
+                    "- **{} formes revendiquées par plusieurs entrées.** Le §2.5 en cite",
+                    formes_partagees.len()
+                ),
+                "  certaines dans la puce voisine pour les en *écarter*, et l'extraction".into(),
+                "  ne distingue pas une citation d'une déclaration. Sans conséquence".into(),
+                "  aujourd'hui — la forme sort avec le lemme de sa propre entrée. Le jour".into(),
+                "  où l'ordre de lecture changera, elle sortira avec l'autre :".into(),
+                String::new(),
+            ]);
+            for (forme, lemmes) in formes_partagees {
+                l.push(format!("  - `{forme}` → {}", lemmes.join(", ")));
+            }
+        }
+    }
+
+    if !densites.is_empty() {
+        let reference = densites.iter().find(|d| d.unite == controles::REFERENCE);
+        l.extend([
+            String::new(),
+            "## Densité d'apparat, par unité".into(),
+            String::new(),
+            "Le §4.1 impose de compter avant de clore — *« le seul contrôle qui ne".into(),
+            "dépende pas de ce que le traducteur a fini par trouver évident »*. Une".into(),
+            "commande qu'il faut penser à lancer est une commande qu'on oublie ;".into(),
+            "elle tourne donc ici.".into(),
+            String::new(),
+            "**On rapporte aux mots du corps, non aux versets.** Un verset ONT n'a".into(),
+            "pas de longueur fixe — le *Chazon Avraham* découpe une phrase de témoin".into(),
+            "en plusieurs versets courts là où *Bereshit* suit le verset biblique.".into(),
+            "Un ratio par verset dirait ce qu'on a décidé du découpage, pas ce qu'on".into(),
+            "a écrit d'apparat.".into(),
+            String::new(),
+            "Deux colonnes, et il faut les deux : la **fréquence** dit si".into(),
+            "l'implicite a été explicité *là où il se trouve*, le **volume** dit".into(),
+            "s'il l'a été du tout. Une unité peut porter tout le volume attendu en".into(),
+            "quelques blocs énormes — c'est lisible sur la page et illisible pour".into(),
+            "l'œil qui suit le texte.".into(),
+            String::new(),
+        ]);
+        match reference {
+            Some(r) => l.push(format!(
+                "Référence §4.1 — `{}` : **{:.1}** gloses / 1000 mots, volume **{:.2}**.",
+                r.unite,
+                r.pour_mille(),
+                r.volume()
+            )),
+            None => l.push(
+                "*La référence `bereshit-4` n'est pas dans ce build : aucune unité \
+n'est signalée, faute de point de comparaison.*"
+                    .into(),
+            ),
+        }
+        // **Par livre d'abord.** La question que ce relevé pose n'est pas
+        // « ce chapitre est-il assez glosé ? » mais « ce livre est-il sur un
+        // autre régime ? » — et vingt-six lignes qui la répètent à chaque build
+        // sont vingt-cinq façons de cesser de la lire.
+        let mut par_livre: BTreeMap<&str, (usize, usize, usize, usize)> = BTreeMap::new();
+        for d in densites {
+            let e = par_livre.entry(d.livre.as_str()).or_default();
+            e.0 += 1;
+            e.1 += d.gloses;
+            e.2 += d.mots_corps;
+            if sous_glosee(d, densites) {
+                e.3 += 1;
+            }
+        }
+        l.extend([
+            String::new(),
+            "| Livre | Chapitres | gl./1000 mots | Sous le seuil |".into(),
+            "|---|---:|---:|---:|".into(),
+        ]);
+        let mut lignes: Vec<(f64, String)> = par_livre
+            .iter()
+            .map(|(livre, (n, gl, mots, sous))| {
+                let pm = if *mots == 0 {
+                    0.0
+                } else {
+                    1000.0 * *gl as f64 / *mots as f64
+                };
+                (
+                    pm,
+                    format!(
+                        "| `{livre}` | {n} | {pm:.1} | {} |",
+                        if *sous == 0 {
+                            "—".to_string()
+                        } else {
+                            format!("{sous} / {n}")
+                        }
+                    ),
+                )
+            })
+            .collect();
+        lignes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        for (_, ligne) in lignes {
+            l.push(ligne);
+        }
+
+        l.extend([
+            String::new(),
+            "<details><summary>Le détail par chapitre</summary>".into(),
+            String::new(),
+            "| Unité | Versets | Gloses | gl./1000 mots | Volume | Plus longue | |".into(),
+            "|---|---:|---:|---:|---:|---:|:-:|".into(),
+        ]);
+        for d in densites {
+            let marque = if d.unite == controles::REFERENCE {
+                "réf."
+            } else if sous_glosee(d, densites) {
+                "⚠"
+            } else {
+                ""
+            };
+            l.push(format!(
+                "| `{}` | {} | {} | {:.1} | {:.2} | {} | {} |",
+                d.unite,
+                d.versets,
+                d.gloses,
+                d.pour_mille(),
+                d.volume(),
+                d.plus_longue,
+                marque
+            ));
+        }
+        l.extend([String::new(), "</details>".into()]);
+        if reference.is_some() {
+            l.extend([
+                String::new(),
+                "⚠ = sous **la moitié** de la référence. Le §4.1 écrit *« très en".into(),
+                "dessous »* sans le chiffrer, et il a raison — c'est un jugement. Le".into(),
+                "seuil est posé ici, en clair, pour qu'il se discute plutôt qu'il ne".into(),
+                "se subisse. Un signalement n'est pas une faute : un livre peut".into(),
+                "déclarer un régime allégé, et sa feuille d'introduction le dit.".into(),
+                String::new(),
+                "**Les feuilles d'introduction ne sont pas mesurées.** Le §2.7 leur".into(),
+                "donne la fonction inverse — porter le cadre une fois en amont *afin".into(),
+                "que* les gloses du corps restent légères. Une intro sans glose fait".into(),
+                "son travail.".into(),
+            ]);
+        }
+    }
+
     if !issues.is_empty() {
         // `BTreeSet` sur les fichiers : l'ordre du rapport ne doit pas dépendre
         // de l'ordre de parcours.
@@ -1127,9 +1754,180 @@ fn format_report(
     l.join("\n") + "\n"
 }
 
+/// Toutes les unités d'un livre — **l'intro comprise**.
+///
+/// Elle est une unité comme une autre : elle porte du texte, des Shemot, des
+/// intraduisibles et des renvois. `chazon-avraham` n'est *que* cela — aucun
+/// chapitre —, donc l'oublier revient à ne pas lire le livre.
+///
+/// Cette fonction existe parce que l'oubli s'est produit **trois fois**, dans
+/// trois parcours écrits à des moments différents, pendant que deux autres
+/// faisaient correctement `intro.iter().chain(chapters.iter())`. Un idiome
+/// juste mais recopié à la main se recopie mal ; celui-ci ne se recopie plus.
+///
+/// Le défaut ne se voyait pas : le rendu atteignait les intros, l'indexeur non.
+/// Deux chemins sur la même donnée, dont un seul complet. `Yaho'el` était rendu
+/// huit fois en terre brûlée et absent de `shemot.json` — on touchait le nom,
+/// la feuille ne trouvait rien.
+fn unites(livre: &Book) -> impl Iterator<Item = &Chapter> {
+    livre.intro.iter().chain(livre.chapters.iter())
+}
+
+/// La même, pour qui doit écrire dedans. Voir [`unites`].
+fn unites_mut(livre: &mut Book) -> impl Iterator<Item = &mut Chapter> {
+    livre.intro.iter_mut().chain(livre.chapters.iter_mut())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Une unité d'introduction dans un livre qui n'a que ça.
+    fn livre_sans_chapitre(lemme: &str) -> Book {
+        let unite = Chapter {
+            id: "chazon-avraham-0-intro".into(),
+            book_id: "chazon-avraham".into(),
+            kind: ChapterKind::Intro,
+            n: 0,
+            title: "Chazon Avraham — introduction".into(),
+            title_nodes: vec![],
+            subtitle: None,
+            status: Status::Brouillon,
+            blocks: vec![Block::Para {
+                nodes: vec![Inline::Shem {
+                    v: "Yaho'el".into(),
+                    lemma: lemme.into(),
+                }],
+            }],
+            footer: None,
+            verse_count: 0,
+            lemmas: vec![],
+            source: "chazon-avraham.md".into(),
+        };
+        Book {
+            id: "chazon-avraham".into(),
+            slot: 1,
+            title: "Chazon Avraham".into(),
+            french: "Apocalypse d'Abraham".into(),
+            glose: None,
+            hebrew: None,
+            corpus_id: "nistarot".into(),
+            mode_id: "nistarot".into(),
+            group_id: None,
+            chapters: vec![],
+            intro: Some(unite),
+            empty: false,
+        }
+    }
+
+    /// **Un livre peut n'être qu'une introduction, et il faut le lire.**
+    ///
+    /// `chazon-avraham` n'a aucun chapitre. Trois parcours ne regardaient que
+    /// `chapters` : l'indexeur des Shemot, le relevé de ceux sans fiche, et le
+    /// lieur de renvois. Le rendu, lui, atteignait les intros — deux chemins
+    /// sur la même donnée, dont un seul complet.
+    ///
+    /// `Yaho'el` était rendu huit fois en terre brûlée et absent de
+    /// `shemot.json` : on touchait le nom, la feuille ne trouvait rien. Et la
+    /// garde des fiches orphelines, qui s'appuie sur cette liste, l'aurait
+    /// dénoncé comme du travail perdu — on aurait supprimé une fiche valide
+    /// sur la foi du rapport.
+    ///
+    /// Relevé par la session du vault, en comparant les lemmes rendus dans
+    /// `dist/books` à ceux de l'index. Deux chemins, deux comptes : 205 et 194.
+    #[test]
+    fn un_livre_sans_chapitre_est_lu_quand_meme() {
+        let livre = livre_sans_chapitre("yahoel");
+        assert_eq!(unites(&livre).count(), 1, "l'intro n'a pas été parcourue");
+
+        let mut vus: Vec<String> = Vec::new();
+        for unite in unites(&livre) {
+            for bloc in &unite.blocks {
+                if let Block::Para { nodes } = bloc {
+                    collect_shem_lemmes(nodes, &mut vus);
+                }
+            }
+        }
+        assert_eq!(vus, ["yahoel"], "le Shem de l'intro n'est pas indexé");
+    }
+
+    /// L'intro vient **avant** les chapitres, et s'ajoute sans les remplacer.
+    #[test]
+    fn l_intro_s_ajoute_aux_chapitres_sans_les_evincer() {
+        let mut livre = livre_sans_chapitre("yahoel");
+        let mut chapitre = livre.intro.clone().unwrap();
+        chapitre.id = "chazon-avraham-1".into();
+        chapitre.n = 1;
+        livre.chapters = vec![chapitre];
+        let ids: Vec<&str> = unites(&livre).map(|u| u.id.as_str()).collect();
+        assert_eq!(ids, ["chazon-avraham-0-intro", "chazon-avraham-1"]);
+    }
+
+    /// Le rapport nommait un nombre sans jamais nommer sa substance.
+    ///
+    /// Les Shemot sans fiche étaient calculés, triés, dédoublonnés — puis seul
+    /// `.len()` survivait. « 10 Shemot sans fiche » ne permet à personne
+    /// d'agir : il faut refaire à la main le relevé que le pipeline vient de
+    /// faire. C'est ce qu'a dû faire la session du vault pour les retrouver.
+    #[test]
+    fn le_rapport_nomme_les_shemot_sans_fiche() {
+        let sans = ["**Par'oh** — `lexique/paroh.md`".to_string()];
+        // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+        //
+        // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+        // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+        // le relevé que le pipeline vient de faire.
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &sans,
+                liens_morts: &[],
+                densites: &[],
+                hors_de_portee: 0,
+                formes_partagees: &[],
+            },
+            Path::new("/vault"),
+        );
+        assert!(
+            rapport.contains("## Shemot sans fiche"),
+            "la section manque"
+        );
+        assert!(rapport.contains("Par'oh"), "le nom manque : {rapport}");
+    }
+
+    /// Une section vide ne s'écrit pas — comme les trois autres.
+    #[test]
+    fn sans_shem_orphelin_la_section_ne_parait_pas() {
+        // **Le cliquet, posé après l'écriture du rapport et avant de rendre.**
+        //
+        // Après, pour que `dist/report.md` existe quand l'échec survient : sans
+        // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
+        // le relevé que le pipeline vient de faire.
+        let rapport = format_report(
+            &[],
+            &[],
+            &Anomalies {
+                issues: &[],
+                unknown: &BTreeMap::new(),
+                superseded: &[],
+                fiches_orphelines: &[],
+                ors_morts: &[],
+                shemot_sans_fiche: &[],
+                liens_morts: &[],
+                densites: &[],
+                hors_de_portee: 0,
+                formes_partagees: &[],
+            },
+            Path::new("/vault"),
+        );
+        assert!(!rapport.contains("## Shemot sans fiche"));
+    }
 
     #[test]
     fn l_extrait_se_centre_sur_la_forme() {

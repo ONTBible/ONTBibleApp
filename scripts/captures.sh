@@ -175,7 +175,12 @@ etape "L'app"
 xcodebuild -project app/ONT.xcodeproj -scheme ONT \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath /tmp/ont-captures-dd build >/dev/null
-APP=$(find /tmp/ont-captures-dd/Build/Products -name "ONT.app" -maxdepth 3 | head -1)
+# `-print -quit` plutôt que `| head -1` : `find` s'arrête lui-même au premier
+# résultat, au lieu d'être tué en écrivant dans un tuyau que `head` vient de
+# fermer. Sous `set -o pipefail`, cette mort rend 141 et **abandonne le
+# script** — mais seulement quand `find` a encore de quoi écrire après le
+# premier résultat, donc jamais sur un dossier neuf et toujours sur un vieux.
+APP=$(find /tmp/ont-captures-dd/Build/Products -name "ONT.app" -maxdepth 3 -print -quit)
 
 etape "iPhone 6,9″"
 serie "$(simulateur 'ONT Pro Max' 1320 2868)" "iphone-6.9"

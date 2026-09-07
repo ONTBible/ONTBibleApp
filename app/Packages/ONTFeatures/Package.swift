@@ -9,7 +9,16 @@ import PackageDescription
 // dupliquer créerait trois vérités.
 let package = Package(
     name: "ONTFeatures",
-    platforms: [.iOS("18.0")],  // iOS seulement : les vues emploient UIKit
+    // Les deux plateformes. Ce qu'elles ne nomment pas pareil est traduit une
+    // fois pour toutes dans `ONTPlateformes`, côté design system — les vues
+    // déclarent une intention, jamais un système.
+    // macOS **15** et non 14 : les vues emploient `textRenderer`,
+    // `onScrollPhaseChange` et `onScrollVisibilityChange`, tous trois nés
+    // avec macOS 15. Les rétroporter reviendrait à écrire une seconde liseuse.
+    //
+    // Les paquets du dessous restent à 14 — ils n'en ont pas besoin, et un
+    // plancher qu'on monte sans raison exclut des machines pour rien.
+    platforms: [.iOS("18.0"), .macOS("15.0")],
     products: [
         .library(name: "ReadingFeature", targets: ["ReadingFeature"]),
         .library(name: "LexiconFeature", targets: ["LexiconFeature"]),

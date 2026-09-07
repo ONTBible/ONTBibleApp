@@ -88,6 +88,21 @@ public data class ONTTypography(
         )
 
     /**
+     * Niveau 1 — un **Shem**, touchable.
+     *
+     * Même graisse et même corps que l'intraduisible : ce sont deux couches du
+     * texte, pas deux importances. Seule la teinte les sépare, et c'est
+     * suffisant parce qu'elles ne se rencontrent presque jamais dans la même
+     * phrase.
+     */
+    public val shem: SpanStyle
+        get() = SpanStyle(
+            fontFamily = body,
+            fontSize = size.pt,
+            color = ONTColors.shem(theme),
+        )
+
+    /**
      * Niveau 1 — une accentuation, qui ne se touche pas.
      *
      * Semi-gras **et** colorée : la couleur seule ne suffit pas — un lecteur
@@ -102,7 +117,18 @@ public data class ONTTypography(
             color = ONTColors.accentuation(theme),
         )
 
-    /** Niveau 2 — une glose. */
+    /**
+     * Niveau 2 — une glose.
+     *
+     * **Deux signaux, jamais la pente.** Elle se distingue par la taille et par
+     * la couleur, et c'est délibéré : Gloire a un kératocône, et une cornée
+     * déformée diffuse la lumière au point que l'inclinaison des jambages
+     * devient le pire discriminant possible. Un italique seul aurait paru
+     * élégant et n'aurait rien distingué.
+     *
+     * L'italique du niveau 3 — [translit] — vient **par-dessus** ces deux
+     * signaux, jamais à leur place.
+     */
     public val gloss: SpanStyle
         get() = SpanStyle(fontFamily = body, fontSize = glossSize.pt, color = soft)
 

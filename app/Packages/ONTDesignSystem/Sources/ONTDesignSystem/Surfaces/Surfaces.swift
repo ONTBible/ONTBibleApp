@@ -79,7 +79,7 @@ public struct StatusPill: View {
 
     public var body: some View {
         Text(label)
-            .font(.caption2)
+            .font(ONTUI.caption2)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(tint.opacity(0.3), in: Capsule())
@@ -98,8 +98,19 @@ public struct SectionCaption: View {
 
     public var body: some View {
         Text(label)
-            .font(.caption.smallCaps())
+            .font(ONTUI.caption.smallCaps())
             .foregroundStyle(tint)
+            // **Un en-tête s'annonce.**
+            //
+            // VoiceOver propose de sauter d'en-tête en en-tête — un geste, et
+            // le lecteur passe à la section suivante. Sans cette marque, le
+            // rotor ne trouve rien et un chapitre de quatre cents versets se
+            // traverse **linéairement**, verset après verset.
+            //
+            // Le petit corps en petites capitales dit « titre » à l'œil ; il ne
+            // dit rien à qui n'a pas l'œil. C'est toute la différence entre une
+            // apparence et une structure.
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

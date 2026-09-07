@@ -110,20 +110,57 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # ── À ALLUMER QUAND LA CONSOLE SERA OUVERTE ──────────────────────────
+      # ## La poussée, armée mais inerte
       #
-      # Il faut d'abord, dans la Play Console : créer l'application, puis dans
-      # Google Cloud un compte de service, lui donner le rôle de publication,
-      # et coller son JSON dans le secret `PLAY_SERVICE_ACCOUNT_JSON`.
+      # Elle est **écrite et branchée** ; elle ne fera rien tant que le secret
+      # `PLAY_SERVICE_ACCOUNT_JSON` n'existe pas. C'est délibéré : un bloc
+      # commenté demande à quelqu'un de le décommenter le bon jour, et ce
+      # quelqu'un ne saura pas que c'était le bon jour. Une garde sur le secret
+      # fait basculer la chaîne toute seule, à la minute où le compte de
+      # service est posé.
       #
-      # `status: draft` au premier coup : on veut voir la fiche avant qu'elle
-      # ne parte aux testeurs.
+      # Il ne manque que lui : dans Google Cloud, un compte de service avec le
+      # rôle de publication. Son JSON ne doit **jamais** passer par une
+      # conversation — on le dépose dans un fichier et on fait
+      # `gh secret set PLAY_SERVICE_ACCOUNT_JSON < le-fichier`, sans l'afficher.
       #
-      # - name: Pousser vers le test fermé
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-      #     packageName: com.labibleont.ont
-      #     releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
-      #     track: internal
-      #     status: draft
+      # Tout le reste est prêt depuis le 26 août : trousseau, fiche, test
+      # interne, liste de diffusion.
+      - name: Le compte de service est-il posé ?
+        id: play
+        env:
+          COMPTE: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          # Un secret ne se lit pas dans un `if:` de job — il faut passer par
+          # une sortie d'étape. On ne teste que la présence, jamais le contenu.
+          if [ -n "$COMPTE" ]; then
+            echo "pret=oui" >> "$GITHUB_OUTPUT"
+          else
+            echo "pret=non" >> "$GITHUB_OUTPUT"
+            echo "::notice::PLAY_SERVICE_ACCOUNT_JSON absent — le bundle reste en artefact, rien n'est poussé."
+          fi
+
+      # `status: draft` au premier coup : on veut voir la fiche avant qu'elle ne
+      # parte aux testeurs.
+      #
+      # ## `track` est écrit en dur, et doit le rester
+      #
+      # Le motif vient d'App Store Connect, le 31 août : `soumettre.py` prenait
+      # « la première version modifiable » de la fiche sans regarder la
+      # plateforme. Le jour où la plateforme macOS y a été ajoutée, sa version
+      # est passée devant celle d'iOS — une livraison iPhone aurait repris celle
+      # du Mac.
+      #
+      # Play range ses pistes dans une collection commune à l'application. Une
+      # sélection qui ne nomme pas la piste **explicitement** hériterait du même
+      # défaut : elle marcherait tant qu'il n'y a qu'une piste, et se tromperait
+      # en silence à la seconde.
+      - name: Pousser vers le test interne
+        if: steps.play.outputs.pret == 'oui'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.labibleont.ont
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: draft

@@ -45,6 +45,54 @@ struct CorpusUpdaterTests {
         }
     }
 
+    /// Le corpus publié porte-t-il une estampille lisible ?
+    ///
+    /// **Nouveau garde-fou, et il change ce que ces tests peuvent prouver.**
+    /// `CorpusUpdater` n'accepte plus qu'un corpus qu'il peut *prouver* plus
+    /// récent que celui du bundle — voir `Estampille`. Tant que le site publie
+    /// `genere: ""`, aucun téléchargement n'a lieu, et les tests qui en
+    /// attendent un n'ont rien à mesurer.
+    ///
+    /// Ils sont donc ignorés, comme quand le réseau manque, **et pas
+    /// réécrits** : le jour où la chaîne pipeline → site publie une vraie date,
+    /// ils reprennent leur office sans que personne ait à y penser. Les
+    /// abaisser à « zéro fichier, c'est bien aussi » aurait fait taire
+    /// exactement ce qu'ils gardent.
+    ///
+    /// Le refus lui-même est éprouvé sans réseau, dans `EstampilleTests` : on
+    /// ne peut pas demander au serveur de publier un corpus plus vieux que le
+    /// bundle sur commande.
+    static var corpusDatable: Bool {
+        get async {
+            let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
+            guard let (octets, _) = try? await URLSession.shared.data(from: url),
+                let manifeste = try? JSONDecoder().decode(
+                    CorpusUpdater.Manifest.self, from: octets),
+                let publiee = CorpusUpdater.Estampille(manifeste.genere),
+                let embarquee = CorpusUpdater.estampilleEmbarquee()
+            else { return false }
+            // **Lisibles ne suffit pas : il faut que le publié soit le plus
+            // neuf.**
+            //
+            // La garde vérifiait que les deux dates existent, alors que ce que
+            // `synchroniser()` exige est `publiee > embarquee`. Deux dates
+            // lisibles dont la publiée est la plus vieille passaient donc la
+            // garde et rendaient zéro fichier — « rien n'a été téléchargé »,
+            // sur une branche qui n'avait pas touché au corpus.
+            //
+            // Ça arrive à chaque fois que le vault avance avant que le site ne
+            // republie : le paquet construit par l'intégration continue porte
+            // alors une date plus récente que ce qui est en ligne. Autrement
+            // dit, **toutes les PR tombaient jusqu'à la prochaine publication**,
+            // pour une raison qui n'était dans aucune d'elles.
+            //
+            // Une garde doit répéter la condition qu'elle garde, mot pour mot.
+            // Écrite « à peu près », elle laisse passer précisément les cas
+            // qu'elle existait pour écarter.
+            return publiee > embarquee
+        }
+    }
+
     static var reseauDisponible: Bool {
         get async {
             let url = URL(string: "https://ontbible.com/corpus/manifeste.json")!
@@ -89,6 +137,7 @@ struct CorpusUpdaterTests {
     func synchronisationIdempotente() async throws {
         guard await Self.reseauDisponible else { return }
         guard await Self.corpusAuFormatDeLApp else { return }
+        guard await Self.corpusDatable else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }
@@ -107,6 +156,7 @@ struct CorpusUpdaterTests {
     func lectureDepuisLeDisque() async throws {
         guard await Self.reseauDisponible else { return }
         guard await Self.corpusAuFormatDeLApp else { return }
+        guard await Self.corpusDatable else { return }
 
         let dossier = Self.dossierTemporaire()
         defer { try? FileManager.default.removeItem(at: dossier) }

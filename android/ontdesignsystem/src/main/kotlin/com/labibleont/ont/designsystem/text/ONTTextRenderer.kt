@@ -42,6 +42,9 @@ public object ONTTextRenderer {
     /** L'étiquette portée par le lien d'un intraduisible. */
     public const val TAG_TERME: String = "ont:term"
 
+    /** L'étiquette portée par le lien d'un **Shem** — un nom propre. */
+    public const val TAG_SHEM: String = "ont:shem"
+
     /** L'étiquette portée par le lien d'un verset, en lecture continue. */
     public const val TAG_VERSET: String = "ont:verse"
 
@@ -57,9 +60,10 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onShem: ((String) -> Unit)? = null,
     ): AnnotatedString = buildAnnotatedString {
         val prepares = nodes.prepared(showGloss = showGloss, showLevel3 = showLevel3)
-        ajouter(prepares, typo, inGloss = false, onTerme = onTerme)
+        ajouter(prepares, typo, inGloss = false, onTerme = onTerme, onShem = onShem)
     }
 
     /**
@@ -75,6 +79,7 @@ public object ONTTextRenderer {
         showGloss: Boolean,
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
+        onShem: ((String) -> Unit)? = null,
         onVerset: ((Int) -> Unit)? = null,
         /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
         fond: androidx.compose.ui.graphics.Color? = null,
@@ -98,7 +103,7 @@ public object ONTTextRenderer {
     ): AnnotatedString = buildAnnotatedString {
         val corps = buildAnnotatedString {
             append(numeroDeVerset(verse.n, typo))
-            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme))
+            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme, onShem))
         }
 
         // ## L'estompage se calcule, il ne s'applique pas
@@ -213,6 +218,7 @@ public object ONTTextRenderer {
         typo: ONTTypography,
         inGloss: Boolean,
         onTerme: ((String) -> Unit)?,
+        onShem: ((String) -> Unit)?,
         /**
          * La teinte d'une accentuation englobante, s'il y en a une.
          *
@@ -287,6 +293,35 @@ public object ONTTextRenderer {
                     }
                 }
 
+                is Inline.Shem -> {
+                    // Même règle que l'intraduisible dans une glose : le Shem
+                    // garde sa terre brûlée et prend la taille du niveau 2.
+                    val style = if (inGloss) {
+                        typo.shem.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.shem
+                    }
+                    if (onShem == null) {
+                        withStyle(style) { append(node.value) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "$TAG_SHEM/${node.lemma}",
+                                // Sans soulignement, pour la même raison que
+                                // l'intraduisible : la teinte dit déjà la
+                                // couche, et un trait de plus ferait ressembler
+                                // le corps de la traduction à une page web.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { onShem(node.lemma) },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.value) }
+                        }
+                    }
+                }
+
                 is Inline.Hebrew ->
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 
@@ -300,7 +335,7 @@ public object ONTTextRenderer {
 
                 is Inline.Gloss -> {
                     withStyle(typo.apparatus) { append("[") }
-                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, accentuation = accentuation)
+                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, onShem = onShem, accentuation = accentuation)
                     withStyle(typo.apparatus) { append("]") }
                 }
 
@@ -317,17 +352,18 @@ public object ONTTextRenderer {
                         typo,
                         inGloss,
                         onTerme,
+                        onShem,
                         accentuation = ONTColors.accentuation(typo.theme),
                     )
 
                 is Inline.Emphasis ->
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                        ajouter(node.children, typo, inGloss, onTerme, accentuation)
+                        ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
                     }
 
                 // Le lien du vault ne mène nulle part dans la liseuse : on en
                 // garde le texte, pas la cible.
-                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, accentuation)
+                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
 
                 Inline.LineBreak -> append("\n")
             }

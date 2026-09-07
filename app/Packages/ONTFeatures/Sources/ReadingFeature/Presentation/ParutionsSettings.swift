@@ -73,6 +73,7 @@ public struct ParutionsSettings: View {
                         + "seulement à l'ouverture de l'app, ou lorsque iOS "
                         + "la réveille."
                 )
+                    .font(ONTUI.piedDeListe)
             }
             .ontRow()
 
@@ -80,8 +81,9 @@ public struct ParutionsSettings: View {
                 RecoursNotificationsRefusees()
             }
         }
+        .ontFormulaire()
         .navigationTitle("Parutions")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontRow()
         .ontScreen()
     }
@@ -104,10 +106,11 @@ struct RecoursNotificationsRefusees: View {
                     "Les notifications sont refusées pour La Bible ONT. "
                         + "Elles s'autorisent dans Réglages › Notifications."
                 )
+                    .font(ONTUI.ligneDeListe)
             } icon: {
                 Image(systemName: "bell.slash")
             }
-            .font(.footnote)
+            .font(ONTUI.footnote)
             .foregroundStyle(theme.ink.opacity(0.7))
         }
         .ontRow()

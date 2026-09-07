@@ -29,7 +29,17 @@ public final class AccountModel {
     private let positions: any PositionRepository
     private let profils: any ProfilRepository
     private let flow: SignInFlow
+    /// `nil` sur un montage qui ne négocie pas — les épreuves, et tout appelant
+    /// d'avant cette négociation. L'offre reste alors inconnue, donc permissive.
+    private let capacitesService: (any CapacitesService)?
     private let reporter: any Reporter
+
+    /// Ce que le serveur annonce savoir faire.
+    ///
+    /// Inconnue tant qu'on n'a pas pu demander — et **inconnue ne retire
+    /// rien** : hors ligne, ou branché sur un serveur d'avant la route, le
+    /// lecteur garde tous ses boutons. Voir [`Offre`].
+    public private(set) var capacites: Offre = .inconnue
 
     public private(set) var state: State = .signedOut
     public private(set) var lastSync: Date?
@@ -72,6 +82,14 @@ public final class AccountModel {
     /// propriété laisserait croire qu'elle ne coûte rien.
     public func portrait() -> Data? { profils.portrait() }
 
+    /// La session ouverte, pour ce que l'écran a besoin d'en dire — par quoi
+    /// on s'est connecté, et sous quelle adresse.
+    ///
+    /// **En lecture seule.** Une vue n'a aucune raison d'écrire une session, et
+    /// l'exposer autrement rendrait possible d'en poser une sans passer par la
+    /// connexion.
+    public var session: Session? { store.session }
+
     /// Enregistre un portrait et l'attache au profil.
     public func poserLePortrait(_ donnees: Data) {
         guard let nom = try? profils.enregistrerLePortrait(donnees) else { return }
@@ -95,6 +113,7 @@ public final class AccountModel {
         positions: any PositionRepository,
         profils: any ProfilRepository,
         flow: SignInFlow,
+        capacites capacitesService: (any CapacitesService)? = nil,
         reporter: any Reporter = SilentReporter()
     ) {
         self.auth = auth
@@ -104,9 +123,26 @@ public final class AccountModel {
         self.positions = positions
         self.profils = profils
         self.flow = flow
+        self.capacitesService = capacitesService
         self.reporter = reporter
         profil = profils.profil
         state = store.session == nil ? .signedOut : .signedIn
+    }
+
+    /// Demander au serveur ce qu'il sait faire.
+    ///
+    /// **Ne lève jamais.** Un échec laisse l'offre inconnue, ce qui rend à
+    /// l'app son comportement d'avant la négociation : tout est proposé. C'est
+    /// délibéré — une négociation qui casserait la connexion quand elle échoue
+    /// serait pire que pas de négociation du tout.
+    ///
+    /// Rien n'est remonté non plus : un serveur d'avant cette route rend `404`,
+    /// et c'est un état normal pendant toute la fenêtre où l'app est en avance
+    /// sur lui. Le signaler noierait les vraies pannes.
+    public func negocier() async {
+        guard let capacitesService else { return }
+        guard let offertes = try? await capacitesService.offertes() else { return }
+        capacites = Offre(offertes)
     }
 
     // MARK: - Connexion
@@ -122,6 +158,7 @@ public final class AccountModel {
                 verifier: grant.verifier
             )
             store.session = session
+            amorcerLeProfil(depuis: grant)
             state = .signedIn
         } catch AccountError.cancelled {
             // Annuler n'est pas une erreur.
@@ -137,6 +174,60 @@ public final class AccountModel {
             let lisible = AccountError.lisible(error, for: provider)
             state = .failed(lisible.localizedDescription)
         }
+    }
+
+    /// Pose le nom qu'Apple vient de confier, **et seulement s'il y a la place**.
+    ///
+    /// ## Pourquoi le client s'en charge pour Apple seul
+    ///
+    /// Google et GitHub disent le nom au serveur, qui amorce le profil
+    /// lui-même. Apple ne le dit **qu'au client**, et **qu'à la toute première
+    /// autorisation** : il accompagne l'autorisation, pas l'`id_token`, et une
+    /// seconde connexion ne le redonne à personne — pas même après une
+    /// désinstallation. Si on ne l'écrit pas ici, il est perdu pour toujours.
+    ///
+    /// ## Une seule garde, et pourquoi la seconde serait de trop
+    ///
+    /// On n'écrit que dans un champ **vide**. J'avais d'abord ajouté « et
+    /// seulement si le compte est neuf » — `created`, que le serveur rend. Deux
+    /// raisons de l'avoir retiré :
+    ///
+    /// - **elle n'apporte rien.** Apple ne donne le nom qu'une fois dans la vie
+    ///   du couple app-lecteur. Recevoir un nom *est* la preuve qu'on est à
+    ///   cette première fois ;
+    /// - **elle coûtait un champ transitoire sur `Session`**, qui est persistée.
+    ///   Un drapeau vrai une seconde puis relu faux à chaque lancement est un
+    ///   piège qu'on se tend.
+    ///
+    /// La garde du champ vide, elle, est indispensable et le reste : entre la
+    /// création du compte et cet instant, la synchronisation a pu descendre un
+    /// profil écrit sur un autre appareil. On n'écrase donc jamais rien —
+    /// d'autant que le nom d'Apple est souvent celui de la fiche du système,
+    /// que le lecteur n'a pas choisi pour cette app.
+    /// Interne et non privée : `SignInFlow` est un type concret qui parle à
+    /// `ASAuthorizationController`, donc on ne peut pas lui faire rendre un
+    /// accord d'Apple depuis une épreuve. C'est ce geste-ci qu'on éprouve, et
+    /// il est celui qui peut effacer le nom d'un lecteur.
+    func amorcerLeProfil(depuis grant: AuthorizationGrant) {
+        guard grant.prenom != nil || grant.nom != nil else { return }
+
+        var neuf = profil
+        var change = false
+        if let prenom = grant.prenom, neuf.prenom.isEmpty {
+            neuf.prenom = prenom
+            change = true
+        }
+        if let nom = grant.nom, neuf.nom.isEmpty {
+            neuf.nom = nom
+            change = true
+        }
+        guard change else { return }
+
+        // La date suit l'écriture, comme partout ailleurs : c'est elle qui
+        // arbitre entre deux appareils, et un profil modifié sans elle perdrait
+        // sa fusion au prochain échange.
+        neuf.updatedAt = Date()
+        profil = neuf
     }
 
     /// Déconnecte l'appareil.

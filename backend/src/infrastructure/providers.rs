@@ -65,12 +65,19 @@ struct TokenResponse {
 struct GoogleUser {
     sub: String,
     email: Option<String>,
+    /// Google sépare les deux, ce qui nous épargne de deviner où couper.
+    given_name: Option<String>,
+    family_name: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct GithubUser {
     id: u64,
     email: Option<String>,
+    /// GitHub ne rend qu'une chaîne, et n'a aucune idée de ce qui est le
+    /// prénom — voir `couper_le_nom`.
+    name: Option<String>,
+    bio: Option<String>,
 }
 
 /// Les revendications d'un `id_token` Apple.
@@ -78,6 +85,48 @@ struct GithubUser {
 struct AppleClaims {
     sub: String,
     email: Option<String>,
+}
+
+/// Une chaîne vide vaut « rien dit ».
+///
+/// GitHub rend `""` pour une biographie jamais remplie, là où Google omet le
+/// champ. Sans cette réduction, un compte GitHub arriverait avec une biographie
+/// vide *présente*, qui écraserait celle que le lecteur aurait écrite ailleurs
+/// — la fusion de profils arbitre sur la date, pas sur le contenu.
+fn vide_en_none(valeur: Option<String>) -> Option<String> {
+    valeur.filter(|texte| !texte.trim().is_empty())
+}
+
+/// Coupe le nom entier de GitHub en prénom et nom.
+///
+/// **La coupe est une convention, pas une vérité.** GitHub ne rend qu'une
+/// chaîne libre — « Gloire Bikouta », « bikouta », « G. Bikouta », ou un pseudo
+/// sans rapport. On coupe à la **première** espace : le premier mot au prénom,
+/// tout le reste au nom, ce qui traite correctement « Marie-Claire de la
+/// Fontaine » là où couper à la dernière espace l'aurait défiguré.
+///
+/// Un seul mot part en prénom et laisse le nom vide. C'est le bon défaut : un
+/// écran qui affiche « prénom nom » rendra ce mot-là, et le lecteur
+/// corrigera s'il le souhaite. Le mettre au nom rendrait un affichage qui
+/// commence par une espace.
+fn couper_le_nom(entier: Option<&str>) -> (Option<String>, Option<String>) {
+    let Some(entier) = entier.map(str::trim).filter(|texte| !texte.is_empty()) else {
+        return (None, None);
+    };
+    match entier.split_once(char::is_whitespace) {
+        Some((premier, reste)) => {
+            let reste = reste.trim();
+            (
+                Some(premier.to_string()),
+                if reste.is_empty() {
+                    None
+                } else {
+                    Some(reste.to_string())
+                },
+            )
+        }
+        None => (Some(entier.to_string()), None),
+    }
 }
 
 #[async_trait]
@@ -125,6 +174,26 @@ impl HttpIdentityProvider {
             .map_err(|_| DomainError::ProviderRejected)
     }
 
+    /// Quels identifiants GitHub servent, selon d'où vient le code.
+    ///
+    /// Une fonction à part pour qu'on puisse l'éprouver **sans réseau** : le
+    /// choix est ce qui a été faux, et l'échange lui-même n'apprend rien de
+    /// plus. Une épreuve qui appelle GitHub pour vérifier quel identifiant on
+    /// lui présente mesure la connexion au moins autant que le code.
+    fn identifiants_github(
+        &self,
+        origine: Origine,
+    ) -> Option<&crate::infrastructure::config::OAuthCredentials> {
+        match origine {
+            Origine::App => self.config.github.as_ref(),
+            Origine::Webapp => self
+                .config
+                .github_web
+                .as_ref()
+                .or(self.config.github.as_ref()),
+        }
+    }
+
     async fn github(
         &self,
         origine: Origine,
@@ -132,14 +201,30 @@ impl HttpIdentityProvider {
         redirect_uri: &str,
         verifier: Option<&str>,
     ) -> Result<ExternalIdentity, DomainError> {
-        // Deux **applications** distinctes, pas deux identifiants de la même :
-        // le portail de GitHub n'admet qu'une adresse de retour par
-        // application, et celle de l'app la prend.
-        let credentials = match origine {
-            Origine::App => self.config.github.as_ref(),
-            Origine::Webapp => self.config.github_web.as_ref(),
-        }
-        .ok_or(DomainError::ProviderNotConfigured)?;
+        // **Une seconde application GitHub est possible, elle n'est pas
+        // nécessaire.**
+        //
+        // Ce code exigeait `github_web`, sur une prémisse écrite ici même : « le
+        // portail de GitHub n'admet qu'une adresse de retour par application ».
+        // C'est faux. Le champ s'appelle « Authorization callback URLs », au
+        // pluriel, et porte un bouton « Add more ». La session du site l'a
+        // relevé sur le portail ; la rectification n'était jamais arrivée
+        // jusqu'ici, où la contrainte avait déjà servi de fondation.
+        //
+        // Le site tombait donc sur un 503 « fournisseur non configuré » pour un
+        // secret que personne n'avait de raison de créer — et le lecteur, lui,
+        // partait chez GitHub, autorisait, revenait, et se trouvait devant une
+        // erreur où il ne pouvait rien faire.
+        //
+        // On garde le champ et l'on perd l'obligation : `github_web` sert s'il
+        // est posé — quotas séparés, marque séparée le jour venu —, et l'on
+        // retombe sur l'application unique sinon. Ce qui reste vrai des deux
+        // côtés, c'est que l'adresse de retour du site doit figurer dans la
+        // liste de l'application employée : GitHub compare, et refuse ce qu'il
+        // ne connaît pas.
+        let credentials = self
+            .identifiants_github(origine)
+            .ok_or(DomainError::ProviderNotConfigured)?;
 
         let mut form: Vec<(&str, &str)> = vec![
             ("client_id", credentials.client_id.as_str()),
@@ -168,10 +253,14 @@ impl HttpIdentityProvider {
             .await
             .map_err(|_| DomainError::ProviderRejected)?;
 
+        let (prenom, nom) = couper_le_nom(user.name.as_deref());
         Ok(ExternalIdentity {
             provider: Provider::Github,
             subject: user.id.to_string(),
             email: user.email,
+            prenom,
+            nom,
+            bio: vide_en_none(user.bio),
         })
     }
 
@@ -219,6 +308,11 @@ impl HttpIdentityProvider {
             provider: Provider::Google,
             subject: user.sub,
             email: user.email,
+            prenom: vide_en_none(user.given_name),
+            nom: vide_en_none(user.family_name),
+            // Google n'a pas de biographie à donner : son `userinfo` n'en
+            // porte pas. Ne rien rendre plutôt que d'inventer un équivalent.
+            bio: None,
         })
     }
 
@@ -277,10 +371,21 @@ impl HttpIdentityProvider {
         // (Ce raccourci serait faux si le jeton nous arrivait du client.)
         let claims = decode_jwt_claims::<AppleClaims>(&id_token)?;
 
+        // **Apple ne donne le nom qu'au client, et qu'une fois.**
+        //
+        // Il accompagne l'autorisation, pas l'`id_token` : le serveur ne le
+        // voit jamais, et une seconde connexion ne le redonne à personne. C'est
+        // donc au client de le retenir et de le poser lui-même dans le profil.
+        //
+        // Rendre `None` ici n'est pas un manque à combler plus tard : c'est
+        // l'état exact de ce que le serveur sait.
         Ok(ExternalIdentity {
             provider: Provider::Apple,
             subject: claims.sub,
             email: claims.email,
+            prenom: None,
+            nom: None,
+            bio: None,
         })
     }
 }
@@ -441,34 +546,135 @@ mod tests {
         }
     }
 
-    /// **Configuré pour l'app ne veut pas dire configuré pour le site.**
+    /// **Apple : configuré pour l'app ne veut pas dire configuré pour le site.**
     ///
-    /// Sans ce partage, le site présenterait l'App ID d'Apple ou l'application
-    /// GitHub de l'app, et recevrait un `invalid_grant` — une erreur de
-    /// fournisseur pour une clé qu'on n'a simplement pas encore créée. Il
-    /// chercherait la faute chez lui, et elle serait chez nous.
+    /// Sans ce partage, le site présenterait l'App ID d'Apple et recevrait un
+    /// `invalid_grant` — une erreur de fournisseur pour une clé qu'on n'a
+    /// simplement pas encore créée. Il chercherait la faute chez lui, et elle
+    /// serait chez nous.
     ///
     /// Le réseau n'est pas atteint : la vérification précède l'appel.
     #[tokio::test]
-    async fn le_site_se_dit_non_configure_tant_que_ses_identites_manquent() {
+    async fn apple_se_dit_non_configure_tant_que_le_services_id_manque() {
         let providers = HttpIdentityProvider::new(seulement_l_app());
 
-        for fournisseur in [Provider::Apple, Provider::Github] {
-            let erreur = providers
-                .exchange(
-                    fournisseur,
-                    Origine::Webapp,
-                    "un-code",
-                    "https://ontbible.com/fr/compte/retour",
-                    None,
-                )
-                .await
-                .expect_err("le site n'a pas encore d'identité chez ce fournisseur");
+        let erreur = providers
+            .exchange(
+                Provider::Apple,
+                Origine::Webapp,
+                "un-code",
+                "https://ontbible.com/fr/compte/retour",
+                None,
+            )
+            .await
+            .expect_err("le site n'a pas encore d'identité chez Apple");
 
-            assert!(
-                matches!(erreur, DomainError::ProviderNotConfigured),
-                "{fournisseur:?} devrait dire au site qu'il n'est pas configuré : {erreur:?}",
-            );
-        }
+        assert!(
+            matches!(erreur, DomainError::ProviderNotConfigured),
+            "Apple devrait dire au site qu'il n'est pas configuré : {erreur:?}",
+        );
+    }
+
+    /// **GitHub, lui, n'a pas besoin d'une seconde identité.**
+    ///
+    /// Le contraire était écrit ici et reposait sur une inexactitude : le
+    /// portail admet plusieurs adresses de retour par application. Le site
+    /// tombait donc sur un 503 pour un secret que personne n'avait de raison de
+    /// créer.
+    #[test]
+    fn le_site_emploie_l_application_de_l_app_a_defaut_de_la_sienne() {
+        let providers = HttpIdentityProvider::new(seulement_l_app());
+
+        let choisis = providers
+            .identifiants_github(Origine::Webapp)
+            .expect("le site retombe sur l'application de l'app");
+        assert_eq!(choisis.client_id, "app");
+    }
+
+    /// Et quand la seconde application existe, c'est elle qui sert : le repli
+    /// ne doit pas devenir un plafond.
+    #[test]
+    fn une_seconde_application_github_reste_prioritaire_pour_le_site() {
+        let config = Config {
+            github_web: Some(crate::infrastructure::config::OAuthCredentials {
+                client_id: "site".into(),
+                client_secret: "secret-du-site".into(),
+            }),
+            ..seulement_l_app()
+        };
+        let providers = HttpIdentityProvider::new(config);
+
+        assert_eq!(
+            providers
+                .identifiants_github(Origine::Webapp)
+                .unwrap()
+                .client_id,
+            "site"
+        );
+        assert_eq!(
+            providers
+                .identifiants_github(Origine::App)
+                .unwrap()
+                .client_id,
+            "app"
+        );
+    }
+
+    /// Un déploiement sans aucun identifiant GitHub le dit encore.
+    #[test]
+    fn sans_application_github_le_site_n_a_rien_a_presenter() {
+        let providers = HttpIdentityProvider::new(sans_identifiants());
+        assert!(providers.identifiants_github(Origine::Webapp).is_none());
+        assert!(providers.identifiants_github(Origine::App).is_none());
+    }
+
+    /// **La coupe du nom de GitHub est une convention, et elle a des bords.**
+    ///
+    /// GitHub ne rend qu'une chaîne libre. On coupe à la **première** espace,
+    /// ce qui traite correctement les noms composés — couper à la dernière
+    /// aurait mis « Marie-Claire de la » au prénom.
+    #[test]
+    fn le_nom_entier_se_coupe_a_la_premiere_espace() {
+        assert_eq!(
+            couper_le_nom(Some("Gloire Bikouta")),
+            (Some("Gloire".into()), Some("Bikouta".into()))
+        );
+        assert_eq!(
+            couper_le_nom(Some("Marie-Claire de la Fontaine")),
+            (Some("Marie-Claire".into()), Some("de la Fontaine".into()))
+        );
+    }
+
+    /// Un seul mot part au **prénom**, pas au nom.
+    ///
+    /// Un écran qui compose « prénom nom » rendra ce mot-là. Le mettre au nom
+    /// produirait un affichage qui commence par une espace.
+    #[test]
+    fn un_seul_mot_est_un_prenom() {
+        assert_eq!(
+            couper_le_nom(Some("bikouta")),
+            (Some("bikouta".into()), None)
+        );
+    }
+
+    /// Rien dit reste rien dit — y compris quand GitHub dit `""`.
+    #[test]
+    fn le_vide_ne_devient_pas_un_nom() {
+        assert_eq!(couper_le_nom(None), (None, None));
+        assert_eq!(couper_le_nom(Some("")), (None, None));
+        assert_eq!(couper_le_nom(Some("   ")), (None, None));
+    }
+
+    /// **Une chaîne vide n'est pas une valeur.**
+    ///
+    /// GitHub rend `""` pour une biographie jamais remplie, là où Google omet
+    /// le champ. Sans cette réduction, un compte GitHub arriverait avec une
+    /// biographie vide *présente*, qui écraserait celle écrite ailleurs — la
+    /// fusion arbitre sur la date, pas sur le contenu.
+    #[test]
+    fn une_chaine_vide_vaut_rien_dit() {
+        assert_eq!(vide_en_none(Some(String::new())), None);
+        assert_eq!(vide_en_none(Some("  \n ".into())), None);
+        assert_eq!(vide_en_none(Some("lecteur".into())), Some("lecteur".into()));
     }
 }

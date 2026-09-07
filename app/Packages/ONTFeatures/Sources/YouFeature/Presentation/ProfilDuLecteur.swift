@@ -27,13 +27,13 @@ struct EnTeteDuProfil: View {
                 VStack(alignment: .leading, spacing: 3) {
                     if let nom = account.profil.nomAffiche {
                         Text(nom)
-                            .font(.headline)
+                            .font(ONTUI.headline)
                             .foregroundStyle(theme.ink)
                     } else {
                         // **Pas un espace réservé vide.** Un nom manquant est
                         // une invitation, pas un défaut d'affichage.
                         Text("Ajouter votre nom")
-                            .font(.headline)
+                            .font(ONTUI.headline)
                             .foregroundStyle(theme.accent)
                     }
 
@@ -42,14 +42,43 @@ struct EnTeteDuProfil: View {
                     // est un.
                     if let arobase = account.profil.arobase {
                         Text(arobase)
-                            .font(.subheadline)
+                            .font(ONTUI.subheadline)
                             .foregroundStyle(theme.accent)
+                    }
+
+                    // **Par quoi on s'est connecté**, dit par son logo.
+                    //
+                    // Sur la même ligne que l'adresse et non au-dessus : c'est
+                    // une **qualification** de cette adresse — celle-ci vient
+                    // d'Apple —, pas un renseignement de plus. Séparés, ils se
+                    // liraient comme deux faits sans rapport.
+                    if let session = account.session {
+                        HStack(spacing: 5) {
+                            if let fournisseur = session.provider {
+                                Image(systemName: logo(fournisseur))
+                                    .font(ONTUI.caption2)
+                                    .accessibilityLabel("Connecté avec \(fournisseur.label)")
+                            }
+                            if let adresse = session.email {
+                                Text(adresse)
+                                    .font(ONTUI.ligneDeListe)
+                            } else if let fournisseur = session.provider {
+                                // L'adresse n'arrive qu'avec le serveur
+                                // déployé. Le nom du fournisseur tient lieu
+                                // d'information en attendant — il est vrai, et
+                                // c'est ce que la question demandait.
+                                Text(fournisseur.label)
+                                    .font(ONTUI.ligneDeListe)
+                            }
+                        }
+                        .font(ONTUI.caption)
+                        .foregroundStyle(.secondary)
                     }
 
                     let bio = account.profil.bio.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !bio.isEmpty {
                         Text(bio)
-                            .font(.footnote)
+                            .font(ONTUI.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
@@ -62,17 +91,41 @@ struct EnTeteDuProfil: View {
     }
 }
 
+/// Le glyphe du fournisseur.
+///
+/// Les symboles du système plutôt que des logos de marque : Apple interdit de
+/// redessiner le sien, et embarquer trois images pour trois glyphes qui
+/// existent déjà coûterait la moitié d'un mégaoctet et une revue de licence.
+private func logo(_ provider: AuthProvider) -> String {
+    switch provider {
+    case .apple: "apple.logo"
+    case .google: "g.circle.fill"
+    case .github: "chevron.left.forwardslash.chevron.right"
+    }
+}
+
 /// Le portrait, ou ce qui en tient lieu.
-private struct Portrait: View {
+///
+/// **Public parce qu'il paraît maintenant hors du compte** : en bas de la barre
+/// latérale de l'iPad, et dans l'onglet de l'iPhone. Le trois-temps — la photo,
+/// les initiales, la silhouette — doit être le même partout, sinon le lecteur
+/// se voit d'une façon dans un écran et d'une autre ailleurs.
+public struct Portrait: View {
     @Environment(\.ontTheme) private var theme
     let profil: Profil
     let octets: Data?
     var taille: CGFloat = 56
 
-    var body: some View {
+    public init(profil: Profil, octets: Data?, taille: CGFloat = 56) {
+        self.profil = profil
+        self.octets = octets
+        self.taille = taille
+    }
+
+    public var body: some View {
         Group {
-            if let octets, let image = UIImage(data: octets) {
-                Image(uiImage: image)
+            if let octets, let image = ONTImage(data: octets) {
+                Image(ontImage: image)
                     .resizable()
                     .scaledToFill()
             } else if !profil.initiales.isEmpty {
@@ -136,13 +189,13 @@ struct EditeurDuProfil: View {
                             HStack(spacing: 18) {
                                 PhotosPicker(selection: $choix, matching: .images) {
                                     Label("Photothèque", systemImage: "photo.on.rectangle")
-                                        .font(.footnote)
+                                        .font(ONTUI.footnote)
                                 }
                                 Button {
                                     parcourtLesFichiers = true
                                 } label: {
                                     Label("Fichiers", systemImage: "folder")
-                                        .font(.footnote)
+                                        .font(ONTUI.footnote)
                                 }
                             }
                         }
@@ -150,11 +203,11 @@ struct EditeurDuProfil: View {
                             Button("Retirer", role: .destructive) {
                                 account.profil.portrait = nil
                             }
-                            .font(.footnote)
+                            .font(ONTUI.footnote)
                         }
                         if let refus {
                             Text(refus)
-                                .font(.caption)
+                                .font(ONTUI.caption)
                                 .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
                         }
@@ -173,8 +226,9 @@ struct EditeurDuProfil: View {
                     Text("@")
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
+                        .font(ONTUI.ligneDeListe)
                     TextField("nomdusage", text: $account.profil.nomDUsage)
-                        .textInputAutocapitalization(.never)
+                        .ontSansCapitaleAutomatique()
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("profil.nomDUsage")
                         .accessibilityLabel("Nom d'usage")
@@ -190,18 +244,21 @@ struct EditeurDuProfil: View {
                 }
             } header: {
                 Text("Nom d'usage")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 // Le reproche ne paraît que s'il y a quelque chose à reprocher,
                 // et il nomme ce qui manque — jamais la règle entière.
                 if let reproche = NomDUsage.reproche(account.profil.nomDUsage) {
                     Text(reproche).foregroundStyle(.red)
+                        .font(ONTUI.piedDeListe)
                 } else {
                     Text("Ce par quoi les autres lecteurs vous nommeront, au Qahal.")
+                        .font(ONTUI.piedDeListe)
                 }
             }
             .ontRow()
 
-            Section("Nom") {
+            Section(header: Text("Nom").font(ONTUI.enteteDeListe)) {
                 // **Un identifiant stable, et non l'invite.**
                 //
                 // L'invite disparaît dès que le champ est rempli : un relevé
@@ -231,9 +288,10 @@ struct EditeurDuProfil: View {
                     }
             } header: {
                 Text("Bio")
+                    .font(ONTUI.enteteDeListe)
             } footer: {
                 Text("\(account.profil.bio.count) / \(bornDeLaBio)")
-                    .font(.caption2.monospacedDigit())
+                    .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
             .ontRow()
@@ -247,8 +305,9 @@ struct EditeurDuProfil: View {
                             + "votre compte, et deviendront votre profil le jour où le "
                             + "Qahal — le rassemblement des lecteurs — ouvrira."
                     )
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
+                        .font(ONTUI.ligneDeListe)
                 } icon: {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(theme.accent)
@@ -256,8 +315,9 @@ struct EditeurDuProfil: View {
             }
             .ontRow()
         }
+        .ontFormulaire()
         .navigationTitle("Profil")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .ontScreen()
         .task(id: choix) { await recevoirLaPhoto() }
         .fileImporter(
@@ -282,7 +342,7 @@ struct EditeurDuProfil: View {
         let ouvert = url.startAccessingSecurityScopedResource()
         defer { if ouvert { url.stopAccessingSecurityScopedResource() } }
 
-        guard let brut = try? Data(contentsOf: url), let image = UIImage(data: brut) else {
+        guard let brut = try? Data(contentsOf: url), let image = ONTImage(data: brut) else {
             refus = "Ce fichier n'est pas une image lisible."
             return
         }
@@ -296,20 +356,20 @@ struct EditeurDuProfil: View {
         defer { chargeLaPhoto = false }
 
         guard let brut = try? await choix.loadTransferable(type: Data.self),
-            let image = UIImage(data: brut)
+            let image = ONTImage(data: brut)
         else { return }
         poser(image)
     }
 
-    private func poser(_ image: UIImage) {
+    private func poser(_ image: ONTImage) {
 
         // **On réduit avant d'écrire.** Une photo d'appareil moderne fait
         // plusieurs mégaoctets ; on en affiche un rond de 96 points. Garder
         // l'original coûterait le stockage du lecteur pour un détail que
         // personne ne verra jamais — et le ferait monter tel quel à la
         // synchronisation.
-        guard let reduite = image.reduite(a: 512),
-            let jpeg = reduite.sousLaBorne(ONTPortrait.borne)
+        guard let reduite = image.ontReduite(a: 512),
+            let jpeg = reduite.ontSousLaBorne(ONTPortrait.borne)
         else {
             refus = "Cette image n'a pas pu être préparée."
             return
@@ -327,40 +387,4 @@ enum ONTPortrait {
     /// s'arrête donc à 110 Kio de JPEG. Écrire la borne du serveur ici sans
     /// compter cette inflation ferait refuser des images qui paraissent tenir.
     static let borne = 100 * 1024
-}
-
-extension UIImage {
-    /// Encode en JPEG sous une borne, en baissant la qualité s'il le faut.
-    ///
-    /// On ne réduit **pas** les dimensions une seconde fois : elles ont déjà
-    /// été choisies pour l'affichage, et les rogner encore rendrait le portrait
-    /// flou sur les écrans à trois points par pixel. C'est la qualité qui cède,
-    /// parce qu'un portrait de 96 points la pardonne.
-    func sousLaBorne(_ borne: Int) -> Data? {
-        for qualite in stride(from: 0.85, through: 0.35, by: -0.1) {
-            guard let donnees = jpegData(compressionQuality: qualite) else { continue }
-            if donnees.count <= borne { return donnees }
-        }
-        // Une image qui résiste à 0,35 est pathologique — un bruit de fond
-        // photographique, que le JPEG ne sait pas compresser. On la réduit
-        // alors vraiment, plutôt que de la refuser.
-        return reduite(a: 256)?.jpegData(compressionQuality: 0.6)
-    }
-
-    /// Réduit l'image pour que son plus grand côté tienne dans `cote`.
-    ///
-    /// Rend `self` quand elle est déjà assez petite : réencoder une image qui
-    /// n'en a pas besoin lui coûte une génération de qualité pour rien.
-    func reduite(a cote: CGFloat) -> UIImage? {
-        let plusGrand = max(size.width, size.height)
-        guard plusGrand > cote else { return self }
-
-        let facteur = cote / plusGrand
-        let cible = CGSize(width: size.width * facteur, height: size.height * facteur)
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: cible, format: format).image { _ in
-            draw(in: CGRect(origin: .zero, size: cible))
-        }
-    }
 }

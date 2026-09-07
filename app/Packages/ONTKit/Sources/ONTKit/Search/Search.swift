@@ -57,7 +57,27 @@ public struct SearchHit: Identifiable, Hashable, Sendable {
     public let snippet: String
     public let range: Range<String.Index>?
 
-    public var id: String { "\(record.c)-\(record.v)-\(level.rawValue)" }
+    /// L'identité d'un résultat.
+    ///
+    /// **Le rang du verset ne suffit pas à distinguer deux enregistrements.**
+    /// Les intertitres portent tous `v = 0` : `bereshit-15` en compte quatre,
+    /// dont deux contiennent « alliance ». Sans le texte, deux résultats bien
+    /// distincts partageaient le même identifiant.
+    ///
+    /// Ce que ça produisait diffère selon la plateforme, et c'est ce qui l'a
+    /// rendu invisible ici : **Compose lève** — `Key was already used` —, là où
+    /// SwiftUI écrit un avertissement en console et continue. Un `ForEach` aux
+    /// identifiants doublés peut alors réutiliser la mauvaise vue ou garder
+    /// l'état d'une ligne sur une autre : ça ne ressemble pas à une panne, ça
+    /// ressemble à un résultat qui clignote.
+    ///
+    /// Le texte plié plutôt qu'un rang d'itération : il est **stable d'une
+    /// recherche à l'autre**, là où un compteur dépendrait de l'ordre de
+    /// parcours. Un identifiant qui change entre deux rendus de la même
+    /// requête défait les animations qu'il sert à tenir.
+    public var id: String {
+        "\(record.c)-\(record.v)-\(level.rawValue)-\(record.t)"
+    }
 }
 
 /// Le moteur de recherche.

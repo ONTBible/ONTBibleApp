@@ -1,15 +1,17 @@
 //! Les cas d'usage — la logique, sans axum ni AWS.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use time::OffsetDateTime;
 
+use crate::domain::capacites::Capacite;
 use crate::domain::ports::{
     AppareilRepository, Clock, IdentityProvider, Notificateur, SyncRepository, UserRepository,
 };
-use crate::domain::sync::{resolve, PullResponse, PushRequest};
+use crate::domain::sync::{resolve, ProfilLecteur, PullResponse, PushRequest};
 use crate::domain::token::{RefreshToken, TokenIssuer, UserId, REFRESH_TTL};
-use crate::domain::{DomainError, Origine, Provider};
+use crate::domain::{DomainError, ExternalIdentity, Origine, Provider};
 
 /// Ce qu'une connexion réussie rend au client.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -21,6 +23,17 @@ pub struct Session {
     /// Vrai si le compte vient d'être créé — le client peut alors proposer
     /// de téléverser les annotations déjà prises hors ligne.
     pub created: bool,
+    /// L'adresse rendue par le fournisseur, quand il en donne une.
+    ///
+    /// **On la rend, on ne la garde pas.** Le compte est identifié par le
+    /// `subject` du fournisseur, jamais par l'adresse : celle-ci change, se
+    /// masque — Apple propose un relais —, et n'a de valeur que pour dire au
+    /// lecteur *sous quel compte il est connecté*.
+    ///
+    /// Absente au rafraîchissement, où l'on n'a pas réinterrogé le
+    /// fournisseur. Le client conserve alors celle qu'il avait.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 #[derive(Clone)]
@@ -37,6 +50,12 @@ pub struct App {
     pub sync: Arc<dyn SyncRepository>,
     pub tokens: TokenIssuer,
     pub clock: Arc<dyn Clock>,
+    /// Ce que **ce** déploiement offre, calculé une fois au démarrage.
+    ///
+    /// Ici plutôt que recalculé à chaque requête : la configuration ne change
+    /// pas pendant la vie du processus, et une valeur figée est une valeur
+    /// qu'on peut comparer d'un appel à l'autre.
+    pub capacites: BTreeSet<Capacite>,
 }
 
 impl App {
@@ -64,7 +83,53 @@ impl App {
             None => (self.users.create(&identity).await?, true),
         };
 
-        self.open_session(user, created).await
+        if created {
+            self.amorcer_le_profil(&user, &identity).await;
+        }
+
+        self.open_session(user, created, identity.email).await
+    }
+
+    /// Pose ce que le fournisseur sait du lecteur, **à la création seulement**.
+    ///
+    /// ## Pourquoi seulement à la création
+    ///
+    /// Le profil appartient au lecteur dès qu'il existe. Le réécrire à chaque
+    /// connexion écraserait le nom qu'il aurait corrigé chez nous par celui de
+    /// son compte GitHub, et il verrait sa correction se défaire sans
+    /// comprendre — une fois par connexion, sur chacun de ses appareils.
+    ///
+    /// ## Pourquoi ça n'échoue pas la connexion
+    ///
+    /// Un profil non amorcé est un profil vide, et un profil vide est un état
+    /// parfaitement valide — c'est celui de tout compte créé avant aujourd'hui.
+    /// Refuser la connexion pour ça reviendrait à interdire de lire parce qu'on
+    /// n'a pas su écrire un prénom.
+    ///
+    /// L'échec est donc avalé, et c'est l'un des rares endroits où c'est juste :
+    /// **ce qu'on tente est une amélioration, pas une étape.**
+    async fn amorcer_le_profil(&self, user: &UserId, identity: &ExternalIdentity) {
+        let prenom = identity.prenom.clone().unwrap_or_default();
+        let nom = identity.nom.clone().unwrap_or_default();
+        let bio = identity.bio.clone().unwrap_or_default();
+        if prenom.is_empty() && nom.is_empty() && bio.is_empty() {
+            return;
+        }
+
+        let profil = ProfilLecteur {
+            // **Le nom d'usage reste vide.** C'est le seul champ du profil qui
+            // soit un identifiant : c'est par lui qu'un lecteur en nommera un
+            // autre dans le Qahal. Le déduire du fournisseur poserait un
+            // pseudonyme que le lecteur n'a pas choisi, et qui pourrait déjà
+            // être pris.
+            nom_dusage: String::new(),
+            prenom,
+            nom,
+            bio,
+            portrait: None,
+            updated_at: self.clock.now().unix_timestamp(),
+        };
+        let _ = self.sync.set_profil(user, &profil).await;
     }
 
     /// Rafraîchissement : un jeton long contre une nouvelle paire.
@@ -75,10 +140,15 @@ impl App {
     pub async fn refresh(&self, token: &str) -> Result<Session, DomainError> {
         let digest = RefreshToken(token.to_string()).digest();
         let user = self.users.consume_refresh(&digest).await?;
-        self.open_session(user, false).await
+        self.open_session(user, false, None).await
     }
 
-    async fn open_session(&self, user: UserId, created: bool) -> Result<Session, DomainError> {
+    async fn open_session(
+        &self,
+        user: UserId,
+        created: bool,
+        email: Option<String>,
+    ) -> Result<Session, DomainError> {
         let now = self.clock.now();
 
         let access = self
@@ -97,6 +167,7 @@ impl App {
             refresh_token: refresh.0,
             expires_in: crate::domain::token::ACCESS_TTL.whole_seconds(),
             created,
+            email,
         })
     }
 
@@ -190,5 +261,11 @@ fn millis(time: OffsetDateTime) -> i64 {
     time.unix_timestamp() * 1_000 + i64::from(time.millisecond())
 }
 
+/// Les doublures de test, partagées.
+///
+/// `pub(crate)` sous `cfg(test)` : les épreuves de l'interface ont besoin des
+/// mêmes faux dépôts que celles de l'application. Les recopier là-bas aurait
+/// donné deux jeux à tenir à jour — exactement le défaut qu'on passe la journée
+/// à corriger ailleurs.
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

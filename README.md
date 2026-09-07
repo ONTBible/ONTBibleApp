@@ -1,8 +1,8 @@
-# La Bible ONT — l'app, le pipeline, le backend
+# La Bible ONT — le pipeline, les trois liseuses, le backend
 
-Trois pièces dans un dépôt, et elles ne se ressemblent pas : le **pipeline** qui
-transforme le vault de traduction en données, l'**app iOS** qui les lit, le
-**backend** qui synchronise ce que le lecteur y ajoute.
+Un dépôt, cinq pièces qui ne se ressemblent pas : le **pipeline** qui transforme
+le vault de traduction en données, **trois liseuses** qui les lisent — iOS,
+macOS, Android —, et le **backend** qui synchronise ce que le lecteur y ajoute.
 
 Dans l'esprit de YouVersion pour la lecture, de Bible Strong pour le lexique.
 
@@ -10,10 +10,13 @@ Dans l'esprit de YouVersion pour la lecture, de Bible Strong pour le lexique.
 ../ONTBibleTranslation      le vault — la traduction (dépôt voisin)
         │
         ▼
-   pipeline/     Rust        vault + CLAUDE.md → dist/*.json  +  les DTO Swift
+   pipeline/     Rust        vault + CLAUDE.md → dist/*.json
+        │                    + les DTO, engendrés en Swift et en Kotlin
         │
-        ├──▶  app/           l'app iOS — le corpus est embarqué au build,
+        ├──▶  app/           iOS et macOS — corpus embarqué au build,
         │                    puis recouvert par les mises à jour du réseau
+        │
+        ├──▶  android/       la même liseuse, les mêmes gardes
         │
         ├──▶  ../ONTBibleWebapp   le site, qui prend la caisse en dépendance
         │
@@ -22,9 +25,12 @@ Dans l'esprit de YouVersion pour la lecture, de Bible Strong pour le lexique.
 
 ```bash
 ./scripts/corpus.sh                       # vault → dist/ → ressources → projet Xcode
-cargo test --manifest-path pipeline/Cargo.toml     # 63 tests
-cargo test --manifest-path backend/Cargo.toml      # 25 tests, sans réseau ni AWS
+cargo test --manifest-path pipeline/Cargo.toml     # 124 tests
+cargo test --manifest-path backend/Cargo.toml      # 60 tests, sans réseau ni AWS
 ```
+
+Les autres suites, et pourquoi aucune ne se lance seule au nom des autres :
+voir **Les tests**.
 
 ---
 
@@ -52,6 +58,31 @@ identiques. Il a trouvé trois défauts que l'original portait en silence, dont
 une expression rationnelle globale dont le `lastIndex` persistait — l'hébreu de
 certaines définitions du lexique n'était pas isolé, donc rendu sans fonte
 hébraïque ni passage en RTL, dans l'app comme sur le site.
+
+
+## Installer la liseuse du Mac
+
+Par [Homebrew](https://brew.sh), sans passer par l'App Store :
+
+```sh
+brew install --cask ontbible/ont/la-bible-ont        # stable — l'état App Store
+brew install --cask ontbible/ont/la-bible-ont@beta   # bêta — l'état des testeurs invités
+```
+
+Deux casks, deux canaux — le motif de `firefox` / `firefox@beta` : l'étiquette
+`brew-vX.Y.Z` se pose sur `app-store`, `brew-beta-vX.Y.Z-N` sur `beta-test`,
+et chacune réécrit son cask. Les deux installent la même app ; on choisit l'un
+ou l'autre.
+
+Le cask vit dans [`ONTBible/homebrew-ont`](https://github.com/ONTBible/homebrew-ont)
+et se met à jour tout seul : chaque étiquette `brew-vX.Y.Z` de ce dépôt
+construit, signe (Developer ID), notarise et publie le zip, puis réécrit la
+version et le `sha256` du cask — voir `.github/workflows/cask.yml`. Cette voie
+ne consomme aucune place du quota App Store Connect.
+
+Deux écarts avec la version App Store, dits aussi par le cask : « Continuer
+avec Apple » et les notifications poussées demandent des droits réservés à
+l'App Store. Google et GitHub fonctionnent.
 
 ## Le schéma n'est plus décrit qu'à **un** endroit
 
@@ -198,9 +229,18 @@ ONTData          ONTDesignSystem      jetons, thème, composants, catalogue
    └────────┬─────────┘
             ▼
       ONTFeatures                     Qahal · Reading · Lexicon · Search · You
-            ▼
-      Sources/App                     assemblage, injection, routeur
+            │
+     ┌──────┴──────┐
+     ▼             ▼
+Sources/App   MacSources                assemblage, injection, routeur
+   iOS           macOS
 ```
+
+Les deux racines montent **les mêmes écrans** : `RacineMac` appelle `BibleTab`,
+`QahalTab`, `LexiconTab` comme le fait `RootView`. Ce qui diffère est la
+coquille — une `NavigationSplitView` et une barre latérale dessinée par nous
+d'un côté, une `TabView` du système de l'autre — et les gestes que chaque
+plateforme sait recevoir.
 
 **Les flèches ne remontent jamais**, et c'est le compilateur qui le fait
 respecter. `ONTKit` ne peut pas importer SwiftUI ; il ne sait rien d'AWS, du
@@ -209,15 +249,26 @@ convention qu'on oublie, un module est une barrière.
 
 Le découpage détaillé vit dans **`docs/architecture-app.md`**.
 
-## Les cinq onglets
+## Les onglets
 
 | onglet | ce qu'il fait |
 |---|---|
 | **Qahal** (קָהָל) | l'assemblée — le verset du jour ; la part communautaire, posée sans serveur |
-| **Bible** | la lecture : chapitre, balayage, réglages, suivi, surlignages |
-| **Lexique** | les 105 intraduisibles, et la fiche d'un terme avec ses occurrences |
-| **Recherche** | l'index plié, hébreu dénudé |
+| **Bible** | la lecture : chapitre, balayage, réglages, suivi, surlignages — **et la recherche**, dépliée depuis la barre |
+| **Lexique** | les intraduisibles, et la fiche d'un terme avec ses occurrences |
 | **Vous** | compte, synchronisation, thème, effacement |
+
+**Deux dépendent de la place, et c'est délibéré.** « Reprendre » est une carte
+en tête de la Bible sur un téléphone — un onglet de plus mangerait la barre —
+et devient le **premier** onglet quand la barre est latérale : sur un bureau
+elle est verticale et n'a pas cette contrainte, donc le geste le plus fréquent
+mérite d'y être en tête. Inversement « Vous » quitte la barre en largeur
+régulière : il descend au bas de la barre latérale, sous forme de portrait et
+de nom, et ouvre une feuille — c'est l'arrangement d'Apple Music.
+
+`Router.TabID` porte le cas `reprendre` bien qu'il n'existe que sur le Mac :
+`rawValue` doit savoir le relire, sinon un état enregistré par la liseuse du
+bureau reviendrait illisible sur le téléphone.
 
 Le nom *Qahal* est cohérent avec le corpus : la *Kenesset* est le rassemblement
 des **textes**, le *Qahal* celui des **lecteurs**. Ce qui suppose d'autres
@@ -243,6 +294,28 @@ faute de frappe. Le téléchargement va dans `Application Support` et **pas** da
 moment, hors ligne. Il est exclu des sauvegardes — ces vingt méga sont
 retéléchargeables.
 
+**Une empreinte dit que deux corpus diffèrent ; elle ne dit jamais lequel vient
+après.** Il faut donc une date, et c'est `genere` — celle du *contenu*, l'état
+du vault, et non celle de la compilation : deux exécutions du pipeline sur le
+même vault doivent produire le même octet, sans quoi chaque passage de CI
+ferait retélécharger tout le corpus. Elle vient de `ONT_GENERE`, que
+`scripts/corpus.sh` calcule depuis le dernier commit du vault.
+
+Sans cet ordre, une app neuve se fait écraser au premier lancement par le
+corpus publié — plus ancien tant que le site n'a pas republié — et la
+fonctionnalité qu'elle apporte arrive **invisible**. Mesuré : une build portant
+1 913 noms propres en affichait 217.
+
+Deux gardes, et il faut les deux. `synchroniser` refuse un manifeste plus vieux
+que le corpus embarqué — mais cela ne fait rien à celui qui est **déjà sur le
+disque**, lequel recouvre le bundle sans condition. `purgerSiLeBundleEstPlusNeuf`
+l'écarte au lancement. La première ferme la cause, la seconde l'effet.
+
+Un manifeste sans date est refusé : on ne peut pas prouver qu'il est plus
+récent. Un corpus figé se voit et se répare ; un corpus silencieusement remplacé
+par du plus ancien, non. `corpus-publie.py`, côté site, refuse d'ailleurs de
+publier un corpus indatable.
+
 ## Le thème *mystique* se règle ailleurs
 
 Quatre thèmes de lecture : Parchemin, Clair, Sombre, **mystique**. Le dernier
@@ -253,14 +326,47 @@ reporte ici. Jamais l'inverse.
 
 ## Les tests
 
-| | |
-|---|---|
-| `app/Packages/*/Tests` + `app/Tests` | **126 tests** — Swift Testing |
-| `app/UITests` | **19 tests** — accessibilité, thèmes, gestes, estompage |
+Relevés le 3 septembre 2026, **chaque suite lancée séparément** — voir plus bas
+pourquoi ce détail compte.
+
+| suite | commande | |
+|---|---|---|
+| `app/Tests` | `xcodebuild test -scheme ONT` | **175** |
+| `ONTKit` | `swift test --package-path app/Packages/ONTKit` | **91** |
+| `ONTData` | `swift test --package-path app/Packages/ONTData` | **23** |
+| `app/MacTests` | `xcodebuild test -scheme ONTMac` | **33** |
+| `app/UITests` | `xcodebuild test -scheme ONT` | **35** |
+| `pipeline` | `cargo test` | **124** |
+| `backend` | `cargo test` | **60** |
+| `android` | `./gradlew test` | **139** |
 
 Ce qu'ils couvrent et qu'on n'attend pas d'une app : le contraste de chaque
 thème, la typographie sous Dynamic Type, les pierres tombales de suppression,
 l'image de partage.
+
+### Un total ne se dit pas d'un chiffre
+
+`xcodebuild test -scheme ONT` **ne lance pas** les épreuves des paquets, ni
+celles du Mac, ni `cargo`, ni Gradle. Annoncer son résultat comme « les tests de
+l'app » a été fait trois fois de suite ici, et à chaque fois c'était exact et
+trompeur : la mesure était juste, la question à laquelle elle répondait n'était
+pas celle qu'on croyait poser.
+
+Le même piège existe côté Android, et il est pire parce qu'il est muet :
+`./gradlew testDebugUnitTest` rend **50** épreuves, `./gradlew test` en rend
+**139**. L'écart, ce sont les 89 d'`ontkit` — un module Kotlin pur, dont la
+tâche ne porte pas de variante de build. Rien ne signale l'omission ; le total
+est simplement plus petit.
+
+### Ce que la CI lance, et ce qu'elle ne lance pas
+
+**Les 139 épreuves Android ne tournent dans aucun workflow.** `tests.yml` ne
+mentionne ni Gradle ni Kotlin, et `livraison-android.yml` ne fait que compiler
+le bundle. Elles existent, elles passent quand on les lance à la main, et elles
+ne gardent rien.
+
+C'est écrit ici plutôt que taire, parce qu'une suite qu'on croit branchée est plus
+dangereuse qu'une suite absente : la seconde se remarque.
 
 ---
 
@@ -287,7 +393,165 @@ Trois décisions à ne pas défaire sans les connaître :
 
 ---
 
-# IV. La livraison
+---
+
+# IV. Les deux autres liseuses
+
+Le Mac et Android lisent le même corpus, par le même schéma engendré, et
+suivent iOS — **les arbitrages d'interface s'y décident sur iPhone**, jamais
+l'inverse. Ce qui suit ne dit que ce qui leur est propre.
+
+Android porte ses propres modules, calqués un à un sur les paquets Swift :
+`ontkit` (le domaine, sans dépendance), `ontdata`, `ontfeatures`,
+`ontdesignsystem`. Le corpus s'y met à jour par le même manifeste, avec les
+mêmes deux gardes de date.
+
+## La liseuse du Mac, et son mode développeur
+
+`ONTMac` est une **cible native**, pas du Catalyst. Catalyst rendrait l'app iOS
+dans une fenêtre — gestes, marges de pouce, barre d'onglets en bas —, une app
+iPad posée sur un bureau. Elle partage les quatre paquets, donc le corpus, les
+thèmes, le moteur de rendu et les seuils de contraste ; **rien de ce qui fait la
+lecture n'est réécrit.**
+
+Ce qui diffère est borné et court : les tâches de fond (`BGTaskScheduler`
+n'existe pas ici, et une machine allumée n'en a pas besoin) et Sentry. Le reste
+des écarts passe par `ONTPlateformes`, côté design system : une vue déclare une
+intention — « ce titre est compact » — jamais un système.
+
+**Les notifications, elles, ne diffèrent plus.** Elles figuraient dans cette
+liste sur une note affirmant que le Mac « les gère autrement ». Il ne les gérait
+pas du tout : `RacineMac` rendait `false` au réglage des parutions et `true` au
+verset du jour sans rien programmer — un interrupteur qui refusait de s'allumer,
+et un autre qui s'allumait pour rien.
+
+Rien ne l'empêchait. `UserNotifications` existe sur macOS, et
+`DailyVerseNotifications` était déjà compilée dans la cible sans que personne
+l'appelle. APNs ne distingue pas non plus les deux plateformes : même service,
+même format de jeton, même registre côté backend. `PushDistant` n'était UIKit
+que par **deux lignes** — `registerForRemoteNotifications` —, isolées depuis
+dans deux fonctions privées derrière un `#if canImport`.
+
+### L'échelle de l'interface, et ce que les listes en font
+
+⌘= grossit l'interface — `ONTEchelleUI`, puisque `dynamicTypeSize` est inerte
+ici. Deux chemins mènent au texte, et il faut savoir lequel on emprunte :
+
+- **déclarer la fonte** — `ONTUI.body`, `ONTUI.points(14)`. C'est ce que fait la
+  barre latérale, et ça marche partout ;
+- **s'en remettre à l'environnement**, que `AvecLaFonteDeLInterface` pose sur
+  toute la fenêtre. Ça marche partout **sauf dans une `List`**.
+
+Une `List` de macOS ne transmet pas `\.font` à ses lignes : elle leur pose la
+fonte système de son style. L'environnement n'est pas perdu — la même vue posée
+à côté de la liste grossit — il est écrasé au passage. Mesuré au pixel, facteur
+forcé à 1,5, où 32 px valent 13 pt et 48 px valent 19,5 :
+
+| ce qu'on pose | dans une `List` |
+|---|---|
+| rien (l'environnement seul) | 32 px — ne suit pas |
+| `.font()` sur la `List` | 32 px — ne suit pas |
+| `.font()` sur une `Section` | 32 px — ne suit pas |
+| `.font()` sur un `Text` de ligne | 48 px — suit |
+| `.font()` sur un `Label` de ligne | 32 px — ne suit pas |
+| un `LabelStyle` | 48 px — suit |
+
+D'où `FonteDesListes`, deux styles posés une fois sur le détail. Les en-têtes de
+section et les `Text` nus de `YouTab` restent hors d'atteinte : aucun
+modificateur extérieur ne les touche, il faudra qu'ils déclarent `ONTUI`.
+
+### Lire ses brouillons
+
+L'app lit `dist/`, pas le vault. Entre les deux il y a le pipeline. Le mode
+vault ferme la boucle : on désigne le dossier, il surveille, il reconstruit,
+l'app recharge.
+
+```
+./scripts/embarquer-le-pipeline.sh     # une fois, après un build de ONTMac
+```
+
+puis, dans l'app, **Fichier → Suivre un vault…** (⇧⌘O). Un bandeau en bas de
+fenêtre dit ce qui se passe.
+
+Le pipeline est **embarqué dans l'app** plutôt qu'installé : un binaire posé
+dans `/usr/local/bin` vieillirait à part, et l'on relirait ses brouillons avec
+un pipeline d'il y a trois semaines sans que rien ne le dise.
+
+Il attend **deux secondes de silence** avant de reconstruire. En dessous, une
+sauvegarde automatique d'éditeur déclencherait une reconstruction par phrase ;
+au-dessus, on attend devant un texte qu'on vient de corriger. Chaque écriture
+repousse l'échéance : c'est la fin de l'écriture qu'on guette, pas son début.
+
+Il écrit dans `Application Support/vault-apercu`, jamais dans `dist/` : un
+aperçu de brouillon n'a rien à faire dans un arbre de travail git, ni dans un
+build par accident.
+
+Le dossier désigné est **retrouvé au lancement suivant**, par un signet à portée
+de sécurité et non par un chemin. Sous bac à sable, le droit de lire un dossier
+est accordé au *processus* par le sélecteur, et meurt avec lui : un chemin relu
+des réglages désignerait le bon dossier sans l'ouvrir, et l'app dirait « dossier
+illisible » d'un dossier parfaitement lisible. « Cesser de suivre » oublie le
+signet — cesser veut dire cesser, pas suspendre.
+
+### Le bac à sable
+
+`ONTMac.entitlements` porte `com.apple.security.app-sandbox` depuis le 30 août
+2026. Il est **obligatoire à l'App Store du Mac**, et son absence n'empêchait
+rien en distribution directe — c'est exactement le genre de manque qui ne se
+voit qu'au dépôt de la fiche.
+
+Quatre droits, et pas un de plus :
+
+| droit | pourquoi |
+|---|---|
+| `app-sandbox` | l'exigence elle-même |
+| `files.user-selected.read-only` | le vault ; **lecture seule**, l'aperçu s'écrivant dans le conteneur |
+| `files.bookmarks.app-scope` | retrouver le vault au lancement suivant |
+| `network.client` | le backend et le manifeste du corpus — le bac coupe le réseau par défaut |
+
+**Ce qui a été mesuré**, sur une app signée ad hoc : le bac s'applique — le
+conteneur apparaît sous `~/Library/Containers/com.labibleont.ONT` —, l'app
+s'ouvre, et le corpus embarqué se charge intact (864 versets, 108 entrées). Tout
+le stockage persistant étant déjà en `Application Support`, il suit dans le
+conteneur sans qu'une ligne change.
+
+**Et le processus fils voit le vault** — mesuré le 31 août 2026, sur l'app
+signée et confinée, vault désigné à la souris :
+
+    ✓ 44 unités, 864 versets                    ONTBibleTranslation
+
+C'était la question ouverte : un fils hérite du bac de son père, mais **pas
+nécessairement des droits que le sélecteur a accordés à celui-ci**. Il les
+hérite. Le mode vault fonctionne donc sous bac à sable sans rien changer à sa
+mécanique — pas de passage de contenu par un autre canal, pas d'extension à
+consommer à la main.
+
+Elle ne pouvait pas se trancher en intégration : il fallait un dossier
+réellement choisi dans le sélecteur, donc une main sur la souris. C'est la seule
+mesure de ce chantier qu'un job ne pouvait pas faire.
+
+**Deux limites à connaître avant d'essayer.** Une signature ad hoc portant *à la
+fois* le bac et un droit restreint — `applesignin`, `associated-domains` — fait
+**échouer le lancement** (`RBSRequestErrorDomain` 5, spawn refusé) : le système
+refuse ces droits sans profil au lieu de les ignorer. Pour éprouver le bac
+localement, on signe avec les quatre clés de bac **seules**. Et le bac et Sign in
+with Apple ne peuvent donc pas être éprouvés ensemble tant que la machine n'est
+pas enregistrée dans le compte développeur.
+
+### Pourquoi ce mode existe
+
+Relire un brouillon dans un aperçu markdown distingue le corps des gloses par
+**l'italique** — donc par la pente des lettres. C'est le pire discriminant
+possible pour un lecteur atteint de kératocône, où la condition déforme déjà les
+formes et effondre la sensibilité au contraste.
+
+L'app distingue les niveaux par **la couleur, la taille et l'espace** — voir
+`ONTTypography.apparatus` — et sait éteindre les gloses pour ne garder que le
+corps. **C'est aussi la raison, longtemps tacite, du standard de contraste
+au-dessus d'AA que ce projet s'impose.** Une exigence dont on connaît le motif
+se défend ; une exigence orpheline se fait raboter au premier arbitrage.
+
+# V. La livraison
 
 Cinq workflows, et chacun répond à une question différente.
 
@@ -298,6 +562,24 @@ Cinq workflows, et chacun répond à une question différente.
 | `livraison.yml` | `dev` / `staging` / `main` | monte le build vers le bon public |
 | `deployer-backend.yml` | `main` | remplace le **code** de la Lambda, jamais son infrastructure |
 | `signature-diagnostic.yml` | à la main | ce que la clé App Store Connect a le droit de voir |
+
+**Le Mac ne passe pas par là**, et c'est mesuré et non choisi.
+`./scripts/livrer-le-mac.sh` fait la même chaîne depuis la machine de l'auteur.
+
+L'`actool` d'Xcode 26.3 **plante** en composant `ONT.icon` pour macOS — un
+plantage sans diagnostic, pile d'appel d'`IBAbstractPlatformToolProxy` et rien
+d'autre. Et l'image du runner ne propose que cette version, alors que le
+workflow demande déjà `latest` : il n'y a pas de version à monter.
+
+Un runner **auto-hébergé** réglerait la version et ouvrirait pire. Ce dépôt est
+public, et un runner auto-hébergé sur un dépôt public laisse toute proposition
+venue d'un fork exécuter du code sur la machine — c'est celle de l'auteur.
+
+Le script suit donc les mêmes règles que le workflow, sans démon qui écoute :
+même table de canaux, même numéro de build daté, même `destination: upload`
+plutôt qu'`altool`. Il vérifie l'icône **avant** d'archiver, parce que le
+découvrir au milieu d'une archive coûte l'archive. Le jour où l'image du runner
+monte de version, ce fichier redevient un job et l'on jette celui-ci.
 
 **Une branche nomme un destinataire, pas une manœuvre :**
 
@@ -333,46 +615,51 @@ dépôts.
 
 ## État du corpus au dernier build
 
+Relevé le 3 septembre 2026, vault au commit du 30 août.
+
 | | |
 |---|---|
-| Slots | 3 rédigés sur 70 — *Bereshit*, *Toledot Adam ve-Chavah*, *Sefar Gibbaraya* |
-| Unités | 39 chapitres + 2 feuilles d'introduction — **781 versets** |
-| Glossaire | 105 entrées, dont 47 intraduisibles balisés |
-| Index | 2 033 occurrences |
+| Slots | **5 rédigés sur 70** |
+| Unités | 42 chapitres + 4 intros — **938 versets** |
+| Glossaire | 109 entrées — **2 405 occurrences indexées** |
+| Recherche | 1 412 entrées |
+| Sortie | 3 688 Ko |
 
 Le flux de validation du §12 est respecté : `brouillons/` l'emporte sur
 `locked/` pour une même unité, et chaque unité porte son `status`. La
 distribution publique ne doit embarquer que les unités `locked`.
 
-## Ce que le build a trouvé dans le vault
+## Ce que le build trouve dans le vault
 
 Le pipeline vérifie au passage la conformité au §2.5, qui réserve `**…**`
 *exclusivement* aux intraduisibles — un gras d'emphase déclencherait à tort le
 style « Transliteration » d'Affinity au copier-coller, et l'app afficherait le
-mot en or, touchable, sans fiche derrière. Voir `dist/report.md` pour le détail
-avec contexte.
+mot en or, touchable, sans fiche derrière.
 
-**Onze formes ont été corrigées** le 12 août 2026, converties en `==…==` :
-`« Jour »`, `« Nuit »`, `« Cieux »`, `« Mers »`, `« Terre »` (*Bereshit* 1),
-les noms propres `Sarah`, `Chavah`, `Noach` (contre le §4.12), et trois
-métadonnées d'apparat critique dans *Bereshit* 19.
+**Zéro anomalie au dernier build**, sur les cinq relevés :
 
-**Neuf restent**, et elles demandent une décision de traducteur, pas une
-correction — entrée de glossaire, ou passage en `==…==` :
+```
+0 termes inconnus            0 marqueurs déséquilibrés    0 mots d'or sans fiche
+0 Shemot sans fiche          0 termes balisés sans définition
+```
 
-- **Formes dérivées non déclarées au §2.5** — `tsadiqim` (9 occ.), `gibborim`,
-  `gibor`, `nashim`, `chata'ah`, `tsedaqah umishpat`, `shiphchah`, `Tov vara`.
-  La règle de déduction s'y applique, mais les puces du §2.5 ne les listent pas.
-- **Une incohérence de forme** — `shaliachim` (2 occ., *Sefar Gibbaraya*) là où
-  le §2.5 fixe **shlichim**.
+Les vingt-neuf formes que ce README listait — onze corrigées le 12 août, neuf en
+attente d'arbitrage, vingt-deux marqueurs déséquilibrés dans les pieds de page
+de *Bereshit* 15 à 19 — **sont toutes traitées**. Le relevé courant vit dans
+`dist/report.md` ; c'est lui qui fait foi, pas ce tableau.
+
+Restent deux mesures qui ne sont pas des anomalies mais des indications de
+travail, et qui n'ont pas de seuil :
+
+- **224 occurrences mortes sur 34 lemmes** — des liens du glossaire vers des
+  passages que le corpus ne porte pas encore. Ils se résorbent en écrivant, pas
+  en corrigeant ;
+- **26 chapitres sur 42 sous la moitié de la densité de référence** — le plus
+  bas, `toledot-adam-ve-chavah-4`, à 0 pour 1000. Une densité basse dit qu'une
+  unité est posée mais pas encore annotée.
 
 Le relevé complet, avec les emplacements, vit au **CLAUDE.md §13** du vault —
 c'est là qu'il se traite, dans le dépôt de la traduction et non ici.
-
-S'y ajoutent 22 marqueurs déséquilibrés, tous dans les pieds de page de
-*Bereshit* 15 à 19 : le motif `- ***Terme* (…)` ouvre un gras qui ne se referme
-pas. Le parseur le contourne — un `**…**` ne peut pas contenir une phrase
-entière — mais la coquille reste à corriger dans le vault.
 
 ---
 
@@ -382,6 +669,8 @@ entière — mais la coquille reste à corriger dans le vault.
 |---|---|
 | `pipeline/` | le contrat et sa mise en œuvre — voir la table des modules |
 | `app/` | l'app iOS : `Sources/App`, `Packages/`, `Widget/`, `Tests/`, `UITests/` |
+| `app/MacSources/` | la liseuse macOS — cible native `ONTMac`, et `MacTests/` |
+| `android/` | la liseuse Android — `app/`, `ontkit/`, `ontdata/`, `ontfeatures/`, `ontdesignsystem/` |
 | `backend/` | la Lambda Rust, son Terraform, son propre README |
 | `scripts/` | `corpus.sh` d'abord ; puis captures, OAuth, déploiement, iPhone |
 | `docs/` | `architecture-app.md`, `backend-aws.md`, `comptes-oauth.md` |

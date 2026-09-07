@@ -134,6 +134,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         secret_diffusion: config.secret_diffusion.clone(),
         tokens: TokenIssuer::new(&config.jwt_secret),
         clock: Arc::new(SystemClock),
+        // Dérivée de la configuration, jamais écrite en dur : une capacité
+        // disparaît de la liste dès que ce qui la sert disparaît.
+        capacites: ont_backend::domain::capacites::offertes(&config),
     };
 
     // Les couches Sentry enveloppent chaque requête : une transaction par

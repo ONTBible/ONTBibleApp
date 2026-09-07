@@ -9,6 +9,13 @@ private struct SessionDTO: Decodable {
     let refreshToken: String
     let expiresIn: Int
     let created: Bool
+    /// L'adresse rendue par le fournisseur.
+    ///
+    /// Facultative : le serveur ne la renvoyait pas avant, et l'app arrive
+    /// **toujours** avant lui — `deployer-backend.yml` ne part que de `main`.
+    /// La déclarer obligatoire ferait échouer toute connexion jusqu'au
+    /// déploiement suivant.
+    let email: String?
 }
 
 /// Un surlignage tel qu'il voyage.
@@ -17,7 +24,7 @@ private struct SessionDTO: Decodable {
 /// le temps en millisecondes depuis l'epoch et porte une pierre tombale
 /// `deleted` que le stockage local n'a pas. Mélanger les deux ferait remonter
 /// des contraintes de transport jusque dans le domaine.
-private struct HighlightDTO: Codable {
+internal struct HighlightDTO: Codable {
     let id: String
     let bookId: String
     let chapterId: String
@@ -70,7 +77,7 @@ private struct HighlightDTO: Codable {
     }
 }
 
-private struct PositionDTO: Codable {
+internal struct PositionDTO: Codable {
     let bookId: String
     let chapterId: String
     let chapterTitle: String
@@ -101,7 +108,7 @@ private struct PositionDTO: Codable {
 /// **`portrait` est une `Data` et non une chaîne** : `JSONEncoder` l'écrit en
 /// base64 et `JSONDecoder` la relit, ce qui est exactement ce que le serveur
 /// range. L'écrire à la main serait une occasion de se tromper d'encodage.
-private struct ProfilDTO: Codable {
+internal struct ProfilDTO: Codable {
     let nomDusage: String
     let prenom: String
     let nom: String
@@ -125,12 +132,38 @@ private struct ProfilDTO: Codable {
     }
 }
 
-private struct PullDTO: Decodable {
-    let highlights: [HighlightDTO]
+/// La réponse du serveur à un `GET /sync`.
+///
+/// ## Tout y est facultatif, et c'est délibéré
+///
+/// **L'app arrive structurellement avant le serveur.** Sa moitié voyage
+/// `dev → staging → main` ; le backend, lui, n'est déployé que par un push sur
+/// `main` — `deployer-backend.yml` ne se déclenche que là. Entre deux
+/// promotions, une app livrée aux testeurs interroge donc un serveur plus
+/// ancien qu'elle, et rien ne le lui dit : `/health` ne rend que `ok`.
+///
+/// Avec des champs obligatoires, une clé que ce serveur-là ne connaît pas
+/// encore fait **lever le décodage** — et l'échec est total *et muet* : le
+/// `catch` de `synchronise()` le range en remontée, l'interface ne montre rien,
+/// et le lecteur ne signalera jamais ce qu'il n'a pas vu. Toute la
+/// synchronisation cesse pour un champ.
+///
+/// C'est le défaut corrigé le 25 août sur le conteneur du fichier local,
+/// déplacé sur le réseau : on soigne le décodage de chaque élément et on oublie
+/// que l'objet qui les porte peut refuser de se décoder en entier.
+///
+/// **Rendre facultatif est sûr ici parce que le `pull` fusionne** — voir
+/// `AccountModel.merge`. Une liste absente veut dire « rien reçu », jamais
+/// « tout effacé ». Ça ne le serait pas sur une réponse qui remplace.
+internal struct PullDTO: Decodable {
+    let highlights: [HighlightDTO]?
     let position: PositionDTO?
-    let serverTime: Int64
-    /// Absent d'un serveur qui ne connaît pas encore le profil — l'app arrive
-    /// toujours avant lui, `deployer-backend.yml` ne partant que de `main`.
+    /// L'horodatage du serveur. Déjà `Date?` dans le domaine : le DTO était
+    /// plus strict que ce qu'il alimente.
+    let serverTime: Int64?
+    /// Absent d'un serveur qui ne connaît pas encore le profil. Facultatif au
+    /// même titre que le reste, et pour la même raison : un champ inconnu ne
+    /// doit pas faire lever le décodage de toute la réponse.
     let profil: ProfilDTO?
 }
 
@@ -170,7 +203,8 @@ public struct HTTPAuthService: AuthService {
         do {
             return try await post(
                 "auth/\(provider.rawValue)",
-                Body(code: code, redirectUri: redirectURI, codeVerifier: verifier)
+                Body(code: code, redirectUri: redirectURI, codeVerifier: verifier),
+                provider: provider
             )
         } catch AccountError.server(503) {
             // Le serveur dit qu'il n'a pas les identifiants de ce fournisseur.
@@ -181,12 +215,24 @@ public struct HTTPAuthService: AuthService {
         }
     }
 
-    public func refresh(_ refreshToken: String) async throws -> Session {
+    public func refresh(_ precedente: Session) async throws -> Session {
         struct Body: Encodable { let refreshToken: String }
-        return try await post("auth/refresh", Body(refreshToken: refreshToken))
+        return try await post(
+            "auth/refresh", Body(refreshToken: precedente.refreshToken),
+            provider: precedente.provider, email: precedente.email)
     }
 
-    private func post(_ path: String, _ body: some Encodable) async throws -> Session {
+    /// `provider` et `email` ne viennent pas de la réponse — ils sont **portés
+    /// à travers** elle.
+    ///
+    /// Le serveur ne renvoie pas le fournisseur, et le rafraîchissement n'en
+    /// connaît aucun : sans ce passage, la première rotation de jeton — au
+    /// bout d'une heure — effacerait le logo, et personne ne relierait la
+    /// disparition à un renouvellement silencieux.
+    private func post(
+        _ path: String, _ body: some Encodable,
+        provider: AuthProvider? = nil, email: String? = nil
+    ) async throws -> Session {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
         request.timeoutInterval = 20
@@ -208,7 +254,15 @@ public struct HTTPAuthService: AuthService {
             return Session(
                 accessToken: dto.accessToken,
                 refreshToken: dto.refreshToken,
-                expiresAt: Date().addingTimeInterval(TimeInterval(dto.expiresIn))
+                expiresAt: Date().addingTimeInterval(TimeInterval(dto.expiresIn)),
+                // **Le fournisseur vient d'ici, pas du serveur** : c'est le
+                // bouton sur lequel le lecteur a appuyé, et cette fonction le
+                // reçoit en paramètre.
+                provider: provider,
+                // Ce que le serveur donne l'emporte ; à défaut, ce qu'on
+                // savait déjà. Un rafraîchissement ne doit pas effacer une
+                // adresse sous prétexte qu'il ne la répète pas.
+                email: dto.email ?? email
             )
         case 401:
             throw AccountError.providerRefused
@@ -234,9 +288,9 @@ public struct HTTPSyncService: SyncService {
 
         let dto = try await client.send("GET", "sync", query: query, as: PullDTO.self)
         return SyncPayload(
-            highlights: dto.highlights.compactMap(\.domain),
+            highlights: dto.highlights?.compactMap(\.domain) ?? [],
             position: dto.position?.domain,
-            serverTime: Date(timeIntervalSince1970: Double(dto.serverTime) / 1000),
+            serverTime: dto.serverTime.map { Date(timeIntervalSince1970: Double($0) / 1000) },
             profil: dto.profil?.domain
         )
     }

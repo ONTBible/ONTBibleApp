@@ -183,6 +183,7 @@ pub const RACINES: &[&str] = &[
     "CorpusFile",
     "Book",
     "GlossaryFile",
+    "ShemotFile",
     "OccurrencesFile",
     "SearchFile",
     "DailyFile",

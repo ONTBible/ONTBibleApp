@@ -1,5 +1,6 @@
 import ONTDesignSystem
 import ONTKit
+import OSLog
 import SwiftUI
 
 /// L'identité d'un verset pour le défilement.
@@ -26,7 +27,15 @@ struct ChapterView: View {
 
     @State private var showingSettings = false
     @State private var showingPicker = false
-    @State private var noteTarget: VerseSelection?
+    /// Le bloc que la vue doit atteindre, quand un lien ou une reprise en
+    /// désigne un. Les blocs sont les enfants directs de la pile, donc les
+    /// seules cibles que `scrollPosition` sait viser.
+    /// Le journal de la lecture — voir `restore` : ce qu'on y écrit sert à
+    /// distinguer une inaction juste d'une inaction fautive.
+    private static let log = Logger(subsystem: "com.labibleont.ONT", category: "lecture")
+
+    @State private var blocVise: Int?
+        @State private var noteTarget: VerseSelection?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -155,8 +164,31 @@ struct ChapterView: View {
                     }
                     // Ce qui désigne les cibles que `.scrollPosition(id:)` peut
                     // viser : les enfants directs de cette pile, donc les blocs.
+                    //
+                    // **Ce commentaire était orphelin.** Il décrivait un
+                    // modificateur qui n'a jamais existé dans ce fichier — le
+                    // relevé de `git log -S` est sans appel. Le mécanisme qu'il
+                    // annonçait manquait donc, et avec lui le seul moyen
+                    // d'atteindre une ligne que la pile n'a pas encore montée.
+                    .scrollTargetLayout()
                 }
             }
+            // **`scrollPosition` et non `scrollTo`, à cause de la paresse.**
+            //
+            // `proxy.scrollTo` ne peut atteindre qu'une ligne **déjà réalisée**.
+            // Dans une `LazyVStack`, un verset profond ne l'est pas : l'appel
+            // ne produit alors ni erreur ni mouvement. Mesuré au simulateur —
+            // six passes sur le verset 20 de Bereshit 1, ancre trouvée, page
+            // immobile.
+            //
+            // Ce qui rendait le défaut invisible, c'est qu'il **marche quand la
+            // cible est haute** : un verset des premières lignes est déjà monté.
+            // On croyait donc que le widget fonctionnait et que le Qahal non,
+            // alors que les deux dépendent de la profondeur du verset visé.
+            //
+            // `.scrollPosition(id:)` vise par identité dans la pile de cibles,
+            // et la pile paresseuse sait s'y rendre sans avoir tout monté.
+            .scrollPosition(id: $blocVise, anchor: .top)
             // `.task(id:)` et non `.onAppear` : la tâche est **annulée** quand
             // la vue disparaît, donc un défilement en cours ne poursuit pas
             // une page qu'on vient de quitter.
@@ -165,7 +197,10 @@ struct ChapterView: View {
             // de l'unité **déjà ouverte**. La vue n'apparaît pas une seconde
             // fois, donc rien ne se déclencherait.
             .onChange(of: router.pendingVerse) { _, vise in
-                guard vise != nil else { return }
+                // Seulement le nôtre : sans ce filtre, chaque vue de lecture
+                // vivante relancerait sa restauration pour le verset d'une
+                // autre unité.
+                guard vise?.chapitre == chapter.id else { return }
                 Task { await restore(using: proxy) }
             }
             // Le suivi s'éteint aussi en **partant**, et pas seulement le temps
@@ -293,18 +328,18 @@ struct ChapterView: View {
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
         .navigationTitle(actif && !selection.isEmpty ? reference : "")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
         .toolbar {
             if actif {
             // La pastille de renvoi, en haut à gauche — le geste de YouVersion
             // et de Bible Strong. Elle dit où l'on est **et** sert de porte :
             // sans elle, aller de Bereshit 1 à Bereshit 18 demande de remonter
             // à la table, replier, déplier, redescendre.
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: ONTPlacement.retrait) {
                 Button { showingPicker = true } label: {
                     HStack(spacing: 4) {
                         Text(pastille)
-                            .font(.subheadline.weight(.semibold))
+                            .font(ONTUI.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: echelle(10), weight: .bold))
@@ -329,13 +364,18 @@ struct ChapterView: View {
                     .foregroundStyle(theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(theme.ink.opacity(0.07)))
+                    // Le verre du système sous la pastille — elle flotte
+                    // au-dessus du texte, c'est exactement sa place. Le voile
+                    // d'encre reste par-dessus pour la teinte de la maison.
+                    .ontVerre(dans: Capsule())
+                    .background(Capsule().fill(theme.ink.opacity(0.05)))
+                    .ontSurvol(dans: Capsule(), souleve: true)
                     .contentShape(.capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ontPresse)
                 .accessibilityLabel("Aller à un autre passage — actuellement \(pastille)")
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: ONTPlacement.principale) {
                 Button("Lecture", systemImage: "textformat.size") { showingSettings = true }
             }
             }
@@ -348,37 +388,32 @@ struct ChapterView: View {
         // cette pose, elle repeignait ses surfaces mais gardait le schéma de
         // couleurs du départ, et les commandes d'iOS devenaient illisibles —
         // « Thème » en noir sur l'aubergine. Il fallait relancer l'app.
-        .sheet(isPresented: $showingPicker) {
+        .ontFeuille(presentee: $showingPicker, titre: "Aller au passage") {
             ReferencePicker(current: chapter)
                 .ontTheme(from: model.preferences)
         }
-        .sheet(isPresented: $showingSettings) {
-            // La pile et le « OK » appartiennent à la **présentation**, pas au
-            // contenu : depuis « Vous », la même vue est poussée dans une pile
-            // qui existe déjà, et n'a ni l'une ni l'autre à fournir.
-            NavigationStack {
-                // Le thème est reposé **ici aussi**, au plus près du contenu.
-                //
-                // Posé seulement autour de la pile, il repeignait les surfaces
-                // mais laissait la teinte d'origine : la valeur du sélecteur
-                // restait bordeaux sur l'aubergine, soit 1,2:1. Les deux ne
-                // voyagent pas par le même chemin — l'une par l'environnement,
-                // l'autre par `tint`, que la présentation capture plus haut.
-                ReadingSettingsSheet(chapter: chapter)
-                    .ontTheme(from: model.preferences)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("OK") { showingSettings = false }
-                        }
-                    }
-            }
-            // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
-            // grande taille avec les gloses allumées, la mi-hauteur ne laisse
-            // plus voir les réglages.
-            .presentationDetents([.medium, .large])
-            .ontTheme(from: model.preferences)
+        .ontFeuille(presentee: $showingSettings, titre: "Lecture") {
+            // Le thème est reposé **ici aussi**, au plus près du contenu.
+            //
+            // Posé seulement autour de la pile, il repeignait les surfaces
+            // mais laissait la teinte d'origine : la valeur du sélecteur
+            // restait bordeaux sur l'aubergine, soit 1,2:1. Les deux ne
+            // voyagent pas par le même chemin — l'une par l'environnement,
+            // l'autre par `tint`, que la présentation capture plus haut.
+            ReadingSettingsSheet(chapter: chapter)
+                .ontTheme(from: model.preferences)
+                // La pile et le « OK » appartiennent à la **présentation**, pas
+                // au contenu : depuis « Vous », la même vue est poussée dans une
+                // pile qui existe déjà, et n'a ni l'une ni l'autre à fournir. Le
+                // Mac n'en veut aucun des deux — sa carte a déjà sa croix.
+                .ontChromeDeFeuille("OK") { showingSettings = false }
+                // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
+                // grande taille avec les gloses allumées, la mi-hauteur ne laisse
+                // plus voir les réglages.
+                .ontHauteurDeFeuille([.medium, .large])
+                .ontTheme(from: model.preferences)
         }
-        .sheet(item: $noteTarget) { selection in
+        .ontFeuille(objet: $noteTarget, titre: "Note") { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
                 .ontTheme(from: model.preferences)
         }
@@ -412,12 +447,42 @@ struct ChapterView: View {
         // est une non-opération silencieuse. Le comportement souhaitable
         // arrivait donc par tolérance du moteur, et le défaut se logeait juste
         // à côté, dans ce qu'on **retient**.
-        let demande = router.pendingVerse
+        // **On ne consomme que ce qui nous est adressé.**
+        //
+        // `pendingVerse` porte son unité depuis qu'on a mesuré ceci : demander
+        // `bereshit-2?v=25` alors que `bereshit-1` est à l'écran, et l'ancienne
+        // vue l'efface avant que la nouvelle ne se monte. Elle ne trouvait pas
+        // 25 chez elle, ne défilait pas — et le remettait quand même à `nil`.
+        // La nouvelle arrivait sur la bonne unité, en haut, sans rien à viser.
+        //
+        // Effacer ce qui ne nous est pas destiné, c'est répondre à la place de
+        // quelqu'un d'autre.
+        let pourNous = router.pendingVerse.flatMap {
+            $0.chapitre == chapter.id ? $0.n : nil
+        }
+        let demande = pourNous
             ?? (model.position?.chapterId == chapter.id ? model.position?.verse : nil)
         let vise = demande.flatMap { n in
             chapter.verses.contains(where: { $0.n == n }) ? n : nil
         }
-        router.pendingVerse = nil
+        // **Un verset hors bornes se dit, au lieu de s'évanouir.**
+        //
+        // Ne rien viser est ici le comportement **juste** — et c'est ce qui rend
+        // le silence dangereux : il est indistinguable d'un défilement cassé,
+        // d'un verset mangé par une autre unité, ou d'une ancre introuvable.
+        // J'ai failli condamner une correction qui marchait sur cette base ;
+        // il a fallu aller lire le `verseCount` du corpus pour le savoir.
+        //
+        // Le cas est réel et attend quiconque compose une adresse depuis un
+        // **renvoi biblique** : « Bereshit 2:4-25 » nomme vingt-deux versets de
+        // la Genèse, quand l'unité ONT qui les porte en compte vingt et un,
+        // numérotés à partir de un. Une ligne de journal transforme une heure
+        // d'enquête en une lecture.
+        if let n = demande, vise == nil {
+            Self.log.notice(
+                "verset \(n, privacy: .public) demandé dans \(chapter.id, privacy: .public), qui en compte \(chapter.verses.count, privacy: .public) — rien à viser")
+        }
+        if pourNous != nil { router.pendingVerse = nil }
 
         suivi.recommence()
 
@@ -439,7 +504,7 @@ struct ChapterView: View {
             return
         }
 
-        guard let ancre = anchor(for: vise) else { return }
+        guard let bloc = blocContenant(vise) else { return }
 
         // Plusieurs passes, échelonnées au-delà de l'animation de navigation.
         //
@@ -449,11 +514,36 @@ struct ChapterView: View {
         //
         // Les passes après 0,6 s ne coûtent rien quand la première a visé
         // juste : viser une position déjà atteinte ne déplace rien.
-        for delai in [Duration.zero, .milliseconds(250), .milliseconds(600), .seconds(1)] {
-            if delai > .zero { try? await Task.sleep(for: delai) }
-            guard !Task.isCancelled else { return }
-            proxy.scrollTo(VerseAnchor(n: ancre), anchor: .top)
-        }
+        // Deux passes suffisent désormais, et la seconde ne sert qu'au cas où
+        // la pile n'a pas encore ses cibles au premier instant. Les quatre
+        // passes échelonnées d'avant compensaient l'échec de `scrollTo`, pas
+        // une lenteur — elles ne réparaient rien, elles répétaient.
+        // **Deux gestes, et il en faut deux.**
+        //
+        // `scrollPosition(id:)` ne vise que les **enfants directs** de la pile
+        // de cibles, c'est-à-dire les blocs. En lecture suivie, les versets
+        // consécutifs sont fondus en un seul bloc — viser le bloc peut donc
+        // arriver plusieurs versets trop haut. Relevé sur le Mac par la session
+        // qui le tient : « ça atterrit sur le bloc contenant le verset, pas
+        // exactement sur le verset ».
+        //
+        // `scrollTo` vise le verset exactement, mais ne peut atteindre qu'une
+        // ligne **déjà montée** — c'est tout le défaut qu'on vient de réparer.
+        //
+        // Les deux ensemble font ce qu'aucun ne fait seul : le premier amène la
+        // pile paresseuse à monter la région voulue, le second ajuste au verset
+        // maintenant qu'il existe. Ni l'un ni l'autre n'est un raccourci de
+        // l'autre.
+        blocVise = bloc
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        blocVise = bloc
+
+        // L'ajustement, une fois la région montée. Sans effet quand le bloc
+        // **est** le verset — le mode d'étude — puisqu'on y est déjà.
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo(VerseAnchor(n: vise), anchor: .top)
     }
 
     /// Les blocs tels qu'ils sont rendus.
@@ -475,6 +565,22 @@ struct ChapterView: View {
     /// repère sur le début du bloc comme on le faisait.
     private func anchor(for verse: Int) -> Int? { verse }
 
+    /// Le rang du bloc qui porte ce verset, parmi ceux réellement rendus.
+    ///
+    /// **Parmi `blocs` et non `chapter.blocks`** : en lecture suivie les
+    /// versets consécutifs sont fusionnés, et les rangs ne coïncident plus. Un
+    /// rang pris sur la liste d'origine viserait un autre endroit du texte
+    /// dès que le lecteur allume la prose continue — c'est-à-dire sans qu'il
+    /// puisse relier les deux.
+    private func blocContenant(_ verse: Int) -> Int? {
+        blocs.firstIndex { bloc in
+            if case .verses(let versets) = bloc {
+                return versets.contains { $0.n == verse }
+            }
+            return false
+        }
+    }
+
     /// L'opacité de ce qui n'est pas sélectionné.
     ///
     /// Le procédé vient de Bible Strong, et il est plus efficace qu'un fond
@@ -492,15 +598,18 @@ struct ChapterView: View {
             Text(chapter.title)
                 .font(theme.type.display.font)
                 .foregroundStyle(theme.type.display.color)
+                // Le titre de l'unité : le premier repère du rotor, et celui
+                // qui ramène en haut d'un chapitre parcouru au doigt.
+                .accessibilityAddTraits(.isHeader)
 
             if let subtitle = chapter.subtitle {
                 HStack(spacing: spacing.s) {
                     // Le pont de navigation : le nom français et le renvoi
                     // biblique, jamais la désignation principale (§2.6).
-                    Text(subtitle.french).font(.callout.italic())
+                    Text(subtitle.french).font(ONTUI.callout.italic())
                     Text(subtitle.hebrew).font(theme.type.hebrew.font)
                     if let reference = subtitle.reference {
-                        Text(reference).font(.callout.monospacedDigit())
+                        Text(reference).font(ONTUI.callout.monospacedDigit())
                     }
                 }
                 .foregroundStyle(theme.ink.opacity(0.6))
@@ -508,7 +617,7 @@ struct ChapterView: View {
 
             if chapter.status == .brouillon {
                 Label("Brouillon — en attente de validation", systemImage: "pencil.line")
-                    .font(.caption)
+                    .font(ONTUI.caption)
                     .foregroundStyle(ONTColors.accent(theme.mode))
                     .padding(.top, spacing.xs)
             }
@@ -549,12 +658,29 @@ private struct VerseRow: View {
             // dessiné autour : la sélection épouse ainsi les retours à la
             // ligne, et le dernier mot d'un verset n'entraîne pas une bordure
             // sur toute la largeur.
-            Text(ONTTextRenderer.compose(verse: verse, theme: theme, underlined: selected))
+            // Deux ajouts qui n'ont rien à voir l'un avec l'autre et qui
+            // atterrissent sur la même ligne : la césure française vient de
+            // cette branche, le sol du numéro de verset vient de `dev`. Les
+            // deux sont nécessaires — garder l'un ferait taire l'autre sans
+            // que rien ne le dise.
+            // La chaîne est nommée parce que le survol en a besoin : les
+            // plages de termes s'extraient de ce qui part réellement dans le
+            // `Text`, césures comprises.
+            let corps = ONTTextRenderer.compose(
+                verse: verse, theme: theme, underlined: selected,
+                surligne: highlight != nil
+            )
+            .cesuree(theme.preferences.hyphenation)
+            Text(corps)
+                // Le mot que le curseur touche s'éclaire — mode étude
+                // seulement, voir `ontSurvolDesTermes` pour la prose continue.
+                .ontSurvolDesTermes(corps)
                 .lineSpacing(theme.lineSpacing)
+                .font(ONTUI.ligneDeListe)
 
             if let note = highlight?.note {
                 Label(note, systemImage: "text.quote")
-                    .font(.footnote)
+                    .font(ONTUI.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.leading, spacing.xs)
             }
@@ -568,7 +694,7 @@ private struct VerseRow: View {
             // fond, qui ferait croire qu'on vient de surligner.
             if let color = highlight?.color {
                 RoundedRectangle(cornerRadius: ONTRadius.highlight)
-                    .fill(ONTColors.highlight(color).opacity(ONTColors.highlightOpacity))
+                    .fill(ONTColors.highlight(color, theme.mode).opacity(ONTColors.highlightOpacity))
             }
         }
         // Toute la boîte répond, pas seulement les lettres : viser un mot pour
@@ -691,7 +817,7 @@ private struct VerseActionBar: View {
                     }
                 }
         )
-        .sheet(item: $partage) { item in
+        .ontFeuille(objet: $partage, titre: "Partager") { item in
             ONTActivityView(items: item.items)
         }
         .task {
@@ -751,7 +877,7 @@ private struct VerseActionBar: View {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(ONTColors.highlight(color))
+                        .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -806,7 +932,19 @@ private struct VerseActionBar: View {
                 .frame(maxWidth: .infinity)
             }
             ActionTile(title: "Copier", icon: "doc.on.doc") {
-                UIPasteboard.general.string = shareText
+                // **Le lien vient aussi.**
+                //
+                // Le partage l'emportait, le presse-papier non — et rien ne le
+                // disait. Le lecteur qui allume la bascule du lien la croit
+                // vraie partout ; il colle son verset dans un message, et le
+                // lien manque sans qu'aucun écran ne lui ait annoncé
+                // l'exception.
+                //
+                // Une seule chaîne ici, et non deux objets comme au partage :
+                // un presse-papier n'a qu'un contenu, et la ligne à part fait
+                // que le destinataire peut citer le texte sans traîner
+                // l'adresse.
+                ONTPressePapier.poser(texteACopier)
                 selection.removeAll()
             }
             .frame(maxWidth: .infinity)
@@ -865,17 +1003,25 @@ private struct VerseActionBar: View {
     /// translittérations, ni hébreu. L'appareil critique appartient à la
     /// liseuse, pas à une capture qui part dans une conversation.
     private var shareText: String {
-        let body = chapterVerses
-            .filter { selection.contains($0.n) }
-            .map { verse in
-                verse.nodes.plainText()
-                    .replacingOccurrences(of: " {2,}", with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespaces)
-            }
-            .joined(separator: " ")
-
-        return "\(body)\n\n— \(reference), La Bible ONT"
+        // Le repli des espaces est fait par `plainText()` depuis qu'il écrit
+        // au fil — et mieux : retours à la ligne préservés, ponctuation
+        // française respectée. Le `{2,}` qui traînait ici écrasait tout.
+        Partage.composer(
+            chapterVerses
+                .filter { selection.contains($0.n) }
+                .map { Partage.Morceau(numero: $0.n, texte: $0.nodes.plainText()) },
+            reference: reference,
+            reglages: model.preferences.partage
+        )
     }
+
+    /// Ce que le bouton « Copier » met dans le presse-papier.
+    ///
+    /// Le même texte que le partage, plus le lien sur sa propre ligne quand la
+    /// bascule l'allume. Séparé par une ligne blanche, comme la signature, et
+    /// pour la même raison : ce qui se cite doit pouvoir se détacher de ce qui
+    /// l'accompagne.
+    private var texteACopier: String { Partage.avecLien(shareText, lien) }
 
     /// Le lien public du passage, s'il existe un domaine.
     ///
@@ -884,7 +1030,8 @@ private struct VerseActionBar: View {
     /// pour qui n'a pas l'app. Mieux vaut partager sans lien que partager une
     /// adresse morte.
     private var lien: URL? {
-        Router.webLink(
+        guard model.preferences.partage.lien else { return nil }
+        return Router.webLink(
             book: chapter.bookId,
             chapter: chapter.id,
             verses: VerseRange.label(selection)
@@ -935,7 +1082,7 @@ private struct ActionTileLabel: View {
             // dessous — et lui suit le curseur. On perd donc une icône qui
             // grandit, pas une information qui se lit.
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: ONTUI.points(18), weight: .medium))
                 .foregroundStyle(theme.accent)
                 .frame(width: 52, height: 44)
                 .background(
@@ -943,7 +1090,7 @@ private struct ActionTileLabel: View {
                         .fill(theme.accent.opacity(0.12))
                 )
             Text(title)
-                .font(.caption2)
+                .font(ONTUI.caption2)
                 .foregroundStyle(theme.ink.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -1097,7 +1244,7 @@ private struct FlowingVerses: View {
     private var surlignages: [Int: Color] {
         verses.reduce(into: [:]) { table, verse in
             guard let marque = model.highlight(chapterId: chapter.id, verse: verse.n) else { return }
-            table[verse.n] = ONTColors.highlight(marque.color)
+            table[verse.n] = ONTColors.highlight(marque.color, theme.mode)
                 .opacity(ONTColors.highlightOpacity)
         }
     }
@@ -1297,6 +1444,11 @@ private struct BlockView: View {
         case .heading(_, let nodes):
             Text(ONTTextRenderer.compose(nodes, theme: theme))
                 .font(theme.type.heading.font)
+                // Les intertitres du corps — « Noach trouve grâce », « les fils
+                // d'Elohim et les Nephilim ». Ce sont eux qui font d'un chapitre
+                // une suite de scènes plutôt qu'un mur, et c'est par eux qu'on
+                // navigue quand on ne voit pas la page.
+                .accessibilityAddTraits(.isHeader)
                 .foregroundStyle(theme.type.heading.color)
                 .padding(.top, spacing.s)
 
@@ -1335,6 +1487,7 @@ private struct BlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: spacing.s) {
                         Text(ordered ? "\(index + 1)." : "—")
                             .foregroundStyle(ONTColors.accent(theme.mode))
+                            .font(ONTUI.ligneDeListe)
                         Text(ONTTextRenderer.compose(item, theme: theme))
                     }
                 }
@@ -1378,18 +1531,18 @@ private struct FooterView: View {
 
             HStack(spacing: spacing.xs) {
                 Image(systemName: footer.locked ? "lock.fill" : "pencil.line")
-                Text(footer.locked ? "Verrouillée" : "À valider")
+                Text(footer.locked ? "Verrouillée" : "À valider").font(ONTUI.caption)
                 if let version = footer.version {
-                    Text("· Version \(version)")
+                    Text("· Version \(version)").font(ONTUI.caption)
                 }
             }
-            .font(.caption)
+            .font(ONTUI.caption)
             .foregroundStyle(ONTColors.accent(theme.mode))
 
             if !footer.notes.isEmpty {
                 SectionCaption("Décisions terminologiques")
                 ForEach(Array(footer.notes.enumerated()), id: \.offset) { _, note in
-                    Text(plain(note)).font(.footnote).foregroundStyle(.secondary)
+                    Text(plain(note)).font(ONTUI.footnote).foregroundStyle(.secondary)
                 }
             }
         }
@@ -1423,45 +1576,99 @@ private struct NoteEditor: View {
     @State private var text = ""
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("\(chapter.title):\(verse)") {
-                    // `TextEditor` porte son propre fond, et il ne vient pas
-                    // de la ligne : il reste gris système au milieu d'une nuit
-                    // aubergine, même quand la section qui l'entoure est
-                    // habillée. On le cache pour laisser voir la surface du
-                    // thème derrière, et l'encre suit le thème comme le reste.
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(theme.ink)
-                        .frame(minHeight: 140)
-                }
-                .ontRow()
-            }
-            .navigationTitle("Note")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+        #if os(macOS)
+            // **Pas de pile ni de barre d'outils ici : la carte est la chrome.**
+            //
+            // Dans la surimpression du Mac, un `NavigationStack` projette ses
+            // boutons dans la barre de titre de la **fenêtre** — « Annuler »
+            // et « Enregistrer » se sont retrouvés en haut à droite de l'écran,
+            // à quatre cents points de la carte qu'ils commandent. Mesuré sur
+            // capture, comme le lac de vide sous la note : le formulaire étant
+            // avide de hauteur, la carte figée faisait 756 pt pour 250 de
+            // contenu. Une pile compacte se blottit, la carte suit.
+            VStack(alignment: .leading, spacing: espaceNote.m) {
+                Text("\(chapter.title):\(verse)")
+                    .font(ONTUI.enteteDeListe)
+                    .foregroundStyle(theme.ink.opacity(0.55))
+                TextEditor(text: $text)
+                    .scrollContentBackground(.hidden)
+                    .font(ONTUI.body)
+                    .foregroundStyle(theme.ink)
+                    .padding(espaceNote.s)
+                    .frame(minHeight: 160, maxHeight: 320)
+                    .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
+                HStack(spacing: espaceNote.s) {
+                    Spacer(minLength: 0)
+                    Button("Annuler") { fermerLaNote() }
+                        .keyboardShortcut(.cancelAction)
                     Button("Enregistrer") {
                         model.setNote(text, verse: verse, in: chapter)
-                        dismiss()
+                        fermerLaNote()
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                 }
             }
+            .padding(espaceNote.page)
+            .ontScreen()
             .onAppear {
                 text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
             }
-            // Une feuille reste un écran, et suit donc le thème comme les
-            // autres. Sans ces deux lignes, écrire une note faisait surgir un
-            // formulaire gris système au milieu de la nuit aubergine.
-            .ontRow()
-            .ontScreen()
-        }
-        .presentationDetents([.medium])
+        #else
+            NavigationStack {
+                Form {
+                    Section(header: Text("\(chapter.title):\(verse)").font(ONTUI.enteteDeListe)) {
+                        // `TextEditor` porte son propre fond, et il ne vient pas
+                        // de la ligne : il reste gris système au milieu d'une nuit
+                        // aubergine, même quand la section qui l'entoure est
+                        // habillée. On le cache pour laisser voir la surface du
+                        // thème derrière, et l'encre suit le thème comme le reste.
+                        TextEditor(text: $text)
+                            .scrollContentBackground(.hidden)
+                            .foregroundStyle(theme.ink)
+                            .frame(minHeight: 140)
+                    }
+                    .ontRow()
+                }
+                .ontFormulaire()
+                .navigationTitle("Note")
+                .ontTitreCompact()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annuler") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Enregistrer") {
+                            model.setNote(text, verse: verse, in: chapter)
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear {
+                    text = model.highlight(chapterId: chapter.id, verse: verse)?.note ?? ""
+                }
+                // Une feuille reste un écran, et suit donc le thème comme les
+                // autres. Sans ces deux lignes, écrire une note faisait surgir un
+                // formulaire gris système au milieu de la nuit aubergine.
+                .ontRow()
+                .ontScreen()
+            }
+            .ontHauteurDeFeuille([.medium])
+        #endif
     }
+
+    #if os(macOS)
+        /// La marge de la carte — le jeton, pas un nombre local.
+        private var espaceNote: ONTSpacing { ONTSpacing() }
+
+        /// Comment la présentation veut être refermée — la carte du Mac le dit
+        /// par `ontFermer` ; `dismiss` resterait muet dans une surimpression.
+        @Environment(\.ontFermer) private var fermer
+
+        private func fermerLaNote() {
+            if let fermer { fermer() } else { dismiss() }
+        }
+    #endif
 }
 
 
@@ -1514,7 +1721,7 @@ public struct ReadingSettingsSheet: View {
             controls
         }
         .navigationTitle("Lecture")
-        .navigationBarTitleDisplayMode(.inline)
+        .ontTitreCompact()
     }
 
     /// Les réglages, qui défilent sous l'aperçu.
@@ -1525,14 +1732,26 @@ public struct ReadingSettingsSheet: View {
         Form {
                 Section {
                     Toggle("Versets à la suite", isOn: $model.preferences.continuous)
+                    Toggle("Couper les mots", isOn: $model.preferences.hyphenation)
                 } header: {
                     Text("Disposition")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "À la suite, les versets coulent en prose et leurs numéros "
                             + "passent en exposant — c'est la lecture suivie. En blocs, "
                             + "chaque verset se tient seul : c'est le mode d'étude."
+                            + "\n\nCouper les mots resserre la justification et "
+                            + "supprime les lézardes blanches d'une colonne étroite. "
+                            + "Éteint par défaut : la césure hache les mots, et qui "
+                            + "grossit le texte pour le voir se retrouve avec plus de "
+                            + "coupures, pas moins.\n\nAllumée, elle coupe **en "
+                            + "français** — les motifs de coupure sont propres à "
+                            + "chaque langue, et sans le déclarer un téléphone réglé "
+                            + "en anglais couperait « pro-blème » au lieu de "
+                            + "« pro-blè-me »."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1541,12 +1760,14 @@ public struct ReadingSettingsSheet: View {
                     Toggle("Translittération et hébreu", isOn: $model.preferences.showLevel3)
                 } header: {
                     Text("Niveaux du texte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Le corps de la traduction reste toujours visible. "
                             + "Les gloses explicitent l'implicite hébreu ; "
                             + "le niveau 3 donne le mot original."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1559,11 +1780,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Corps")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Cette taille s'ajoute au réglage système : agrandir le texte dans "
                             + "Réglages › Affichage agrandit aussi celui-ci."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1573,11 +1796,13 @@ public struct ReadingSettingsSheet: View {
                     }
                 } header: {
                     Text("Fonte")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text(
                         "Chaque nom est composé dans sa propre fonte : "
                             + "ce que vous voyez est ce que vous lirez."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1585,8 +1810,10 @@ public struct ReadingSettingsSheet: View {
                     ThemeRow(selection: $model.preferences.theme)
                 } header: {
                     Text("Thème")
+                        .font(ONTUI.enteteDeListe)
                 } footer: {
                     Text("Mystique est la peau du site ontbible.com — nuit aubergine et or.")
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
 
@@ -1603,9 +1830,11 @@ public struct ReadingSettingsSheet: View {
                         "Ramène disposition, niveaux, corps, fonte et thème à leur "
                             + "état de départ. Le rappel du verset du jour n'est pas touché."
                     )
+                        .font(ONTUI.piedDeListe)
                 }
                 .ontRow()
         }
+        .ontFormulaire()
         // Une confirmation, parce que le geste est court et la perte réelle :
         // qui a réglé sa taille de texte pour y voir ne veut pas la retrouver
         .ontRow()
@@ -1622,6 +1851,7 @@ public struct ReadingSettingsSheet: View {
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
+                .font(ONTUI.ligneDeListe)
         }
     }
 }
@@ -1670,7 +1900,7 @@ private struct SettingsPreview: View {
         var body: some View {
             VStack(alignment: .leading, spacing: spacing.xs) {
                 Text("Aperçu — \(title)")
-                    .font(.caption.weight(.semibold))
+                    .font(ONTUI.caption.weight(.semibold))
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(theme.ink.opacity(0.5))
@@ -1783,7 +2013,7 @@ private struct ThemeRow: View {
                     if choix == selection {
                         Label(choix.label, systemImage: "checkmark")
                     } else {
-                        Text(choix.label)
+                        Text(choix.label).font(ONTUI.body)
                     }
                 }
             }
@@ -1791,11 +2021,12 @@ private struct ThemeRow: View {
             HStack(spacing: 8) {
                 Text("Thème")
                     .foregroundStyle(theme.ink)
+                    .font(ONTUI.ligneDeListe)
                 Spacer(minLength: 8)
-                Text(selection.label)
+                Text(selection.label).font(ONTUI.body)
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote.weight(.semibold))
+                    .font(ONTUI.footnote.weight(.semibold))
                     .foregroundStyle(ONTColors.brandInk(theme.mode))
             }
             .contentShape(.rect)
@@ -1818,16 +2049,16 @@ private struct FontRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(font.label)
-                        .font(.custom(ONTFonts.family(font), size: 19))
+                        .font(.custom(ONTFonts.family(font), size: ONTUI.points(19)))
                         .foregroundStyle(theme.ink)
                     Text(font.note)
-                        .font(.footnote)
+                        .font(ONTUI.footnote)
                         .foregroundStyle(theme.ink.opacity(0.6))
                 }
                 Spacer(minLength: 8)
                 if chosen {
                     Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
+                        .font(ONTUI.body.weight(.semibold))
                         .foregroundStyle(theme.accent)
                 }
             }

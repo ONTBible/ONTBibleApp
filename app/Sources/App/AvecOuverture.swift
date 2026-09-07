@@ -72,7 +72,7 @@ struct AvecOuverture<Contenu: View>: View {
         //
         // Masquer coûte moins et vaut mieux : l'ouverture n'a que faire de
         // l'heure et du réseau, et rien ne déborde sur l'app.
-        .statusBarHidden(ouverte)
+        .ontSansBarreDEtat(ouverte)
         .task {
             // Le lecteur qui a demandé moins de mouvement voit la montagne, pas
             // le balayage — et il la voit moins longtemps : l'attente et la

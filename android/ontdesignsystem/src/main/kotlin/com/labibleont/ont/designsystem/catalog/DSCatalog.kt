@@ -315,7 +315,7 @@ private fun SectionSurlignages() {
                             .size(34.dp)
                             .clip(RoundedCornerShape(ONTRadius.highlight))
                             .background(
-                                ONTColors.highlight(c)
+                                ONTColors.highlight(c, theme)
                                     .copy(alpha = ONTColors.HIGHLIGHT_OPACITY),
                             ),
                     )

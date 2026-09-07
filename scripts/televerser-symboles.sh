@@ -103,7 +103,31 @@ fi
 # Accolades obligatoires : sans elles, bash agrège le premier octet du « … »
 # au nom de la variable et `set -u` fait échouer le build.
 echo "note: Sentry — téléversement des symboles de ${SENTRY_PROJECT}…"
-sentry-cli debug-files upload \
-  --include-sources \
-  --force-foreground \
-  "${DWARF_DSYM_FOLDER_PATH:?DWARF_DSYM_FOLDER_PATH absent — cette phase doit tourner dans Xcode}"
+
+# **Une panne de Sentry ne fait plus échouer la livraison, et ne se tait pas.**
+#
+# Cette commande était nue : son code de sortie devenait celui de la phase, donc
+# celui de l'archive. Le 1er septembre 2026, `error: API request failed` côté
+# Sentry a fait tomber `** ARCHIVE FAILED **` et emporté toute la livraison
+# iOS — pour un service tiers qui n'a rien à voir avec le binaire produit.
+#
+# Mais l'avaler en silence serait pire. Des symboles qui cessent de partir sans
+# que personne le sache rendent les plantages illisibles pour toujours, et c'est
+# exactement ce que ce script existe pour empêcher. Un défaut qui se répare en
+# ne disant plus rien n'est pas réparé.
+#
+# D'où `warning:` — le préfixe qu'Xcode reconnaît. Il apparaît dans le journal
+# de compilation, dans l'onglet des problèmes, et dans le rendu de `xcbeautify`
+# en CI. Visible, et non bloquant.
+if sentry-cli debug-files upload \
+    --include-sources \
+    --force-foreground \
+    "${DWARF_DSYM_FOLDER_PATH:?DWARF_DSYM_FOLDER_PATH absent — cette phase doit tourner dans Xcode}"
+then
+  echo "note: Sentry — symboles de ${SENTRY_PROJECT} téléversés"
+else
+  CODE=$?
+  echo "warning: Sentry — téléversement des symboles échoué (code ${CODE}). Le binaire" \
+       "est bon ; ce sont ses plantages qui seront illisibles tant qu'on ne les" \
+       "aura pas renvoyés : sentry-cli debug-files upload \"\${DWARF_DSYM_FOLDER_PATH}\""
+fi

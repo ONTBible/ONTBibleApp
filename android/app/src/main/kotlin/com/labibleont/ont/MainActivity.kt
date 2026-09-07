@@ -65,6 +65,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetDailyVerseRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.remote.CorpusUpdater
+import com.labibleont.ont.data.remote.DiskCorpusRepository
+import com.labibleont.ont.data.remote.DiskGlossaryRepository
+import com.labibleont.ont.data.remote.DiskShemotRepository
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
@@ -75,6 +79,9 @@ import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
+import com.labibleont.ont.data.bundle.AssetShemotRepository
+import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.features.lexicon.ShemSheet
 import com.labibleont.ont.features.lexicon.TermSheet
 import com.labibleont.ont.features.qahal.QahalModel
 import com.labibleont.ont.features.qahal.QahalTab
@@ -83,6 +90,15 @@ import com.labibleont.ont.features.reading.ChapterScreen
 import com.labibleont.ont.features.reading.ReadingModel
 import com.labibleont.ont.features.reading.ReadingSettingsSheet
 import com.labibleont.ont.features.reading.ReferencePicker
+import com.labibleont.ont.kit.corpus.LibelleDUnite
+import com.labibleont.ont.kit.reader.Partage
+import com.labibleont.ont.compte.FluxDeConnexion
+import com.labibleont.ont.data.account.CoffreDeJetons
+import com.labibleont.ont.data.account.ServiceDeCompte
+import com.labibleont.ont.data.account.ServiceDeSynchronisation
+import com.labibleont.ont.kit.account.Fournisseur
+import com.labibleont.ont.kit.account.RetourDAutorisation
+import com.labibleont.ont.observabilite.SentryReporter
 import com.labibleont.ont.features.reading.SelectionBar
 import com.labibleont.ont.features.search.SearchModel
 import com.labibleont.ont.features.search.SearchScreen
@@ -92,6 +108,7 @@ import com.labibleont.ont.features.you.ParutionsSettings
 import com.labibleont.ont.features.you.ReadingSettings
 import com.labibleont.ont.features.you.YouTab
 import com.labibleont.ont.kit.corpus.plainText
+import com.labibleont.ont.kit.reader.LienPublic
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.notifications.VersetDuJourWorker
 import kotlinx.coroutines.launch
@@ -244,11 +261,72 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         adresseRecue.value = intent?.dataString
 
-        val corpus = AssetCorpusRepository(applicationContext)
-        val glossaire = AssetGlossaryRepository(applicationContext)
+        // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
+        // un corpus complet — elle marche au premier lancement, sans réseau — et
+        // ce qui a été téléchargé le recouvre morceau par morceau.
+        val corpus = DiskCorpusRepository(applicationContext)
+        val glossaire = DiskGlossaryRepository(applicationContext)
+        val shemot = DiskShemotRepository(applicationContext)
         val index = AssetSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
-        val lecteur = FileReaderStore(applicationContext)
+        val rapporteur = SentryReporter()
+        val lecteur = FileReaderStore(applicationContext, rapporteur)
+
+        // Le compte. Trois objets, et chacun ne sait qu'une chose : le coffre
+        // range, le service parle au backend, le flux ouvre le navigateur.
+        val coffre = CoffreDeJetons(applicationContext, rapporteur)
+        val compte = ServiceDeCompte(getString(R.string.api_base), coffre)
+        val synchronisation = ServiceDeSynchronisation(
+            racine = getString(R.string.api_base),
+            compte = compte,
+            marques = lecteur,
+            positions = lecteur,
+            rapporteur = rapporteur,
+        )
+        val flux = FluxDeConnexion(
+            racineApi = getString(R.string.api_base),
+            clientGoogle = getString(R.string.client_google),
+            clientGitHub = getString(R.string.client_github),
+        )
+
+        // **La mise à jour du corpus, en fond, à chaque lancement.**
+        //
+        // Une correction de traduction ne devrait pas attendre une revue de
+        // Play. Le vault bouge tous les jours ; l'app, bien plus rarement.
+        //
+        // Sans attendre, et sans rien bloquer : ce qui arrive sera lu au
+        // prochain lancement. Recharger l'écran en cours de lecture déplacerait
+        // le texte sous les yeux de quelqu'un — le prix est plus élevé que le
+        // délai qu'on économise.
+        //
+        // Une panne de réseau n'est pas une erreur : l'app lit ce qu'elle a.
+        // ## Les marques du lecteur, s'il a un compte
+        //
+        // Au lancement, une fois, et sans rien bloquer. Le corpus et les
+        // marques voyagent séparément : l'un vient du site et ne demande aucun
+        // compte, l'autre du backend et n'existe que s'il y en a un.
+        //
+        // `runBlocking` dans un fil à part plutôt qu'une coroutine de l'écran :
+        // l'échange doit survivre à une rotation, et une portée liée à la
+        // composition l'annulerait au milieu.
+        Thread {
+            runCatching {
+                kotlinx.coroutines.runBlocking { synchronisation.synchroniser() }
+            }.onFailure { rapporteur.report(it, "synchronisation des marques") }
+        }
+            .apply { isDaemon = true }
+            .start()
+
+        Thread {
+            runCatching { CorpusUpdater(applicationContext, rapporteur = rapporteur).synchroniser() }
+                // La prise la plus large de l'app : elle enveloppait toute la
+                // synchronisation et jetait tout. Un corpus qui ne se met
+                // jamais à jour se voit — le texte ne bouge plus — mais rien
+                // ne dit pourquoi, ni à qui.
+                .onFailure { rapporteur.report(it, "synchronisation du corpus") }
+        }
+            .apply { isDaemon = true }
+            .start()
 
         setContent {
             val adresse by adresseRecue.collectAsState()
@@ -282,12 +360,16 @@ public class MainActivity : ComponentActivity() {
                 Racine(
                     lecture = lecture,
                     lexique = lexique,
+                    shemot = shemot,
                     recherche = recherche,
                     qahal = qahal,
                     preferences = preferences,
                     onPreferences = { lecture.changerLesPreferences(it) },
                     adresse = adresse,
                     onAdresseSuivie = { adresseRecue.value = null },
+                    coffre = coffre,
+                    compte = compte,
+                    flux = flux,
                 )
                 }
             }
@@ -307,10 +389,14 @@ private fun Racine(
     onAdresseSuivie: () -> Unit,
     lecture: ReadingModel,
     lexique: LexiconModel,
+    shemot: ShemotRepository,
     recherche: SearchModel,
     qahal: QahalModel,
     preferences: ReadingPreferences,
     onPreferences: (ReadingPreferences) -> Unit,
+    coffre: CoffreDeJetons,
+    compte: ServiceDeCompte,
+    flux: FluxDeConnexion,
 ) {
     val theme = LocalReadingTheme.current
     val contexte = LocalContext.current
@@ -334,8 +420,18 @@ private fun Racine(
         mutableStateOf(Ecran.Onglets)
     }
     var terme: String? by rememberSaveable { mutableStateOf(null) }
+    // Le Shem touché — un état distinct de `terme`. Les deux feuilles ne se
+    // remplacent pas : elles ne parlent pas de la même chose, et un lecteur qui
+    // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
+    // fermant.
+    var shem: String? by rememberSaveable { mutableStateOf(null) }
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
+
+    // Lu une fois au coffre, tenu en mémoire ensuite : le coffre déchiffre à
+    // chaque lecture, et cet état est consulté à chaque recomposition de
+    // l'onglet « Vous ».
+    var fournisseurConnecte by remember { mutableStateOf(coffre.fournisseur()) }
     val portee = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { lecture.chargerLArborescence() }
@@ -349,7 +445,49 @@ private fun Racine(
     // La sélection est posée après `ouvrir`, jamais avant : `ouvrir` charge
     // l'unité et remet la sélection à zéro. L'ordre inverse désignait des
     // versets puis les oubliait aussitôt.
+    // ## Le retour d'autorisation passe par le même canal que les liens
+    //
+    // `ont://auth/callback` arrive dans `adresseRecue` comme un renvoi
+    // biblique. Il faut donc le reconnaître **avant** `LienProfond.lire`, qui
+    // rendrait `null` et le laisserait tomber en silence — le lecteur serait
+    // revenu du navigateur sans être connecté, et sans rien pour le dire.
     LaunchedEffect(adresse) {
+        val retour = RetourDAutorisation.lire(adresse)
+        if (retour != null) {
+            val attente = coffre.enAttente()
+            // Qu'on réussisse ou qu'on échoue, l'attente est consommée : un
+            // vérificateur qui traîne serait réemployé au prochain retour, et
+            // un vérificateur réemployé n'en est plus un.
+            coffre.oublierLAttente()
+            when {
+                retour is RetourDAutorisation.Accorde && attente != null -> {
+                    runCatching {
+                        compte.ouvrir(
+                            retour.fournisseur,
+                            retour.code,
+                            flux.adresseDeRetour(retour.fournisseur),
+                            attente.second,
+                        )
+                    }.onSuccess {
+                        coffre.noterLeFournisseur(retour.fournisseur.cle)
+                        fournisseurConnecte = retour.fournisseur.cle
+                        messages.showSnackbar("Vous êtes connecté.")
+                    }.onFailure {
+                        messages.showSnackbar("La connexion n'a pas abouti.")
+                    }
+                }
+                // Un retour accordé sans vérificateur veut dire que le
+                // processus est mort pendant l'aller-retour et que le coffre
+                // n'a pas rendu ce qu'on y avait rangé. On ne tente pas
+                // l'échange : il échouerait chez le fournisseur, et le message
+                // parlerait d'autre chose.
+                retour is RetourDAutorisation.Accorde ->
+                    messages.showSnackbar("La connexion s'est perdue en chemin. Réessayez.")
+                else -> Unit
+            }
+            onAdresseSuivie()
+            return@LaunchedEffect
+        }
         val lien = adresse?.let { LienProfond.lire(it) } ?: return@LaunchedEffect
         when (lien) {
             is LienProfond.Lecture -> {
@@ -402,7 +540,11 @@ private fun Racine(
         onAdresseSuivie()
     }
     LaunchedEffect(onglet) {
-        if (onglet == Onglet.LEXIQUE) lexique.charger()
+        // Vous aussi : sa section « Le corpus » compte les entrées du lexique,
+        // et sans ce chargement elle afficherait zéro à qui n'a jamais ouvert
+        // l'onglet Lexique. `charger()` est idempotent — il rend la main tout
+        // de suite si les entrées sont déjà là.
+        if (onglet == Onglet.LEXIQUE || onglet == Onglet.VOUS) lexique.charger()
         if (onglet == Onglet.QAHAL) qahal.choisir()
     }
 
@@ -503,9 +645,32 @@ private fun Racine(
                             // et de Bible Strong. Sans elle, aller de
                             // Bereshit 1 à Bereshit 18 demandait de revenir au
                             // sommaire, replier le livre, le déplier, viser.
+                            //
+                            // ## Elle suit le registre, et c'est ici que ça
+                            // compte le plus
+                            //
+                            // Elle portait `chapitre.title` — « Bereshit 2 »,
+                            // le nom ONT, identique dans les deux registres.
+                            // Or c'est le seul endroit où le lecteur croise le
+                            // mot **pendant** qu'il lit : le sommaire et le
+                            // sélecteur se traversent, celle-ci reste sous les
+                            // yeux. Si le réglage doit se voir quelque part,
+                            // c'est ici.
+                            //
+                            // Une introduction garde son titre : elle n'a pas
+                            // de rang à traduire.
                             PastilleDeRenvoi(
-                                renvoi = lecture.chapitre?.title
-                                    ?: lecture.livre?.title.orEmpty(),
+                                renvoi = lecture.chapitre?.let { u ->
+                                    if (u.n > 0) {
+                                        LibelleDUnite.situe(
+                                            lecture.livre?.title.orEmpty(),
+                                            u.n,
+                                            lecture.preferences.french,
+                                        )
+                                    } else {
+                                        u.title
+                                    }
+                                } ?: lecture.livre?.title.orEmpty(),
                                 onClick = { ecran = Ecran.Selecteur() },
                             )
                         } else {
@@ -592,7 +757,20 @@ private fun Racine(
                             ?.filter { it.n in lecture.selection }
                             ?.joinToString(" ") { it.nodes.plainText() }
                             .orEmpty()
-                        partager(contexte, "« $passage »\n\n${lecture.renvoi()} — La Bible ONT")
+                        // **Le lien manquait, et il ne manquait que chez le
+                        // destinataire.** Le texte partagé semblait complet
+                        // depuis l'app ; celui qui le recevait n'avait aucun
+                        // moyen d'ouvrir ce qu'on lui citait. iOS en pose un
+                        // depuis toujours — c'est lui qui produit la carte
+                        // d'aperçu avec la vignette de la marque.
+                        val lien = lecture.chapitre?.let {
+                            LienPublic.passage(it.bookId, it.id, lecture.selection)
+                        }
+                        // La forme vit dans `Partage`, pas ici. Écrite au
+                        // point d'appel, elle s'écrivait deux fois — et les deux
+                        // avaient déjà divergé : le verset du jour partait sans
+                        // le lien que cet écran-ci y mettait.
+                        partager(contexte, Partage.texte(passage, lecture.renvoi(), lien))
                     },
                     onFermer = lecture::deselectionner,
                 )
@@ -703,6 +881,7 @@ private fun Racine(
                             },
                             onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
+                            onShem = { lemme -> shem = lemme },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
@@ -746,7 +925,23 @@ private fun Racine(
                     slotsRediges = lecture.slotsRediges,
                     slotsTotal = lecture.slotsTotal,
                     versets = lecture.versets,
+                    entreesDeLexique = lexique.entrees.size,
+                    fournisseurConnecte = fournisseurConnecte,
                     onAller = { ecran = Ecran.Reglage(it) },
+                    onConnecter = { cle ->
+                        val fournisseur = Fournisseur.entries.first { it.cle == cle }
+                        // Ranger **avant** d'ouvrir : le lecteur quitte l'app,
+                        // et le processus peut mourir pendant qu'il est chez le
+                        // fournisseur.
+                        val pkce = flux.preparer()
+                        coffre.poserEnAttente(cle, pkce.verificateur)
+                        flux.ouvrir(contexte, fournisseur, pkce.defi)
+                    },
+                    onDeconnecter = {
+                        compte.fermer()
+                        fournisseurConnecte = null
+                        portee.launch { messages.showSnackbar("Vous êtes déconnecté.") }
+                    },
                     enDeveloppement = BuildConfig.DEBUG,
                     onPasEncore = {
                         portee.launch {
@@ -773,6 +968,18 @@ private fun Racine(
                 preferences = preferences,
                 onChange = onPreferences,
             )
+        }
+    }
+
+    shem?.let { lemme ->
+        shemot.fiche(lemme)?.let { entree ->
+            ModalBottomSheet(
+                onDismissRequest = { shem = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ONTColors.surface(theme),
+            ) {
+                ShemSheet(entree = entree, preferences = preferences)
+            }
         }
     }
 

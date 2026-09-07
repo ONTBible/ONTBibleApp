@@ -15,6 +15,9 @@ import com.labibleont.ont.kit.glossary.Occurrence
 import com.labibleont.ont.kit.ports.CorpusRepository
 import com.labibleont.ont.kit.ports.DailyVerseRepository
 import com.labibleont.ont.kit.ports.GlossaryRepository
+import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.kit.corpus.ShemEntry
+import com.labibleont.ont.data.schema.ShemotFile
 import com.labibleont.ont.kit.ports.SearchIndex
 import com.labibleont.ont.kit.reader.DailyVerse
 import com.labibleont.ont.kit.search.SearchRecord
@@ -109,6 +112,23 @@ public class AssetGlossaryRepository(private val context: Context) : GlossaryRep
 
     override fun occurrences(lemma: String): kotlin.collections.List<Occurrence> =
         parLemme.get()[lemma].orEmpty()
+}
+
+/**
+ * Les fiches des noms propres.
+ *
+ * Chargé à la première fiche ouverte, comme les occurrences : la lecture n'en a
+ * pas besoin — les Shemot s'affichent en terre brûlée sans que rien ne soit lu.
+ * C'est le toucher qui appelle le fichier.
+ */
+public class AssetShemotRepository(private val context: Context) : ShemotRepository {
+
+    private val parLemme = Cache {
+        AssetLoader.decode<ShemotFile>(context, "data/shemot.json")
+            .entries.associate { it.lemma to it.versDomaine() }
+    }
+
+    override fun fiche(lemma: String): ShemEntry? = parLemme.get()[lemma]
 }
 
 /** L'index de recherche. */

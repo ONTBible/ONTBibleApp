@@ -36,6 +36,20 @@ app/*.xcworkspace/
 xcuserdata/
 DerivedData/
 
+# Les paquets de résultats de `xcodebuild test`.
+#
+# La CI en écrit deux depuis que le Mac est éprouvé — `resultats.xcresult` et
+# `resultats-mac.xcresult` —, et rejouer la commande à la main les dépose ici.
+# Ce sont des dizaines de mégaoctets par run, et ils ne veulent rien dire hors
+# de la machine qui les a produits.
+*.xcresult/
+
+# Le log brut d'`xcodebuild`, gardé à côté d'`xcbeautify` par `tests.yml`
+# pour que les diagnostics d'`actool` ne se perdent pas. Rejouer la commande à
+# la main le dépose ici.
+brut-mac.log
+resume-mac.json
+
 # Artefacts de compilation Swift Package Manager — 15 955 fichiers, tous
 # régénérés au premier build. Ils étaient la quasi-totalité de ce que git
 # voyait.

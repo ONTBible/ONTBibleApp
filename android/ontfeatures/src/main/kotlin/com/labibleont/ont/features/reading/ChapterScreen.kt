@@ -85,6 +85,8 @@ public fun ChapterScreen(
     chapitre: Chapter,
     preferences: ReadingPreferences,
     onTerme: (String) -> Unit,
+    /** Le nom propre touché — voir `Inline.Shem`. */
+    onShem: (String) -> Unit = {},
     /** Les versets désignés — vide quand le lecteur lit sans rien viser. */
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
@@ -162,6 +164,7 @@ public fun ChapterScreen(
                 typo = typo,
                 preferences = preferences,
                 onTerme = onTerme,
+                onShem = onShem,
                 selection = selection,
                 onVerset = onVerset,
                 marque = marque,
@@ -271,6 +274,8 @@ private fun BlocDeTexte(
     typo: ONTTypography,
     preferences: ReadingPreferences,
     onTerme: (String) -> Unit,
+    /** Le nom propre touché — voir `Inline.Shem`. */
+    onShem: (String) -> Unit = {},
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
     marque: (Int) -> HighlightColor? = { null },
@@ -381,8 +386,9 @@ private fun BlocDeTexte(
                                 showGloss = preferences.showGloss,
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
+                onShem = onShem,
                                 onVerset = onVerset,
-                                fond = fondDe(marque(verset.n)),
+                                fond = fondDe(marque(verset.n), theme),
                                 estompe = selection.isNotEmpty() && verset.n !in selection,
                                 fondDuTheme = ONTColors.background(theme),
                             ),
@@ -441,7 +447,8 @@ private fun BlocDeTexte(
                         showGloss = preferences.showGloss,
                         showLevel3 = preferences.showLevel3,
                         onTerme = onTerme,
-                        fond = fondDe(marque(verset.n)),
+                onShem = onShem,
+                        fond = fondDe(marque(verset.n), theme),
                     )
                     Text(
                         texte,
@@ -478,6 +485,7 @@ private fun BlocDeTexte(
                 showGloss = preferences.showGloss,
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
+                onShem = onShem,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(vertical = 6.dp),
@@ -489,6 +497,7 @@ private fun BlocDeTexte(
                 showGloss = preferences.showGloss,
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
+                onShem = onShem,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -505,6 +514,7 @@ private fun BlocDeTexte(
                                 showGloss = preferences.showGloss,
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
+                onShem = onShem,
                             ),
                         )
                     },
@@ -557,9 +567,12 @@ private fun BlocDeTexte(
  * system, ce qui permet de retoucher la palette sans migrer les surlignages
  * déjà enregistrés chez les lecteurs.
  */
-private fun fondDe(couleur: HighlightColor?): androidx.compose.ui.graphics.Color? =
+private fun fondDe(
+    couleur: HighlightColor?,
+    theme: com.labibleont.ont.kit.reader.ReadingTheme,
+): androidx.compose.ui.graphics.Color? =
     couleur?.let {
-        ONTColors.highlight(it).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
+        ONTColors.highlight(it, theme).copy(alpha = ONTColors.HIGHLIGHT_OPACITY)
     }
 
 /**

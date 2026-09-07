@@ -150,9 +150,30 @@ public fun DailyVerseSettings(
 /**
  * Les parutions.
  *
- * Annoncées, pas simulées : elles demandent le serveur de diffusion, qui
- * existe — les routes `/appareils` et `/diffuser` sont en place — mais que
- * l'app Android ne sait pas encore joindre.
+ * Annoncées, pas simulées : elles demandent le serveur de diffusion, qui existe
+ * — les routes `/appareils` et `/diffuser` sont en place — mais que l'app
+ * Android ne peut pas encore joindre.
+ *
+ * ## Ce que cet écran affirmait de faux
+ *
+ * Il disait qu'il faut un compte. **C'est l'inverse d'une décision explicite du
+ * backend** : `POST /appareils` n'exige aucune authentification, et son
+ * commentaire dit pourquoi — « obliger un lecteur à se créer un compte pour
+ * être prévenu d'une parution reviendrait à faire payer la notification d'une
+ * identité ».
+ *
+ * La vraie cause est structurelle, et elle n'est pas côté Android :
+ *
+ *     pub jeton: String,          // « le jeton APNs, 64 octets en hexadécimal »
+ *     pub environnement: …,       // Production | Sandbox → hôtes d'Apple
+ *
+ * `Appareil.valide()` exige exactement soixante-quatre caractères
+ * hexadécimaux : un jeton FCM, plus long et porteur de `:` et de `-`, serait
+ * refusé à l'entrée. Et le diffuseur ne connaît que les hôtes d'Apple.
+ *
+ * Il faut donc, **côté backend** : une plateforme sur `Appareil`, une
+ * validation qui accepte les deux formes, et un notificateur FCM. Rien de tout
+ * cela ne dépend du compte.
  */
 @Composable
 public fun ParutionsSettings(modifier: Modifier = Modifier) {
@@ -170,11 +191,12 @@ public fun ParutionsSettings(modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.height(espace.l))
             Text(
-                "Cette notification vient du serveur, pas de l'appareil : il " +
-                    "faut donc un compte pour qu'il sache où l'envoyer. Elle " +
-                    "s'allumera quand la connexion existera.\n\nElle a son " +
-                    "propre canal Android : le jour venu, vous pourrez la " +
-                    "régler sans toucher au verset du jour.",
+                "Cette notification vient du serveur, pas de l'appareil. " +
+                    "Elle ne demande aucun compte — le serveur retient " +
+                    "l'appareil, jamais la personne — mais il ne sait pour " +
+                    "l'instant joindre que les iPhone.\n\nElle a son propre " +
+                    "canal Android : le jour venu, vous pourrez la régler sans " +
+                    "toucher au verset du jour.",
                 color = ONTColors.inkSoft(theme),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = espace.l),
