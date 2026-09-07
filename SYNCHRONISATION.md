@@ -3629,3 +3629,31 @@ mesure : la branche a été poussée en sauvegarde ==avant== qu'on conclue, et l
 règle de l'audit — *une non-réponse vaut « statut inconnu », pas
 « supprimable »* — a tenu tout du long. Un compte faux dans ce sens-là ne coûte
 qu'une vérification ; dans l'autre, il coûte le travail.
+
+## 7 septembre 2026 — le canal stable du cask est ouvert, sur décision de l'auteur
+
+L'étiquette `brew-v1.0.5` est posée sur la tête d'`app-store` — le commit de la
+promotion #235, celui que la revue Apple est en train de lire. Le workflow
+`Cask` a fait le reste en un tir : compilation, signature Developer ID,
+notarisation, release **stable** (pas une prerelease), et réécriture de
+`Casks/la-bible-ont.rb` dans le tap. Vérifié comme Gatekeeper le fera, sur
+l'artefact téléchargé depuis la release et non sur un build local :
+`spctl --assess` répond `accepted, source=Notarized Developer ID`, `stapler
+validate` passe, l'empreinte du zip est celle que le cask écrit.
+
+    brew install --cask ontbible/ont/la-bible-ont
+
+**La décision était à l'auteur, et elle a été posée comme telle** : publier le
+stable avant le verdict d'Apple engage le nom du projet sur un canal public.
+Il a tranché « maintenant » — les deux canaux sont indépendants, la
+notarisation ne touche pas au quota App Store Connect, et l'App Store dira son
+mot quand il l'aura lu.
+
+**Pour les trois dépôts : rien à porter, une chose à savoir.** Le tap
+(`ONTBible/homebrew-ont`) sert désormais **deux** casks — `la-bible-ont` depuis
+`app-store`, `la-bible-ont@beta` depuis `beta-test` — et le README de profil de
+l'auteur annonce la release stable par son propre script. La promotion d'une
+version passe donc par **deux gestes** désormais : la chaîne de branches pour
+l'App Store, l'étiquette `brew-v*` pour Homebrew — le second ne suit pas le
+premier tout seul, et c'est voulu : une étiquette est une décision, pas un
+réflexe.
