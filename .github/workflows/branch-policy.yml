@@ -1,4 +1,4 @@
-# La chaîne de promotion : `dev` → `staging` → `main`.
+# La chaîne de promotion : `device` → `dev` → `beta-test` → `app-store`.
 #
 # ## Ce qu'elle empêche
 #
@@ -13,15 +13,35 @@
 # vert — ils ne savent pas exiger **d'où** vient une branche. Ce contrôle-là n'a
 # pas d'équivalent déclaratif ; il s'écrit.
 #
-# Il est ensuite posé comme contrôle requis sur `staging` et `main`, ce qui lui
+# Il est ensuite posé comme contrôle requis sur `beta-test` et `app-store`, ce
+# qui lui
 # donne la même force qu'une règle : la fusion reste grisée tant qu'il n'est pas
 # passé.
+#
+# ## Ce qui ne peut pas changer le binaire ne monte pas les paliers
+#
+# `livraison.yml` pose déjà la règle pour lui-même : un changement qui ne touche
+# que du markdown ne déclenche aucune livraison. La même phrase vaut ici. Un
+# README ne s'installe sur l'appareil de personne, donc l'exiger de passer par
+# des testeurs ne protège rien — ça oblige seulement à promouvoir **du code**
+# pour corriger une faute de frappe, ce qui est l'inverse du but.
+#
+# Ce n'est donc pas une exception à la chaîne : c'est deux fois la même règle,
+# posée aux deux endroits où elle se décide.
+#
+# **Calculée sur le diff, jamais sur le nom de la branche.** Une branche nommée
+# `docs-…` ne prouve rien ; la liste des fichiers, si.
+#
+# **Et en échec par défaut.** Si la liste ne peut pas être obtenue — panne
+# d'API, jeton absent, PR trop grande —, la chaîne s'applique. Un contrôle qui
+# s'ouvre quand il ne sait pas ne garde rien.
 #
 # ## Il ne porte aucun secret
 #
 # Il tourne sur `pull_request`, donc potentiellement sur du code non relu. Il ne
-# lit que deux noms de branches et n'a accès à rien d'autre — c'est pourquoi la
-# livraison, elle, ne tourne jamais sur cet événement.
+# lit que des noms de branches et la liste des fichiers touchés — `contents` et
+# `pull-requests` en lecture, rien d'autre. C'est pourquoi la livraison, elle,
+# ne tourne jamais sur cet événement.
 
 name: Chaîne de promotion
 
@@ -31,6 +51,9 @@ on:
 
 permissions:
   contents: read
+  # Pour lire la liste des fichiers de la PR — voir « ce qui ne peut pas changer
+  # le binaire ». En lecture seule : ce workflow ne pose rien.
+  pull-requests: read
 
 jobs:
   chaine:
@@ -38,8 +61,61 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # ── Ce que la PR touche, avant de juger d'où elle vient ────────────────
+      #
+      # `--paginate` parce que l'API rend cent fichiers par page : sans lui, une
+      # PR de cent une entrées paraîtrait n'en avoir que cent, et la centième
+      # et unième — celle qui porte du code — ne serait jamais vue. Le contrôle
+      # s'ouvrirait alors précisément sur la PR qu'il fallait retenir.
+      #
+      # On regarde `previous_filename` autant que `filename` : un renommage de
+      # `RootView.swift` vers `notes.md` n'expose que le second, et supprimerait
+      # du code sous les dehors d'une note. GitHub le déclare, il suffit de le
+      # lire.
+      #
+      # Une PR sans aucun fichier n'est pas « rien que des docs » : elle est
+      # inattendue, et l'inattendu remonte les paliers comme les autres.
+      - name: La PR ne touche-t-elle que du markdown ?
+        id: nature
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh api --paginate \
+              "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
+              --jq '.[] | .filename, (.previous_filename // empty)' > /tmp/touches
+          then
+            echo "::notice::Liste des fichiers illisible — la chaîne s'applique."
+            echo "docs=non" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ! -s /tmp/touches ]; then
+            echo "::notice::Aucun fichier relevé — la chaîne s'applique."
+            echo "docs=non" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          autres="$(grep -vc '\.md$' /tmp/touches || true)"
+          if [ "${autres:-1}" -eq 0 ]; then
+            echo "docs=oui" >> "$GITHUB_OUTPUT"
+            echo "::notice::$(wc -l < /tmp/touches) fichiers, tous en markdown — les paliers ne s'appliquent pas."
+          else
+            echo "docs=non" >> "$GITHUB_OUTPUT"
+            echo "$autres fichier(s) hors markdown — la chaîne s'applique :"
+            grep -v '\.md$' /tmp/touches | head -20
+          fi
+
+      - name: Rien que des docs — la chaîne ne s'applique pas
+        if: steps.nature.outputs.docs == 'oui'
+        run: |
+          echo "Un markdown ne s'installe sur l'appareil de personne."
+          echo "Exiger qu'il passe par des testeurs ne protégerait rien, et"
+          echo "obligerait à promouvoir du code pour corriger une faute de frappe."
+
       - name: Vers dev, on vient de device
-        if: github.base_ref == 'dev' && github.head_ref != 'device'
+        if: steps.nature.outputs.docs != 'oui'
+          && github.base_ref == 'dev' && github.head_ref != 'device'
         run: |
           echo "::error::Une PR vers dev vient de device, pas de « ${{ github.head_ref }} »."
           echo "Le travail s'accumule dans device, où il s'installe sur vos appareils"
@@ -48,7 +124,8 @@ jobs:
           exit 1
 
       - name: Vers beta-test, on vient de dev
-        if: github.base_ref == 'beta-test' && github.head_ref != 'dev'
+        if: steps.nature.outputs.docs != 'oui'
+          && github.base_ref == 'beta-test' && github.head_ref != 'dev'
         run: |
           echo "::error::Une PR vers beta-test vient de dev, pas de « ${{ github.head_ref }} »."
           echo "Le travail passe d'abord par dev, où l'auteur le reçoit sur ses propres"
@@ -56,7 +133,8 @@ jobs:
           exit 1
 
       - name: Vers app-store, on vient de beta-test
-        if: github.base_ref == 'app-store' && github.head_ref != 'beta-test'
+        if: steps.nature.outputs.docs != 'oui'
+          && github.base_ref == 'app-store' && github.head_ref != 'beta-test'
         run: |
           echo "::error::Une PR vers app-store vient de beta-test, pas de « ${{ github.head_ref }} »."
           echo "Ce qui atteint app-store part à la revue d'Apple. Il faut donc que des"
@@ -65,4 +143,8 @@ jobs:
 
       - name: La chaîne est tenue
         run: |
-          echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — le palier est respecté."
+          if [ "${{ steps.nature.outputs.docs }}" = "oui" ]; then
+            echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — rien que des docs."
+          else
+            echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — le palier est respecté."
+          fi

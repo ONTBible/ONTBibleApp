@@ -97,4 +97,66 @@ struct ObservabilityTests {
         let out = Observability.redact(#"valeur "ce verset me parle" refusée"#)
         #expect(!out.contains("verset me parle"))
     }
+
+    // MARK: - L'apostrophe, et l'espace de typographie
+
+    /// **Le défaut le plus grave qu'ait porté cette fonction.**
+    ///
+    /// `'` figurait dans la classe des délimiteurs. En français elle est dans
+    /// un mot sur cinq : celle de `m'` fermait donc la citation, le début
+    /// partait, et **la fin passait en clair** — « a bouleversé hier soir »
+    /// en dit plus long que « ce passage m ».
+    ///
+    /// Ce n'est pas une expurgation absente, c'est une expurgation qui garde
+    /// précisément ce qu'elle devait cacher, sous l'apparence d'avoir agi.
+    /// Trouvé par la session Android en portant cette fonction en Kotlin.
+    @Test("une note contenant une apostrophe part en entier")
+    func apostropheDansLaNote() {
+        let out = Observability.redact("échec « ce passage m'a bouleversé hier soir »")
+        #expect(out == "échec <texte>")
+        #expect(!out.contains("bouleversé"))
+        #expect(!out.contains("hier soir"))
+    }
+
+    /// Plusieurs apostrophes, et une élision en tête — la forme la plus
+    /// courante d'une note écrite en français.
+    @Test("plusieurs apostrophes ne rouvrent pas la citation")
+    func plusieursApostrophes() {
+        let out = Observability.redact("échec « l'endroit qu'il n'avait pas relu »")
+        #expect(out == "échec <texte>")
+        #expect(!out.contains("relu"))
+    }
+
+    /// L'autre sens, et il coûte le diagnostic.
+    ///
+    /// Le français encadre `« … »` d'espaces insécables. Le critère « douze
+    /// signes **et une espace** » était donc satisfait par la typographie
+    /// seule : une clé qui ne révèle rien se faisait expurger, et le message
+    /// ne disait plus quelle clé manquait.
+    ///
+    /// C'est le même défaut que celui déjà corrigé pour `data/corpus.json`,
+    /// revenu par une autre porte.
+    @Test("une clé entre guillemets français garde son nom")
+    func cleEntreGuillemetsFrancais() {
+        let out = Observability.redact("clé « bereshit-1-verset-30 » absente")
+        #expect(out.contains("bereshit-1-verset-30"))
+        #expect(!out.contains("<texte>"))
+    }
+
+    /// L'espace doit séparer **deux signes**. Une espace de bordure appartient
+    /// aux guillemets, pas à la citation.
+    @Test("une espace de bordure ne fait pas une phrase")
+    func espaceDeBordure() {
+        #expect(Observability.redact("clé \" data-corpus-json \" absente")
+            .contains("data-corpus-json"))
+    }
+
+    /// Et la garde tient toujours dans l'autre sens : une vraie phrase entre
+    /// guillemets droits disparaît.
+    @Test("une phrase entre guillemets droits disparaît encore")
+    func phraseEntreGuillemetsDroits() {
+        let out = Observability.redact("échec \"la note que j'avais écrite hier\"")
+        #expect(out == "échec <texte>")
+    }
 }
+

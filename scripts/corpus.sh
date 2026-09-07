@@ -112,6 +112,26 @@ echo "→ les ressources de l'app"
 # du vault, que l'app continuerait d'afficher sans que rien ne l'explique.
 rm -rf app/Resources/data
 mkdir -p app/Resources/data
+# ## Ce qu'on embarque est **nommé**, et le reste ne suit pas
+#
+# Une copie du dossier entier ferait entrer dans les deux apps tout ce que le
+# pipeline se met à produire, sans que personne l'ait décidé. La liste nommée
+# est donc la décision, et non une commodité.
+#
+# **`dist/sources/` n'est pas ici, et c'est délibéré.** Les langues sources —
+# hébreu, grec, guèze, latin — se téléchargent à la demande : plusieurs dizaines
+# de mégaoctets pour un corpus complet, que la plupart des lecteurs ne
+# consulteront jamais. Les embarquer gonflerait le paquet des deux plateformes
+# pour un usage minoritaire, et le contrat arrêté le 7 septembre 2026 dit
+# l'inverse.
+#
+# L'exclusion était déjà vraie avant cette ligne, par le simple fait que
+# personne ne l'avait ajoutée. Elle est maintenant **écrite** : une absence
+# déduite se comble un jour par mégarde, une absence motivée s'interroge.
+#
+# Côté Android, la garde `verifierLeCorpus` refuse ce qui arrive ici sans
+# lecteur. Elle ne surveille pas ce que le pipeline produit — elle surveille ce
+# que ces deux lignes décident de faire traverser.
 cp dist/*.json app/Resources/data/
 cp -R dist/books app/Resources/data/
 
