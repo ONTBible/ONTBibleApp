@@ -972,7 +972,7 @@ pub fn build() -> Result<BuildResult, String> {
         .flat_map(|b| unites(b).into_iter().cloned())
         .collect();
 
-    if let Some((manifeste_sources, fichiers, sautees)) = crate::sources::preparer(
+    if let Some((manifeste_sources, fichiers, sautees, releves)) = crate::sources::preparer(
         &racine,
         &unites_toutes,
         &transmissions,
@@ -985,6 +985,9 @@ pub fn build() -> Result<BuildResult, String> {
         }
         for dit in &sautees {
             eprintln!("source écartée — {dit}");
+        }
+        for dit in &releves {
+            eprintln!("numérotation — {dit}");
         }
     }
 

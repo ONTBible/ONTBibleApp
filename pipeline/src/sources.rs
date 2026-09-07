@@ -219,7 +219,7 @@ pub fn preparer(
     unites: &[Chapter],
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
-) -> Result<Option<(ManifesteSources, Vec<(String, LivreSources)>, Vec<String>)>, String> {
+) -> Result<Option<(ManifesteSources, Vec<(String, LivreSources)>, Vec<String>, Vec<String>)>, String> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
     if !manifeste.is_file() {
@@ -234,6 +234,8 @@ pub fn preparer(
     // Les unités écartées faute de jointure sûre — dites au rapport, jamais
     // émises de travers.
     let mut sautees: Vec<String> = Vec::new();
+    // Ce qui mérite l'œil de l'auteur sans rien empêcher.
+    let mut releves: Vec<String> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
     let mut fichiers = Vec::new();
 
@@ -324,6 +326,52 @@ pub fn preparer(
                     })
                     .collect();
 
+                // ── La rupture de numérotation, vérifiée et non redéclarée ──
+                //
+                // Le §2.2 du vault fait repartir la numérotation à ¹ quand un
+                // nouveau chapitre biblique s'ouvre au milieu d'une parashah.
+                // La rupture est donc **déjà dans la donnée** — le passage de
+                // 24 à 1 dans la suite des `n`.
+                //
+                // On aurait pu la déclarer au manifeste. On ne le fait pas :
+                // ce serait écrire une seconde fois un fait que le tableau
+                // porte, et deux écritures du même fait finissent par se
+                // contredire — sans que rien ne dise laquelle croire.
+                //
+                // ## Et pourquoi ce n'est qu'un relevé, non une garde
+                //
+                // La première version arrêtait la construction quand la
+                // rupture ne tombait pas sur le changement de chapitre. Elle a
+                // mordu au premier essai — sur `bereshit-1`, qui est
+                // ==légitime== : l'unité couvre Gn 1:1—2:3 et numérote 1 à 34
+                // sans repartir, parce que le §2.3 tient 2:1-3 pour le
+                // couronnement du même récit. `bereshit-7`, lui, repart entre
+                // Gn 7 et 8, qui sont deux mouvements.
+                //
+                // La règle du §2.2 n'est donc pas mécanique, elle est
+                // ==fonctionnelle== : elle suit ce que l'unité accomplit, pas
+                // le découpage de Langton. Une garde ne peut pas trancher ça.
+                //
+                // Et surtout : ==la jointure n'en dépend pas==. Elle est
+                // positionnelle — 34 versets ONT contre 34 versets bibliques,
+                // dans l'ordre — et le fait que la numérotation reparte ou non
+                // ne déplace aucun verset. On relève donc l'écart pour
+                // l'auteur, et on n'arrête rien.
+                let ruptures: Vec<usize> = (1..numeros.len())
+                    .filter(|&i| numeros[i] < numeros[i - 1])
+                    .collect();
+                let changements: Vec<usize> = (1..plage.len())
+                    .filter(|&i| plage[i].0 != plage[i - 1].0)
+                    .collect();
+                if ruptures != changements {
+                    releves.push(format!(
+                        "{} : la numérotation repart à ¹ aux positions {:?} quand \
+                         « {reference} » change de chapitre aux positions {:?} \
+                         (§2.2 — la jointure reste juste, elle est positionnelle)",
+                        u.id, ruptures, changements
+                    ));
+                }
+
                 let mut sortie = Vec::with_capacity(plage.len());
                 for (i, cle_ref) in plage.iter().enumerate() {
                     let Some(texte) = par_ref.get(cle_ref) else {
@@ -399,6 +447,7 @@ pub fn preparer(
         },
         fichiers,
         sautees,
+        releves,
     )))
 }
 
