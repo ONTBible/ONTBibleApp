@@ -57,7 +57,7 @@ private struct EnAttenteDeContenu: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.s) {
-            Image(systemName: "square.stack.3d.up")
+            Image(systemName: "square.stack.3d.up.fill")
                 .font(.system(size: ONTUI.points(28), weight: .light))
                 .foregroundStyle(ONTColors.brandInk(theme.mode))
             Text("Rien à lire pour l'instant")

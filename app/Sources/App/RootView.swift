@@ -309,7 +309,7 @@ private struct OngletsFixes: TabContent {
         // iOS replierait le surplus derrière « Plus », ce qui enterrerait le
         // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
         // qu'on repense la barre entière.
-        Tab("Khuqqim", systemImage: "square.stack.3d.up", value: Router.TabID.khuqqim) {
+        Tab("Khuqqim", systemImage: "square.stack.3d.up.fill", value: Router.TabID.khuqqim) {
             KhuqqimTab()
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
