@@ -187,6 +187,73 @@ tasks.register<Sync>("copierLesDonnees") {
     into(File(assetsEngendres, "data"))
 }
 
+/**
+ * Ce que le pipeline embarque et que personne ne lit.
+ *
+ * ## Le silence que cette tâche brise
+ *
+ * `Sync` recopie **tout** `dist/` dans les assets. Un nouveau dossier produit
+ * par le pipeline arrive donc dans l'app sans que rien ne soit écrit pour lui :
+ * il grossit le paquet, il part chez le lecteur, et il n'est jamais ouvert.
+ *
+ * Le compilateur ne dit rien, parce qu'il n'y a rien à compiler — un fichier
+ * n'a pas de type. C'est l'exact contraire d'un nœud ajouté à `schema.rs`, qui
+ * traverse jusqu'à un `when` exhaustif et fait rougir la compilation.
+ *
+ * Le cas est **imminent** : le chantier des langues sources ouvert le 7
+ * septembre 2026 produira `dist/sources/`, un fichier par livre et par témoin.
+ * Sans cette garde, Android l'embarquerait en silence — et on s'en apercevrait
+ * à la taille du paquet, longtemps après.
+ *
+ * ## Pourquoi une liste et non une exclusion
+ *
+ * Exclure ce qu'on ne connaît pas laisserait passer la prochaine arrivée sans
+ * rien dire, ce qui est le défaut qu'on ferme. La liste **nomme ce qu'on lit**,
+ * et tout le reste arrête le build en se nommant.
+ *
+ * Ajouter une entrée ici n'est pas une formalité : c'est déclarer qu'un lecteur
+ * existe. Le faire sans l'écrire rendrait cette tâche muette.
+ */
+val connusDuCorpus = setOf(
+    "books", "corpus.json", "daily.json", "glossary.json",
+    "manifest.json", "occurrences.json", "report.md", "search.json",
+    "shemot.json",
+)
+
+tasks.register("verifierLeCorpus") {
+    description = "Refuse d'embarquer un fichier du pipeline que rien ne lit."
+    // Des valeurs simples, capturées à la configuration : le cache de
+    // configuration ne sait pas sérialiser une référence à un objet du script,
+    // et refuse le build entier plutôt que de la perdre en silence.
+    val dossier = donneesDuPipeline.asFile
+    val connus = connusDuCorpus.toSet()
+    doLast {
+        val inattendus = dossier.listFiles()
+            .orEmpty()
+            .map { it.name }
+            .filterNot { it in connus || it.startsWith(".") }
+            .sorted()
+        if (inattendus.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Le pipeline produit ce qu'Android embarquerait sans le lire :")
+                    inattendus.forEach { appendLine("    $it") }
+                    appendLine()
+                    appendLine("Ces fichiers partiraient dans le paquet, chez le lecteur, sans")
+                    appendLine("qu'aucune ligne ne les ouvre — et rien ne l'aurait signalé.")
+                    appendLine()
+                    appendLine("Deux sorties, jamais une troisième :")
+                    appendLine("  · écrire le lecteur, puis ajouter le nom à `connusDuCorpus` ;")
+                    appendLine("  · exclure explicitement le dossier de `copierLesDonnees`,")
+                    appendLine("    en disant pourquoi — pour ne pas l'embarquer en attendant.")
+                },
+            )
+        }
+    }
+}
+
+tasks.named("copierLesDonnees") { dependsOn("verifierLeCorpus") }
+
 // Un `File` et non un `Provider` : l'API des sources Android refuse les
 // seconds, parce qu'Android Studio doit pouvoir dire à l'indexation où sont les
 // fichiers sans exécuter le build.
