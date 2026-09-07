@@ -1,3 +1,4 @@
+import KhuqqimFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -175,6 +176,7 @@ struct RacineMac: View {
             case .you:
                 YouTab(onDailyChange: programmerLeVerset, onParutions: appliquerLesParutions)
             case .lexicon: LexiconTab()
+            case .khuqqim: KhuqqimTab()
             case .book(let id): BookTab(bookId: id)
             }
         }

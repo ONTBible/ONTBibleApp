@@ -42,7 +42,7 @@ public struct KhuqqimTab: View {
             }
             .ontScreen()
             .navigationTitle("Khuqqim")
-            .navigationBarTitleDisplayMode(.inline)
+            .ontTitreCompact()
         }
     }
 }
