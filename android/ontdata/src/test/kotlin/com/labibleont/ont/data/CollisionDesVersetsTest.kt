@@ -17,8 +17,13 @@ import org.junit.Test
  *
  * Le §2.2 du vault découpe en **unités fonctionnelles**, pas en chapitres
  * bibliques. Une unité peut donc couvrir deux chapitres — et le numéro de
- * verset **recommence** au second. `bereshit-7` porte quarante-six versets dont
- * les numéros 1 à 6 paraissent deux fois.
+ * verset **recommence** au second :
+ *
+ *     bereshit-7   46 versets, 24 numéros distincts
+ *                  la suite monte à 24, puis repart à 1 et va jusqu'à 22
+ *                  → 22 versets sur 46 partagent leur numéro avec un autre
+ *
+ * Près de la moitié de l'unité, donc, et non une poignée.
  *
  * Or la clé d'un surlignage est `"$chapterId#$verse"`, et l'écran demande sa
  * marque par `verset.n`. **Deux versets différents partagent donc la même
@@ -44,6 +49,18 @@ class CollisionDesVersetsTest {
 
     private val corpus = File("../../app/Resources/data/books")
 
+    /**
+     * **Le compte, et l'instrument qui l'avait tronqué.**
+     *
+     * Le premier relevé annonçait « les numéros 1 à 6 » : le script qui l'a
+     * produit affichait `sorted(doublons)[:6]`. La troncature était dans
+     * l'affichage, pas dans les données — et le chiffre a voyagé dans un
+     * message de commit, une PR et trois échanges avant qu'une session voisine
+     * ne remesure et trouve 22.
+     *
+     * Le test compte donc, plutôt que d'énumérer. Un nombre se compare ; une
+     * liste se lit de travers.
+     */
     @Test
     fun `une unite au moins porte deux fois le meme numero de verset`() {
         val collisions = unitesAvecDoublons()
@@ -52,10 +69,13 @@ class CollisionDesVersetsTest {
                 "plus rien — et la clé reste fausse pour autant.",
             collisions.isNotEmpty(),
         )
-        assertTrue(
-            "bereshit-7 devrait en porter : $collisions",
-            collisions.any { it.first == "bereshit-7" },
+        val bereshit7 = collisions.first { it.first == "bereshit-7" }
+        assertEquals(
+            "le compte des numéros en double a changé — remesurer avant de conclure",
+            22,
+            bereshit7.second.size,
         )
+        assertEquals(46, versetsDe("bereshit-7").size)
     }
 
     /**
