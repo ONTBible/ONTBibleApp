@@ -3581,3 +3581,51 @@ Ce qui a rattrapé celui-ci : la session avertie a **refusé de laisser relayer*
 et donné la commande de vérification plutôt que la conclusion. Trois lignes
 suffisaient — le commit qui introduit la phrase, l'état parent qui ne la porte
 pas, l'état courant qui la porte.
+
+### 7 septembre 2026 — `...` et `..` ne répondent pas à la même question
+
+L'audit des worktrees a trouvé deux branches locales du 30 août, jamais
+poussées. J'ai mesuré ce qu'elles portaient et annoncé **197 lignes de journal
+absentes de `main`** — de quoi interdire tout ménage, puisqu'une branche locale
+n'a de copie nulle part.
+
+Il n'en manquait ==aucune==. Les trois étages de la mesure :
+
+    git diff main...branche    trois points    197 lignes
+    git diff main..branche     deux points       1 ligne
+    comparaison de contenu                       0 ligne absente
+
+**Chaque étage répond à une question différente, et une seule était la mienne.**
+
+- `main...branche` demande *« qu'a ajouté cette branche depuis qu'elle a
+  divergé »*. La divergence datait du 29 août : tout ce que `main` avait acquis
+  depuis, ==par d'autres routes==, était recompté comme manquant ;
+- `main..branche` demande *« qu'a la branche que `main` n'a pas »*. C'était la
+  question ;
+- et l'écart qui reste, de 1 à 0, est encore autre chose : cette ligne est bien
+  dans `main`, ==à une autre place==. Un diff compare des positions, pas des
+  contenus.
+
+**Le diagnostic facile était faux, et c'est le cœur de l'entrée.** Mon `main`
+local datait en effet, et la session qui m'a corrigé a d'abord conclu que
+c'était la cause. Ce n'en était pas une : avec un `main` parfaitement à jour,
+les trois points auraient rendu ==les mêmes 197==. La leçon « fetcher plus
+souvent » n'aurait protégé personne — on l'aurait suivie, et remesuré 197.
+
+**Pour les trois dépôts.** Pour savoir ce qui manque quelque part, **comparer
+des contenus, pas des positions**, et se souvenir que `...` est le mauvais
+outil pour cette question-là :
+
+    git show <ref>:<fichier>   des deux côtés, puis comparer les lignes
+
+C'est la même famille que tout le reste de la semaine — un instrument qui rend
+un nombre bien formé à une question qu'on ne lui a pas posée —, mais dans sa
+forme la plus traître : ==les deux opérateurs ne diffèrent que d'un point==, ils
+ne rendent jamais d'erreur, et le plus verbeux des deux est celui qui a l'air
+d'en dire plus.
+
+**Ce qui a bien fonctionné, et qu'il faut garder.** La prudence a précédé la
+mesure : la branche a été poussée en sauvegarde ==avant== qu'on conclue, et la
+règle de l'audit — *une non-réponse vaut « statut inconnu », pas
+« supprimable »* — a tenu tout du long. Un compte faux dans ce sens-là ne coûte
+qu'une vérification ; dans l'autre, il coûte le travail.
