@@ -82,9 +82,16 @@ public struct ONTScreenModifier: ViewModifier {
 public struct ONTColumnModifier: ViewModifier {
     @Environment(\.ontTheme) private var theme
 
+    /// Faux quand l'écran a besoin de toute la largeur — voir `ontColumn(bornee:)`.
+    let bornee: Bool
+
+    public init(bornee: Bool = true) {
+        self.bornee = bornee
+    }
+
     public func body(content: Content) -> some View {
         content
-            .frame(maxWidth: ONTLayout.pageWidth)
+            .frame(maxWidth: bornee ? ONTLayout.pageWidth : .infinity)
             .frame(maxWidth: .infinity)
             .background {
                 theme.background
@@ -147,5 +154,24 @@ extension View {
     }
 
     /// La colonne de l'app — à poser autour de la pile de navigation d'un onglet.
-    public func ontColumn() -> some View { modifier(ONTColumnModifier()) }
+    ///
+    /// ## `bornee: false` — la lecture, et elle seule
+    ///
+    /// La borne s'applique à la **pile entière**, pour que le grand titre suive
+    /// sa page. Elle décide donc aussi de la largeur de la liseuse, qui est
+    /// posée dans cette pile — et c'est ce qui faisait commencer le pli du
+    /// glissement à 91 points du bord de l'iPad, jamais à l'extrémité : la page
+    /// qu'on soulève s'arrêtait là, et rien de ce qu'on dessine dedans ne peut
+    /// en sortir. Mesuré : la zone qui bouge pendant le geste partait de
+    /// x = 91 pt sur un écran de 1032.
+    ///
+    /// Élargir le pli au-delà de la page ne mène nulle part — la pile de
+    /// navigation rogne ce qui dépasse. C'est donc **la borne qui se déplace** :
+    /// l'écran de lecture prend toute la largeur, et la mesure du texte est
+    /// tenue plus bas, par `ParchmentPage`, qui borne déjà la colonne à
+    /// `readingWidth`. Le texte ne bouge pas d'un point : centré dans 850 ou
+    /// dans 1032, une colonne de 700 tombe au même endroit.
+    public func ontColumn(bornee: Bool = true) -> some View {
+        modifier(ONTColumnModifier(bornee: bornee))
+    }
 }
