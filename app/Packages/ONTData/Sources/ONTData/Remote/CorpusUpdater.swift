@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import ONTKit
 
@@ -262,6 +263,15 @@ public actor CorpusUpdater {
 
     // MARK: - Le réseau
 
+    /// L'empreinte d'un contenu, dans la forme que le site publie.
+    ///
+    /// `sha256` en hexadécimal minuscule, tronqué à douze signes — voir
+    /// `corpus-publie.py`. Le tronquage vient de là et n'est pas discutable
+    /// d'ici : c'est lui qui nomme les fichiers publiés.
+    static func empreinte(_ octets: Data) -> String {
+        String(SHA256.hash(data: octets).map { String(format: "%02x", $0) }.joined().prefix(12))
+    }
+
     private func manifestePublie() async throws -> Manifest? {
         let url = origine.appendingPathComponent("manifeste.json")
         guard let (octets, reponse) = try? await session.data(from: url),
@@ -277,11 +287,33 @@ public actor CorpusUpdater {
         guard (reponse as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        // La taille annoncée fait office de somme de contrôle du pauvre : elle
-        // ne prouve pas l'intégrité, mais elle attrape une réponse tronquée ou
-        // une page d'erreur servie à la place du fichier — ce qui est le cas
-        // réel qu'on veut éviter.
+        // La taille d'abord, **pour le diagnostic seulement**. L'empreinte
+        // ci-dessous la subsume entièrement ; mais quand un serveur rend une
+        // page d'erreur à la place d'un livre, « 1 204 octets au lieu de
+        // 748 391 » dit quoi chercher, là où « empreinte fausse » ne dit rien.
         guard octets.count == entree.octets else { throw URLError(.dataLengthExceedsMaximum) }
+
+        // **Et l'empreinte, qui elle prouve quelque chose.**
+        //
+        // Ce contrôle manquait, et son commentaire l'avouait — la taille était
+        // appelée « somme de contrôle du pauvre ». Elle attrape une réponse
+        // tronquée ; elle ne dit rien d'un fichier abîmé qui garde sa longueur,
+        // ni d'un cache qui sert le mauvais livre sous le bon nom.
+        //
+        // Le manifeste porte l'empreinte **depuis le début** — elle nomme même
+        // le fichier publié, `plan.4814dcb178e2.json`. On l'employait pour
+        // savoir *si* un fichier avait changé, jamais pour savoir *si celui
+        // qu'on vient de recevoir est le bon*. Deux questions, une seule
+        // donnée, et une seule des deux était posée.
+        //
+        // `corpus-publie.py` la calcule ainsi : `sha256(octets)`, hexadécimal,
+        // **tronqué à douze signes**. Le tronquage est leur choix et il tient
+        // ici — quarante-huit bits contre une altération accidentelle, sur un
+        // fichier qui arrive par HTTPS depuis notre propre origine. Ce n'est
+        // pas une frontière de sécurité, c'est une garantie d'intégrité.
+        guard Self.empreinte(octets) == entree.empreinte else {
+            throw URLError(.badServerResponse)
+        }
         return octets
     }
 
