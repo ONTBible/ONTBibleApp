@@ -3057,7 +3057,7 @@ les deux ont failli manquer :
 Et il se contrôle en CI par régénération et comparaison — l'échec ==dit la
 commande== et ne régénère pas en silence, la CI n'écrivant pas à la place de
 qui a relu.
-## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté
+## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté *(local)*
 
 Deux captures, deux griefs : « le bas de l'interface est pas ouf, en plus cliquer
 à l'extérieur ne ferme pas la modal ». Les deux sortent de la **présentation**,
@@ -3114,7 +3114,7 @@ que c'est la dernière posée qui se dessine. Chacune a été retournée contre 
 propre défaut — geste jeté, `removeAll()`, `.first` au lieu de `.last` — et
 rougit sur lui seul.
 
-## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé
+## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé *(local)*
 
 « L'app macOS paraît rigide, formes strictes ; iOS est fluffy, rebondie. » Le
 constat de l'auteur, vérifié en capturant **chaque vue** du Mac — quatorze — et
@@ -3167,7 +3167,7 @@ là-bas. Le chantier suivant est décidé avec l'auteur : micro-animations
 50→900** à la Tailwind avec les rôles sémantiques (accent, danger…) par-dessus
 — ancrée sur les couleurs relevées du logo et du site, pas redessinée.
 
-## 3 septembre 2026 — la refonte du mouvement, couche des fondations
+## 3 septembre 2026 — la refonte du mouvement, couche des fondations *(local)*
 
 L'auteur, designer : « en termes d'UI/UX motion design on est loin, je veux une
 refonte ». Ses références : Craft, CleanMyMac pour la densité de micro-
@@ -3220,7 +3220,7 @@ restantes (NavigationLink du corpus), l'orchestration d'arrivée des écrans, le
 survol des intraduisibles dans le texte, la pastille de la barre. Vue par vue,
 planche à l'appui.
 
-## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes
+## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes *(local)*
 
 ### « Impossible de swiper » — les deux chemins, encore
 
@@ -3251,7 +3251,7 @@ pastille** (`theme.danger` sur `dangerSurface`) au lieu du `.red` système,
 survol et pression. Les capsules ont servi le soir même : l'auteur s'est
 connecté avec Apple sur le Mac — première connexion réussie de la plateforme.
 
-## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt
+## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt *(local)*
 
 « Tu te moques de moi pour la sidebar ? » — et le reproche était juste : le
 panneau flottant avait été posé, mais la barre peignait encore son fond opaque
@@ -3294,7 +3294,7 @@ tout bouton au style de la maison sonne, sans site à instrumenter.
 sur ce qui flotte au-dessus du texte — la pastille de lecture d'abord. Sur
 iOS, les deux ne font rien : le système y donne déjà ses retours.
 
-## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas
+## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas *(local)*
 
 La table d'un livre et les résultats de recherche ont rejoint les cartes par
 ligne — même recette, cascade comprise ; la carte du Qahal a pris la pression.
@@ -3326,7 +3326,7 @@ qui marche : des **plages de caractères** extraites de la chaîne finale
 caractère zéro, `distance(to:)` rend chaque index absolu. Le minimum et non le
 premier run : l'hébreu en RTL réordonne les runs visuellement.
 
-## 4 septembre 2026 — la barre flottante, construite puis écartée en main
+## 4 septembre 2026 — la barre flottante, construite puis écartée en main *(local)*
 
 Trois états en une soirée : la barre opaque, la barre flottante à la Craft
 (coins, marges, ombre, sol unifié), puis — l'auteur l'ayant prise en main —
@@ -3340,7 +3340,7 @@ aubergine à 0,65 — et une barre qui ne peint plus son propre fond. Le détour
 n'était pas gratuit : c'est en la voyant flotter qu'on a su que ce n'était pas
 elle. Décision d'auteur, consignée pour que personne ne la reconstruise.
 
-## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon
+## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon *(local)*
 
 « Non, la sidebar Craft elle flotte, mec. » Exact — et la relecture de sa
 capture a montré ce que la première tentative avait raté : **ce n'est pas la
@@ -3362,7 +3362,7 @@ faut recouvrir son sol comme pour la page ; et une prévisualisation réduite
 écrase un écart de ton réel (14,6,8 contre 48,37,40 au pixel) — juger les
 retraits fins à l'échelle 1.
 
-## 4 septembre 2026 — la mesure a clos le débat de la barre
+## 4 septembre 2026 — la mesure a clos le débat de la barre *(local)*
 
 L'entrée précédente (« deux panneaux sur une toile ») était la **troisième
 lecture fausse** de la même capture. L'auteur a corrigé une fois de plus — « les
@@ -3383,7 +3383,7 @@ est celle de toute la semaine : **une référence visuelle se mesure, elle ne se
 relit pas** — l'œil a affirmé trois architectures différentes du même écran,
 le balayage en a établi une en trente lignes.
 
-## 4 septembre 2026 — la bidouille retirée : la barre est celle du système
+## 4 septembre 2026 — la bidouille retirée : la barre est celle du système *(local)*
 
 Fin du feuilleton de la barre, sur l'ordre de l'auteur : « enlève la bidouille ».
 `PanneauFlottant.swift` est supprimé — vitre à la main, voile, toile, page en
