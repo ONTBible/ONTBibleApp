@@ -99,6 +99,97 @@ fn descendre(nodes: &[Inline], f: &mut impl FnMut(&Inline)) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Rendre le lemme canonique — ce que le contrôle 1 mesurait
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Réécrit chaque `Term` pour qu'il porte **le lemme de son entrée**.
+///
+/// ## Le défaut, et pourquoi il était invisible
+///
+/// Le tokeniseur émet `lemma: slugify(v)` — le slug de la forme **affichée**.
+/// `**gibborim**` sortait donc en `lemma: "gibborim"`, quand l'entrée s'appelle
+/// `gibbor` et déclare `gibborim` parmi ses formes.
+///
+/// La résolution existait déjà, mais **seulement pour compter les occurrences**
+/// (`build.rs`, `index_occurrences`) : elle n'était jamais réécrite dans le
+/// nœud livré. Le rapport traversait `forms` et disait « 0 mot d'or sans
+/// fiche » ; la liseuse indexe par lemme exact et affichait « Terme non
+/// documenté » sur un mot documenté. ==Deux normalisations pour une seule
+/// donnée, et celle qui parlait au lecteur était la muette.==
+///
+/// ## Pourquoi ici, et pas dans le tokeniseur
+///
+/// `inline.rs` ne connaît pas le glossaire, et c'est une bonne chose : lui
+/// passer la table le ferait dépendre de ce qu'il sert à produire. La
+/// résolution se fait donc **après coup**, là où la table existe déjà.
+///
+/// ## Pourquoi pas chez les consommateurs
+///
+/// Parce qu'il faudrait trois implémentations de `slugify` — `forms` garde le
+/// texte brut du §2.5, `mal'akhim` avec son apostrophe, quand le lemme est
+/// slugifié en `malakhim`. ==Deux normalisations écrites séparément divergent==,
+/// et le défaut deviendrait intermittent au lieu d'être systématique.
+pub fn canoniser(blocs: &mut [Block], formes: &BTreeMap<String, String>) {
+    for bloc in blocs {
+        pour_chaque_inline_mut(bloc, &mut |n| {
+            if let Inline::Term { lemma, .. } = n {
+                if let Some(vrai) = formes.get(lemma.as_str()) {
+                    *lemma = vrai.clone();
+                }
+            }
+        });
+    }
+}
+
+/// Le pendant mutable de [`pour_chaque_inline`]. Même exigence d'exhaustivité.
+pub fn pour_chaque_inline_mut(bloc: &mut Block, f: &mut impl FnMut(&mut Inline)) {
+    match bloc {
+        Block::Heading { nodes, .. } | Block::Para { nodes } | Block::Quote { nodes } => {
+            descendre_mut(nodes, f)
+        }
+        Block::Verses { verses } => {
+            for v in verses {
+                descendre_mut(&mut v.nodes, f)
+            }
+        }
+        Block::List { items, .. } => {
+            for item in items {
+                descendre_mut(item, f)
+            }
+        }
+        Block::Table { headers, rows } => {
+            for c in headers {
+                descendre_mut(c, f)
+            }
+            for l in rows {
+                for c in l {
+                    descendre_mut(c, f)
+                }
+            }
+        }
+        Block::Rule => {}
+    }
+}
+
+fn descendre_mut(nodes: &mut [Inline], f: &mut impl FnMut(&mut Inline)) {
+    for n in nodes {
+        f(n);
+        match n {
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => descendre_mut(children, f),
+            Inline::Text { .. }
+            | Inline::Term { .. }
+            | Inline::Shem { .. }
+            | Inline::Translit { .. }
+            | Inline::Heb { .. }
+            | Inline::Break => {}
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contrôle 1 — chaque lemme émis retombe-t-il sur une entrée du même dist/ ?
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -251,9 +342,14 @@ pub fn liens_morts(
 /// **parashah** neuve fait rougir la CI, et c'est ce qu'on veut — le corpus ne
 /// doit pas continuer d'accumuler des liens que le lecteur touchera en vain.
 ///
-/// Le jour où l'émission rendra le lemme canonique, ce nombre descend à `0` et
-/// le contrôle devient une vraie garde. **C'est un chiffre à changer, pas un
-/// mécanisme à écrire.**
+/// **Il est à zéro depuis le 7 septembre 2026, et c'est le jour annoncé.**
+/// L'émission rend le lemme canonique, l'inclusion suit les fiches publiées :
+/// plus un seul lien livré ne manque sa cible. Le cliquet cesse d'être un
+/// plafond toléré et devient ce qu'un contrôle doit être — *aucun lien mort*.
+///
+/// Le mécanisme n'a pas changé d'une ligne pour y arriver. C'était un chiffre à
+/// changer, pas un mécanisme à écrire : posé à `237` il protégeait déjà contre
+/// l'aggravation, et il n'a jamais fallu le « brancher le jour où ».
 ///
 /// **Un cliquet se resserre dès que le compte baisse, sinon il cesse de
 /// cliqueter.** Laissé au-dessus du réel, il autorise en silence le retour de
@@ -267,7 +363,7 @@ pub fn liens_morts(
 /// - puis `237`, descendu à `224` quand les dix-neuf gras d'emphase du
 ///   `CLAUDE.md` ont été retirés — treize liens de moins, dans les notes de
 ///   balisage que le contrôle venait de rendre visibles.
-pub const PLAFOND_LIENS_MORTS: usize = 224;
+pub const PLAFOND_LIENS_MORTS: usize = 0;
 
 /// Ce que les parcours restreints du pipeline ne voient pas.
 ///
@@ -564,6 +660,59 @@ mod tests {
                 "dans-une-liste"
             ]
         );
+    }
+
+    /// **Le lemme canonique est écrit dans le nœud, pas seulement calculé.**
+    ///
+    /// C'est le défaut que tout ce module a servi à mesurer : la résolution
+    /// existait pour compter les occurrences et n'atteignait jamais le nœud
+    /// livré. Ce test verrouille l'écriture.
+    #[test]
+    fn une_forme_flechie_recoit_le_lemme_de_son_entree() {
+        let mut blocs = vec![Block::Para {
+            nodes: vec![Inline::Term {
+                v: "gibborim".into(),
+                lemma: "gibborim".into(),
+            }],
+        }];
+        let formes = BTreeMap::from([("gibborim".to_string(), "gibbor".to_string())]);
+        canoniser(&mut blocs, &formes);
+        let Block::Para { nodes } = &blocs[0] else {
+            unreachable!()
+        };
+        let Inline::Term { v, lemma } = &nodes[0] else {
+            unreachable!()
+        };
+        assert_eq!(lemma, "gibbor", "le lemme doit être canonique");
+        assert_eq!(v, "gibborim", "l'affichage ne doit pas bouger");
+    }
+
+    /// La canonisation descend dans les gloses et les pieds comme le reste :
+    /// un intraduisible expliqué dans une glose est touchable lui aussi.
+    #[test]
+    fn la_canonisation_descend_dans_les_gloses() {
+        let mut blocs = vec![Block::Para {
+            nodes: vec![Inline::Gloss {
+                children: vec![Inline::Term {
+                    v: "mal'akhim".into(),
+                    lemma: "malakhim".into(),
+                }],
+            }],
+        }];
+        canoniser(
+            &mut blocs,
+            &BTreeMap::from([("malakhim".into(), "malakh".into())]),
+        );
+        let Block::Para { nodes } = &blocs[0] else {
+            unreachable!()
+        };
+        let Inline::Gloss { children } = &nodes[0] else {
+            unreachable!()
+        };
+        let Inline::Term { lemma, .. } = &children[0] else {
+            unreachable!()
+        };
+        assert_eq!(lemma, "malakh");
     }
 
     /// **Le pied de section est livré, donc il est mesuré.**
