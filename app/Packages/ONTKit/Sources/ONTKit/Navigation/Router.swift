@@ -24,7 +24,7 @@ public final class Router {
     /// associée ne peut pas avoir de brut automatique, et on tient à ce que le
     /// dernier onglet reste une seule chaîne dans les réglages.
     public enum TabID: RawRepresentable, Hashable, Sendable {
-        case qahal, bible, lexicon, khuqqim, you
+        case qahal, bible, lexicon, khuqqot, you
         /// **Où l'on en était** — un onglet du Mac seulement.
         ///
         /// Sur un téléphone, « Reprendre » est une carte en tête de la Bible :
@@ -44,7 +44,7 @@ public final class Router {
             case "qahal": self = .qahal
             case "bible": self = .bible
             case "lexicon": self = .lexicon
-            case "khuqqim": self = .khuqqim
+            case "khuqqot": self = .khuqqot
             case "you": self = .you
             default:
                 guard rawValue.hasPrefix("book:") else { return nil }
@@ -58,7 +58,7 @@ public final class Router {
             case .qahal: "qahal"
             case .bible: "bible"
             case .lexicon: "lexicon"
-            case .khuqqim: "khuqqim"
+            case .khuqqot: "khuqqot"
             case .you: "you"
             case .book(let id): "book:\(id)"
             }

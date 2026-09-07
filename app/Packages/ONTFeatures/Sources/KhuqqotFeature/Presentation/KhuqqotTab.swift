@@ -2,7 +2,27 @@ import ONTDesignSystem
 import ONTKit
 import SwiftUI
 
-/// L'onglet **Khuqqim** — חֻקִּים, ce qui est *gravé*.
+/// L'onglet **Khuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
+///
+/// ## Le nom, et pourquoi ce n'est pas « Khuqqim »
+///
+/// Les deux pluriels existent et ne disent pas la même chose. חֹק → חֻקִּים,
+/// masculin, tire vers la **prescription** — ce qu'on ordonne de faire. חֻקָּה
+/// → חֻקּוֹת, féminin, tire vers la **disposition permanente** — ce qui est
+/// établi et tient.
+///
+/// Ce que cet onglet portera n'oblige personne à agir : ce sont des
+/// régularités reconnues, énoncées comme des **nécessités** — « on ne peut pas
+/// inventer un engin si l'on est soi-même dans l'engin ». La racine ח-ק-ק dit
+/// *graver, inciser, tailler dans* : un khoq tient parce qu'il ne peut pas ne
+/// pas tenir.
+///
+/// Et la formule qui tranche : **חֻקַּת עוֹלָם**, *khuqqat olam*, « statut
+/// perpétuel ». Tout le vocabulaire du corpus repose sur `olam` — la durée
+/// indéterminée, le mode d'être dans le temps. C'est de cette famille-là.
+///
+/// **Ne pas « corriger » en masculin.** L'écart est délibéré, arbitré le
+/// 7 septembre 2026.
 ///
 /// ## Où il en est
 ///
@@ -16,7 +36,7 @@ import SwiftUI
 /// Un écran vide sans un mot se lit comme une panne. Celui-ci dit ce qu'il
 /// attend, ce qui est vrai — et il disparaîtra dès que la première entrée
 /// arrivera.
-public struct KhuqqimTab: View {
+public struct KhuqqotTab: View {
     @Environment(\.ontTheme) private var theme
     private var spacing = ONTSpacing()
 
@@ -26,7 +46,7 @@ public struct KhuqqimTab: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: spacing.m) {
-                    Text("Khuqqim")
+                    Text("Khuqqot")
                         .font(.custom(ONTFonts.display, size: ONTUI.points(30)))
                         .foregroundStyle(theme.ink)
                     Text("ce qui est gravé")
@@ -41,7 +61,7 @@ public struct KhuqqimTab: View {
                 .padding(.top, spacing.l)
             }
             .ontScreen()
-            .navigationTitle("Khuqqim")
+            .navigationTitle("Khuqqot")
             .ontTitreCompact()
         }
     }
@@ -63,7 +83,7 @@ private struct EnAttenteDeContenu: View {
             Text("Rien à lire pour l'instant")
                 .font(ONTUI.headline)
                 .foregroundStyle(theme.ink)
-            Text("Cet onglet portera les khuqqim. Ils ne sont pas encore écrits.")
+            Text("Cet onglet portera les khuqqot. Ils ne sont pas encore écrits.")
                 .font(ONTUI.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

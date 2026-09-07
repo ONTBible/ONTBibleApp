@@ -232,7 +232,7 @@ struct ONTMacApp: App {
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Lexique") { etat.composition.router.aller(a: .lexicon) }
                     .keyboardShortcut("4", modifiers: .command)
-                Button("Khuqqim") { etat.composition.router.aller(a: .khuqqim) }
+                Button("Khuqqot") { etat.composition.router.aller(a: .khuqqot) }
                     .keyboardShortcut("5", modifiers: .command)
 
                 Divider()
