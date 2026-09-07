@@ -260,6 +260,79 @@ enregistrement sur ce qu'on croit avoir collé.
 Un travail non commité n'est protégé de rien. C'est ce qui a rendu la première
 perte possible. Dès que ça compile : une branche, un commit signé.
 
+### Les sept rôles — se trouver sans se nommer
+
+**Posé le 7 septembre 2026, à la demande de l'auteur** : « je veux que vous
+communiquiez toutes l'une à l'autre pour vous connaître ». Les sept sessions se
+sont présentées, et la carte vit ici plutôt que dans leurs mémoires : ce fichier
+est le même dans les trois dépôts et le contrôle de concordance compare les
+exemplaires — une carte qui y vit ne peut pas diverger. Sept mémoires le
+peuvent, et le feraient.
+
+**Par rôles, jamais par noms de session.** La collecte l'a démontré : les
+annuaires ne sont pas partagés — chaque session voit les autres sous des noms
+propres à son propre `ListAgents`, et deux sessions se sont désignées toute une
+semaine par des noms que l'autre ignorait. Un registre de noms serait donc faux
+pour six lecteurs sur sept au moment même de l'écrire. Les rôles sont la seule
+chose que tout le monde voit pareil — c'est d'ailleurs ainsi que l'auteur les a
+énumérés. Qui tient un rôle *aujourd'hui* se relève par `ListAgents`, en disant
+depuis quel annuaire on nomme.
+
+- **La manageuse** — travaille depuis la racine `~/ONTBible`, seul endroit d'où
+  les trois dépôts se voient. Tient la concertation, la synchronisation
+  inter-dépôts et l'outillage de la machine (l'espace disque, les règles
+  communes). À joindre pour : tout ce qui traverse plus d'un dépôt, un registre
+  ou une carte à diffuser, une règle commune (rulesets, CI exigée), le disque.
+
+- **Le vault** — `ONTBibleTranslation` sur `main` : le `CLAUDE.md` (balisage
+  §2.5 / §2.5 bis / §2.10, glossaire §3), les fiches de `lexique/`,
+  `corpus-order.md`, la rédaction des **parashiot**, des introductions et des
+  fiches ; l'index `DECISIONS.md` (`scripts/decisions.py`) et les contrôles de
+  `pipeline/src/controles.rs`. À joindre pour : toute prose que le lecteur
+  lira, toute question de balisage ou de glossaire — et « cette décision
+  a-t-elle été prise ? » se demande d'abord à `scripts/decisions.py <mot>`.
+
+- **Les langues sources** — importe les textes en hébreu, grec, guèze et
+  latin, les joint aux unités ONT et les émet dans `dist/sources/` ; tient les
+  permissions auprès des éditeurs et des projets savants. À joindre pour :
+  `sources/` dans le vault, et la couche source dans l'app comme sur le site.
+
+- **iOS / iPadOS** — `app/Sources`, `app/Packages` (ONTKit, ONTData,
+  ONTDesignSystem, ONTFeatures), le widget, `app/Tests` et `app/UITests`. Les
+  décisions **d'interface** se prennent ici et s'appliquent ailleurs, quand
+  Android ou macOS n'ont pas de raison propre de diverger ; pour les
+  **données**, le sens est inverse — le pipeline et le vault font foi, iOS s'y
+  plie comme les autres. À joindre pour : tout arbitrage de ce que le lecteur
+  voit et touche sur iPhone et iPad, la forme des types de domaine d'ONTKit,
+  les contrats de données côté liseuse.
+
+- **Android** — `android/`, depuis son worktree dédié, intégration sur
+  `device` ; la fiche Play et la chaîne de parution. N'arbitre pas l'interface :
+  les initiatives viennent d'iOS, Android applique — règle de l'auteur. À
+  joindre pour : `android/`, la fiche Play, ce qui traverse le pipeline
+  jusqu'à Kotlin — et **avant** de toucher `scripts/corpus.sh` ou
+  `pipeline/src/schema.rs`, qui l'atteignent l'un en silence, l'autre par le
+  compilateur.
+
+- **macOS** — la liseuse du Mac : `app/MacSources` et la part proprement Mac
+  des fichiers partagés (fenêtre, barre latérale, cartes-modales, haptiques,
+  verre) ; la chaîne Homebrew de bout en bout (tap, cask, signature,
+  notarisation) ; la couche donnée des sources (`SourcesUpdater`). À joindre
+  pour : ce qui se voit ou se sent sur le Mac, le cask et la distribution hors
+  App Store. Les arbitrages d'interface vont à iOS, le Kotlin à Android.
+
+- **Le site** — `ONTBibleWebapp` / `ontbible.com`. Lit `../ONTBibleApp/dist/`
+  à la compilation, appelle le backend de l'app à l'exécution (`/auth/*`,
+  `/sync`) ; porte les **originaux de la marque** — la palette de
+  `style/main.css` et les vecteurs de `public/images/`, que l'app recopie,
+  jamais l'inverse. À joindre pour : une couleur ou un vecteur à changer, un
+  changement de forme dans `dist/` ou dans une réponse du backend, un lien
+  `ontbible.com/fr/lire/…` qui ne mène pas où il devrait.
+
+La table porte les rôles, qui durent — pas les chantiers ni les arbitrages en
+attente, qui périment : ceux-là voyagent par message, et par `DECISIONS.md`
+pour ce qui attend l'auteur.
+
 ---
 
 ## Journal
