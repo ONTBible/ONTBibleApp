@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Les droits de la version Homebrew — signée Developer ID, hors App
+	     Store. Les droits *restreints* de la version App Store en sont
+	     retirés, parce qu'ils exigent un profil de provisionnement
+	     Developer ID que personne n'embarque ici ; présents sans profil,
+	     macOS refuse de lancer l'app :
+
+	       com.apple.developer.applesignin        → « Continuer avec Apple »
+	       com.apple.developer.aps-environment    → notifications poussées
+	       com.apple.developer.associated-domains → liens universels
+
+	     La connexion Apple est donc indisponible dans la version Homebrew ;
+	     Google et GitHub, qui passent par le web, fonctionnent. Le cask le
+	     dit dans ses caveats. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+</dict>
+</plist>

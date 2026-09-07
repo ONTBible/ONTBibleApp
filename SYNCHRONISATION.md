@@ -3396,3 +3396,236 @@ fouille — SDK balayé, web croisé, deux sondes — a établi qu'il n'existe p
 d'API « barre flottante » : sur cette machine, la forme native est la colonne
 de verre pleine hauteur, et ce qui flotte chez Craft est leur page. Quatre
 constructions écrites, une gardée : celle du système.
+
+## 4 septembre 2026 — la liseuse du Mac s'installe par Homebrew
+
+Sur la demande de l'auteur, calquée sur `gloiiire/cocker` — dont la formule et
+`sync-homebrew-tap` rodent la mécanique depuis des mois.
+
+### Ce qui a été monté
+
+- **`ONTBible/homebrew-ont`** — un dépôt neuf, le tap : `Casks/la-bible-ont.rb`
+  et une épreuve `eprouver` (le style Homebrew du cask). Installation :
+  `brew install --cask ontbible/ont/la-bible-ont` ;
+- **`scripts/publier-le-cask.sh`** — construit en Release, signe **Developer
+  ID** avec exécution durcie, notarise par `notarytool` (la clé ASC déjà en
+  place), agrafe, zippe, rend le sha256 ;
+- **`.github/workflows/cask.yml`** — sur `brew-vX.Y.Z` : tout ce qui précède
+  sur le runner, release GitHub, puis réécriture du cask par l'API contents —
+  le commit sort signé « GitHub web flow », le chemin exact de cocker ;
+- **`app/ONTMac-cask.entitlements`** — les droits *restreints* retirés
+  (connexion Apple, push, liens universels) : sans profil Developer ID,
+  macOS refuse de lancer une app qui les porte. Le cask le dit en caveats.
+
+### Ce que seul l'auteur peut faire, et qui bloque le premier tir
+
+1. créer le certificat **« Developer ID Application »** (Xcode → Réglages →
+   Comptes → Gérer les certificats — titulaire du compte ; le trousseau n'a
+   que Development et Distribution, vérifiés) → l'exporter en .p12 → secrets
+   `DEVELOPER_ID_P12` (base64) et `DEVELOPER_ID_P12_MDP` ;
+2. un PAT fine-grained sur `ONTBible/homebrew-ont` (Contents : Read/Write) →
+   secret `HOMEBREW_TAP_TOKEN`.
+
+Puis : `git tag brew-v1.0.5 && git push origin brew-v1.0.5` — le reste est
+machine. Le workflow valide les secrets **en premier** et échoue en nommant ce
+qui manque.
+
+### Deux exceptions assumées, écrites pour être relevées
+
+- **le tap n'a pas encore le ruleset commun** : la CI y écrit `main` en
+  direct par l'API. Le protéger exigera le flux PR + auto-merge de cocker
+  (une trentaine de lignes, déjà écrites là-bas) — à faire quand le premier
+  tir aura prouvé la chaîne ;
+- **le tap n'est pas raccordé** à la table des dépôts de la racine — c'est le
+  fichier de l'auteur. Un dépôt satellite écrit par la machine, mais la règle
+  dit qu'un dépôt hors table est un dépôt qu'on oublie : à trancher.
+
+Rien de `dist/` ni du schéma ne bouge. La notarisation ne consomme **aucune**
+place du quota App Store Connect — c'est une voie parallèle, pas un palier de
+plus dans la chaîne de promotion.
+
+### Le canal bêta du cask, sur le motif de firefox@beta
+
+Question de l'auteur : « comme Firefox Nightly — des flags pour une bêta et
+une stable, mappées sur mes branches ? » Homebrew ne connaît pas de flags de
+canal : la convention est **un cask par canal, à suffixe** — `firefox`,
+`firefox@beta`. Transposé :
+
+    brew-vX.Y.Z        (posée sur app-store) → Casks/la-bible-ont.rb
+    brew-beta-vX.Y.Z-N (posée sur beta-test) → Casks/la-bible-ont@beta.rb
+
+Les deux casks se déclarent en conflit mutuel — même app posée — et la CI
+réécrit celui du canal de l'étiquette. La release bêta part en `--prerelease`.
+L'épreuve `eprouver` du tap a encore mordu au passage (six offenses de style
+sur le cask neuf, corrigées par `brew style --fix` avant de pousser).
+
+### Le premier tir du cask — vert, et deux leçons de secret au passage
+
+`brew-beta-v1.0.5-1` : build, signature Developer ID durcie, notarisation,
+release en *prerelease*, cask réécrit (`1.0.5-1`), épreuve du tap verte.
+Vérifié comme Gatekeeper le fera chez un inconnu : sha du cask = sha du zip au
+bit près, `spctl` rend « accepted — source=Notarized Developer ID », agrafe
+valide. `brew install --cask ontbible/ont/la-bible-ont@beta` est réel.
+
+Le tir a coûté trois essais, tous morts **à la validation, en une seconde** —
+ce pour quoi elle existe :
+
+1. un secret **vide** — `gh secret set` interactif sans terminal lit un stdin
+   vide et pose le vide sans un mot ;
+2. le **texte d'exemple** posé tel quel — attrapé par le contrôle
+   d'authentification ajouté entre les deux (le curl de cocker) : un jeton
+   présent mais faux n'aurait rougi qu'après vingt-cinq minutes de build ;
+3. le vrai jeton — vert.
+
+La discipline voulue par l'auteur est structurelle : le tap n'a aucun autre
+écrivain que `cask.yml`, qui ne part que sur étiquette et **crée** la release.
+Son README de profil balaie déjà l'organisation : les stables y paraîtront
+d'eux-mêmes ; les bêtas, marquées *prerelease*, en sont filtrées par son
+propre script — le profil annonce le stable, la bêta reste entre testeurs.
+
+## 7 septembre 2026 — le contrat des langues sources, arrêté à cinq sessions
+
+Le maillon que personne n'avait pris pendant une semaine — la forme de
+`dist/sources/` entre le vault (52 Mo, cinq témoins, 40 798 versets) et la
+liseuse — est arrêté. Les rôles, vérifiés et non devinés :
+
+| session | couloir |
+|---|---|
+| `ontbibletranslation-ed` | pipeline : jointure, émission, gardes |
+| `fix-sync-concordance-logic` | les six phrases `transmission` (prose de corpus) |
+| `ontbibleapp-92` (iOS) | arbitrages d'écran — **c'est elle qui décide** |
+| cette session (macOS) | `SourcesUpdater` + rendu macOS de ce qu'iOS décide |
+| `ontbibleapp-a5` (Android) | applique, notifiée explicitement à deux jalons |
+
+### Le contrat, validé par iOS « tel quel »
+
+`dist/sources/manifeste.json` — attributions par source, et par livre : témoins
+{chemin, sha256, octets} + phrase `transmission` pour les six livres sans
+témoin. Un fichier par livre × témoin ; clés = **unités ONT**, versets en
+**chaînes jointes**, numérotés comme la liseuse numérote ; **aucun champ
+d'analyse en v1** — poids ÷5 et la contrainte CC BY-SA de MorphGNT réglée par
+construction (`…-analyse.json` restera possible sans casser le contrat).
+
+La jointure unité ↔ plage biblique est **mesurée**, pas supposée : 13/13
+exactes sur les unités verrouillées de Bereshit, quatre formes de sous-titre
+traversées ; les deux écarts sont des brouillons déjà signalés. Gardes
+pipeline : compte ≠ plage déclarée → rouge ; livre sans témoin sans phrase →
+rouge.
+
+### Les arbitrages d'écran rendus par iOS
+
+- **entrée par le verset sélectionné** (« qu'est-ce que l'hébreu dit ici »),
+  aperçu avec colophon, puis « tout le texte source » — pas de chrome
+  permanent ; l'entrée d'unité se rajouterait sans rien défaire ;
+- **segments, pas colonnes**, et pour la vraie raison : deux colonnes
+  affirment une correspondance ligne à ligne que la donnée ne porte pas ;
+- **aucune phrase de transmission composée côté client** — elle vient du
+  vault ou il n'y a rien ; registre de note, ni icône ni fond d'alerte.
+
+### `SourcesUpdater` — à cette session, sous trois conditions d'iOS
+
+Les deux gardes de date (refus du manifeste plus vieux **et** purge au
+lancement), le **vrai** `sha256` — le `CorpusUpdater` actuel ne compare que la
+taille, de son propre aveu en commentaire —, `Application Support` exclu des
+sauvegardes, écriture atomique. iOS relit avant fusion.
+
+### En attente
+
+Les deux goûts chez Gloire (sigles critiques du SBLGNT en lecture — 570
+paires de `⸂⸃` sur trois livres —, ordre des deux grecs) ; la réponse d'iOS
+sur le **type engendré** du manifeste (codegen Swift+Kotlin pour que les
+compilateurs redeviennent garde-fous — question du vault) ; l'échantillon
+`he-wlc/bereshit.json`, qui part à l'instant.
+
+Au passage, trois leçons de concertation payées comptant : cette session
+s'est attribuée deux périmètres qui ne sont pas les siens (corrigée par
+l'auteur en riant) ; l'identité d'une session se **mesure** par le
+`Claude-Session` de ses commits, pas par son nom ; et un fichier de données
+hors codegen ne prévient aucun compilateur — la notification explicite est le
+seul mécanisme restant.
+
+### 2 septembre 2026 — faire taire le `fetch` dont dépend toute la conclusion
+
+Une session a relu la feuille d'introduction du *Chazon Avraham* et conclu
+qu'elle ne déclarait pas son assise textuelle. Elle avait raison ==l'avant-veille==
+et tort depuis : le paragraphe manquant avait été ajouté la veille. Elle
+s'apprêtait à porter à l'auteur que son livre ne dit pas sur quoi il repose —
+inquiétude qu'il avait déjà eue une fois, et sur un point faux.
+
+Elle a trouvé la mécanique elle-même, et ==elle est meilleure que l'erreur== :
+
+    git fetch origin --quiet 2>/dev/null; git show origin/main:<fichier>
+
+**Deux silencements indépendants sur la commande qui établissait la prémisse**,
+et l'un ou l'autre aurait suffi :
+
+- `2>/dev/null` jette le message d'échec du `fetch` ;
+- et le `;` jette son **code de sortie** — le code du couple est celui du
+  `git show`, qui réussit parfaitement en lisant ==la référence locale
+  périmée==. Rien ne distingue « `origin/main` à jour » de « `origin/main` d'il
+  y a deux jours » : `git show` répond dans les deux cas, sans un mot.
+
+Le motif de la semaine était jusqu'ici *l'instrument qui avale son erreur*.
+Celui-ci est plus net et plus embarrassant : **l'instrument n'a pas avalé son
+erreur, on la lui a fait avaler** — délibérément, pour garder une sortie propre
+à lire. C'est la première fois qu'on voit le défaut ==construit à dessein==,
+et par souci de lisibilité.
+
+**Pour les trois dépôts, et la règle tient en une ligne : jamais de
+`2>/dev/null` sur ce qui établit la prémisse — seulement sur ce qui décore.**
+Et son corollaire de forme : enchaîner par `&&` plutôt que par `;` ce dont la
+suite dépend, faute de quoi on lit vraiment quelque chose, mais pas ce qu'on
+croit lire.
+
+Ce qui a rattrapé celui-ci : la session avertie a **refusé de laisser relayer**
+et donné la commande de vérification plutôt que la conclusion. Trois lignes
+suffisaient — le commit qui introduit la phrase, l'état parent qui ne la porte
+pas, l'état courant qui la porte.
+
+### 7 septembre 2026 — `...` et `..` ne répondent pas à la même question
+
+L'audit des worktrees a trouvé deux branches locales du 30 août, jamais
+poussées. J'ai mesuré ce qu'elles portaient et annoncé **197 lignes de journal
+absentes de `main`** — de quoi interdire tout ménage, puisqu'une branche locale
+n'a de copie nulle part.
+
+Il n'en manquait ==aucune==. Les trois étages de la mesure :
+
+    git diff main...branche    trois points    197 lignes
+    git diff main..branche     deux points       1 ligne
+    comparaison de contenu                       0 ligne absente
+
+**Chaque étage répond à une question différente, et une seule était la mienne.**
+
+- `main...branche` demande *« qu'a ajouté cette branche depuis qu'elle a
+  divergé »*. La divergence datait du 29 août : tout ce que `main` avait acquis
+  depuis, ==par d'autres routes==, était recompté comme manquant ;
+- `main..branche` demande *« qu'a la branche que `main` n'a pas »*. C'était la
+  question ;
+- et l'écart qui reste, de 1 à 0, est encore autre chose : cette ligne est bien
+  dans `main`, ==à une autre place==. Un diff compare des positions, pas des
+  contenus.
+
+**Le diagnostic facile était faux, et c'est le cœur de l'entrée.** Mon `main`
+local datait en effet, et la session qui m'a corrigé a d'abord conclu que
+c'était la cause. Ce n'en était pas une : avec un `main` parfaitement à jour,
+les trois points auraient rendu ==les mêmes 197==. La leçon « fetcher plus
+souvent » n'aurait protégé personne — on l'aurait suivie, et remesuré 197.
+
+**Pour les trois dépôts.** Pour savoir ce qui manque quelque part, **comparer
+des contenus, pas des positions**, et se souvenir que `...` est le mauvais
+outil pour cette question-là :
+
+    git show <ref>:<fichier>   des deux côtés, puis comparer les lignes
+
+C'est la même famille que tout le reste de la semaine — un instrument qui rend
+un nombre bien formé à une question qu'on ne lui a pas posée —, mais dans sa
+forme la plus traître : ==les deux opérateurs ne diffèrent que d'un point==, ils
+ne rendent jamais d'erreur, et le plus verbeux des deux est celui qui a l'air
+d'en dire plus.
+
+**Ce qui a bien fonctionné, et qu'il faut garder.** La prudence a précédé la
+mesure : la branche a été poussée en sauvegarde ==avant== qu'on conclue, et la
+règle de l'audit — *une non-réponse vaut « statut inconnu », pas
+« supprimable »* — a tenu tout du long. Un compte faux dans ce sens-là ne coûte
+qu'une vérification ; dans l'autre, il coûte le travail.

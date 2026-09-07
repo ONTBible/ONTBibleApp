@@ -150,13 +150,71 @@ enum Observability {
         // message utile était `missing("data/corpus.json")` — la description
         // Swift d'une énumération met sa valeur associée entre guillemets, et
         // la règle avalait le diagnostic entier.
-        out = out.replacingOccurrences(
-            of: "[«\"'](?=[^«»\"']{12,}[»\"'])[^«»\"']*\\s[^«»\"']*[»\"']",
-            with: "<texte>",
-            options: .regularExpression
-        )
+        out = expurgerLesCitations(out)
 
         return out
+    }
+
+    /// Les citations, décidées **une par une**.
+    ///
+    /// ## Pourquoi ce n'est plus une seule expression
+    ///
+    /// L'ancienne écriture faisait tout d'un coup — trouver, juger et remplacer
+    /// dans un même motif — et deux défauts s'y cachaient, tous deux trouvés
+    /// par la session Android en la portant :
+    ///
+    /// **L'apostrophe était un délimiteur.** `[«\"']` la comptait comme un
+    /// guillemet fermant, alors qu'en français elle est dans un mot sur cinq.
+    /// Sur `« ce passage m'a bouleversé hier soir »`, la citation était donc
+    /// close par le `'` de `m'`, et le résultat valait :
+    ///
+    /// ```text
+    /// <texte>a bouleversé hier soir »
+    /// ```
+    ///
+    /// Le début partait, **la fin passait en clair** — et c'est la moitié qui
+    /// porte le propos. Ce n'est pas « rien n'est filtré », c'est pire : ce qui
+    /// reste est ce qu'on voulait cacher, sous une apparence de filtrage.
+    ///
+    /// **Et l'espace de typographie comptait comme de la prose.** Le critère
+    /// « douze signes et une espace » était satisfait par les espaces
+    /// insécables dont le français entoure `« … »`. Une clé qui ne révèle rien
+    /// — `« bereshit-1-verset-30 »` — se faisait donc expurger, et le
+    /// diagnostic disparaissait avec le risque. C'est le défaut que le
+    /// commentaire ci-dessus dit avoir déjà corrigé une fois pour
+    /// `data/corpus.json` : il était revenu par une autre porte.
+    ///
+    /// Séparer *trouver* de *juger* rend les deux lisibles, et éprouvables.
+    private static func expurgerLesCitations(_ texte: String) -> String {
+        guard let citations = try? NSRegularExpression(pattern: "[«\"]([^«»\"]*)[»\"]")
+        else { return texte }
+
+        let ns = texte as NSString
+        var sortie = ""
+        var curseur = 0
+        for trouvee in citations.matches(
+            in: texte, range: NSRange(location: 0, length: ns.length)
+        ) {
+            sortie += ns.substring(
+                with: NSRange(location: curseur, length: trouvee.range.location - curseur))
+            let interieur = ns.substring(with: trouvee.range(at: 1))
+            sortie += estDeLaProse(interieur) ? "<texte>" : ns.substring(with: trouvee.range)
+            curseur = trouvee.range.location + trouvee.range.length
+        }
+        sortie += ns.substring(from: curseur)
+        return sortie
+    }
+
+    /// Douze signes et une espace **entre deux signes**.
+    ///
+    /// Le contenu est d'abord débarrassé de ce qui l'entoure : les espaces
+    /// insécables de la typographie française appartiennent aux guillemets, pas
+    /// à la citation. Et l'espace exigée doit séparer deux caractères — une
+    /// espace de bordure ne fait pas une phrase.
+    private static func estDeLaProse(_ interieur: String) -> Bool {
+        let net = interieur.trimmingCharacters(in: .whitespacesAndNewlines)
+        return net.count >= 12
+            && net.range(of: "\\S\\s\\S", options: .regularExpression) != nil
     }
 
     private static var isDebugBuild: Bool {
