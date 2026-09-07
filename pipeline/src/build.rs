@@ -965,23 +965,21 @@ pub fn build() -> Result<BuildResult, String> {
     let numero_vers_slug: BTreeMap<u32, String> =
         skeleton.iter().map(|b| (b.slot, b.id.clone())).collect();
     let transmissions = crate::sources::lire_transmissions(&racine)?;
-    let unites_toutes: Vec<crate::schema::Chapter> = written
-        .iter()
-        .flat_map(|b| unites(b).into_iter().cloned())
-        .collect();
+    let unites_toutes: Vec<crate::schema::Chapter> =
+        written.iter().flat_map(|b| unites(b).cloned()).collect();
 
-    if let Some((manifeste_sources, fichiers, sautees, releves)) =
+    if let Some(sources) =
         crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?
     {
-        bytes += write_json(&sortie.join("sources/manifeste.json"), &manifeste_sources)
+        bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)
             .map_err(|e| e.to_string())?;
-        for (relatif, livre) in &fichiers {
+        for (relatif, livre) in &sources.fichiers {
             bytes += write_json(&sortie.join(relatif), livre).map_err(|e| e.to_string())?;
         }
-        for dit in &sautees {
+        for dit in &sources.ecartees {
             eprintln!("source écartée — {dit}");
         }
-        for dit in &releves {
+        for dit in &sources.releves {
             eprintln!("numérotation — {dit}");
         }
     }

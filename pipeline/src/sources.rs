@@ -167,7 +167,7 @@ pub struct VersetPublie {
 /// que rien ne le dise.
 fn deplier(reference: &str, versets_par_chapitre: &BTreeMap<u32, u32>) -> Option<Vec<(u32, u32)>> {
     let r = reference.trim();
-    let tiret = |s: &str| s.replace('—', "-").replace('–', "-");
+    let tiret = |s: &str| s.replace(['—', '–'], "-");
     let r = tiret(r);
 
     let nombre = |s: &str| s.trim().parse::<u32>().ok();
@@ -210,6 +210,22 @@ fn deplier(reference: &str, versets_par_chapitre: &BTreeMap<u32, u32>) -> Option
 
 // ───────────────────────────────── l'émission ─────────────────────────────
 
+/// Ce que la préparation rend : de quoi écrire, et de quoi parler.
+///
+/// Une structure nommée plutôt qu'un quadruplet — clippy le demandait, et il
+/// avait raison sur le fond : `Result<Option<(A, Vec<(String, B)>, Vec<String>,
+/// Vec<String>)>>` oblige à relire la signature pour savoir lequel des deux
+/// `Vec<String>` porte les écarts et lequel porte les relevés.
+pub struct Preparation {
+    pub manifeste: ManifesteSources,
+    /// `(chemin relatif, contenu)` pour chaque livre × témoin.
+    pub fichiers: Vec<(String, LivreSources)>,
+    /// Les unités écartées faute de jointure sûre. Rien de faux n'est émis.
+    pub ecartees: Vec<String>,
+    /// Ce qui mérite l'œil de l'auteur sans rien empêcher.
+    pub releves: Vec<String>,
+}
+
 /// Lit `sources/` et rend ce qu'il faut écrire — ou l'erreur qui arrête tout.
 ///
 /// Un vault sans `sources/` rend `Ok(None)` : la couche est facultative, et
@@ -219,15 +235,7 @@ pub fn preparer(
     unites: &[Chapter],
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
-) -> Result<
-    Option<(
-        ManifesteSources,
-        Vec<(String, LivreSources)>,
-        Vec<String>,
-        Vec<String>,
-    )>,
-    String,
-> {
+) -> Result<Option<Preparation>, String> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
     if !manifeste.is_file() {
@@ -446,16 +454,16 @@ pub fn preparer(
         e.cause = Some(cause.clone());
     }
 
-    Ok(Some((
-        ManifesteSources {
+    Ok(Some(Preparation {
+        manifeste: ManifesteSources {
             schema: 1,
             temoins,
             livres,
         },
         fichiers,
-        sautees,
+        ecartees: sautees,
         releves,
-    )))
+    }))
 }
 
 /// L'empreinte, en hexadécimal minuscule — la forme que vérifient les clients.
