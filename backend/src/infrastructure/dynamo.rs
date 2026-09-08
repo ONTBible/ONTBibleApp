@@ -427,6 +427,26 @@ impl UserRepository for Dynamo {
     /// reste des miettes sans identité — désagréable mais anonyme. L'ordre
     /// inverse laisserait une identité vivante pointant un compte vidé, ce qui
     /// est exactement ce qu'on veut éviter.
+    async fn exists(&self, user: &UserId) -> Result<bool, DomainError> {
+        // **Une lecture cohérente**, et ce n'est pas un détail. En lecture
+        // éventuelle, la suppression du profil peut ne pas être visible tout de
+        // suite : `DELETE /me` répondrait `204` et la requête d'après passerait
+        // quand même, ce qui est précisément le trou qu'on ferme.
+        let profil = self
+            .client
+            .get_item()
+            .table_name(&self.table)
+            .set_key(Some(Self::key(&Self::user_key(user), "PROFILE")))
+            .consistent_read(true)
+            .send()
+            .await
+            .map_err(|error| {
+                tracing::error!(?error, "lecture du profil");
+                DomainError::Storage
+            })?;
+        Ok(profil.item().is_some())
+    }
+
     async fn erase(&self, user: &UserId) -> Result<(), DomainError> {
         let partition = Self::user_key(user);
 

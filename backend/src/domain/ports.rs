@@ -57,6 +57,46 @@ pub trait UserRepository: Send + Sync {
 
     /// Efface tout d'un lecteur — comptes, sessions, annotations.
     async fn erase(&self, user: &UserId) -> Result<(), DomainError>;
+
+    /// Le compte existe-t-il encore ?
+    ///
+    /// ## Ce que ça répare
+    ///
+    /// **Un JWT ne se révoque pas.** Une fois signé, il vaut jusqu'à son
+    /// expiration — c'est écrit en tête de `domain/token.rs`, et le remède posé
+    /// là-bas est de le garder court : une heure.
+    ///
+    /// Une heure, c'est court pour une fuite. Ce n'est **pas** court pour un
+    /// effacement de compte : le lecteur demande `DELETE /me`, le serveur
+    /// répond `204`, et son jeton continue d'ouvrir `PUT /sync` pendant
+    /// cinquante-neuf minutes. Il peut donc **réécrire** ce qu'il vient de
+    /// faire effacer — et c'est l'app elle-même qui le ferait, en poussant sa
+    /// file locale sans savoir que le compte n'est plus.
+    ///
+    /// L'effacement cesse alors d'être final, et rien ne le dit.
+    ///
+    /// ## Pourquoi le profil, et pas une liste de révocation
+    ///
+    /// Une liste de révocation demanderait un type d'objet neuf, un TTL à tenir,
+    /// et un endroit de plus où l'oubli d'une écriture rouvre le trou.
+    ///
+    /// Le profil, lui, **existe déjà** et `erase` le supprime avec toute la
+    /// partition. « Le compte existe-t-il » est donc la même question que « ce
+    /// jeton vaut-il encore », posée à un objet qu'on tient déjà. Un objet de
+    /// moins, un invariant de moins à maintenir.
+    ///
+    /// ## Ce que ça coûte
+    ///
+    /// Une lecture `GetItem` par requête authentifiée. C'est le prix du
+    /// caractère final de l'effacement, et il se paie sur la route la plus
+    /// chargée — `GET /sync`, qui en fait déjà d'autres.
+    ///
+    /// L'alternative gratuite serait une écriture conditionnelle sur `PUT
+    /// /sync` seulement : elle fermerait la réécriture sans rien coûter, mais
+    /// laisserait un compte effacé lire, s'enregistrer comme appareil et
+    /// diffuser. Une révocation qui ne vaut que sur une route n'est pas une
+    /// révocation.
+    async fn exists(&self, user: &UserId) -> Result<bool, DomainError>;
 }
 
 /// Le stockage de ce que le lecteur produit.
