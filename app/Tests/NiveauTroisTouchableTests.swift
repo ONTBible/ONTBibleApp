@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import ONTDesignSystem
 import ONTKit
 import Testing
@@ -86,5 +87,55 @@ struct NiveauTroisTouchableTests {
                 .gloss([.translit("chesed", hebrew: "חֶסֶד", cible: .term(lemma: "chesed"))])
             ])
         #expect(url?.host == "term")
+    }
+}
+
+/// La couleur dit d'avance ce qui répond.
+///
+/// **Le rendu livré d'abord ne le disait pas** : tout le niveau 3 restait gris,
+/// au motif que c'est une note du texte et non un intraduisible du corps. Le
+/// raisonnement tenait sur la hiérarchie et ratait le lecteur — 829
+/// translittérations sur 2086 répondent, 1257 non, et rien ne les séparait. Un
+/// mot qui répond sans le dire demande d'essayer sur chacun pour savoir sur
+/// lequel essayer.
+@MainActor
+struct CouleurDuNiveauTroisTests {
+    private var theme: ONTTheme { ONTTheme(preferences: .default) }
+
+    private func couleur(de mot: String, dans noeuds: [Inline]) -> Color? {
+        let chaine = ONTTextRenderer.compose(noeuds, theme: theme)
+        for run in chaine.runs where String(chaine[run.range].characters) == mot {
+            return run.foregroundColor
+        }
+        return nil
+    }
+
+    @Test("ce qui ouvre un terme prend l'or du terme")
+    func lOrDuTerme() {
+        let noeuds: [Inline] = [
+            .translit("chesed", hebrew: "חֶסֶד", cible: .term(lemma: "chesed"))
+        ]
+        #expect(couleur(de: "chesed", dans: noeuds) == theme.type.term.color)
+    }
+
+    /// **Les deux destinations ne portent pas la même couleur**, comme dans le
+    /// corps : un Shem est un porteur, pas un concept. Une seule teinte pour les
+    /// deux dirait « ceci ouvre » sans dire quoi.
+    @Test("ce qui ouvre un Shem prend la teinte du Shem")
+    func laTeinteDuShem() {
+        let noeuds: [Inline] = [
+            .translit("Noach", hebrew: "נֹחַ", cible: .shem(lemma: "noach"))
+        ]
+        let teinte = couleur(de: "Noach", dans: noeuds)
+        #expect(teinte == theme.type.shem.color)
+        #expect(teinte != theme.type.term.color)
+    }
+
+    /// Et ce qui n'ouvre pas reste dans l'apparat — sans quoi la couleur
+    /// promettrait une fiche absente, ce qui est pire que le silence.
+    @Test("ce qui n'ouvre rien garde le gris de l'apparat")
+    func leGrisDeLApparat() {
+        let noeuds: [Inline] = [.translit("vayiven", hebrew: "וַיִּבֶן", cible: nil)]
+        #expect(couleur(de: "vayiven", dans: noeuds) == theme.type.translit.color)
     }
 }

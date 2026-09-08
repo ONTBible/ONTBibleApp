@@ -4,6 +4,7 @@ import com.labibleont.ont.data.schema.Block as DtoBlock
 import com.labibleont.ont.data.schema.Book as DtoBook
 import com.labibleont.ont.data.schema.BookOutline as DtoBookOutline
 import com.labibleont.ont.data.schema.Chapter as DtoChapter
+import com.labibleont.ont.data.schema.CibleDuNiveauTrois as DtoCible
 import com.labibleont.ont.data.schema.ShemEntry as DtoShemEntry
 import com.labibleont.ont.data.schema.ChapterKind as DtoChapterKind
 import com.labibleont.ont.data.schema.CorpusOutline as DtoCorpusOutline
@@ -22,6 +23,7 @@ import com.labibleont.ont.data.schema.Subtitle as DtoSubtitle
 import com.labibleont.ont.data.schema.TermLevel as DtoTermLevel
 import com.labibleont.ont.data.schema.Verse as DtoVerse
 import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.corpus.CibleDuNiveauTrois
 import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Book
@@ -82,8 +84,11 @@ internal fun DtoInline.versDomaine(): Inline = when (this) {
     is DtoInline.Text -> Inline.Text(v)
     is DtoInline.Term -> Inline.Term(v, lemma)
     is DtoInline.Shem -> Inline.Shem(v, lemma)
+    // Deux nœuds ajoutés par deux branches : `Renvoi` porte une `cible` qui est
+    // une chaîne, `Translit` une `cible` qui est un type somme. Le nom se
+    // ressemble, la forme non — et le `when` exhaustif les tient séparés.
     is DtoInline.Renvoi -> Inline.Renvoi(v, cible)
-    is DtoInline.Translit -> Inline.Translit(translit, hebrew)
+    is DtoInline.Translit -> Inline.Translit(translit, hebrew, cible?.versDomaine())
     is DtoInline.Heb -> Inline.Hebrew(v)
     is DtoInline.Gloss -> Inline.Gloss(children.versDomaine())
     is DtoInline.Accentuation -> Inline.Accentuation(children.versDomaine())
@@ -257,3 +262,16 @@ internal fun DtoSearchRecord.versDomaine(): SearchRecord = SearchRecord(
 
 internal fun DtoDailyVerse.versDomaine(): DailyVerse =
     DailyVerse(b = b, c = c, n = n, r = r, t = t)
+
+
+/**
+ * La destination du niveau 3, du fichier vers le domaine.
+ *
+ * **Plate, et elle doit le rester** : le domaine ne connaît pas le schéma. Le
+ * `when` est exhaustif, donc une destination ajoutée au pipeline casse la
+ * compilation au lieu de se perdre en silence.
+ */
+private fun DtoCible.versDomaine(): CibleDuNiveauTrois = when (this) {
+    is DtoCible.Term -> CibleDuNiveauTrois.Term(lemma)
+    is DtoCible.Shem -> CibleDuNiveauTrois.Shem(lemma)
+}

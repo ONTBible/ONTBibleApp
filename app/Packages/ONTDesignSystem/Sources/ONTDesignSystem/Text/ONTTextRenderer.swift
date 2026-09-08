@@ -323,16 +323,30 @@ public enum ONTTextRenderer {
                 // et un lien qui traverse la barre oblique donnerait une zone
                 // tactile à cheval sur deux directions d'écriture.
                 //
-                // Le mot garde sa couleur d'apparat dans les deux cas. Le
-                // niveau 3 est une note du texte, pas un intraduisible du
-                // corps : le dorer ferait de la moitié des parenthèses un
-                // second corps, et l'apparat cesserait de se lire comme de
-                // l'apparat. Ce qui change, c'est qu'il répond — pas sa place
-                // dans la hiérarchie.
+                // **Ce qui ouvre prend la couleur de sa destination** — l'or
+                // d'un intraduisible, le bordeaux d'un Shem —, ce qui n'ouvre
+                // pas garde le gris de l'apparat.
+                //
+                // Le premier jet laissait tout en gris, au motif que le niveau
+                // 3 est une note du texte et non un intraduisible du corps :
+                // le dorer ferait de la moitié des parenthèses un second
+                // corps. Le raisonnement tenait sur la hiérarchie et ratait le
+                // lecteur — 829 translittérations sur 2086 répondent, 1257 non,
+                // et rien ne les distinguait. Un mot qui répond sans le dire
+                // demande d'essayer sur chacun pour savoir sur lequel essayer.
+                //
+                // Arbitré à l'écran, les deux rendus côte à côte : c'est le
+                // même code de couleur que le corps, et il dit la même chose —
+                // « ceci ouvre, et voilà quoi ». Deux teintes de plus dans
+                // l'apparat, pas une hiérarchie de plus.
                 if let cible {
                     switch cible {
-                    case .term(let lemma): latine.link = termURL(lemma)
-                    case .shem(let lemma): latine.link = shemURL(lemma)
+                    case .term(let lemma):
+                        latine.link = termURL(lemma)
+                        latine.foregroundColor = type.term.color
+                    case .shem(let lemma):
+                        latine.link = shemURL(lemma)
+                        latine.foregroundColor = type.shem.color
                     }
                     latine[MarqueDeTerme.self] = true
                 }

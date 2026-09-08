@@ -13,6 +13,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTTypography
+import com.labibleont.ont.kit.corpus.CibleDuNiveauTrois
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.corpus.Verse
 import androidx.compose.ui.graphics.Color
@@ -347,8 +348,53 @@ public object ONTTextRenderer {
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 
                 is Inline.Translit -> {
+                    // **La part latine se touche, l'hébreu non.** L'hébreu se
+                    // compose en RTL : une zone tactile à cheval sur la barre
+                    // oblique traverserait deux directions d'écriture.
+                    //
+                    // **Ce qui ouvre prend la couleur de sa destination** —
+                    // l'or d'un intraduisible, la terre brûlée d'un Shem —, ce
+                    // qui n'ouvre pas garde le gris de l'apparat. Sur 2086
+                    // translittérations, 829 répondent et 1257 non ; sans la
+                    // couleur, le lecteur devrait essayer sur chacune pour
+                    // savoir sur laquelle essayer.
+                    val cible = node.cible
+                    val style = when (cible) {
+                        is CibleDuNiveauTrois.Term ->
+                            typo.translit.copy(color = typo.term.color)
+                        is CibleDuNiveauTrois.Shem ->
+                            typo.translit.copy(color = typo.shem.color)
+                        null -> typo.translit
+                    }
+                    val ouvrir: (() -> Unit)? = when (cible) {
+                        is CibleDuNiveauTrois.Term -> onTerme?.let { { it(cible.lemma) } }
+                        is CibleDuNiveauTrois.Shem -> onShem?.let { { it(cible.lemma) } }
+                        null -> null
+                    }
+                    val etiquette = when (cible) {
+                        is CibleDuNiveauTrois.Term -> "$TAG_TERME/${cible.lemma}"
+                        is CibleDuNiveauTrois.Shem -> "$TAG_SHEM/${cible.lemma}"
+                        null -> null
+                    }
+
                     withStyle(typo.apparatus) { append("(") }
-                    withStyle(typo.translit) { append(node.translit) }
+                    if (ouvrir == null || etiquette == null) {
+                        withStyle(style) { append(node.translit) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = etiquette,
+                                // Sans soulignement, comme l'intraduisible et
+                                // le Shem : la teinte dit déjà la couche.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { ouvrir() },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.translit) }
+                        }
+                    }
                     withStyle(typo.apparatus) { append(" / ") }
                     hebreu(node.hebrew, typo.hebrewSmall)
                     withStyle(typo.apparatus) { append(")") }
