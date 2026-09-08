@@ -125,6 +125,87 @@ impl Restes {
     }
 }
 
+/// Les Shemot d'un fragment, par la forme qu'ils affichent.
+///
+/// ## Ce que cette table permet, et qu'aucune autre ne peut
+///
+/// `(*Chanokh* / חֲנוֹךְ)` n'est résoluble par **aucune** table de lemmes, et pas
+/// faute de fiche : il y en a deux. *Bereshit* porte deux Chanokh — celui de la
+/// lignée de Qayin, et celui qui marche avec Elohim — et deux Lamekh. Le vault
+/// les distingue par le nom du fichier, et le corps écrit
+/// `[[Chanokh-fils-de-Qayin|Chanokh]]` : le lien porte la désambiguïsation que
+/// le mot affiché ne porte pas.
+///
+/// La translittération, elle, n'affiche que `Chanokh`. Elle est **ambiguë par
+/// nature**, et aucune déclaration au §2.5 ne la rendra résoluble.
+///
+/// Mais l'information est dans le texte, à deux mots de là : l'apparat glose le
+/// mot qu'il suit, et ce mot **est** un Shem déjà lié. Résoudre par le voisin,
+/// c'est reconduire la décision que le vault a déjà prise dans la même phrase.
+/// Ce n'est pas deviner, c'est lire.
+///
+/// ## Pourquoi le fragment, et pas plus large
+///
+/// La portée est celle d'un apparat : un verset, un paragraphe. Elle n'a pas
+/// besoin d'être plus large — mesuré, la portée du fichier entier rend
+/// exactement les mêmes 14 occurrences — et une portée large ferait dépendre la
+/// destination d'une distance, ce qui ne veut rien dire.
+///
+/// ## L'ambiguïté ferme la porte, elle ne la force pas
+///
+/// Si deux Shemot d'un même fragment affichent la même forme, la valeur est
+/// `None` et la translittération reste inerte. C'est le cas que cette règle
+/// existe pour servir, et c'est aussi celui où elle doit se taire : envoyer au
+/// mauvais Chanokh serait exactement le défaut qu'on refuse partout ailleurs.
+///
+/// Mesuré sur le corpus : **aucun fragment** ne porte deux Shemot de même
+/// forme. La garde ne sert donc à rien aujourd'hui — et c'est précisément pour
+/// ça qu'elle s'écrit maintenant, plutôt que le jour où elle servira.
+type Voisinage = HashMap<String, Option<String>>;
+
+/// Relève les Shemot d'un fragment, ambiguïtés marquées.
+fn voisinage(noeuds: &[Inline]) -> Voisinage {
+    fn descendre(noeuds: &[Inline], table: &mut Voisinage) {
+        for n in noeuds {
+            match n {
+                Inline::Shem { v, lemma } => {
+                    let forme = crate::inline::slugify(v);
+                    match table.get(&forme) {
+                        // Déjà vu, et le même : rien ne change.
+                        Some(Some(deja)) if deja == lemma => {}
+                        // Déjà vu, et un autre : la forme ne désigne plus rien.
+                        Some(_) => {
+                            table.insert(forme, None);
+                        }
+                        None => {
+                            table.insert(forme, Some(lemma.clone()));
+                        }
+                    }
+                }
+                Inline::Gloss { children }
+                | Inline::Em { children }
+                | Inline::Accentuation { children }
+                | Inline::Link { children, .. } => descendre(children, table),
+                _ => {}
+            }
+        }
+    }
+    let mut table = Voisinage::new();
+    descendre(noeuds, &mut table);
+    table
+}
+
+/// Un fragment de texte : son voisinage se relève d'abord, puis se résout.
+///
+/// **Deux passes et non une**, parce que l'apparat ne suit pas toujours son
+/// mot — une glose peut le précéder. Une passe unique qui n'aurait connu que
+/// les Shemot déjà rencontrés aurait résolu selon l'ordre d'écriture, qui n'est
+/// pas une propriété du sens.
+fn fragment(noeuds: &mut [Inline], index: &Index, restes: &mut Restes) {
+    let voisins = voisinage(noeuds);
+    inline(noeuds, index, &voisins, restes);
+}
+
 /// Résout **toute** une unité livrée — titre, corps, pied de page.
 ///
 /// ## Pourquoi l'unité entière et non ses seuls blocs
@@ -138,7 +219,7 @@ impl Restes {
 /// dans le titre, sans qu'aucun compte ne bouge. C'est la forme silencieuse de
 /// l'oubli, celle qui rend simplement moins de mots touchables.
 pub fn resoudre_l_unite(unite: &mut Chapter, index: &Index, restes: &mut Restes) {
-    inline(&mut unite.title_nodes, index, restes);
+    fragment(&mut unite.title_nodes, index, restes);
     resoudre(&mut unite.blocks, index, restes);
     if let Some(pied) = &mut unite.footer {
         resoudre(&mut pied.notes, index, restes);
@@ -150,11 +231,11 @@ pub fn resoudre(blocs: &mut [Block], index: &Index, restes: &mut Restes) {
     for bloc in blocs {
         match bloc {
             Block::Heading { nodes, .. } | Block::Para { nodes } | Block::Quote { nodes } => {
-                inline(nodes, index, restes);
+                fragment(nodes, index, restes);
             }
             Block::Verses { verses } => {
                 for v in verses {
-                    inline(&mut v.nodes, index, restes);
+                    fragment(&mut v.nodes, index, restes);
                 }
             }
             _ => {}
@@ -167,19 +248,32 @@ pub fn resoudre(blocs: &mut [Block], index: &Index, restes: &mut Restes) {
 /// `(*chesed* / חֶסֶד)` s'écrit le plus souvent *dans* une glose. Une passe qui
 /// ne regarderait que la surface manquerait la majorité des cas — et ne le
 /// dirait pas : elle rendrait simplement moins de mots touchables.
-fn inline(noeuds: &mut [Inline], index: &Index, restes: &mut Restes) {
+fn inline(noeuds: &mut [Inline], index: &Index, voisins: &Voisinage, restes: &mut Restes) {
     for noeud in noeuds {
         match noeud {
             Inline::Translit {
                 translit, cible, ..
-            } => match index.cible(translit) {
-                Some(trouvee) => *cible = Some(trouvee),
-                None => *restes.0.entry(translit.clone()).or_insert(0) += 1,
-            },
+            } => {
+                // **La table d'abord, le voisinage ensuite.** Une entrée du
+                // glossaire ou un Shem nommé sans ambiguïté vaut partout ; le
+                // voisin ne vaut que dans sa phrase. Prendre le local avant le
+                // général ferait dépendre d'un entourage une destination qui
+                // n'en dépend pas.
+                let trouvee = index.cible(translit).or_else(|| {
+                    voisins
+                        .get(&crate::inline::slugify(translit))
+                        .and_then(Clone::clone)
+                        .map(|lemma| CibleDuNiveauTrois::Shem { lemma })
+                });
+                match trouvee {
+                    Some(c) => *cible = Some(c),
+                    None => *restes.0.entry(translit.clone()).or_insert(0) += 1,
+                }
+            }
             Inline::Gloss { children }
             | Inline::Em { children }
             | Inline::Accentuation { children }
-            | Inline::Link { children, .. } => inline(children, index, restes),
+            | Inline::Link { children, .. } => inline(children, index, voisins, restes),
             _ => {}
         }
     }
@@ -278,6 +372,125 @@ mod tests {
         assert_eq!(cibles[1], None);
         assert!(cibles[2].is_some());
         assert_eq!(restes.par_frequence(), vec![("vayiven", 2)]);
+    }
+
+    /// **Le cas qu'aucune table ne peut résoudre.**
+    ///
+    /// Deux Chanokh dans *Bereshit* — celui de Qayin, celui qui marche avec
+    /// Elohim —, deux fiches, et une translittération qui n'affiche que
+    /// `Chanokh`. Le lien du corps porte la désambiguïsation ; l'apparat glose
+    /// le mot qu'il suit, donc il parle du même.
+    #[test]
+    fn un_shem_ambigu_se_resout_par_son_voisin_de_phrase() {
+        let mut blocs = vec![Block::Verses {
+            verses: vec![Verse {
+                n: 1,
+                nodes: vec![
+                    Inline::Shem {
+                        v: "Chanokh".into(),
+                        lemma: "chanokh-fils-de-qayin".into(),
+                    },
+                    Inline::Translit {
+                        translit: "Chanokh".into(),
+                        hebrew: "חֲנוֹךְ".into(),
+                        cible: None,
+                    },
+                ],
+            }],
+        }];
+        let mut restes = Restes::default();
+        resoudre(&mut blocs, &index(), &mut restes);
+
+        let Block::Verses { verses } = &blocs[0] else {
+            panic!("le bloc de versets");
+        };
+        let Inline::Translit { cible, .. } = &verses[0].nodes[1] else {
+            panic!("le niveau 3");
+        };
+        assert_eq!(
+            cible.as_ref(),
+            Some(&CibleDuNiveauTrois::Shem {
+                lemma: "chanokh-fils-de-qayin".into()
+            })
+        );
+    }
+
+    /// **Et quand le voisinage est lui-même ambigu, il se tait.**
+    ///
+    /// Deux Shemot de même forme dans un fragment : la translittération ne
+    /// désigne plus personne. Envoyer au premier venu serait exactement le
+    /// défaut qu'on refuse en refusant la morphologie — le lecteur arriverait
+    /// ailleurs sans que rien ne le dise.
+    ///
+    /// Aucun fragment du corpus ne présente ce cas aujourd'hui. C'est pour ça
+    /// que la garde s'écrit maintenant.
+    #[test]
+    fn deux_shemot_de_meme_forme_laissent_la_translitteration_inerte() {
+        let mut blocs = vec![Block::Verses {
+            verses: vec![Verse {
+                n: 1,
+                nodes: vec![
+                    Inline::Shem {
+                        v: "Chanokh".into(),
+                        lemma: "chanokh-fils-de-qayin".into(),
+                    },
+                    Inline::Shem {
+                        v: "Chanokh".into(),
+                        lemma: "chanokh-qui-marche-avec-elohim".into(),
+                    },
+                    Inline::Translit {
+                        translit: "Chanokh".into(),
+                        hebrew: "חֲנוֹךְ".into(),
+                        cible: None,
+                    },
+                ],
+            }],
+        }];
+        let mut restes = Restes::default();
+        resoudre(&mut blocs, &index(), &mut restes);
+
+        let Block::Verses { verses } = &blocs[0] else {
+            panic!("le bloc de versets");
+        };
+        let Inline::Translit { cible, .. } = &verses[0].nodes[2] else {
+            panic!("le niveau 3");
+        };
+        assert_eq!(*cible, None);
+        assert_eq!(restes.par_frequence(), vec![("Chanokh", 1)]);
+    }
+
+    /// **Le voisin ne vaut que dans sa phrase, la table partout.** Si l'ordre
+    /// s'inversait, la destination d'un mot dépendrait de ce qui l'entoure —
+    /// alors qu'elle n'en dépend pas.
+    #[test]
+    fn la_table_passe_avant_le_voisin() {
+        let mut blocs = vec![Block::Para {
+            nodes: vec![
+                Inline::Shem {
+                    v: "chesed".into(),
+                    lemma: "un-shem-homonyme".into(),
+                },
+                Inline::Translit {
+                    translit: "chesed".into(),
+                    hebrew: "חֶסֶד".into(),
+                    cible: None,
+                },
+            ],
+        }];
+        resoudre(&mut blocs, &index(), &mut Restes::default());
+
+        let Block::Para { nodes } = &blocs[0] else {
+            panic!("le paragraphe");
+        };
+        let Inline::Translit { cible, .. } = &nodes[1] else {
+            panic!("le niveau 3");
+        };
+        assert_eq!(
+            cible.as_ref(),
+            Some(&CibleDuNiveauTrois::Term {
+                lemma: "chesed".into()
+            })
+        );
     }
 
     #[test]
