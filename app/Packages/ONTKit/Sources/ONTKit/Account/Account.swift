@@ -232,4 +232,13 @@ public protocol SyncService: Sendable {
 public protocol SessionStore: AnyObject, Sendable {
     var session: Session? { get set }
     var consent: SyncConsent { get set }
+    /// **À qui appartient le travail posé sur cet appareil** — le `sub` du
+    /// compte, ou `nil` tant qu'aucun compte ne l'a réclamé.
+    ///
+    /// Rangé ici et non dans le fichier du lecteur : c'est la même question que
+    /// le consentement — qui a le droit de faire monter ces données —, et deux
+    /// réponses à la même question dans deux fichiers finissent par diverger.
+    ///
+    /// Voir `SujetDeSession`.
+    var proprietaire: String? { get set }
 }
