@@ -315,9 +315,28 @@ public enum ONTTextRenderer {
             case .hebrew(let value):
                 output += hebrewRun(value, style: inGloss ? type.hebrewSmall : type.hebrew)
 
-            case .translit(let translit, let hebrew):
+            case .translit(let translit, let hebrew, let cible):
                 output += run("(", type.apparatus)
-                output += run(translit, type.translit)
+                var latine = run(translit, type.translit)
+                // **Seule la part latine se touche, et seulement si elle
+                // ouvre.** L'hébreu reste hors du lien : il se compose en RTL,
+                // et un lien qui traverse la barre oblique donnerait une zone
+                // tactile à cheval sur deux directions d'écriture.
+                //
+                // Le mot garde sa couleur d'apparat dans les deux cas. Le
+                // niveau 3 est une note du texte, pas un intraduisible du
+                // corps : le dorer ferait de la moitié des parenthèses un
+                // second corps, et l'apparat cesserait de se lire comme de
+                // l'apparat. Ce qui change, c'est qu'il répond — pas sa place
+                // dans la hiérarchie.
+                if let cible {
+                    switch cible {
+                    case .term(let lemma): latine.link = termURL(lemma)
+                    case .shem(let lemma): latine.link = shemURL(lemma)
+                    }
+                    latine[MarqueDeTerme.self] = true
+                }
+                output += latine
                 output += run(" / ", type.apparatus)
                 output += hebrewRun(hebrew, style: type.hebrewSmall)
                 output += run(")", type.apparatus)

@@ -18,7 +18,7 @@ struct InlineTests {
     func plainTextDefaults() {
         let nodes: [Inline] = [
             .text("il était assis "),
-            .translit("petach", hebrew: "פֶּתַח"),
+            .translit("petach", hebrew: "פֶּתַח", cible: nil),
             .gloss([.text("le seuil")]),
         ]
 

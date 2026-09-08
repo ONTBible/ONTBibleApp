@@ -177,7 +177,7 @@ struct ZoneTactileTests {
             .term("Elohim", lemma: "elohim"),
             .text(" façonna l'"),
             .term("adam", lemma: "adam"),
-            .translit("adam", hebrew: "אָדָם"),
+            .translit("adam", hebrew: "אָדָם", cible: nil),
             .gloss([.text("de la "), .term("adamah", lemma: "adamah")]),
             .text(" et souffla"),
         ])

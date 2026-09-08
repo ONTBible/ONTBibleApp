@@ -36,6 +36,20 @@ import ONTKit
 
 // MARK: - Le texte
 
+extension CibleDuNiveauTrois {
+    /// **La traduction est plate et doit le rester.** Le domaine ne connaît pas
+    /// `ONTSchema` ; c'est ici, et seulement ici, que la forme du fichier
+    /// devient une forme du domaine. Le `switch` est exhaustif : une
+    /// destination ajoutée au pipeline casse la compilation de l'app au lieu de
+    /// se perdre en silence.
+    init(_ dto: ONTSchema.CibleDuNiveauTrois) {
+        switch dto {
+        case .term(let lemma): self = .term(lemma: lemma)
+        case .shem(let lemma): self = .shem(lemma: lemma)
+        }
+    }
+}
+
 extension Inline {
     init(_ dto: ONTSchema.Inline) {
         switch dto {
@@ -45,10 +59,13 @@ extension Inline {
             self = .term(v, lemma: lemma)
         case .shem(let v, let lemma):
             self = .shem(v, lemma: lemma)
+        // `renvoi` vient de #255, `translit` porte sa cible depuis ici : les
+        // deux nœuds ont été ajoutés par deux branches, aucun ne remplace
+        // l'autre.
         case .renvoi(let v, let cible):
             self = .renvoi(v, cible: cible)
-        case .translit(let translit, let hebrew):
-            self = .translit(translit, hebrew: hebrew)
+        case .translit(let translit, let hebrew, let cible):
+            self = .translit(translit, hebrew: hebrew, cible: cible.map(CibleDuNiveauTrois.init))
         case .heb(let v):
             self = .hebrew(v)
         case .gloss(let children):
