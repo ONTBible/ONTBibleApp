@@ -467,6 +467,29 @@ jobs:
           ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
         run: |
           set -euo pipefail
+          # ## L'estampille se calcule ici, comme dans `corpus.sh`
+          #
+          # Sans `ONT_GENERE`, `config::genere()` rend une chaîne vide — et il a
+          # raison : une date mal formée serait pire qu'aucune. Le corpus sort
+          # alors sans estampille, et `DateDuPaquetTest` rougit en disant que la
+          # garde anti-rétrogradation ne garde plus rien.
+          #
+          # C'est ce qui est arrivé au premier jet de ce job : mon propre test a
+          # attrapé mon propre oubli, ce qui est exactement ce qu'on lui demande.
+          #
+          # `format-local` et non `format` : le second rendrait l'heure **du
+          # commit** avec un `Z` collé dessus — vingt signes, forme valide, deux
+          # heures de faux. Le recoupement par l'horodatage brut le refuse.
+          ONT_GENERE="$(TZ=UTC git -C "$ONT_VAULT" log -1 \
+            --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd)"
+          EPOCH="$(git -C "$ONT_VAULT" log -1 --format=%ct)"
+          TEMOIN="$(date -u -d "@$EPOCH" +%Y-%m-%dT%H:%M:%SZ)"
+          if [ "$ONT_GENERE" != "$TEMOIN" ]; then
+            echo "::error::l'estampille ne concorde pas — calculée $ONT_GENERE, attendue $TEMOIN"
+            exit 1
+          fi
+          export ONT_GENERE
+          echo "estampille : $ONT_GENERE"
           cargo run --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
           cargo run --manifest-path pipeline/Cargo.toml --bin engendrer --release --quiet
           # `rm -rf` d'abord, comme `corpus.sh` : une copie par-dessus
