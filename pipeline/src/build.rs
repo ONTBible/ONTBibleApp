@@ -869,12 +869,25 @@ pub fn build() -> Result<BuildResult, String> {
     loop {
         let connus: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
         let mut neufs: Vec<String> = Vec::new();
-        for lemme in &shemot_employes {
-            let Some(fiche) = fiches.get(lemme) else {
-                continue;
-            };
+        // **Toute fiche publiée nomme — de glossaire comme de Shem.**
+        //
+        // Le premier jet ne parcourait que les fiches de Shem, et un `[[Nom]]`
+        // écrit dans une fiche d'intraduisible n'était collecté par personne.
+        // `lexique/qahal` nomme `[[Sinai]]` quatre fois, et le lien restait mort :
+        // le lecteur touchait un nom en terre brûlée qui n'ouvrait rien.
+        //
+        // C'est la faute qu'on venait de corriger, à un cran de profondeur — et
+        // elle a été trouvée en écrivant deux fiches, pas en relisant le code.
+        let sources: Vec<&Vec<Block>> = shemot_employes
+            .iter()
+            .filter_map(|l| fiches.get(l).map(|f| &f.blocs))
+            .chain(glossary.iter().filter_map(|e| e.definition.as_ref()))
+            .chain(glossary.iter().filter_map(|e| e.tagging_note.as_ref()))
+            .collect();
+
+        for blocs in sources {
             let mut vus: Vec<String> = Vec::new();
-            for bloc in &fiche.blocs {
+            for bloc in blocs {
                 controles::pour_chaque_inline(bloc, &mut |n| {
                     if let Inline::Shem { lemma, .. } = n {
                         vus.push(lemma.clone())
