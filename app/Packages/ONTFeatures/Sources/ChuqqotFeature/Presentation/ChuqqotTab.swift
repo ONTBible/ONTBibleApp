@@ -2,9 +2,9 @@ import ONTDesignSystem
 import ONTKit
 import SwiftUI
 
-/// L'onglet **Khuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
+/// L'onglet **Chuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
 ///
-/// ## Le nom, et pourquoi ce n'est pas « Khuqqim »
+/// ## Le nom, et pourquoi ce n'est pas « Chuqqot »
 ///
 /// Les deux pluriels existent et ne disent pas la même chose. חֹק → חֻקִּים,
 /// masculin, tire vers la **prescription** — ce qu'on ordonne de faire. חֻקָּה
@@ -21,8 +21,19 @@ import SwiftUI
 /// perpétuel ». Tout le vocabulaire du corpus repose sur `olam` — la durée
 /// indéterminée, le mode d'être dans le temps. C'est de cette famille-là.
 ///
-/// **Ne pas « corriger » en masculin.** L'écart est délibéré, arbitré le
-/// 7 septembre 2026.
+/// ## Et l'initiale : `ch`, jamais `kh`
+///
+/// Le §2.9 du vault fixe que **ח** (*het*) se rend `ch`, et que `kh` est
+/// réservé à **כ** (*khaf*). חֻקָּה commence par un het. Le `kh` de la première
+/// écriture venait de l'habitude française — la même divergence que
+/// `Khanokh → Chanokh`, corrigée le 29 août.
+///
+/// Le mot qui le démontre est *chokhmah* : un het au début, un khaf au milieu.
+/// Tout écrire en `kh` donnerait `khokhmah`, **deux `kh` pour deux lettres
+/// différentes** — et rien ne dirait que l'information a été effacée.
+///
+/// **Ne « corriger » ni en masculin, ni en `kh`.** Les deux écarts sont
+/// délibérés : le féminin arbitré le 7 septembre 2026, l'initiale le 8.
 ///
 /// ## Où il en est
 ///
@@ -36,7 +47,7 @@ import SwiftUI
 /// Un écran vide sans un mot se lit comme une panne. Celui-ci dit ce qu'il
 /// attend, ce qui est vrai — et il disparaîtra dès que la première entrée
 /// arrivera.
-public struct KhuqqotTab: View {
+public struct ChuqqotTab: View {
     @Environment(\.ontTheme) private var theme
     private var spacing = ONTSpacing()
 
@@ -46,7 +57,7 @@ public struct KhuqqotTab: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: spacing.m) {
-                    Text("Khuqqot")
+                    Text("Chuqqot")
                         .font(.custom(ONTFonts.display, size: ONTUI.points(30)))
                         .foregroundStyle(theme.ink)
                     Text("ce qui est gravé")
@@ -61,7 +72,7 @@ public struct KhuqqotTab: View {
                 .padding(.top, spacing.l)
             }
             .ontScreen()
-            .navigationTitle("Khuqqot")
+            .navigationTitle("Chuqqot")
             .ontTitreCompact()
         }
     }
@@ -83,7 +94,7 @@ private struct EnAttenteDeContenu: View {
             Text("Rien à lire pour l'instant")
                 .font(ONTUI.headline)
                 .foregroundStyle(theme.ink)
-            Text("Cet onglet portera les khuqqot. Ils ne sont pas encore écrits.")
+            Text("Cet onglet portera les chuqqot. Ils ne sont pas encore écrits.")
                 .font(ONTUI.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -1,4 +1,4 @@
-import KhuqqotFeature
+import ChuqqotFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -298,20 +298,20 @@ private struct OngletsFixes: TabContent {
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
         }
-        // **Khuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
-        // Le féminin est délibéré : voir `KhuqqotTab`.
+        // **Chuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
+        // Le féminin est délibéré : voir `ChuqqotTab`.
         //
         // Entre le Lexique et Vous, délibérément : ce qui se lit reste à
         // gauche, ce qui vous appartient reste à droite. Le lexique explique
-        // les mots du corpus, les khuqqot en tirent ce qui oblige — les deux
+        // les mots du corpus, les chuqqot en tirent ce qui oblige — les deux
         // sont de la lecture, et ils se suivent.
         //
         // Cinquième onglet sur l'iPhone. La barre en accepte cinq ; au-delà
         // iOS replierait le surplus derrière « Plus », ce qui enterrerait le
         // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
         // qu'on repense la barre entière.
-        Tab("Khuqqot", systemImage: "square.stack.3d.up.fill", value: Router.TabID.khuqqot) {
-            KhuqqotTab()
+        Tab("Chuqqot", systemImage: "square.stack.3d.up.fill", value: Router.TabID.chuqqot) {
+            ChuqqotTab()
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
         //
