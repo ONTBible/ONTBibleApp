@@ -78,7 +78,7 @@ targets:
       - package: ONTFeatures
         product: LexiconFeature
       - package: ONTFeatures
-        product: KhuqqimFeature
+        product: ChuqqotFeature
       - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
@@ -318,7 +318,7 @@ targets:
       - package: ONTFeatures
         product: LexiconFeature
       - package: ONTFeatures
-        product: KhuqqimFeature
+        product: ChuqqotFeature
       - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
