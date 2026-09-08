@@ -80,18 +80,41 @@ class ContratDeSynchronisationTest {
     }
 
     /**
-     * **Le rétrécissement de couleur passe aussi par ici.**
+     * **Ce que la synchronisation fait d'une couleur qu'elle ne connaît pas.**
      *
-     * Une teinte qu'on ne connaît pas devient l'or à la lecture, et l'envoi la
-     * réécrira `gold`. Tant que l'arbitrage de `HighlightColor.depuis` n'est
-     * pas tranché, ce test dit ce que la synchronisation fera réellement — et
-     * il échouera le jour où on décidera autrement, ce qui est le but.
+     * Elle la garde. C'est l'arbitrage rendu par iOS le 8 septembre 2026 —
+     * *préserver, comme le site* — et il remplace le comportement que ce
+     * fichier décrivait la veille : ramener à l'or **et réécrire**.
+     *
+     * La version précédente de ce test disait ce que le code faisait alors, en
+     * annonçant qu'elle échouerait le jour de la décision. Elle a rougi à cet
+     * instant précis, ce qui était tout son objet : une décision différée doit
+     * rester visible, et sa mise en œuvre faire du bruit plutôt que passer.
+     *
+     * L'or demeure pour l'affichage. Ce qui a changé, c'est que la lecture ne
+     * réécrit plus ce qu'elle n'a pas compris.
      */
     @Test
-    fun `une couleur inconnue devient de l'or, et repart en or`() {
+    fun `une couleur inconnue s'affiche en or et repart intacte`() {
         val inconnue = MarqueDto("h", "b", "c", 1, "turquoise", null, 1, false)
         val domaine = inconnue.versDomaine()
-        assertEquals(HighlightColor.GOLD, domaine.color)
-        assertEquals("gold", domaine.versDto().color)
+
+        assertEquals("l'affichage retombe sur l'or", HighlightColor.GOLD, domaine.color)
+        assertEquals("la clé reçue est gardée", "turquoise", domaine.cleDOrigine)
+        assertEquals(
+            "et c'est elle qui repart vers le serveur, jamais « gold »",
+            "turquoise",
+            domaine.versDto().color,
+        )
+    }
+
+    /** Une teinte connue ne laisse aucune trace redondante derrière elle. */
+    @Test
+    fun `une couleur connue repart telle quelle, sans cle d'origine`() {
+        val connue = MarqueDto("h", "b", "c", 1, "violet", null, 1, false)
+        val domaine = connue.versDomaine()
+        assertEquals(HighlightColor.VIOLET, domaine.color)
+        assertEquals(null, domaine.cleDOrigine)
+        assertEquals("violet", domaine.versDto().color)
     }
 }

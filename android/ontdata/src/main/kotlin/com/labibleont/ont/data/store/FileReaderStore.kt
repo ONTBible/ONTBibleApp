@@ -335,6 +335,7 @@ private fun HighlightFichier.versDomaine() = Highlight(
     chapterId = chapterId,
     verse = verse,
     color = HighlightColor.depuis(color),
+    cleDOrigine = color.takeIf { c -> HighlightColor.entries.none { it.cle == c } },
     note = note,
     updatedAt = Instant.ofEpochMilli(updatedAt),
     deleted = deleted,
@@ -345,7 +346,9 @@ private fun Highlight.versFichier() = HighlightFichier(
     bookId = bookId,
     chapterId = chapterId,
     verse = verse,
-    color = color.cle,
+    // La clé reçue si on ne l'a pas comprise, la nôtre sinon. Sans ça, le
+    // disque réécrivait `gold` et la valeur d'origine disparaissait.
+    color = cleDOrigine ?: color.cle,
     note = note,
     updatedAt = updatedAt.toEpochMilli(),
     deleted = deleted,
