@@ -136,7 +136,9 @@ final class Composition {
             positions: store,
             preferences: store
         )
-        lexicon = LexiconModel(glossary: glossary)
+        lexicon = LexiconModel(
+            glossary: glossary, shemot: shemotSurDisque,
+            feuilles: DiskPrononciationRepository(bundle: source))
         search = SearchModel(index: index, glossary: glossary, corpus: corpus)
         qahal = QahalModel(corpus: corpus, daily: daily)
         you = YouModel(corpus: corpus, glossary: glossary)

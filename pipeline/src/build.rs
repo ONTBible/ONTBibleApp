@@ -31,8 +31,8 @@ use crate::renvois;
 use crate::schema::{
     Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
     DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, SearchFile, SearchRecord, ShemEntry, ShemotFile, Status, Stub,
-    TermLevel,
+    Occurrence, OccurrencesFile, PrononciationFile, SearchFile, SearchRecord, ShemEntry,
+    ShemotFile, Status, Stub, TermLevel,
 };
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
@@ -560,6 +560,12 @@ fn outline(book: &Book) -> BookOutline {
     }
 }
 
+/// Le nom de la feuille de prononciation dans `lexique/`.
+///
+/// Nommée ici plutôt qu'écrite deux fois : elle sert à l'exclure des fiches
+/// orphelines **et** à l'émettre, et les deux doivent parler du même fichier.
+const PRONONCIATION: &str = "prononciation";
+
 fn write_json<T: Serialize>(file: &Path, data: &T) -> std::io::Result<usize> {
     // Compact par défaut : ces fichiers sont embarqués dans un binaire d'app,
     // pas lus par un humain. `search.json` seul gagne 40 % à ne pas être
@@ -931,6 +937,12 @@ pub fn build() -> Result<BuildResult, String> {
     let porteurs: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
     let mut fiches_orphelines: Vec<String> = fiches
         .keys()
+        // La feuille de prononciation vit dans `lexique/` sans être une fiche :
+        // elle n'a ni lemme ni porteur, et c'est normal. Sans cette exception
+        // elle serait signalée orpheline à chaque construction — un
+        // avertissement permanent qu'on apprend à ne plus lire, ce qui abîme
+        // tous les autres.
+        .filter(|l| l.as_str() != PRONONCIATION)
         .filter(|l| !lemmes.contains(l.as_str()) && !porteurs.contains(l.as_str()))
         .cloned()
         .collect();
@@ -1045,6 +1057,50 @@ pub fn build() -> Result<BuildResult, String> {
         },
     )
     .map_err(|e| e.to_string())?;
+
+    // La feuille de prononciation, quand le vault la porte.
+    //
+    // Absente, on n'écrit rien : la liseuse a un état vide qui dit ce qu'elle
+    // attend. Écrire un fichier au titre correct et au corps vide lui ferait
+    // croire qu'elle a reçu quelque chose.
+    if let Some(feuille) = fiches.get(PRONONCIATION) {
+        // **Le titre vient du `#` de tête, pas du nom de fichier.**
+        //
+        // `read_fiches` donne pour titre le nom du fichier, et c'est juste pour
+        // une fiche de lemme : `chesed.md` s'affiche « chesed ». Une feuille,
+        // elle, porte une phrase — « Comment se prononce ce qui est écrit » —
+        // et le nom du fichier n'en est que le rangement.
+        //
+        // Sans ça, le Mac affichait « prononciation » en titre de carte.
+        // Le `#` de tête est **écarté par `read_fiches`** — le titre d'une
+        // fiche vient de son nom de fichier, et le répéter en tête ferait
+        // doublon. Pour cette feuille, c'est l'inverse : le nom du fichier
+        // n'est qu'un rangement, la phrase du `#` est le titre.
+        //
+        // On le relit donc à la source plutôt que de changer `read_fiches`,
+        // dont trois cent trente-quatre fiches dépendent.
+        let titre = std::fs::read_to_string(
+            racine
+                .join(crate::config::LEXIQUE)
+                .join(format!("{PRONONCIATION}.md")),
+        )
+        .ok()
+        .and_then(|t| {
+            t.lines()
+                .find(|l| l.starts_with("# "))
+                .map(|l| l[2..].trim().to_string())
+        })
+        .unwrap_or_else(|| feuille.titre.clone());
+        bytes += write_json(
+            &sortie.join("prononciation.json"),
+            &PrononciationFile {
+                schema: 1,
+                title: titre,
+                blocks: feuille.blocs.clone(),
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
 
     bytes += write_json(
         &sortie.join("glossary.json"),
