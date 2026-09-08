@@ -158,6 +158,7 @@ public final class AccountModel {
                 verifier: grant.verifier
             )
             store.session = session
+            reconnaitreLeProprietaire(de: session)
             amorcerLeProfil(depuis: grant)
             state = .signedIn
         } catch AccountError.cancelled {
@@ -238,6 +239,57 @@ public final class AccountModel {
         store.session = nil
         state = .signedOut
         lastSync = nil
+        // **Le propriétaire ne s'efface pas ici**, et c'est tout le point : le
+        // travail reste sur l'appareil, donc la question « à qui est-il ? »
+        // reste posée. L'effacer reviendrait à le rendre adoptable par le
+        // prochain compte qui se connecte — exactement le défaut qu'on ferme.
+    }
+
+    /// **À qui appartient le travail déjà posé sur cet appareil.**
+    ///
+    /// Trois cas, et un seul est dangereux :
+    ///
+    /// - **personne** — aucun compte ne l'a réclamé. C'est le lecteur qui a
+    ///   surligné avant de se créer un compte : le travail est le sien, le
+    ///   compte l'adopte ;
+    /// - **le même compte** — rien à faire ;
+    /// - **un autre compte** — on n'adopte pas, on n'efface pas, et **on ne
+    ///   synchronise plus**. Le travail du premier reste intact sur l'appareil,
+    ///   et il ne monte pas sous le nom du second.
+    ///
+    /// Le consentement retombe à `.none` dans ce dernier cas : celui du premier
+    /// lecteur n'autorise pas le second à faire monter quoi que ce soit. Un
+    /// consentement est donné par quelqu'un, pas par un appareil.
+    ///
+    /// **On ne purge jamais.** Le commentaire d'`eraseAccount` dit la règle de
+    /// la maison — « le local est laissé intact : c'est la copie distante qui
+    /// disparaît, pas le travail du lecteur ». Purger ici détruirait le travail
+    /// de quelqu'un qui se déconnecte simplement pour changer de compte.
+    ///
+    /// Un jeton sans `sub` lisible laisse tout en l'état : on ne sait pas, donc
+    /// on ne décide pas.
+    private func reconnaitreLeProprietaire(de session: Session) {
+        guard let sujet = SujetDeSession.sujet(de: session.accessToken) else { return }
+        switch store.proprietaire {
+        case .none:
+            store.proprietaire = sujet
+        case .some(sujet):
+            break
+        case .some:
+            store.consent = .none
+        }
+    }
+
+    /// Vrai quand le travail posé ici appartient à un **autre** compte.
+    ///
+    /// L'écran s'en sert pour le dire au lecteur : ses annotations sont là,
+    /// elles ne sont pas perdues, et elles ne monteront pas sous ce compte-ci.
+    public var donneesDUnAutreCompte: Bool {
+        guard let session = store.session,
+            let sujet = SujetDeSession.sujet(de: session.accessToken),
+            let proprietaire = store.proprietaire
+        else { return false }
+        return proprietaire != sujet
     }
 
     /// Efface le compte côté serveur — le droit à l'effacement du RGPD.
@@ -274,7 +326,9 @@ public final class AccountModel {
     /// même règle que côté serveur, appliquée des deux bords pour qu'un
     /// appareil resté longtemps hors ligne n'écrase rien en bloc.
     public func synchronise() async {
-        guard state == .signedIn, consent, !syncing else { return }
+        // `donneesDUnAutreCompte` en tête des refus : c'est le seul qui
+        // protège quelqu'un d'autre que le lecteur courant.
+        guard state == .signedIn, !donneesDUnAutreCompte, consent, !syncing else { return }
         syncing = true
         defer { syncing = false }
 
