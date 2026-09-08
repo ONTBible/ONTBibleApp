@@ -250,10 +250,29 @@ public actor CorpusUpdater {
         }
 
         if remplaces > 0 {
-            // Après les fichiers, comme le registre et pour la même raison :
-            // une estampille écrite d'avance promettrait un corpus qu'une
-            // coupure aurait laissé à moitié posé.
-            try? publiee.texte.write(to: estampilleDuDisque, atomically: true, encoding: .utf8)
+            // **L'estampille n'est posée que si le manifeste est entier.**
+            //
+            // Un fichier qui échoue n'emporte pas les autres — c'est le choix
+            // assumé juste au-dessus, et sept livres sur huit valent mieux que
+            // rien. Mais l'estampille, elle, ne parle pas d'un fichier : elle
+            // dit « le dossier porte la génération du tant ». L'écrire après un
+            // téléchargement partiel la ferait mentir, et le mensonge durerait.
+            //
+            // Il durerait parce que c'est elle que `purgerSiLeBundleEstPlusNeuf`
+            // compare : une estampille trop neuve empêche la purge, donc le
+            // corpus mêlé survit jusqu'à la prochaine synchronisation complète.
+            //
+            // Ne rien écrire est exact : le dossier est alors traité comme
+            // portant l'ancienne génération, ce qu'il porte en partie. Le
+            // registre, lui, garde ce qui est réellement arrivé — la prochaine
+            // passe ne retélécharge que ce qui manque.
+            //
+            // Relevé par un audit externe, le 8 septembre 2026.
+            let entier = manifeste.tout.allSatisfy { connus[$0.local] == $0.entree.empreinte }
+            if entier {
+                try? publiee.texte.write(
+                    to: estampilleDuDisque, atomically: true, encoding: .utf8)
+            }
             // Écrit **après** les fichiers, et c'est tout le sujet — voir
             // ci-dessous.
             try? enregistrerLesEmpreintes(connus)

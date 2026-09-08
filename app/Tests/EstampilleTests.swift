@@ -256,6 +256,43 @@ struct EstampilleTests {
             fichier: Data("{}".utf8))
         #expect(try await m.synchroniser() == 0)
     }
+
+    // MARK: - L'estampille ne parle que d'un manifeste entier
+
+    /// **Un téléchargement partiel ne date pas le dossier.**
+    ///
+    /// Le manifeste annonce deux fichiers ; le serveur n'en rend qu'un — le
+    /// second n'a pas la bonne empreinte, donc il est jeté. Un fichier a bien
+    /// été posé, mais le dossier mêle alors deux générations.
+    ///
+    /// L'estampille ne dit pas « ce fichier-ci vient du tant », elle dit « le
+    /// dossier porte la génération du tant ». L'écrire ici la ferait mentir —
+    /// et le mensonge durerait, puisque c'est elle que la purge compare : une
+    /// estampille trop neuve empêche d'écarter le corpus mêlé.
+    ///
+    /// Relevé par un audit externe le 8 septembre 2026.
+    @Test("un manifeste à moitié posé ne laisse pas d'estampille")
+    func manifestePartielNeDatePas() async throws {
+        let dossier = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partiel-\(UUID().uuidString)", isDirectory: true)
+        FauxReseau.reponses = [
+            "manifeste.json": Data(#"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.4f53cda18c2b.json","empreinte":"4f53cda18c2b","octets":2},"quotidien":{"chemin":"q.deadbeef0000.json","empreinte":"deadbeef0000","octets":2}},"livres":{}}"#.utf8)
+        ]
+        // Le même contenu pour les deux : il satisfait la première empreinte,
+        // jamais la seconde.
+        FauxReseau.parDefaut = Data("[]".utf8)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FauxReseau.self]
+        let m = CorpusUpdater(
+            origine: URL(string: "https://exemple.invalide/corpus/")!,
+            dossier: dossier,
+            session: URLSession(configuration: config),
+            estampilleEmbarquee: CorpusUpdater.Estampille("2026-08-27T09:00:00Z"))
+
+        #expect(try await m.synchroniser() == 1)
+        let estampille = dossier.appendingPathComponent("estampille.txt")
+        #expect(!FileManager.default.fileExists(atPath: estampille.path))
+    }
 }
 
 /// Un réseau de papier : il rend ce qu'on lui a posé, et rien d'autre.
