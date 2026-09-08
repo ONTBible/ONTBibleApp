@@ -66,8 +66,17 @@ def version_du_projet(chemin: str) -> str:
 
     **Sans analyseur YAML**, et sans dépendance de plus : la ligne cherchée est
     la première `CFBundleShortVersionString` du fichier, et c'est celle de la
-    cible `ONT` — l'app iOS, la seule qui aille à l'App Store. Les deux autres
-    cibles la suivent dans le fichier.
+    cible `ONT` — l'app iOS. Les deux autres cibles la suivent dans le fichier.
+
+    **Sa limite, nommée pour qu'elle ne surprenne pas.** Le job macOS emploie
+    donc le numéro d'`ONT` et le pose à Apple sur `MAC_OS`. Les trois cibles
+    portent la même version aujourd'hui ; `publier-la-version.yml` documente
+    lui-même qu'`ONTMac` peut diverger. Le jour où elle divergera, ce lecteur
+    rendra un nombre exact à une autre question que celle qu'on pose — et il
+    faudra ancrer la lecture sur la cible, `targets.ONTMac` pour le Mac.
+
+    Pas fait maintenant : personne n'a besoin de cet ancrage tant que les
+    numéros coïncident, et une machinerie posée « au cas où » se relit mal.
     """
     with open(chemin, encoding="utf-8") as f:
         for ligne in f:
