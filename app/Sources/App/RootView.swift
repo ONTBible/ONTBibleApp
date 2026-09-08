@@ -58,7 +58,11 @@ struct RootView: View {
         .tabViewSidebarBottomBar {
             LigneDuCompte { compteOuvert = true }
         }
-        .sheet(isPresented: $compteOuvert) {
+        // **Pleine, et c'est écrit.** Un compte se consulte de bout en bout —
+        // sessions, appareils, effacement — et il n'y a rien d'utile derrière
+        // lui à garder en vue. C'est la seule feuille de l'app dans ce cas, et
+        // c'est pour ça que la dérogation se lit au lieu de se deviner.
+        .ontFeuille(presentee: $compteOuvert, titre: "Compte", paliers: .pleine) {
             NavigationStack {
                 YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
             }
@@ -110,7 +114,7 @@ struct RootView: View {
         // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
         // même chose nommée deux fois, c'est un autre geste. Le code doit
         // montrer qu'on a décidé.
-        .sheet(item: $router.openedLemma) { selection in
+        .ontFeuille(objet: $router.openedLemma, titre: "Terme") { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
         }
@@ -118,7 +122,7 @@ struct RootView: View {
         // vivent pas dans le même fichier, et une feuille commune devrait
         // deviner lequel des deux on vient de toucher — elle se tromperait pour
         // tout nom dont un concept porte le lemme.
-        .sheet(item: $router.openedShem) { selection in
+        .ontFeuille(objet: $router.openedShem, titre: "Shem") { selection in
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }

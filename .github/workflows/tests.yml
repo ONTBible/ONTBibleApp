@@ -147,6 +147,24 @@ jobs:
         working-directory: ONTBibleApp
         run: ./scripts/eprouver-les-scripts.sh
 
+      # ## Une feuille passe par le système de design, jamais par `.sheet` nu
+      #
+      # Le 8 septembre 2026, la feuille de prononciation s'ouvrait plein écran
+      # et sans poignée pendant que celle de lecture s'ouvrait à mi-hauteur.
+      # L'habillage existait ; il fallait y penser au point d'appel, et une
+      # feuille sur sept y pensait.
+      #
+      # L'habillage est maintenant porté par `ontFeuille`, mais un `.sheet` nu
+      # le contourne toujours. Ce contrôle est ce qui empêche la prochaine
+      # feuille de s'écrire à côté — l'écart ne se voit qu'en ouvrant les deux
+      # à la suite, sur un appareil, en y pensant.
+      #
+      # Comme les deux contrôles au-dessus, il ne connaît qu'une **forme**. Le
+      # fichier le dit lui-même en tête.
+      - name: Les feuilles passent par le système de design
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-les-feuilles.sh
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest

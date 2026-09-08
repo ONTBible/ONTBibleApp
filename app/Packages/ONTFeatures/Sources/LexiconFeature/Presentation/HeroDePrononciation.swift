@@ -109,7 +109,7 @@ struct FeuilleDePrononciationView: View {
                     }
                     .ontRow()
                 }
-                .listStyle(.plain)
+                .ontListeDeProse()
             } else {
                 // **L'attente se dit.** Un écran vide et muet se lit comme une
                 // panne, et le lecteur relance l'app pour rien.

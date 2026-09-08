@@ -428,13 +428,16 @@ struct ChapterView: View {
                 // pile qui existe déjà, et n'a ni l'une ni l'autre à fournir. Le
                 // Mac n'en veut aucun des deux — sa carte a déjà sa croix.
                 .ontChromeDeFeuille("OK") { showingSettings = false }
-                // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
-                // grande taille avec les gloses allumées, la mi-hauteur ne laisse
-                // plus voir les réglages.
-                .ontHauteurDeFeuille([.medium, .large])
+                // Les paliers ne s'écrivent plus ici : `ontFeuille` les pose
+                // pour toutes les feuilles de l'app. Ils y étaient, et une
+                // seule feuille sur sept les demandait — voir
+                // `ONTPaliersDeFeuille`.
                 .ontTheme(from: model.preferences)
         }
-        .ontFeuille(objet: $noteTarget, titre: "Note") { selection in
+        // **Une dérogation, et elle s'écrit ici.** Une note tient en trois
+        // lignes : lui donner le plein écran au glissement offrirait de la
+        // hauteur à ce qui n'en demande pas.
+        .ontFeuille(objet: $noteTarget, titre: "Note", paliers: .mesures([.medium])) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
                 .ontTheme(from: model.preferences)
         }
@@ -1674,7 +1677,6 @@ private struct NoteEditor: View {
                 .ontRow()
                 .ontScreen()
             }
-            .ontHauteurDeFeuille([.medium])
         #endif
     }
 

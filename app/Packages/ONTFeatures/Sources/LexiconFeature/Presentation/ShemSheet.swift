@@ -91,7 +91,7 @@ public struct ShemSheet: View {
                     .ontRow()
                 }
             }
-            .listStyle(.plain)
+            .ontListeDeProse()
             .ontScreen()
             .ontTitreCompact()
             .toolbar {
@@ -105,6 +105,5 @@ public struct ShemSheet: View {
                 }
             }
         }
-        .ontHauteurDeFeuille([.medium, .large])
     }
 }

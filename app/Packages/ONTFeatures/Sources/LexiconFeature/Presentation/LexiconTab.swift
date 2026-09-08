@@ -124,7 +124,7 @@ public struct LexiconTab: View {
                 }
                 }
             }
-            .listStyle(.plain)
+            .ontListeDIndex()
             // **La liste recule pour le rail.**
             //
             // Sans ça les compteurs de la colonne de droite viennent toucher

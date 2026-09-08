@@ -77,7 +77,7 @@ public struct SearchView: View {
                     }
                 }
             }
-            .listStyle(.plain)
+            .ontListeDeProse()
             .ontScreen()
             .navigationTitle("Rechercher")
             .ontTitreCompact()
