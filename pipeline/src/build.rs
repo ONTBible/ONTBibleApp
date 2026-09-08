@@ -1020,7 +1020,7 @@ pub fn build() -> Result<BuildResult, String> {
             for mode in &mut corpus.modes {
                 for livre in &mut mode.books {
                     for unite in unites_mut(livre) {
-                        niveau_trois::resoudre(&mut unite.blocks, &index, &mut restes);
+                        niveau_trois::resoudre_l_unite(unite, &index, &mut restes);
                     }
                 }
             }

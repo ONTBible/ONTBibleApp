@@ -33,7 +33,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use crate::schema::{Block, Chapter, GlossaryEntry, Inline, ShemEntry};
+use crate::schema::{Block, Chapter, CibleDuNiveauTrois, GlossaryEntry, Inline, ShemEntry};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parcourir tout ce qui est livré, sans exception
@@ -288,11 +288,41 @@ pub fn liens_morts(
             });
     };
 
+    // **La cible du niveau 3 entre ici**, et pas seulement les `**…**` du corps.
+    //
+    // Elle tient par construction : `niveau_trois` monte son index sur les
+    // entrées *livrées*, donc il ne peut pas écrire un lemme absent du fichier.
+    // Mais « ça tient par construction » est une propriété du code d'aujourd'hui,
+    // pas du fichier livré, et ce contrôle-ci pose la question de la liseuse :
+    // *le lemme écrit dans le nœud est-il une clé de l'index livré ?* Un jour où
+    // l'index se monterait sur les fiches lues plutôt que sur les publiées, le
+    // lien serait mort et rien ne le dirait — le mot serait doré, touchable, et
+    // n'ouvrirait rien.
+    let cible = |n: &Inline| match n {
+        Inline::Translit {
+            translit, cible, ..
+        } => match cible {
+            Some(CibleDuNiveauTrois::Term { lemma }) => {
+                Some(("term", translit.clone(), lemma.clone()))
+            }
+            Some(CibleDuNiveauTrois::Shem { lemma }) => {
+                Some(("shem", translit.clone(), lemma.clone()))
+            }
+            None => None,
+        },
+        _ => None,
+    };
+
     for unite in unites {
-        pour_chaque_inline_livre(unite, &mut |n| match n {
-            Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
-            Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
-            _ => {}
+        pour_chaque_inline_livre(unite, &mut |n| {
+            match n {
+                Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
+                Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
+                _ => {}
+            }
+            if let Some((couche, forme, lemme)) = cible(n) {
+                relever(couche, &forme, &lemme, &unite.id);
+            }
         });
     }
     for e in glossaire {
@@ -302,10 +332,15 @@ pub fn liens_morts(
             .flatten()
         {
             for bloc in blocs {
-                pour_chaque_inline(bloc, &mut |n| match n {
-                    Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
-                    Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
-                    _ => {}
+                pour_chaque_inline(bloc, &mut |n| {
+                    match n {
+                        Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
+                        Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
+                        _ => {}
+                    }
+                    if let Some((couche, forme, lemme)) = cible(n) {
+                        relever(couche, &forme, &lemme, &ou);
+                    }
                 });
             }
         }
@@ -313,10 +348,15 @@ pub fn liens_morts(
     for e in shemot {
         let ou = format!("lexique/{}", e.lemma);
         for bloc in &e.definition {
-            pour_chaque_inline(bloc, &mut |n| match n {
-                Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
-                Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
-                _ => {}
+            pour_chaque_inline(bloc, &mut |n| {
+                match n {
+                    Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
+                    Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
+                    _ => {}
+                }
+                if let Some((couche, forme, lemme)) = cible(n) {
+                    relever(couche, &forme, &lemme, &ou);
+                }
             });
         }
     }
@@ -381,12 +421,31 @@ pub const PLAFOND_LIENS_MORTS: usize = 0;
 /// Cette fonction ne répare rien et ne juge rien : elle dit combien de nœuds
 /// touchables vivent hors de leur portée. Si le nombre est nul, leur zéro est
 /// un zéro. S'il ne l'est pas, il reste à vérifier — et on saura qu'il faut.
+/// Un nœud qui répond au doigt.
+///
+/// **Le niveau 3 en fait partie depuis qu'il ouvre sa fiche**, et l'y ajouter
+/// n'est pas cosmétique : ce compte mesure ce que les parcours restreints ne
+/// visitent pas — un titre d'unité, les notes d'un pied. Sans cette ligne, une
+/// translittération touchable oubliée par un tel parcours resterait inerte sans
+/// qu'aucun nombre ne bouge, et le contrôle aurait continué de rendre une mesure
+/// exacte pour une question qui a changé sous lui.
+///
+/// Une translittération **sans** cible n'y entre pas : elle ne promet rien, donc
+/// aucun parcours ne peut lui manquer quelque chose.
+fn est_touchable(n: &Inline) -> bool {
+    match n {
+        Inline::Term { .. } | Inline::Shem { .. } => true,
+        Inline::Translit { cible, .. } => cible.is_some(),
+        _ => false,
+    }
+}
+
 pub fn hors_de_portee(unites: &[&Chapter]) -> usize {
     let mut total = 0usize;
     let mut restreint = 0usize;
     for u in unites {
         pour_chaque_inline_livre(u, &mut |n| {
-            if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+            if est_touchable(n) {
                 total += 1;
             }
         });
@@ -396,7 +455,7 @@ pub fn hors_de_portee(unites: &[&Chapter]) -> usize {
                 Block::Heading { .. } | Block::Para { .. } | Block::Verses { .. }
             ) {
                 pour_chaque_inline(bloc, &mut |n| {
-                    if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+                    if est_touchable(n) {
                         restreint += 1;
                     }
                 });
@@ -892,5 +951,83 @@ mod tests {
             ],
         }]);
         assert_eq!(densite(&u).mots_corps, 2);
+    }
+}
+
+#[cfg(test)]
+mod epreuves_du_niveau_trois {
+    use super::*;
+    use crate::schema::{ChapterKind, Status, Verse};
+
+    fn translit(cible: Option<CibleDuNiveauTrois>) -> Inline {
+        Inline::Translit {
+            translit: "chesed".into(),
+            hebrew: "חֶסֶד".into(),
+            cible,
+        }
+    }
+
+    fn unite(noeuds_du_titre: Vec<Inline>, corps: Vec<Inline>) -> Chapter {
+        Chapter {
+            id: "bereshit-1".into(),
+            book_id: "bereshit".into(),
+            kind: ChapterKind::Chapter,
+            n: 1,
+            title: "Bereshit 1".into(),
+            title_nodes: noeuds_du_titre,
+            subtitle: None,
+            status: Status::Locked,
+            blocks: vec![Block::Verses {
+                verses: vec![Verse { n: 1, nodes: corps }],
+            }],
+            footer: None,
+            verse_count: 1,
+            lemmas: vec![],
+            source: "bereshit-1.md".into(),
+        }
+    }
+
+    /// **Le contrôle doit pouvoir rougir sur la cible.**
+    ///
+    /// Aujourd'hui l'invariant tient par construction : `niveau_trois` monte son
+    /// index sur les entrées *livrées*, donc il ne peut pas écrire un lemme
+    /// absent du fichier. Mais c'est une propriété du code d'aujourd'hui, pas du
+    /// fichier livré — et un contrôle qui ne mesure que ce qui ne peut pas
+    /// arriver ne mesure rien. Celui-ci pose la question de la liseuse.
+    #[test]
+    fn une_cible_absente_de_l_index_livre_est_un_lien_mort() {
+        let u = unite(
+            vec![],
+            vec![translit(Some(CibleDuNiveauTrois::Term {
+                lemma: "chesed".into(),
+            }))],
+        );
+        let morts = liens_morts(&[&u], &[], &[]);
+
+        assert_eq!(morts.len(), 1);
+        assert_eq!(morts[0].lemme, "chesed");
+        assert_eq!(morts[0].couche, "term");
+    }
+
+    /// Et une translittération inerte n'est pas un lien mort : elle ne promet
+    /// rien. Confondre les deux ferait rougir le build sur 1257 nœuds corrects.
+    #[test]
+    fn une_translitteration_sans_cible_n_est_pas_un_lien_mort() {
+        let u = unite(vec![], vec![translit(None)]);
+        assert!(liens_morts(&[&u], &[], &[]).is_empty());
+    }
+
+    /// **Le titre d'une unité est livré comme son corps.** Un parcours restreint
+    /// qui l'oublierait laisserait le niveau 3 inerte là et touchable ailleurs,
+    /// sans qu'aucun nombre ne bouge — la forme silencieuse de l'oubli.
+    #[test]
+    fn une_cible_dans_le_titre_compte_hors_de_portee() {
+        let u = unite(
+            vec![translit(Some(CibleDuNiveauTrois::Shem {
+                lemma: "noach".into(),
+            }))],
+            vec![],
+        );
+        assert_eq!(hors_de_portee(&[&u]), 1);
     }
 }

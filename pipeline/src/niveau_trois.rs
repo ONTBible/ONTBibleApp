@@ -46,7 +46,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::schema::{Block, CibleDuNiveauTrois, Inline};
+use crate::schema::{Block, Chapter, CibleDuNiveauTrois, Inline};
 
 /// Ce qui est publié, et donc ouvrable.
 pub struct Index {
@@ -122,6 +122,26 @@ impl Restes {
 
     pub fn total(&self) -> u32 {
         self.0.values().sum()
+    }
+}
+
+/// Résout **toute** une unité livrée — titre, corps, pied de page.
+///
+/// ## Pourquoi l'unité entière et non ses seuls blocs
+///
+/// `controles::hors_de_portee` existe précisément pour compter les nœuds
+/// touchables que les parcours restreints ne visitent pas : un titre d'unité et
+/// les notes d'un pied sont livrés et rendus comme le reste, et une passe qui
+/// s'arrêterait à `blocks` y laisserait le niveau 3 inerte.
+///
+/// Le défaut serait invisible : le même mot répondrait dans le corps et pas
+/// dans le titre, sans qu'aucun compte ne bouge. C'est la forme silencieuse de
+/// l'oubli, celle qui rend simplement moins de mots touchables.
+pub fn resoudre_l_unite(unite: &mut Chapter, index: &Index, restes: &mut Restes) {
+    inline(&mut unite.title_nodes, index, restes);
+    resoudre(&mut unite.blocks, index, restes);
+    if let Some(pied) = &mut unite.footer {
+        resoudre(&mut pied.notes, index, restes);
     }
 }
 
