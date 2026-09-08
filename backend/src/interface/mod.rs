@@ -165,10 +165,22 @@ async fn diffuser(
         return (StatusCode::SERVICE_UNAVAILABLE, "diffusion non configurée").into_response();
     };
 
-    let presente = headers
+    // Le secret voyage dans `Authorization: Bearer` — l'en-tête que le SDK
+    // Sentry filtre nativement, transactions comprises. L'en-tête maison
+    // `x-secret-diffusion` partait dans la télémétrie (C02, audit du
+    // 8 septembre 2026) ; il reste accepté le temps que l'annonceur du site
+    // bascule, puis tombera. Choisir l'en-tête ne dépend pas du secret :
+    // la comparaison en temps constant reste la seule qui le touche.
+    let bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or_default();
+    let herite = headers
         .get("x-secret-diffusion")
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default();
+    let presente = if bearer.is_empty() { herite } else { bearer };
     if !constant_eq(presente.as_bytes(), attendu.as_bytes()) {
         return (StatusCode::UNAUTHORIZED, "secret invalide").into_response();
     }
