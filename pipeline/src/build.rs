@@ -741,6 +741,36 @@ pub fn build() -> Result<BuildResult, String> {
             }
         }
     }
+    // **Le lemme canonique, écrit dans le nœud livré.**
+    //
+    // Sans ce passage, `**gibborim**` sort avec `lemma: "gibborim"` alors que
+    // l'entrée s'appelle `gibbor` : la résolution par `form_index` n'existait
+    // que pour compter les occurrences, et le nœud que la liseuse reçoit ne la
+    // voyait jamais. Deux cent vingt-quatre liens livrés n'ouvraient rien, dont
+    // cent trente-trois dans des corps de chapitre.
+    //
+    // Ici plutôt que dans le tokeniseur : `inline.rs` ne connaît pas le
+    // glossaire, et lui passer la table le ferait dépendre de ce qu'il sert à
+    // produire.
+    {
+        let formes: BTreeMap<String, String> = form_index
+            .iter()
+            .map(|(f, l)| (f.clone(), l.clone()))
+            .collect();
+        for corpus in &mut corpora {
+            for mode in &mut corpus.modes {
+                for livre in &mut mode.books {
+                    for unite in unites_mut(livre) {
+                        controles::canoniser(&mut unite.blocks, &formes);
+                        if let Some(pied) = &mut unite.footer {
+                            controles::canoniser(&mut pied.notes, &formes);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let corpora = corpora;
 
     // **Les Shemot sans fiche**, relevés sur le corpus assemblé — donc sur ce
@@ -821,6 +851,63 @@ pub fn build() -> Result<BuildResult, String> {
     shemot_employes.sort();
     shemot_employes.dedup();
 
+    // **Une fiche publiée nomme, elle aussi.**
+    //
+    // La règle au-dessus dit qu'on ne publie que les porteurs « que le corpus
+    // nomme », et elle a raison : embarquer les trois cents fiches ferait payer
+    // au lecteur des noms qu'aucune unité écrite ne prononce.
+    //
+    // Mais elle ne regardait que les **unités**. Or une fiche publiée est du
+    // corpus publié : ses `[[…]]` sont rendus et touchables. `Shem-fils-de-Noach`
+    // était visé **trente-sept fois** depuis d'autres fiches — `lexique/akkad`,
+    // `lexique/avraham`, `lexique/kena-an` — et n'entrait dans aucun index. Le
+    // lecteur touchait un nom en terre brûlée qui n'ouvrait rien.
+    //
+    // Point fixe, et non une passe : une fiche nouvellement publiée peut en
+    // nommer une autre. Deux tours suffisent aujourd'hui ; la boucle ne suppose
+    // pas que ça dure.
+    loop {
+        let connus: HashSet<&str> = shemot_employes.iter().map(String::as_str).collect();
+        let mut neufs: Vec<String> = Vec::new();
+        // **Toute fiche publiée nomme — de glossaire comme de Shem.**
+        //
+        // Le premier jet ne parcourait que les fiches de Shem, et un `[[Nom]]`
+        // écrit dans une fiche d'intraduisible n'était collecté par personne.
+        // `lexique/qahal` nomme `[[Sinai]]` quatre fois, et le lien restait mort :
+        // le lecteur touchait un nom en terre brûlée qui n'ouvrait rien.
+        //
+        // C'est la faute qu'on venait de corriger, à un cran de profondeur — et
+        // elle a été trouvée en écrivant deux fiches, pas en relisant le code.
+        let sources: Vec<&Vec<Block>> = shemot_employes
+            .iter()
+            .filter_map(|l| fiches.get(l).map(|f| &f.blocs))
+            .chain(glossary.iter().filter_map(|e| e.definition.as_ref()))
+            .chain(glossary.iter().filter_map(|e| e.tagging_note.as_ref()))
+            .collect();
+
+        for blocs in sources {
+            let mut vus: Vec<String> = Vec::new();
+            for bloc in blocs {
+                controles::pour_chaque_inline(bloc, &mut |n| {
+                    if let Inline::Shem { lemma, .. } = n {
+                        vus.push(lemma.clone())
+                    }
+                });
+            }
+            for v in vus {
+                if !connus.contains(v.as_str()) && fiches.contains_key(&v) {
+                    neufs.push(v);
+                }
+            }
+        }
+        if neufs.is_empty() {
+            break;
+        }
+        shemot_employes.extend(neufs);
+        shemot_employes.sort();
+        shemot_employes.dedup();
+    }
+
     // **Une fiche orpheline, maintenant qu'il y a deux espèces de fiches.**
     //
     // Le contrôle demandait « ce nom de fichier est-il un lemme du
@@ -849,7 +936,7 @@ pub fn build() -> Result<BuildResult, String> {
         .collect();
     fiches_orphelines.sort();
 
-    let shemot: Vec<ShemEntry> = shemot_employes
+    let mut shemot: Vec<ShemEntry> = shemot_employes
         .iter()
         .filter_map(|lemme| {
             fiches.get(lemme).map(|fiche| ShemEntry {
@@ -859,6 +946,42 @@ pub fn build() -> Result<BuildResult, String> {
             })
         })
         .collect();
+
+    // **Les fiches de Shemot aussi.** Oubliées au premier essai, et le contrôle
+    // l'a dit : après avoir canonisé le corps et les fiches de glossaire, il
+    // restait dix-huit liens morts, **tous dans des fiches de la couche des
+    // Shemot** — `lexique/avraham`, `lexique/bet-el`, `lexique/gilgamesh`.
+    //
+    // Elles portent des `**intraduisibles**` comme n'importe quelle prose, et
+    // elles sont livrées et touchables. Une correction qui s'arrête au
+    // glossaire laisse la moitié du lexique dans l'état qu'elle vient de
+    // condamner.
+    {
+        let formes: BTreeMap<String, String> = form_index
+            .iter()
+            .map(|(f, l)| (f.clone(), l.clone()))
+            .collect();
+        for e in &mut shemot {
+            controles::canoniser(&mut e.definition, &formes);
+        }
+    }
+    let shemot = shemot;
+
+    // Les fiches sont livrées comme le corps, et leurs `**…**` sont touchables.
+    {
+        let formes: BTreeMap<String, String> = form_index
+            .iter()
+            .map(|(f, l)| (f.clone(), l.clone()))
+            .collect();
+        for e in &mut glossary {
+            if let Some(d) = &mut e.definition {
+                controles::canoniser(d, &formes);
+            }
+            if let Some(n) = &mut e.tagging_note {
+                controles::canoniser(n, &formes);
+            }
+        }
+    }
 
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
