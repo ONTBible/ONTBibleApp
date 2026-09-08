@@ -3800,3 +3800,41 @@ question que celle qu'on pose.
 **Pour les trois dépôts** : rien à porter, une chose à savoir — la version
 publique de l'app est **1.0.6** partout où l'on en parle, et le geste de la
 monter n'est plus laissé à la mémoire de qui livre.
+
+### Addendum du 8 septembre au soir — `## Formes`, et l'endroit où l'on déclare
+
+Le classement envoyé au vault dans la journée conseillait *« ajouter la forme au
+§2.5 de son entrée »*. **C'était faux**, et la session du vault l'a relevé.
+
+L'auteur a tranché le même jour (§2.5 ter) qu'une fiche déclare ses propres
+formes fléchies, **après son corps** :
+
+    lexique/<lemme>.md
+
+    ## Formes
+
+    vayomer · vayomru · amarti · vaʾomar
+
+Pas au §2.5 du document de référence : celui-ci réserve `**…**` aux
+**intraduisibles**, et y déclarer `vayomer` ferait d'`amar` un intraduisible —
+lui faisant perdre son rendu « formuler » du §3.1. Le même endroit ne peut pas
+dire les deux.
+
+**Le pipeline ne lisait aucune de ces sections.** Trente-quatre fiches, cent
+soixante-quatre formes écrites, zéro effet : `form_index` ne se construisait
+qu'à partir du `CLAUDE.md`. Le contrôle positif était sous le nez — `asah.md`
+déclare `vayaʿas`, et le rapport du même build l'imprimait en inerte à six
+occurrences. Mesuré par la session du vault sur trois états successifs du vault,
+sans lire une ligne de code.
+
+Corrigé : **844 → 977 translittérations résolues sur 2085**, et la prose du
+rapport dit maintenant le bon endroit — dans le même commit que le lecteur, et
+pas avant, sinon on enverrait écrire dans un endroit que rien ne lit.
+
+**Ce que ça change pour le vault, et c'est tout ce qu'il y a à retenir** : la
+section « Niveau 3 non résolu — par où déclarer » du rapport porte la liste, et
+son remède est `## Formes` dans la fiche. Pour un nom propre, c'est la fiche de
+Shem qu'il faut écrire. Sept fiches — `halakh`, `mut`, `yada`, `sim`, `zera`,
+`gan`, `toledot` — existent dans `lexique/` **sans entrée de glossaire** : leurs
+formes restent inertes tant que l'entrée n'est pas écrite, parce qu'un lien vers
+une fiche absente de `glossary.json` donnerait un mot doré qui n'ouvre rien.
