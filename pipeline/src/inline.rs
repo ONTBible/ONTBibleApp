@@ -301,6 +301,11 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
                     out.push(Inline::Translit {
                         translit: m.get(1).unwrap().as_str().trim().to_string(),
                         hebrew: hebrew.trim().to_string(),
+                        // **Le parseur ne résout pas.** Il ne sait pas quelles
+                        // fiches existent, ni lesquelles sont publiées ; la
+                        // construction le sait. Trancher ici obligerait à le
+                        // faire sans l'information.
+                        cible: None,
                     });
                     i += m.get(0).unwrap().len();
                     continue;
@@ -539,7 +544,9 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
                     out.push_str(v);
                 }
             }
-            Inline::Translit { translit, hebrew } => {
+            Inline::Translit {
+                translit, hebrew, ..
+            } => {
                 if options.level3 {
                     out.push('(');
                     out.push_str(translit);
@@ -773,7 +780,10 @@ mod tests {
         assert_eq!(v, "YHWH");
         assert_eq!(lemma, "yhwh");
 
-        let Inline::Translit { translit, hebrew } = &nodes[2] else {
+        let Inline::Translit {
+            translit, hebrew, ..
+        } = &nodes[2]
+        else {
             panic!("le troisième nœud doit être un niveau 3")
         };
         assert_eq!(translit, "vayera elav YHWH");

@@ -38,6 +38,8 @@ pub mod controles;
 #[cfg(feature = "parsers")]
 pub mod inline;
 #[cfg(feature = "parsers")]
+pub mod niveau_trois;
+#[cfg(feature = "parsers")]
 pub mod reference;
 #[cfg(feature = "parsers")]
 pub mod renvois;

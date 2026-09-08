@@ -887,6 +887,7 @@ mod tests {
                 Inline::Translit {
                     translit: "chesed".into(),
                     hebrew: "חֶסֶד".into(),
+                    cible: None,
                 },
             ],
         }]);

@@ -42,6 +42,30 @@ use serde::{Deserialize, Serialize};
 /// Sérialisé avec un champ `t` qui porte le type, comme en TypeScript :
 /// `{"t":"text","v":"…"}`. La représentation est celle que les liseuses lisent
 /// déjà — ce port ne change pas un octet du JSON produit.
+/// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
+///
+/// **Deux destinations, pas une.** Une fiche de glossaire et une fiche de Shem
+/// ne vivent pas dans le même fichier — `glossary.json` et `shemot.json` — et
+/// ne s'ouvrent pas par la même route : `ont://term/…` contre `ont://shem/…`.
+///
+/// **Pourquoi un type et non deux champs.** `lemma: Option<String>` plus un
+/// `sorte` laisserait exister l'état illégal : un lemme sans sorte, une sorte
+/// sans lemme. Ici il n'y a rien à tenir ensemble — le lemme ne s'écrit pas
+/// sans dire où il mène. Et le `switch` que ça impose aux liseuses est
+/// exhaustif : une troisième destination, un jour, casserait la compilation au
+/// lieu de s'oublier.
+///
+/// Les noms des variantes sont ceux que le Router emploie déjà — `term` et
+/// `shem` —, pas un vocabulaire neuf pour la même chose.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum CibleDuNiveauTrois {
+    /// Une entrée du glossaire — `ont://term/<lemma>`.
+    Term { lemma: String },
+    /// Une fiche de Shem — `ont://shem/<lemma>`.
+    Shem { lemma: String },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Inline {
@@ -117,7 +141,42 @@ pub enum Inline {
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :
     /// la translittération est en italique dans la fonte latine, l'hébreu
     /// demande une fonte hébraïque et un passage en RTL.
-    Translit { translit: String, hebrew: String },
+    ///
+    /// ## `cible` — la fiche que ce mot ouvre, quand il en ouvre une
+    ///
+    /// Gloire l'a posé ainsi : il lit la translittération du niveau 3, il est
+    /// dessus, et rien ne répond. Le mot est là, sa fiche existe, et l'appareil
+    /// qui les relie s'arrête au corps du texte.
+    ///
+    /// **Remplie au build, jamais à l'analyse.** Le parseur ne sait pas quelles
+    /// fiches existent — c'est la construction qui les connaît, et qui sait en
+    /// plus lesquelles sont *publiées*. Trancher plus tôt obligerait à le faire
+    /// sans l'information.
+    ///
+    /// **`None` est le cas ordinaire, et il est honnête.** Sur 1748
+    /// translittérations, 631 se résolvent et 1117 non. Ces dernières restent
+    /// lisibles et inertes, exactement comme avant.
+    ///
+    /// ## Ce qu'on ne fait pas, et c'est le cœur
+    ///
+    /// **Aucune résolution morphologique.** Ni spirantisation — `lehavdil`
+    /// vient de `badal`, le bet devenant vet —, ni verbes lamed-he — `vayiven`
+    /// vient de `banah`, dont le he disparaît.
+    ///
+    /// Pas par difficulté, mais par **mode d'échec** : une règle qui se trompe
+    /// ne rend pas le mot inerte, elle le rend touchable **vers la mauvaise
+    /// fiche**. Le lecteur arrive ailleurs sans que rien ne le dise — la
+    /// substitution silencieuse, pire qu'une abstention.
+    ///
+    /// La résolution se fait donc là où elle est exacte, et le §2.5 fait le
+    /// reste : une forme déclarée devient touchable pour toujours. Chaque
+    /// déclaration est un gain permanent, jamais une erreur muette.
+    Translit {
+        translit: String,
+        hebrew: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cible: Option<CibleDuNiveauTrois>,
+    },
 
     /// Un fragment en écriture hébraïque rencontré hors d'un nœud `translit`.
     ///

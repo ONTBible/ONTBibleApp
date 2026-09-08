@@ -26,6 +26,7 @@ use crate::chapter::{parse_chapter, ChapterSource};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
+use crate::niveau_trois;
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;
 use crate::schema::{
@@ -777,8 +778,6 @@ pub fn build() -> Result<BuildResult, String> {
         }
     }
 
-    let corpora = corpora;
-
     // **Les Shemot sans fiche**, relevés sur le corpus assemblé — donc sur ce
     // que le lecteur verra, et non sur ce que le vault contient. Un renvoi dans
     // une unité non publiée ne doit pas figurer dans la liste de travail.
@@ -977,7 +976,6 @@ pub fn build() -> Result<BuildResult, String> {
             controles::canoniser(&mut e.definition, &formes);
         }
     }
-    let shemot = shemot;
 
     // Les fiches sont livrées comme le corps, et leurs `**…**` sont touchables.
     {
@@ -994,6 +992,59 @@ pub fn build() -> Result<BuildResult, String> {
             }
         }
     }
+
+    // **Le niveau 3 devient touchable.**
+    //
+    // Le lecteur lit `(*chesed* / חֶסֶד)`, il est dessus, et rien ne répondait —
+    // alors que le même mot balisé `**chesed**` trente lignes plus haut ouvre
+    // sa fiche. L'appareil s'arrêtait au corps du texte, à l'endroit précis où
+    // le lecteur le demande.
+    //
+    // **Ici et pas ailleurs, pour deux raisons.** Le tokeniseur ne connaît pas
+    // le glossaire — lui passer la table le ferait dépendre de ce qu'il sert à
+    // produire. Et surtout : à ce point-ci, `shemot` et `glossary` sont ceux
+    // qui seront **livrés**. Résoudre plus tôt, contre les fiches du disque,
+    // minterait un lien vers une fiche qu'aucun `[[…]]` n'emploie et qui
+    // n'entre donc pas dans `shemot.json` : un mot doré qui n'ouvre rien.
+    //
+    // Le détail de la décision — et de ce qu'on refuse de deviner — vit dans
+    // `niveau_trois.rs`.
+    let restes_du_niveau_trois = {
+        let index = niveau_trois::Index::nouveau(
+            glossary.iter().map(|e| e.lemma.clone()),
+            form_index.iter().map(|(f, l)| (f.clone(), l.clone())),
+            shemot.iter().map(|e| e.lemma.clone()),
+        );
+        let mut restes = niveau_trois::Restes::default();
+        for corpus in &mut corpora {
+            for mode in &mut corpus.modes {
+                for livre in &mut mode.books {
+                    for unite in unites_mut(livre) {
+                        niveau_trois::resoudre(&mut unite.blocks, &index, &mut restes);
+                    }
+                }
+            }
+        }
+        // Les fiches aussi : elles sont livrées et lues comme le corps, et
+        // elles écrivent du niveau 3 plus densément que lui. S'arrêter au
+        // corpus laisserait inerte l'endroit même où l'on explique un mot.
+        for e in &mut shemot {
+            niveau_trois::resoudre(&mut e.definition, &index, &mut restes);
+        }
+        for e in &mut glossary {
+            if let Some(d) = &mut e.definition {
+                niveau_trois::resoudre(d, &index, &mut restes);
+            }
+            if let Some(n) = &mut e.tagging_note {
+                niveau_trois::resoudre(n, &index, &mut restes);
+            }
+        }
+        restes
+    };
+    // Le corpus se fige ici — après la dernière passe qui le retouche. Les
+    // relevés d'entre-temps ne font que le lire.
+    let corpora = corpora;
+    let shemot = shemot;
 
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
@@ -1321,6 +1372,7 @@ pub fn build() -> Result<BuildResult, String> {
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
             shemot_sans_fiche: &shemot_sans_fiche,
+            niveau_trois: &restes_du_niveau_trois,
             liens_morts: &liens_morts,
             densites: &densites,
             hors_de_portee,
@@ -1462,6 +1514,14 @@ struct Anomalies<'a> {
     hors_de_portee: usize,
     /// Les formes que deux entrées revendiquent.
     formes_partagees: &'a [(String, Vec<String>)],
+    /// Les translittérations de niveau 3 qu'aucune fiche publiée ne couvre.
+    ///
+    /// **Classées par fréquence, et c'est tout l'intérêt de la section.** La
+    /// liste brute en compte plus de mille : annoncée à plat, elle décourage au
+    /// lieu d'orienter. Classée, elle dit par quoi commencer — déclarer la
+    /// forme la plus fréquente rend touchables ses vingt-six occurrences d'un
+    /// coup.
+    niveau_trois: &'a niveau_trois::Restes,
 }
 
 /// Une unité tombe-t-elle **très en dessous** de la référence du §4.1 ?
@@ -1492,6 +1552,7 @@ fn format_report(
         fiches_orphelines,
         ors_morts,
         shemot_sans_fiche,
+        niveau_trois: restes_du_niveau_trois,
         liens_morts,
         densites,
         hors_de_portee,
@@ -1613,6 +1674,54 @@ fn format_report(
         ]);
         for s in shemot_sans_fiche {
             l.push(format!("- {s}"));
+        }
+    }
+
+    // Le niveau 3 que le lecteur voit et ne peut pas ouvrir. Ce n'est pas une
+    // anomalie — le corpus est correct —, c'est une **liste de travail**.
+    if !restes_du_niveau_trois.0.is_empty() {
+        let total = restes_du_niveau_trois.total();
+        l.extend([
+            String::new(),
+            "## Niveau 3 non résolu — par où déclarer".into(),
+            String::new(),
+            format!(
+                "{total} translittérations `(*ainsi* / hébreu)` restent inertes : {} formes",
+                restes_du_niveau_trois.0.len()
+            ),
+            "distinctes qu'aucun lemme, aucune forme déclarée au §2.5 et aucun Shem".into(),
+            "publié ne couvre. Elles s'affichent normalement — elles ne répondent".into(),
+            "simplement pas au doigt.".into(),
+            String::new(),
+            "**Rien ne se devine ici, et c'est délibéré.** `vayiven` vient de".into(),
+            "`banah`, `lehavdil` de `badal` : la morphologie hébraïque le dit, une".into(),
+            "règle mécanique le raterait. Et une règle qui se trompe ne rend pas le".into(),
+            "mot inerte — elle le rend touchable **vers la mauvaise fiche**, ce que".into(),
+            "personne ne voit.".into(),
+            String::new(),
+            "Le chemin est donc la déclaration : ajouter la forme au §2.5 de son".into(),
+            "entrée, ou écrire la fiche de Shem. Chaque ligne d'ici rend touchables".into(),
+            "toutes ses occurrences d'un coup, et pour toujours.".into(),
+            String::new(),
+            "| occurrences | forme |".into(),
+            "|---:|---|".into(),
+        ]);
+        // **Les cinquante premières, et le reste annoncé.** Le rapport se lit ;
+        // mille lignes ne se lisent pas. Mais une coupe muette se lirait comme
+        // « voilà tout », donc elle se dit.
+        const PREMIERES: usize = 50;
+        let classees = restes_du_niveau_trois.par_frequence();
+        for (forme, n) in classees.iter().take(PREMIERES) {
+            l.push(format!("| {n} | `{forme}` |"));
+        }
+        if classees.len() > PREMIERES {
+            l.extend([
+                String::new(),
+                format!(
+                    "…et {} autres formes, à une ou deux occurrences pour la plupart.",
+                    classees.len() - PREMIERES
+                ),
+            ]);
         }
     }
 
@@ -2065,6 +2174,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &sans,
                 liens_morts: &[],
                 densites: &[],
@@ -2097,6 +2207,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &[],
                 liens_morts: &[],
                 densites: &[],
