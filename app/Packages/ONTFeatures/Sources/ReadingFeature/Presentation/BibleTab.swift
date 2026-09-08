@@ -87,7 +87,21 @@ public struct BibleTab: View {
                 }
             }
         }
-        .ontColumn()
+        .ontColumn(bornee: !enLecture)
+    }
+
+    /// Vrai quand c'est une unité qui est ouverte — donc quand la pile doit
+    /// prendre toute la largeur.
+    ///
+    /// Le pli du glissement est le bord de la page qu'on soulève : il ne peut
+    /// partir de l'extrémité de l'écran que si la page y arrive. La mesure du
+    /// texte, elle, est tenue par `ParchmentPage` et ne bouge pas.
+    ///
+    /// Le glissement entre unités ne touche pas au chemin — c'est écrit dans
+    /// `ChapterSwipe` —, donc cette valeur est stable tant qu'on lit.
+    private var enLecture: Bool {
+        if case .chapter = router.biblePath.last { return true }
+        return false
     }
 
     /// L'action de « Reprendre » — le verset, explicitement : la promesse est

@@ -172,6 +172,21 @@ struct ChapterView: View {
                     // d'atteindre une ligne que la pile n'a pas encore montée.
                     .scrollTargetLayout()
                 }
+                // **La page garde sa mesure, même quand l'écran ne la borne plus.**
+                //
+                // Depuis que la liseuse prend toute la largeur de l'iPad — pour
+                // que le pli du glissement parte du bord —, plus personne
+                // au-dessus ne borne cette colonne. On la borne donc ici, à la
+                // valeur exacte que la pile lui donnait : `pageWidth`.
+                //
+                // Le texte lui-même n'en dépend pas : `ParchmentPage` le tient
+                // déjà à `readingWidth`, et une colonne centrée tombe au même
+                // endroit dans 850 que dans 1032. Ce qui dépend de cette borne,
+                // c'est le **fond plein** que `ParchmentPage` peint derrière
+                // elle : sans elle il couvrirait l'écran entier et effacerait
+                // le grain des marges, que `ontScreen()` pose plus bas.
+                .frame(maxWidth: ONTLayout.pageWidth)
+                .frame(maxWidth: .infinity)
             }
             // **`scrollPosition` et non `scrollTo`, à cause de la paresse.**
             //
@@ -279,6 +294,12 @@ struct ChapterView: View {
                     noteTarget: $noteTarget,
                     autoShare: $autoShare
                 )
+                    // Bornée pour la même raison que la page : la liseuse prend
+                    // toute la largeur de l'iPad depuis le pli, et sans cette
+                    // ligne la carte des couleurs s'étirerait d'un bord à
+                    // l'autre. Elle garde la mesure qu'elle avait.
+                    .frame(maxWidth: ONTLayout.pageWidth)
+                    .frame(maxWidth: .infinity)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
