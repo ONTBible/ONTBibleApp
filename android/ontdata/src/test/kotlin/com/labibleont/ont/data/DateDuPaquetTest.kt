@@ -1,9 +1,7 @@
 package com.labibleont.ont.data
 
 import com.labibleont.ont.data.remote.CorpusUpdater
-import com.labibleont.ont.data.remote.ManifesteEmbarque
 import java.io.File
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,13 +33,16 @@ class DateDuPaquetTest {
     /** Le fichier que la tâche Gradle recopie dans les assets. */
     private val manifeste = File("../../app/Resources/data/manifest.json")
 
-    private val json = Json { ignoreUnknownKeys = true }
-
     @Test
     fun `le manifeste du paquet porte une date, et on sait la lire`() {
         assertTrue("le manifeste du pipeline est introuvable", manifeste.exists())
 
-        val lue = json.decodeFromString<ManifesteEmbarque>(manifeste.readText()).genere
+        // **Par la fonction que la liseuse emploie**, et non par un décodage
+        // refait ici. Un décodage refait dans l'épreuve mesurerait le type
+        // qu'elle a choisi, pas celui que la liseuse emploie — c'est exactement
+        // la confusion qui a produit le défaut : deux manifestes, deux clés, et
+        // une lecture qui réussissait en rendant du vide.
+        val lue = CorpusUpdater.dateDuManifesteEmbarque(manifeste.readText())
 
         assertFalse(
             "la date du paquet est vide — le champ a dû être renommé, et la " +
