@@ -3838,3 +3838,50 @@ Shem qu'il faut écrire. Sept fiches — `halakh`, `mut`, `yada`, `sim`, `zera`,
 `gan`, `toledot` — existent dans `lexique/` **sans entrée de glossaire** : leurs
 formes restent inertes tant que l'entrée n'est pas écrite, parce qu'un lien vers
 une fiche absente de `glossary.json` donnerait un mot doré qui n'ouvre rien.
+
+## 8 septembre 2026 au soir — l'habillage d'une feuille appartient à la présentation
+
+Relevé à l'écran, deux fois de suite sur la même feuille. Celle de prononciation
+s'ouvrait **plein écran et sans poignée** pendant que celle de lecture s'ouvrait
+à mi-hauteur ; puis elle **touchait les deux bords** pendant que l'autre
+respirait.
+
+Deux écarts, une seule cause, et ce n'était pas une faute d'écriture. Les deux
+habillages **existaient** :
+
+- les paliers, dans `ontHauteurDeFeuille` — à demander au point d'appel, et une
+  feuille sur sept le demandait ;
+- la gouttière, dans `ontRow`, avec le commentaire juste — *« chaque écran qui
+  l'emploie en profite, sans y penser »* — et enfermée dans un `#if os(macOS)`.
+
+==Un habillage qu'on ajoute à la main est un habillage qu'on oublie.== Et
+l'oubli ne se voit nulle part dans le code : il se voit à l'écran, en ouvrant
+les deux feuilles à la suite, en y pensant.
+
+**Le renversement** : l'habillage est le défaut, la dérogation s'écrit. Les deux
+dérogations de l'app sont maintenant lisibles — `paliers: .pleine` pour le
+compte, `paliers: .mesures([.medium])` pour une note. Avant, on ne pouvait pas
+distinguer un choix d'un oubli.
+
+**La marge n'est pas dans l'habillage**, et c'est délibéré : elle y doublerait
+celle du `Form` groupé des réglages. Une rangée ne connaît pas le style de sa
+liste ; la conséquence s'écrit là où le style se choisit — `ontListeDeProse()`.
+
+**Nommer plutôt qu'exempter.** Le Lexique est un index : son rail de lettres
+doit rester collé au bord, là où le pouce le cherche. Plutôt qu'une exception
+dans le contrôle, il a son nom — `ontListeDIndex()`. Une liste sans gouttière
+est soit un index, soit un oubli, et la forme nue ne dit pas lequel ; une liste
+d'exceptions vieillit, un nom tient.
+
+### Ce que ça change pour chaque dépôt
+
+- **App / iOS** — fait. `scripts/eprouver-les-feuilles.sh` en CI : un `.sheet(`
+  nu ou un `.listStyle(.plain)` nu hors du système de design fait échouer le
+  build. Il a trouvé trois contournements du premier coup, dans `RootView`.
+- **App / Android** — ==à faire, et c'est le même défaut d'un cran plus loin==.
+  Les `ModalBottomSheet` de Compose ont leur propre habillage, choisi par
+  appelant. La règle à y porter est celle-ci, pas le code : l'habillage au
+  système, la dérogation écrite, et un contrôle qui interdit la forme nue.
+  L'arbitrage revient à la session Android — le rappel traverse ses signatures.
+- **Site** — rien à porter. Il n'a pas de feuilles modales : ses fiches sont des
+  pages. La conclusion est constatée, pas supposée.
