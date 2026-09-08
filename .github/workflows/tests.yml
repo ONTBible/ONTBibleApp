@@ -100,6 +100,29 @@ jobs:
         working-directory: ONTBibleApp
         run: git ls-files -z '*.py' | xargs -0 python3 -m py_compile
 
+      # ## Et maintenant on les *lance*
+      #
+      # `epreuves.py` existait — quatre épreuves écrites le 31 août 2026 contre
+      # un faux App Store Connect, précisément pour les deux défauts que
+      # `py_compile` ne voit pas. **Aucun workflow ne les lançait.** Sa propre
+      # docstring donne la commande, et personne ne la tapait.
+      #
+      # C'est le même défaut, d'un cran au-dessus : l'instrument existait, il
+      # était exact, et il ne répondait à la question de personne. Un contrôle
+      # que rien n'appelle ne mesure rien — il donne seulement le sentiment
+      # d'être couvert.
+      #
+      # Le venv coûte quelques secondes : `asc.py` importe `jwt` et `requests`,
+      # que le runner n'a pas.
+      - name: Les scripts de livraison passent leurs épreuves
+        working-directory: ONTBibleApp
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv-epreuves"
+          "$RUNNER_TEMP/venv-epreuves/bin/pip" install --quiet -r .github/scripts/exigences.txt
+          "$RUNNER_TEMP/venv-epreuves/bin/python" -m unittest discover \
+            -s .github/scripts -p 'epreuves*.py'
+
       # ## Et les scripts shell, deux motifs, pas un de plus
       #
       # `bash -n` les lit, plus deux formes qui ont chacune coûté une livraison
