@@ -151,9 +151,21 @@ targets:
         # numéro que le public verra ; ce qui manque est un **rappel**, pas une
         # automatisation.
         #
+        # **Troisième fois le 8 septembre 2026**, 1.0.5 approuvée. Trois
+        # occurrences en quinze jours : le constat était juste et la phrase
+        # « ce qui manque est un rappel » y est restée écrite sans que
+        # personne ne l'écrive. Un texte qui nomme ce qui manque ne le
+        # fournit pas.
+        #
+        # Le rappel existe maintenant, et il est en amont de la dépense :
+        # `livraison.yml` demande à GitHub si une release porte déjà cette
+        # version — `publier-la-version.yml` en crée une à chaque version qui
+        # atteint `app-store` — et s'arrête avant de compiler plutôt qu'au
+        # téléversement, une archive signée plus tard.
+        #
         # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
         # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -271,7 +283,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
@@ -376,7 +388,7 @@ targets:
         # juste — d'où un défaut visible partout sauf là où on l'avait vérifié.
         CFBundleName: La Bible ONT
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         # Le même contrat de lien public que sur iOS.
         ONTWebBaseURL: https://ontbible.com
