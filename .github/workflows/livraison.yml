@@ -175,6 +175,30 @@ jobs:
           echo "groupe=$GROUPE" >> "$GITHUB_OUTPUT"
           echo "Canal : $CANAL${GROUPE:+ — groupe « $GROUPE »}"
 
+      # **Avant de dépenser**, pas au téléversement.
+      #
+      # Trois livraisons mortes en quinze jours pour la même raison : le numéro
+      # public était déjà approuvé. Le refus d'Apple arrive après la
+      # compilation et la signature de l'archive — donc tard, et il se répète à
+      # chaque fusion tant que le numéro n'a pas bougé.
+      #
+      # Ici plutôt que plus bas : ce qui suit est la première étape qui coûte.
+      # Voir `.github/scripts/version_libre.py` pour ce que ce contrôle refuse
+      # de bloquer — une version rejetée doit pouvoir recevoir le build qui la
+      # corrige, et une panne d'App Store Connect n'apprend rien sur le numéro.
+      - name: Le numéro public est-il libre
+        working-directory: ONTBibleApp
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          PLATEFORME: IOS
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv-version"
+          "$RUNNER_TEMP/venv-version/bin/pip" install --quiet -r .github/scripts/exigences.txt
+          "$RUNNER_TEMP/venv-version/bin/python" .github/scripts/version_libre.py
+
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
         env:
@@ -506,6 +530,30 @@ jobs:
 
       - name: Les outils
         run: brew install xcodegen xcbeautify
+
+      # **Avant de dépenser**, pas au téléversement.
+      #
+      # Trois livraisons mortes en quinze jours pour la même raison : le numéro
+      # public était déjà approuvé. Le refus d'Apple arrive après la
+      # compilation et la signature de l'archive — donc tard, et il se répète à
+      # chaque fusion tant que le numéro n'a pas bougé.
+      #
+      # Ici plutôt que plus bas : ce qui suit est la première étape qui coûte.
+      # Voir `.github/scripts/version_libre.py` pour ce que ce contrôle refuse
+      # de bloquer — une version rejetée doit pouvoir recevoir le build qui la
+      # corrige, et une panne d'App Store Connect n'apprend rien sur le numéro.
+      - name: Le numéro public est-il libre — macOS
+        working-directory: ONTBibleApp
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          PLATEFORME: MAC_OS
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv-version"
+          "$RUNNER_TEMP/venv-version/bin/pip" install --quiet -r .github/scripts/exigences.txt
+          "$RUNNER_TEMP/venv-version/bin/python" .github/scripts/version_libre.py
 
       - name: Le corpus et le projet
         working-directory: ONTBibleApp
