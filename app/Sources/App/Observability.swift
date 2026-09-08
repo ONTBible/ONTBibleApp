@@ -91,18 +91,85 @@ enum Observability {
             // Même en refusant tout ce qui précède, un message d'erreur peut
             // charrier un chemin de fichier (donc l'UUID du conteneur) ou le
             // texte d'une note. On expurge avant l'envoi.
-            options.beforeSend = { event in
-                if let formatted = event.message?.formatted {
-                    event.message = SentryMessage(formatted: redact(formatted))
-                }
-                event.exceptions?.forEach { exception in
-                    exception.value = exception.value.map(redact)
-                }
-                event.breadcrumbs?.forEach { crumb in
-                    if let message = crumb.message { crumb.message = redact(message) }
-                }
-                return event
-            }
+            options.beforeSend = { expurger($0) }
+        }
+    }
+
+    /// Expurge **l'enveloppe entière**, et non trois champs nommés.
+    ///
+    /// ## Le défaut, et pourquoi il ne se voyait pas
+    ///
+    /// Le premier jet expurgeait `event.message`, `exception.value` et
+    /// `crumb.message`. Les trois sont ceux qu'on écrit soi-même — donc les
+    /// trois qu'on pense à nommer, et les trois qui étaient déjà les moins
+    /// exposés.
+    ///
+    /// Ce qui part réellement en porte bien d'autres, et ce sont **ceux que le
+    /// SDK remplit tout seul** :
+    ///
+    /// - `crumb.data` — le SDK y range les URL réseau, les noms d'écran, les
+    ///   requêtes ; c'est le champ le plus chargé de l'enveloppe, et il n'était
+    ///   pas touché ;
+    /// - `event.extra` et `event.tags` — tout ce qu'un appelant y attache ;
+    /// - `exception.type` — un type Swift peut porter un identifiant d'unité ;
+    /// - `event.transaction` et `event.fingerprint` — un nom d'écran composé
+    ///   avec le titre d'une unité y arrive tel quel.
+    ///
+    /// Les épreuves ne l'ont pas vu, et elles ne pouvaient pas : elles
+    /// nourrissaient `redact` directement. Elles mesuraient donc **la qualité
+    /// de l'expurgation**, pas **son périmètre** — un instrument exact qui
+    /// répond à une autre question que celle qu'on pose. La question est « que
+    /// contient l'enveloppe qui part ».
+    ///
+    /// ## Le principe qui remplace la liste
+    ///
+    /// Tout ce qui est une chaîne, où qu'elle soit, passe par `redact`. La
+    /// descente est récursive parce que `extra` et `data` sont des sacs à
+    /// contenu libre : un dictionnaire dans un tableau dans un dictionnaire est
+    /// une forme que le SDK produit, pas une hypothèse.
+    ///
+    /// Sur-expurger une chaîne de diagnostic ne coûte rien. Laisser sortir le
+    /// titre d'une note en coûte beaucoup — et un champ oublié ne se voit
+    /// jamais depuis l'appareil.
+    static func expurger(_ event: Event) -> Event {
+        if let formatted = event.message?.formatted {
+            event.message = SentryMessage(formatted: redact(formatted))
+        }
+        event.exceptions?.forEach { exception in
+            exception.value = exception.value.map(redact)
+            // `type` n'est pas optionnel ici, au contraire de `value`. Un type
+            // Swift peut porter un identifiant d'unité : il sort comme le reste.
+            exception.type = exception.type.map(redact) ?? exception.type
+        }
+        event.breadcrumbs?.forEach { crumb in
+            if let message = crumb.message { crumb.message = redact(message) }
+            if let data = crumb.data { crumb.data = expurgerLeSac(data) }
+        }
+        if let extra = event.extra { event.extra = expurgerLeSac(extra) }
+        if let tags = event.tags { event.tags = tags.mapValues(redact) }
+        event.transaction = event.transaction.map(redact)
+        event.fingerprint = event.fingerprint.map { $0.map(redact) }
+        return event
+    }
+
+    /// Descend dans un sac à contenu libre et expurge chaque chaîne.
+    ///
+    /// **Les clés ne sont pas touchées.** Elles nomment le champ, elles ne le
+    /// contiennent pas — et une clé expurgée rendrait le rapport illisible sans
+    /// rien protéger de plus. Ce qui vient de l'appareil est toujours du côté
+    /// de la valeur.
+    private static func expurgerLeSac(_ sac: [String: Any]) -> [String: Any] {
+        sac.mapValues(expurgerLaValeur)
+    }
+
+    private static func expurgerLaValeur(_ valeur: Any) -> Any {
+        switch valeur {
+        case let texte as String: redact(texte)
+        case let sac as [String: Any]: expurgerLeSac(sac)
+        case let liste as [Any]: liste.map(expurgerLaValeur)
+        // Un nombre, un booléen, une date : rien à expurger, et les convertir
+        // en chaîne pour les faire passer par `redact` les abîmerait.
+        default: valeur
         }
     }
 
