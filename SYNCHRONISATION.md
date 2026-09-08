@@ -335,6 +335,72 @@ pour ce qui attend l'auteur.
 
 ---
 
+## Tronc commun et entrées locales
+
+Le journal ci-dessous a **deux régimes**, et c'est une décision de l'auteur du
+7 septembre 2026.
+
+**Le tronc commun** — ce qui a traversé. Identique dans les trois dépôts, à
+l'octet. Une entrée du tronc porte dans son corps ce qu'elle engage pour les
+autres, d'ordinaire sous la forme *« Pour les trois dépôts : … »*.
+
+**Les entrées locales** — ce qu'un dépôt apprend et qui ne concerne que lui. Une
+barre latérale qui ne se ferme pas, un test qui rougit chez un seul. Elles
+restent chez elles, et le contrôle de concordance ne les compte pas comme une
+divergence.
+
+### La marque
+
+Le titre d'une entrée locale se termine par `*(local)*` :
+
+    ### 4 septembre 2026 — la barre flottante, construite puis écartée *(local)*
+
+Trois raisons de la mettre là, et pas ailleurs :
+
+- **elle se voit en écrivant**, dans le titre, avant qu'on ait rédigé la
+  première ligne — donc au moment où l'on décide encore si ça traverse ;
+- **elle est dans le titre**, qui est l'unité que le contrôle lit déjà. Une
+  marque enfouie dans le corps obligerait à parcourir le texte pour trancher, et
+  un contrôle qui doit lire pour savoir ce qu'il compare finit par se tromper ;
+- **elle est asymétrique du marquage commun, et c'est voulu.** Une entrée qui
+  traverse a quelque chose à *dire* — quoi, à qui, ce que ça change —, donc elle
+  le dit dans son corps. Une entrée locale n'a rien à ajouter : elle ne voyage
+  pas, et un mot suffit.
+
+### Ce que ça change pour le contrôle
+
+`scripts/concorder-la-synchronisation.py` compare désormais **les troncs**, et
+non les fichiers entiers. Les entrées locales sont retirées avant l'empreinte,
+puis **comptées et rapportées par dépôt** — jamais tues. Une entrée locale est
+une décision, pas un accident : le contrôle doit pouvoir dire combien chacun en
+porte, sinon la marque devient un moyen de sortir du champ de la mesure.
+
+### La racine
+
+Elle porte **le tronc commun seul**. Elle n'est le local de personne, et rien ne
+la met à jour : lui donner les entrées locales d'un dépôt lui confierait un
+texte que personne n'entretient là où il se trouve.
+
+### Le cas qui a rendu la règle nécessaire
+
+Le 7 septembre, la concordance annonçait *cinquante-neuf entrées à porter de
+l'app vers les deux autres*. La mesure était triple-fausse — elle comptait des
+titres et non des entrées, elle prenait des sous-titres pour des entrées, et
+elle manquait les entrées écrites en `##` là où le vault écrit `###`. Il y en
+avait **quinze**, six cent deux lignes.
+
+Et le compte juste n'aurait pas suffi : ces quinze parlaient de barres
+latérales et de feuilles macOS. Les verser dans le vault de la traduction en
+aurait fait ce que l'en-tête du journal refuse — *pas un changelog du dépôt*.
+
+**Une identité obtenue en important un changelog n'est pas une concordance,
+c'est une dilution.** Le contrôle mesurait l'identité et ne savait pas dire si
+une entrée *devait* traverser ; il sait maintenant qu'il y a deux régimes, et il
+mesure celui qui doit l'être.
+
+---
+
+
 ## Journal
 
 Ce qui a traversé, et quand. Une ligne par franchissement — pas un changelog du
@@ -3629,3 +3695,48 @@ mesure : la branche a été poussée en sauvegarde ==avant== qu'on conclue, et l
 règle de l'audit — *une non-réponse vaut « statut inconnu », pas
 « supprimable »* — a tenu tout du long. Un compte faux dans ce sens-là ne coûte
 qu'une vérification ; dans l'autre, il coûte le travail.
+
+### 7 septembre 2026 — le journal a deux régimes, et le contrôle mesurait le mauvais
+
+Décision de l'auteur : **tronc commun et entrées locales.** Seul ce qui traverse
+est partagé et identique partout ; ce qu'un dépôt apprend pour lui-même reste
+chez lui, marqué. ==La règle vit dans la section « Tronc commun et entrées
+locales »== ci-dessus, avec la marque et ses raisons — elle n'est pas redite
+ici, c'est le journal qui renvoie à la règle et non l'inverse.
+
+**Ce que le contrôle faisait de travers.** Il comparait les fichiers entiers, et
+n'avait donc qu'une façon de résorber un écart : ==importer chez les autres ce
+qu'un dépôt avait délibérément gardé pour lui==. Il mesurait l'identité sans
+pouvoir dire si une entrée *devait* traverser.
+
+**Ce qu'il fait maintenant :** l'empreinte porte sur le tronc, les entrées
+locales sont retirées avant la mesure, puis ==comptées et listées par dépôt==.
+Jamais tues : une entrée locale est une décision, pas un accident, et une marque
+qui ferait sortir du champ de la mesure sans laisser de trace serait un moyen de
+se dispenser du contrôle.
+
+**Pour les trois dépôts.** Quand une mesure ne peut se résoudre que d'une seule
+façon, ==c'est souvent la mesure qui est mal posée==, pas l'écart qui est
+coupable. Ici, la seule issue offerte était de verser six cents lignes de barres
+latérales macOS dans le vault de la traduction — ce que l'en-tête de ce journal
+refuse en toutes lettres.
+
+**Et le chemin pour y arriver mérite d'être gardé, parce qu'il a fallu trois
+relevés faux pour l'atteindre.** La concordance annonçait ==cinquante-neuf
+entrées à porter== ; il y en avait quinze, et aucune ne devait partir.
+
+    59   comptait des titres, dont des sous-titres internes aux entrées
+    44   mon propre relevé : ils étaient TOUS des sous-titres
+    15   les vraies entrées — écrites en ## quand le vault écrit ###
+
+Chaque relevé rendait un nombre bien formé. Le premier prenait la partie pour le
+tout, le deuxième ne mesurait que du bruit, et le troisième n'est sorti qu'en
+==comparant les contenus== plutôt que les titres — la règle écrite le matin même,
+appliquée l'après-midi à autre chose.
+
+**Éprouvé sur un cas dont on connaît la réponse**, avant de livrer : les quinze
+marquées `*(local)*` dans une copie de travail, le tronc de l'app tombe à ==zéro
+ligne absente du tronc du vault==. Et la mesure retournée révèle l'autre sens,
+qu'on ne cherchait pas : il ne manquait à l'app que ==deux entrées==, déjà sur sa
+branche d'intégration. La concordance était presque faite depuis le début ; c'est
+l'instrument qui la disait rompue.
