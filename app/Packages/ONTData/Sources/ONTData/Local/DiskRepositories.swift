@@ -293,6 +293,7 @@ public final class DiskSearchIndex: SearchIndex, @unchecked Sendable {
         }
         cached = records
         return records
+    }
 
     private func lire<T: Decodable>(_ nom: String) -> T? {
         guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
@@ -339,6 +340,7 @@ public final class DiskPrononciationRepository: PrononciationRepository, @unchec
         }
         cachee = feuille
         return feuille
+    }
 
     private func lire<T: Decodable>(_ nom: String) -> T? {
         guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
