@@ -6,8 +6,42 @@ import com.labibleont.ont.kit.ports.SilentReporter
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
+/**
+ * Le manifeste **du paquet**, qui n'est pas celui du site.
+ *
+ * ## Deux manifestes, deux schémas, un seul nom de méthode
+ *
+ * Le pipeline écrit `dist/manifest.json` en `camelCase` — c'est
+ * `#[serde(rename_all = "camelCase")]` sur son type `Manifest` —, donc la date
+ * s'y appelle **`generatedAt`**. Le site publie un autre fichier,
+ * `corpus/manifeste.json`, dont la date s'appelle **`genere`**.
+ *
+ * Ce ne sont pas deux écritures du même document : l'un décrit ce qu'on a
+ * embarqué, l'autre ce qu'on peut télécharger, et ils ne portent pas les mêmes
+ * champs.
+ *
+ * ## Le défaut que ça a produit
+ *
+ * `dateDuBundle` décodait le manifeste du paquet avec le type du manifeste
+ * public. Le champ `genere` y étant absent et déclaré avec une valeur par
+ * défaut, la lecture **réussissait** et rendait la chaîne vide.
+ *
+ * Or `plusRecent` traite une date embarquée vide comme « le paquet ne peut rien
+ * opposer » — délibérément, pour ne pas priver de mise à jour une app plus
+ * ancienne que l'estampille elle-même. Les deux décisions étaient justes
+ * séparément ; ensemble, elles **annulaient la garde** : n'importe quelle date
+ * publiée bien formée était acceptée, y compris plus ancienne que le paquet.
+ *
+ * C'est exactement le défaut que la garde avait été écrite pour fermer.
+ */
+@Serializable
+internal data class ManifesteEmbarque(
+    @SerialName("generatedAt") val genere: String = "",
+)
 
 /**
  * Le corpus se met à jour sans passer par le magasin.
@@ -205,10 +239,14 @@ public class CorpusUpdater(
     internal fun plusRecentQueLeBundle(manifeste: Manifeste): Boolean =
         plusRecent(publiee = manifeste.genere, embarquee = dateDuBundle())
 
-    /** La date du corpus embarqué, lue du manifeste des assets. */
+    /**
+     * La date du corpus embarqué, lue du manifeste des assets.
+     *
+     * Le type est celui du paquet, pas celui du site — voir [ManifesteEmbarque].
+     */
     internal fun dateDuBundle(): String = runCatching {
         context.assets.open("data/manifest.json").use { flux ->
-            json.decodeFromString<Manifeste>(flux.readBytes().decodeToString()).genere
+            json.decodeFromString<ManifesteEmbarque>(flux.readBytes().decodeToString()).genere
         }
     }.getOrDefault("")
 
