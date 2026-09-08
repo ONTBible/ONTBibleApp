@@ -46,11 +46,16 @@ mod tests {
     #[test]
     fn le_secret_et_la_query_meurent_avant_l_envoi() {
         let mut req = Request {
-            url: Some("https://api.exemple/auth/github/callback?code=abc&state=x".parse().unwrap()),
+            url: Some(
+                "https://api.exemple/auth/github/callback?code=abc&state=x"
+                    .parse()
+                    .unwrap(),
+            ),
             query_string: Some("code=abc&state=x".into()),
             ..Default::default()
         };
-        req.headers.insert("X-Secret-Diffusion".into(), "s3cret".into());
+        req.headers
+            .insert("X-Secret-Diffusion".into(), "s3cret".into());
         req.headers.insert("user-agent".into(), "curl".into());
         let event = Event {
             request: Some(req),
@@ -60,10 +65,15 @@ mod tests {
         let sorti = expurger(event).expect("l'événement survit, expurgé");
         let req = sorti.request.expect("la requête survit");
         assert!(
-            !req.headers.keys().any(|k| k.eq_ignore_ascii_case("x-secret-diffusion")),
+            !req.headers
+                .keys()
+                .any(|k| k.eq_ignore_ascii_case("x-secret-diffusion")),
             "l'en-tête du secret doit mourir, quelle que soit sa casse"
         );
-        assert_eq!(req.headers.get("user-agent").map(String::as_str), Some("curl"));
+        assert_eq!(
+            req.headers.get("user-agent").map(String::as_str),
+            Some("curl")
+        );
         assert_eq!(req.query_string, None);
         assert_eq!(
             req.url.unwrap().as_str(),
