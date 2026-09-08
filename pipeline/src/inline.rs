@@ -105,10 +105,20 @@ pub fn slugify(input: &str) -> String {
     let mut tiret_en_attente = false;
     for c in minuscules.chars() {
         match c {
-            // Les trois apostrophes rencontrées dans le vault — droite,
-            // courbe, et la modificatrice qu'emploient les translittérations
-            // savantes.
-            '\'' | '\u{2019}' | '\u{02BC}' => {}
+            // Les apostrophes et les demi-anneaux rencontrés dans le vault :
+            // droite, courbe, la modificatrice, puis **les deux vrais signes
+            // savants** — ʾ pour l'alef, ʿ pour le ayin.
+            //
+            // Ces deux-là manquaient, alors que le commentaire annonçait déjà
+            // « la modificatrice qu'emploient les translittérations savantes ».
+            // L'intention y était, les caractères non : `ʾ` est U+02BE et `ʿ`
+            // est U+02BF, pas U+02BC.
+            //
+            // Ce qu'ils coûtaient : tombant dans le cas général, ils devenaient
+            // un tiret. `malʾakh` aurait donné le lemme `mal-akh` au lieu de
+            // `malakh` — **tous les lemmes changés, tous les liens morts**, et
+            // rien pour le dire puisque le slug reste bien formé.
+            '\'' | '\u{2019}' | '\u{02BC}' | '\u{02BE}' | '\u{02BF}' => {}
             c if c.is_ascii_alphanumeric() => {
                 if tiret_en_attente && !out.is_empty() {
                     out.push('-');
@@ -983,5 +993,32 @@ mod triple_asterisque {
             !texte.contains("*Elohim"),
             "l'astérisque orpheline est entrée dans le terme : {texte}"
         );
+    }
+    /// **Les demi-anneaux savants disparaissent, ils ne deviennent pas des
+    /// tirets.**
+    ///
+    /// `ʾ` (U+02BE, alef) et `ʿ` (U+02BF, ayin) remplacent l'apostrophe unique
+    /// depuis le 8 septembre 2026 : celle-ci était visible et ambiguë — on
+    /// voyait qu'il y avait une lettre sans pouvoir dire laquelle.
+    ///
+    /// Ils manquaient à `slugify`, donc ils tombaient dans le cas général et
+    /// devenaient un tiret. `malʾakh` aurait donné `mal-akh` : **tous les
+    /// lemmes changés, tous les liens morts**, et rien pour le dire puisque le
+    /// slug reste bien formé.
+    #[test]
+    fn les_demi_anneaux_savants_ne_coupent_pas_le_lemme() {
+        assert_eq!(slugify("malʾakh"), "malakh");
+        assert_eq!(slugify("Kenaʿan"), "kenaan");
+        assert_eq!(slugify("Gevurot ha-Neviʾim"), "gevurot-ha-neviim");
+    }
+
+    /// Et les trois apostrophes d'avant continuent de disparaître — sans quoi
+    /// le vault, qui n'est pas converti d'un coup, produirait deux lemmes pour
+    /// le même mot pendant la transition.
+    #[test]
+    fn les_trois_apostrophes_tiennent_toujours() {
+        assert_eq!(slugify("mal'akh"), "malakh");
+        assert_eq!(slugify("mal\u{2019}akh"), "malakh");
+        assert_eq!(slugify("mal\u{02BC}akh"), "malakh");
     }
 }
