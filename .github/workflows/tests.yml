@@ -400,3 +400,102 @@ jobs:
           }
           compter resultats "l'iPhone"
           compter resultats-mac "le Mac"
+
+  # ## Android n'était éprouvé nulle part
+  #
+  # Vingt-trois fichiers de test, une centaine et demie de cas, quatre-vingt-dix
+  # fichiers Kotlin — et **aucun ne tournait en intégration**. Le seul workflow
+  # Android construisait un paquet à la livraison, donc bien après le moment où
+  # une régression se répare.
+  #
+  # Ce que le tableau vert des PR disait, c'était l'état d'iOS. Le vert d'Android
+  # n'existait que sur la machine de qui l'avait lancé — et une session qui
+  # rapporte « 139 tests au vert » rapporte alors quelque chose que personne ne
+  # peut recontrôler.
+  #
+  # Trouvé par l'audit externe du 8 septembre (A12).
+  #
+  # ## Pourquoi un job à part, sur Linux
+  #
+  # Les tests d'Android sont des tests JVM : ils n'ont besoin ni de macOS ni de
+  # Xcode. Les greffer au job d'iOS les ferait attendre une compilation Swift
+  # complète pour rien, et les ferait tomber avec elle.
+  #
+  # ## Le corpus doit être là
+  #
+  # Trois épreuves lisent le corpus **réel** — la date du paquet, la collision
+  # des numéros de verset, le corpus vivant. Elles ne se contentent pas d'un
+  # échantillon : c'est tout leur intérêt. Il faut donc le vault et le pipeline,
+  # comme pour iOS.
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: L'app
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - name: Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # ## Pourquoi pas `corpus.sh` directement
+      #
+      # Il finit par `xcodegen generate`, absent sur Linux. On rejoue donc ses
+      # trois étapes utiles — et **c'est un couplage** : le jour où il copiera
+      # autre chose, ce bloc restera en arrière sans que rien ne le dise. La
+      # liste est reprise mot pour mot, pour qu'un `diff` les rapproche.
+      #
+      # `engendrer` n'est pas optionnel : il écrit `Schema.kt`, qui n'est pas
+      # committé. Sans lui, rien ne compile.
+      - name: Le corpus et le schéma
+        working-directory: ONTBibleApp
+        env:
+          ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
+        run: |
+          set -euo pipefail
+          cargo run --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
+          cargo run --manifest-path pipeline/Cargo.toml --bin engendrer --release --quiet
+          # `rm -rf` d'abord, comme `corpus.sh` : une copie par-dessus
+          # laisserait en place un livre retiré du vault.
+          rm -rf app/Resources/data
+          mkdir -p app/Resources/data
+          cp dist/*.json app/Resources/data/
+          cp -R dist/books app/Resources/data/
+
+      - name: Les tests
+        working-directory: ONTBibleApp/android
+        run: ./gradlew test --stacktrace
+
+      # Le compte, plutôt que le tampon. `BUILD SUCCESSFUL` s'affiche aussi
+      # quand aucune tâche de test n'a tourné — c'est arrivé plusieurs fois en
+      # local, et le rapport est le seul qui ne mente pas.
+      - name: Ce que les tests ont réellement mesuré
+        if: always()
+        working-directory: ONTBibleApp/android
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET, sys
+          t = f = e = 0
+          fichiers = glob.glob('*/build/test-results/**/TEST-*.xml', recursive=True)
+          for p in fichiers:
+              r = ET.parse(p).getroot()
+              t += int(r.get('tests', 0)); f += int(r.get('failures', 0)); e += int(r.get('errors', 0))
+          print(f"{t} tests dans {len(fichiers)} classes — {f} échecs, {e} erreurs")
+          if t == 0:
+              print("::error::aucun test n'a tourné — le vert ne veut rien dire")
+              sys.exit(1)
+          PY
