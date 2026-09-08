@@ -124,8 +124,11 @@ jobs:
       - name: Vers dev, on vient de device
         if: steps.nature.outputs.docs != 'oui'
           && github.base_ref == 'dev' && github.head_ref != 'device'
+        env:
+          # head_ref est une donnée d'auteur de PR — jamais interpolée dans le shell.
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          echo "::error::Une PR vers dev vient de device, pas de « ${{ github.head_ref }} »."
+          echo "::error::Une PR vers dev vient de device, pas de « ${HEAD_REF} »."
           echo "Le travail s'accumule dans device, où il s'installe sur vos appareils"
           echo "par scripts/lancer-sur-iphone.sh et scripts/lancer-sur-le-mac.sh."
           echo "Rien n'est téléversé chez Apple depuis device — c'est tout son intérêt."
@@ -134,8 +137,10 @@ jobs:
       - name: Vers beta-test, on vient de dev
         if: steps.nature.outputs.docs != 'oui'
           && github.base_ref == 'beta-test' && github.head_ref != 'dev'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          echo "::error::Une PR vers beta-test vient de dev, pas de « ${{ github.head_ref }} »."
+          echo "::error::Une PR vers beta-test vient de dev, pas de « ${HEAD_REF} »."
           echo "Le travail passe d'abord par dev, où l'auteur le reçoit sur ses propres"
           echo "appareils. Une fois vu en vrai, il se promeut vers les testeurs invités."
           exit 1
@@ -143,16 +148,22 @@ jobs:
       - name: Vers app-store, on vient de beta-test
         if: steps.nature.outputs.docs != 'oui'
           && github.base_ref == 'app-store' && github.head_ref != 'beta-test'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          echo "::error::Une PR vers app-store vient de beta-test, pas de « ${{ github.head_ref }} »."
+          echo "::error::Une PR vers app-store vient de beta-test, pas de « ${HEAD_REF} »."
           echo "Ce qui atteint app-store part à la revue d'Apple. Il faut donc que des"
           echo "testeurs l'aient eu entre les mains — c'est ce que beta-test garantit."
           exit 1
 
       - name: La chaîne est tenue
+        env:
+          # donnée d'auteur de PR — jamais interpolée dans le shell
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ steps.nature.outputs.docs }}" = "oui" ]; then
-            echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — rien que des docs."
+            echo "« ${HEAD_REF} » → « ${BASE_REF} » — rien que des docs."
           else
-            echo "« ${{ github.head_ref }} » → « ${{ github.base_ref }} » — le palier est respecté."
+            echo "« ${HEAD_REF} » → « ${BASE_REF} » — le palier est respecté."
           fi
