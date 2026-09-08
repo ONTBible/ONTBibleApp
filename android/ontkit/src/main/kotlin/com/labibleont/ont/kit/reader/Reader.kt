@@ -77,6 +77,30 @@ public data class Highlight(
     public val chapterId: String,
     public val verse: Int,
     public val color: HighlightColor,
+    /**
+     * La clé telle qu'elle est arrivée, quand ce n'est pas celle de [color].
+     *
+     * ## Pourquoi une teinte ne suffit pas
+     *
+     * `color` est **une chaîne libre** côté backend : le serveur ne valide
+     * aucune liste, et chaque client tient la sienne. Une clé inconnue vient
+     * donc d'une version plus récente d'une autre plateforme — pas d'une donnée
+     * corrompue.
+     *
+     * [color] retombe sur l'or pour **afficher**, et c'est juste : perdre la
+     * marque du lecteur serait pire que la montrer d'une autre teinte. Mais
+     * jusqu'ici la lecture ne faisait pas que lire — elle réécrivait `gold`, et
+     * la valeur d'origine n'existait plus nulle part.
+     *
+     * Depuis que la synchronisation existe, cet écrasement **atteint le
+     * serveur** : Android détruisait pour tous ce que le site préserve et
+     * qu'iOS ignore. Arbitrage rendu par iOS le 8 septembre 2026 — *préserver,
+     * comme le site*.
+     *
+     * `null` quand la clé reçue est l'une des cinq connues : ne rien garder de
+     * redondant, pour qu'un champ non nul signale toujours quelque chose.
+     */
+    public val cleDOrigine: String? = null,
     public val note: String? = null,
     public val updatedAt: Instant = Instant.now(),
     /**

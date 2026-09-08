@@ -261,6 +261,16 @@ public class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         adresseRecue.value = intent?.dataString
 
+        // **Écarter d'abord un corpus périmé, avant que quiconque le lise.**
+        //
+        // Le disque recouvre le bundle sans condition. Une copie téléchargée
+        // avant que la garde de `synchroniser` n'existe gagnerait donc sur un
+        // bundle plus neuf, et indéfiniment — jusqu'au jour où le site publie
+        // plus récent qu'elle. C'est ici, et pas dans le fil de fond : les
+        // dépôts ci-dessous lisent dès qu'on les interroge, et une purge qui
+        // arrive après eux ne répare que le lancement suivant.
+        CorpusUpdater.purgerSiLeBundleEstPlusNeuf(applicationContext)
+
         // **Le disque recouvre le bundle, fichier par fichier.** L'app embarque
         // un corpus complet — elle marche au premier lancement, sans réseau — et
         // ce qui a été téléchargé le recouvre morceau par morceau.
@@ -882,6 +892,30 @@ private fun Racine(
                             onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
                             onShem = { lemme -> shem = lemme },
+                            // ## Ce qu'un renvoi fait, tant qu'il n'a nulle part où mener
+                            //
+                            // Les chuqqot n'ont pas encore d'écran — l'onglet
+                            // est à concevoir, et c'est iOS qui le décide. Mais
+                            // laisser le renvoi muet était pire : coloré, donc
+                            // promettant un ailleurs, et sourd au doigt. Le
+                            // lecteur croyait avoir mal visé et recommençait.
+                            //
+                            // On dit donc la vérité, comme la fiche d'un lemme
+                            // sans entrée le fait déjà : « balisé dans le texte
+                            // mais pas encore d'entrée ». Un renvoi mort dit
+                            // « ce n'est pas encore écrit », jamais
+                            // « introuvable » — c'est la formule du domaine.
+                            //
+                            // Provisoire et assumé : le jour où l'écran existe,
+                            // c'est cette ligne-ci qu'on remplace, et elle est
+                            // seule.
+                            onRenvoi = { cible ->
+                                portee.launch {
+                                    messages.showSnackbar(
+                                        "« $cible » est une chuqqah qui n'est pas encore lisible ici.",
+                                    )
+                                }
+                            },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme

@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -57,7 +58,11 @@ struct RootView: View {
         .tabViewSidebarBottomBar {
             LigneDuCompte { compteOuvert = true }
         }
-        .sheet(isPresented: $compteOuvert) {
+        // **Pleine, et c'est écrit.** Un compte se consulte de bout en bout —
+        // sessions, appareils, effacement — et il n'y a rien d'utile derrière
+        // lui à garder en vue. C'est la seule feuille de l'app dans ce cas, et
+        // c'est pour ça que la dérogation se lit au lieu de se deviner.
+        .ontFeuille(presentee: $compteOuvert, titre: "Compte", paliers: .pleine) {
             NavigationStack {
                 YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
             }
@@ -109,7 +114,7 @@ struct RootView: View {
         // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
         // même chose nommée deux fois, c'est un autre geste. Le code doit
         // montrer qu'on a décidé.
-        .sheet(item: $router.openedLemma) { selection in
+        .ontFeuille(objet: $router.openedLemma, titre: "Terme") { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
         }
@@ -117,7 +122,7 @@ struct RootView: View {
         // vivent pas dans le même fichier, et une feuille commune devrait
         // deviner lequel des deux on vient de toucher — elle se tromperait pour
         // tout nom dont un concept porte le lemme.
-        .sheet(item: $router.openedShem) { selection in
+        .ontFeuille(objet: $router.openedShem, titre: "Shem") { selection in
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }
@@ -296,6 +301,21 @@ private struct OngletsFixes: TabContent {
         }
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
+        }
+        // **Chuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
+        // Le féminin est délibéré : voir `ChuqqotTab`.
+        //
+        // Entre le Lexique et Vous, délibérément : ce qui se lit reste à
+        // gauche, ce qui vous appartient reste à droite. Le lexique explique
+        // les mots du corpus, les chuqqot en tirent ce qui oblige — les deux
+        // sont de la lecture, et ils se suivent.
+        //
+        // Cinquième onglet sur l'iPhone. La barre en accepte cinq ; au-delà
+        // iOS replierait le surplus derrière « Plus », ce qui enterrerait le
+        // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
+        // qu'on repense la barre entière.
+        Tab("Chuqqot", systemImage: "square.stack.3d.up.fill", value: Router.TabID.chuqqot) {
+            ChuqqotTab()
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
         //

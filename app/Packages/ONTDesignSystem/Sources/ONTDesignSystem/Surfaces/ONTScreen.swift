@@ -82,9 +82,16 @@ public struct ONTScreenModifier: ViewModifier {
 public struct ONTColumnModifier: ViewModifier {
     @Environment(\.ontTheme) private var theme
 
+    /// Faux quand l'écran a besoin de toute la largeur — voir `ontColumn(bornee:)`.
+    let bornee: Bool
+
+    public init(bornee: Bool = true) {
+        self.bornee = bornee
+    }
+
     public func body(content: Content) -> some View {
         content
-            .frame(maxWidth: ONTLayout.pageWidth)
+            .frame(maxWidth: bornee ? ONTLayout.pageWidth : .infinity)
             .frame(maxWidth: .infinity)
             .background {
                 theme.background
@@ -126,7 +133,67 @@ public struct ONTRowModifier: ViewModifier {
     }
 }
 
+private struct ONTListeDeProseModifier: ViewModifier {
+    private var spacing = ONTSpacing()
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+            // Le Mac reçoit déjà la gouttière par `ontRow`, et sa carte a ses
+            // propres marges. En ajouter une seconde la creuserait.
+            content.listStyle(.plain)
+        #else
+            content
+                .listStyle(.plain)
+                .safeAreaPadding(.horizontal, spacing.page)
+        #endif
+    }
+}
+
 extension View {
+    /// Une liste de prose — une fiche, une feuille, des résultats.
+    ///
+    /// ## Le défaut que ça ferme, relevé à l'écran le 8 septembre 2026
+    ///
+    /// La feuille de prononciation touchait les deux bords, pendant que celle
+    /// de lecture respirait. Les deux sont des `List` ; l'écart tient au
+    /// **style** : un `Form` groupé porte les marges du système, un
+    /// `.listStyle(.plain)` n'en porte aucune.
+    ///
+    /// L'intention était déjà écrite — `ontRow` pose `spacing.page` de chaque
+    /// côté « pour que chaque écran qui l'emploie en profite, sans y penser ».
+    /// **Elle s'arrêtait au Mac.** Sur iOS on comptait sur les marges du
+    /// système, et elles n'existent que pour les styles groupés.
+    ///
+    /// ## Pourquoi ici et pas sur la rangée
+    ///
+    /// Une rangée ne connaît pas le style de sa liste. Poser la gouttière sur
+    /// `ontRow` la **doublerait** dans les réglages, qui sont un `Form` groupé
+    /// et reçoivent déjà celle du système. C'est là que le style se choisit,
+    /// donc c'est là que sa conséquence s'écrit.
+    ///
+    /// `safeAreaPadding` plutôt que `padding` : le défilement continue de
+    /// passer sous la marge, donc le texte glisse jusqu'au bord au lieu de
+    /// s'arrêter net — c'est ce que fait une page de lecture.
+    public func ontListeDeProse() -> some View {
+        modifier(ONTListeDeProseModifier())
+    }
+
+    /// Une liste **d'index** — on la parcourt, on ne la lit pas.
+    ///
+    /// Le Lexique en est une : trois cents entrées, un rail de lettres collé au
+    /// bord droit. La gouttière de lecture y serait un contresens — elle
+    /// décollerait le rail du bord, c'est-à-dire de l'endroit précis où le
+    /// pouce va le chercher.
+    ///
+    /// **Nommée plutôt qu'exemptée.** Une liste sans gouttière est soit un
+    /// index, soit un oubli, et rien ne les distingue à la lecture d'un
+    /// `.listStyle(.plain)` nu. Ce nom-là dit lequel des deux, et c'est ce qui
+    /// permet au contrôle d'interdire la forme nue sans tenir de liste
+    /// d'exceptions — une liste d'exceptions vieillit, un nom non.
+    public func ontListeDIndex() -> some View {
+        listStyle(.plain)
+    }
+
     /// Le fond de l'app, y compris sous une `List` ou un `Form`.
     public func ontScreen() -> some View { modifier(ONTScreenModifier()) }
 
@@ -147,5 +214,24 @@ extension View {
     }
 
     /// La colonne de l'app — à poser autour de la pile de navigation d'un onglet.
-    public func ontColumn() -> some View { modifier(ONTColumnModifier()) }
+    ///
+    /// ## `bornee: false` — la lecture, et elle seule
+    ///
+    /// La borne s'applique à la **pile entière**, pour que le grand titre suive
+    /// sa page. Elle décide donc aussi de la largeur de la liseuse, qui est
+    /// posée dans cette pile — et c'est ce qui faisait commencer le pli du
+    /// glissement à 91 points du bord de l'iPad, jamais à l'extrémité : la page
+    /// qu'on soulève s'arrêtait là, et rien de ce qu'on dessine dedans ne peut
+    /// en sortir. Mesuré : la zone qui bouge pendant le geste partait de
+    /// x = 91 pt sur un écran de 1032.
+    ///
+    /// Élargir le pli au-delà de la page ne mène nulle part — la pile de
+    /// navigation rogne ce qui dépasse. C'est donc **la borne qui se déplace** :
+    /// l'écran de lecture prend toute la largeur, et la mesure du texte est
+    /// tenue plus bas, par `ParchmentPage`, qui borne déjà la colonne à
+    /// `readingWidth`. Le texte ne bouge pas d'un point : centré dans 850 ou
+    /// dans 1032, une colonne de 700 tombe au même endroit.
+    public func ontColumn(bornee: Bool = true) -> some View {
+        modifier(ONTColumnModifier(bornee: bornee))
+    }
 }

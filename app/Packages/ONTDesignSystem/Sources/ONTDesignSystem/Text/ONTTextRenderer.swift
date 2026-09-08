@@ -29,6 +29,16 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://shem/\(lemma)")
     }
 
+    /// L'adresse d'un **renvoi** vers une autre chuqqah.
+    ///
+    /// Un hôte à part — `chuqqah` et non `shem` — parce que la cible n'est pas
+    /// du même genre : un Shem mène à un porteur, un renvoi mène à un énoncé.
+    /// Partager l'hôte ferait résoudre les deux dans la même table, et le
+    /// premier slug commun mènerait au mauvais écran.
+    public static func renvoiURL(_ cible: String) -> URL? {
+        URL(string: "\(termScheme)://chuqqah/\(cible)")
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -294,12 +304,53 @@ public enum ONTTextRenderer {
                 piece[MarqueDeTerme.self] = true
                 output += piece
 
+            case .renvoi(let value, let cible):
+                var style = type.renvoi
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.link = renvoiURL(cible)
+                piece[MarqueDeTerme.self] = true
+                output += piece
+
             case .hebrew(let value):
                 output += hebrewRun(value, style: inGloss ? type.hebrewSmall : type.hebrew)
 
-            case .translit(let translit, let hebrew):
+            case .translit(let translit, let hebrew, let cible):
                 output += run("(", type.apparatus)
-                output += run(translit, type.translit)
+                var latine = run(translit, type.translit)
+                // **Seule la part latine se touche, et seulement si elle
+                // ouvre.** L'hébreu reste hors du lien : il se compose en RTL,
+                // et un lien qui traverse la barre oblique donnerait une zone
+                // tactile à cheval sur deux directions d'écriture.
+                //
+                // **Ce qui ouvre prend la couleur de sa destination** — l'or
+                // d'un intraduisible, le bordeaux d'un Shem —, ce qui n'ouvre
+                // pas garde le gris de l'apparat.
+                //
+                // Le premier jet laissait tout en gris, au motif que le niveau
+                // 3 est une note du texte et non un intraduisible du corps :
+                // le dorer ferait de la moitié des parenthèses un second
+                // corps. Le raisonnement tenait sur la hiérarchie et ratait le
+                // lecteur — 829 translittérations sur 2086 répondent, 1257 non,
+                // et rien ne les distinguait. Un mot qui répond sans le dire
+                // demande d'essayer sur chacun pour savoir sur lequel essayer.
+                //
+                // Arbitré à l'écran, les deux rendus côte à côte : c'est le
+                // même code de couleur que le corps, et il dit la même chose —
+                // « ceci ouvre, et voilà quoi ». Deux teintes de plus dans
+                // l'apparat, pas une hiérarchie de plus.
+                if let cible {
+                    switch cible {
+                    case .term(let lemma):
+                        latine.link = termURL(lemma)
+                        latine.foregroundColor = type.term.color
+                    case .shem(let lemma):
+                        latine.link = shemURL(lemma)
+                        latine.foregroundColor = type.shem.color
+                    }
+                    latine[MarqueDeTerme.self] = true
+                }
+                output += latine
                 output += run(" / ", type.apparatus)
                 output += hebrewRun(hebrew, style: type.hebrewSmall)
                 output += run(")", type.apparatus)

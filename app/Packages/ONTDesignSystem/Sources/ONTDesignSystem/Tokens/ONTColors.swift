@@ -176,6 +176,49 @@ public enum ONTColors {
             : Color(red: 0.376, green: 0.208, blue: 0.094)
     }
 
+    /// Un **renvoi** d'une chuqqah vers une autre — sienne brûlée le jour,
+    /// bronze la nuit.
+    ///
+    /// ## La teinte ne traverse pas, et c'est la première fois
+    ///
+    /// Partout ailleurs, une couche garde sa teinte et ne remesure que sa
+    /// valeur sur chaque fond. Ici il a fallu **deux teintes** — 21° le jour,
+    /// 31° la nuit —, et la raison est structurelle :
+    ///
+    /// - sur fond clair il faut être **sombre** pour tenir le contraste, et
+    ///   c'est exactement là que vit la terre brûlée des Shemot. Deux bruns
+    ///   chauds ne peuvent pas occuper la même case de clarté ;
+    /// - sur fond sombre il faut être **clair**, l'or y est, mais un bronze
+    ///   plus saturé s'en écarte assez.
+    ///
+    /// Mesuré côté vault : de nuit, 226 valeurs tiennent les quatre écarts ; de
+    /// jour, **aucune**. `#953D0E` est la teinte la plus proche du bronze qui
+    /// passe sans rien abaisser.
+    ///
+    /// ## Remesuré ici, sur nos fonds
+    ///
+    ///     parchemin  6,54:1     clair     7,11:1
+    ///     sombre     6,53:1     mystique  6,94:1
+    ///
+    /// Les quatre au-dessus du 6,5 que ce projet s'est donné — plus haut qu'AA,
+    /// tenu partout et écrit nulle part avant `ContrastesTests`.
+    ///
+    /// **L'écart aux Shemot vaut 27 le jour et 25 la nuit.** Le second est
+    /// *exactement* au plancher, pas au-dessus : si l'une des deux couches
+    /// bouge, c'est celle-là qui cassera en premier.
+    ///
+    /// ## Deux relâchements mesurés puis refusés
+    ///
+    /// Un vrai bronze passait de jour, mais son écart aux Shemot tombait à 21 —
+    /// un nom propre et un renvoi dans le même paragraphe cesseraient de se
+    /// distinguer. Et `#A0481C` passait à 5,62:1 sur parchemin, sous le seuil
+    /// que le projet s'est donné. Écrits ici pour qu'on ne les repropose pas.
+    public static func renvoi(_ theme: ReadingTheme) -> Color {
+        theme.isDark
+            ? Color(red: 0.816, green: 0.549, blue: 0.263)
+            : Color(red: 0.584, green: 0.239, blue: 0.055)
+    }
+
     /// Deux couleurs mêlées, sans dépendre d'une version du système.
     ///
     /// `Color.mix(with:by:)` fait la même chose et demande **macOS 15** quand

@@ -42,6 +42,30 @@ use serde::{Deserialize, Serialize};
 /// Sérialisé avec un champ `t` qui porte le type, comme en TypeScript :
 /// `{"t":"text","v":"…"}`. La représentation est celle que les liseuses lisent
 /// déjà — ce port ne change pas un octet du JSON produit.
+/// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
+///
+/// **Deux destinations, pas une.** Une fiche de glossaire et une fiche de Shem
+/// ne vivent pas dans le même fichier — `glossary.json` et `shemot.json` — et
+/// ne s'ouvrent pas par la même route : `ont://term/…` contre `ont://shem/…`.
+///
+/// **Pourquoi un type et non deux champs.** `lemma: Option<String>` plus un
+/// `sorte` laisserait exister l'état illégal : un lemme sans sorte, une sorte
+/// sans lemme. Ici il n'y a rien à tenir ensemble — le lemme ne s'écrit pas
+/// sans dire où il mène. Et le `switch` que ça impose aux liseuses est
+/// exhaustif : une troisième destination, un jour, casserait la compilation au
+/// lieu de s'oublier.
+///
+/// Les noms des variantes sont ceux que le Router emploie déjà — `term` et
+/// `shem` —, pas un vocabulaire neuf pour la même chose.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum CibleDuNiveauTrois {
+    /// Une entrée du glossaire — `ont://term/<lemma>`.
+    Term { lemma: String },
+    /// Une fiche de Shem — `ont://shem/<lemma>`.
+    Shem { lemma: String },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Inline {
@@ -84,12 +108,75 @@ pub enum Inline {
     /// `v` garde la casse du texte, `lemma` est la clé de jointure vers la fiche.
     Shem { v: String, lemma: String },
 
+    /// Un renvoi d'une **chuqqah** vers une autre — `((cible|libellé))`.
+    ///
+    /// ## Pourquoi une marque à elle, et pas `[[…]]`
+    ///
+    /// `[[…]]` devient un `Shem` **sans jamais regarder la cible**, et c'est
+    /// délibéré : le vault porte des renvois vers des porteurs pas encore
+    /// écrits, et ce sont des marques de travail à faire, pas des erreurs.
+    ///
+    /// Distinguer sur la cible obligerait donc à **résoudre avant de typer** —
+    /// et produirait exactement le défaut que ce principe prévient : un renvoi
+    /// vers une chuqqah pas encore écrite sortirait en `Shem`. C'est le cas le
+    /// plus fréquent, puisque le corpus s'écrit.
+    ///
+    /// Doubles parenthèses, donc : **détection locale, aucune résolution.**
+    ///
+    /// ## Ce que la marque coûte
+    ///
+    /// `((…))` n'est pas un lien Obsidian : on ne saute plus d'une chuqqah à
+    /// l'autre depuis l'éditeur. Arbitré en connaissance de ce prix, contre une
+    /// détection qui ne dépend de rien.
+    ///
+    /// ## Le voisinage est sûr
+    ///
+    /// Le niveau 3 — `(*translittération* / hébreu)` — exige de l'hébreu dans
+    /// la parenthèse, ce qu'un renvoi n'a pas. Les deux ne se disputent rien,
+    /// dans un ordre ou dans l'autre.
+    Renvoi { v: String, cible: String },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :
     /// la translittération est en italique dans la fonte latine, l'hébreu
     /// demande une fonte hébraïque et un passage en RTL.
-    Translit { translit: String, hebrew: String },
+    ///
+    /// ## `cible` — la fiche que ce mot ouvre, quand il en ouvre une
+    ///
+    /// Gloire l'a posé ainsi : il lit la translittération du niveau 3, il est
+    /// dessus, et rien ne répond. Le mot est là, sa fiche existe, et l'appareil
+    /// qui les relie s'arrête au corps du texte.
+    ///
+    /// **Remplie au build, jamais à l'analyse.** Le parseur ne sait pas quelles
+    /// fiches existent — c'est la construction qui les connaît, et qui sait en
+    /// plus lesquelles sont *publiées*. Trancher plus tôt obligerait à le faire
+    /// sans l'information.
+    ///
+    /// **`None` est le cas ordinaire, et il est honnête.** Sur 1748
+    /// translittérations, 631 se résolvent et 1117 non. Ces dernières restent
+    /// lisibles et inertes, exactement comme avant.
+    ///
+    /// ## Ce qu'on ne fait pas, et c'est le cœur
+    ///
+    /// **Aucune résolution morphologique.** Ni spirantisation — `lehavdil`
+    /// vient de `badal`, le bet devenant vet —, ni verbes lamed-he — `vayiven`
+    /// vient de `banah`, dont le he disparaît.
+    ///
+    /// Pas par difficulté, mais par **mode d'échec** : une règle qui se trompe
+    /// ne rend pas le mot inerte, elle le rend touchable **vers la mauvaise
+    /// fiche**. Le lecteur arrive ailleurs sans que rien ne le dise — la
+    /// substitution silencieuse, pire qu'une abstention.
+    ///
+    /// La résolution se fait donc là où elle est exacte, et le §2.5 fait le
+    /// reste : une forme déclarée devient touchable pour toujours. Chaque
+    /// déclaration est un gain permanent, jamais une erreur muette.
+    Translit {
+        translit: String,
+        hebrew: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cible: Option<CibleDuNiveauTrois>,
+    },
 
     /// Un fragment en écriture hébraïque rencontré hors d'un nœud `translit`.
     ///
@@ -649,6 +736,32 @@ pub struct CorpusOutline {
 pub struct CorpusFile {
     pub schema: u32,
     pub corpora: Vec<CorpusOutline>,
+}
+
+/// `dist/prononciation.json` — la feuille qui explique comment lire ce qui est
+/// écrit.
+///
+/// ## Pourquoi un fichier et non une section du document de référence
+///
+/// Le `CLAUDE.md` du vault est lu pour en tirer des **entrées de termes**. Lui
+/// faire sortir en plus une section entière mêlerait deux extractions dans un
+/// même lecteur, et la seconde casserait la première le jour où quelqu'un
+/// touche au format.
+///
+/// Un fichier a en prime un `status`, comme le reste du corpus : cette feuille
+/// est du contenu qu'on relit, pas de la configuration.
+///
+/// ## Pourquoi des blocs et non du markdown
+///
+/// Elle cite `**chokhmah**`, `**malʾakh**`, `[[Chanokh]]`. En blocs, le rendu
+/// pose l'or et la terre brûlée et les rend touchables **sans une ligne de
+/// code** dans les liseuses. En chaîne, il faudrait réimplémenter le rendu
+/// trois fois, avec la certitude qu'ils divergeraient.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrononciationFile {
+    pub schema: u32,
+    pub title: String,
+    pub blocks: Vec<Block>,
 }
 
 /// `dist/glossary.json` — le lexique des intraduisibles.

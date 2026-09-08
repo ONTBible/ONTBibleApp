@@ -69,6 +69,17 @@ public final class KeychainSessionStore: SessionStore, @unchecked Sendable {
         }
     }
 
+    /// Le propriétaire des données locales.
+    ///
+    /// Dans `UserDefaults` comme le consentement, et non dans le trousseau :
+    /// ce n'est pas un secret, c'est une clé de rangement. La perdre ne donne
+    /// accès à rien — elle ferait seulement retomber l'app dans le cas « aucun
+    /// compte ne les a réclamées », qui est le cas prudent.
+    public var proprietaire: String? {
+        get { UserDefaults.standard.string(forKey: "proprietaireDesDonnees") }
+        set { UserDefaults.standard.set(newValue, forKey: "proprietaireDesDonnees") }
+    }
+
     private var baseQuery: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
@@ -82,9 +93,13 @@ public final class KeychainSessionStore: SessionStore, @unchecked Sendable {
 public final class InMemorySessionStore: SessionStore, @unchecked Sendable {
     public var session: Session?
     public var consent: SyncConsent = .none
+    public var proprietaire: String?
 
-    public init(session: Session? = nil, consent: SyncConsent = .none) {
+    public init(
+        session: Session? = nil, consent: SyncConsent = .none, proprietaire: String? = nil
+    ) {
         self.session = session
         self.consent = consent
+        self.proprietaire = proprietaire
     }
 }

@@ -172,6 +172,21 @@ struct ChapterView: View {
                     // d'atteindre une ligne que la pile n'a pas encore montée.
                     .scrollTargetLayout()
                 }
+                // **La page garde sa mesure, même quand l'écran ne la borne plus.**
+                //
+                // Depuis que la liseuse prend toute la largeur de l'iPad — pour
+                // que le pli du glissement parte du bord —, plus personne
+                // au-dessus ne borne cette colonne. On la borne donc ici, à la
+                // valeur exacte que la pile lui donnait : `pageWidth`.
+                //
+                // Le texte lui-même n'en dépend pas : `ParchmentPage` le tient
+                // déjà à `readingWidth`, et une colonne centrée tombe au même
+                // endroit dans 850 que dans 1032. Ce qui dépend de cette borne,
+                // c'est le **fond plein** que `ParchmentPage` peint derrière
+                // elle : sans elle il couvrirait l'écran entier et effacerait
+                // le grain des marges, que `ontScreen()` pose plus bas.
+                .frame(maxWidth: ONTLayout.pageWidth)
+                .frame(maxWidth: .infinity)
             }
             // **`scrollPosition` et non `scrollTo`, à cause de la paresse.**
             //
@@ -279,6 +294,12 @@ struct ChapterView: View {
                     noteTarget: $noteTarget,
                     autoShare: $autoShare
                 )
+                    // Bornée pour la même raison que la page : la liseuse prend
+                    // toute la largeur de l'iPad depuis le pli, et sans cette
+                    // ligne la carte des couleurs s'étirerait d'un bord à
+                    // l'autre. Elle garde la mesure qu'elle avait.
+                    .frame(maxWidth: ONTLayout.pageWidth)
+                    .frame(maxWidth: .infinity)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -407,13 +428,16 @@ struct ChapterView: View {
                 // pile qui existe déjà, et n'a ni l'une ni l'autre à fournir. Le
                 // Mac n'en veut aucun des deux — sa carte a déjà sa croix.
                 .ontChromeDeFeuille("OK") { showingSettings = false }
-                // `.large` en plus : l'aperçu occupe le haut de la feuille, et à
-                // grande taille avec les gloses allumées, la mi-hauteur ne laisse
-                // plus voir les réglages.
-                .ontHauteurDeFeuille([.medium, .large])
+                // Les paliers ne s'écrivent plus ici : `ontFeuille` les pose
+                // pour toutes les feuilles de l'app. Ils y étaient, et une
+                // seule feuille sur sept les demandait — voir
+                // `ONTPaliersDeFeuille`.
                 .ontTheme(from: model.preferences)
         }
-        .ontFeuille(objet: $noteTarget, titre: "Note") { selection in
+        // **Une dérogation, et elle s'écrit ici.** Une note tient en trois
+        // lignes : lui donner le plein écran au glissement offrirait de la
+        // hauteur à ce qui n'en demande pas.
+        .ontFeuille(objet: $noteTarget, titre: "Note", paliers: .mesures([.medium])) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
                 .ontTheme(from: model.preferences)
         }
@@ -1653,7 +1677,6 @@ private struct NoteEditor: View {
                 .ontRow()
                 .ontScreen()
             }
-            .ontHauteurDeFeuille([.medium])
         #endif
     }
 

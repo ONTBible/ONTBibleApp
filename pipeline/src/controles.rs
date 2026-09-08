@@ -33,7 +33,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use crate::schema::{Block, Chapter, GlossaryEntry, Inline, ShemEntry};
+use crate::schema::{Block, Chapter, CibleDuNiveauTrois, GlossaryEntry, Inline, ShemEntry};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parcourir tout ce qui est livré, sans exception
@@ -91,6 +91,101 @@ fn descendre(nodes: &[Inline], f: &mut impl FnMut(&Inline)) {
             Inline::Text { .. }
             | Inline::Term { .. }
             | Inline::Shem { .. }
+            // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
+            | Inline::Renvoi { .. }
+            | Inline::Translit { .. }
+            | Inline::Heb { .. }
+            | Inline::Break => {}
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rendre le lemme canonique — ce que le contrôle 1 mesurait
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Réécrit chaque `Term` pour qu'il porte **le lemme de son entrée**.
+///
+/// ## Le défaut, et pourquoi il était invisible
+///
+/// Le tokeniseur émet `lemma: slugify(v)` — le slug de la forme **affichée**.
+/// `**gibborim**` sortait donc en `lemma: "gibborim"`, quand l'entrée s'appelle
+/// `gibbor` et déclare `gibborim` parmi ses formes.
+///
+/// La résolution existait déjà, mais **seulement pour compter les occurrences**
+/// (`build.rs`, `index_occurrences`) : elle n'était jamais réécrite dans le
+/// nœud livré. Le rapport traversait `forms` et disait « 0 mot d'or sans
+/// fiche » ; la liseuse indexe par lemme exact et affichait « Terme non
+/// documenté » sur un mot documenté. ==Deux normalisations pour une seule
+/// donnée, et celle qui parlait au lecteur était la muette.==
+///
+/// ## Pourquoi ici, et pas dans le tokeniseur
+///
+/// `inline.rs` ne connaît pas le glossaire, et c'est une bonne chose : lui
+/// passer la table le ferait dépendre de ce qu'il sert à produire. La
+/// résolution se fait donc **après coup**, là où la table existe déjà.
+///
+/// ## Pourquoi pas chez les consommateurs
+///
+/// Parce qu'il faudrait trois implémentations de `slugify` — `forms` garde le
+/// texte brut du §2.5, `mal'akhim` avec son apostrophe, quand le lemme est
+/// slugifié en `malakhim`. ==Deux normalisations écrites séparément divergent==,
+/// et le défaut deviendrait intermittent au lieu d'être systématique.
+pub fn canoniser(blocs: &mut [Block], formes: &BTreeMap<String, String>) {
+    for bloc in blocs {
+        pour_chaque_inline_mut(bloc, &mut |n| {
+            if let Inline::Term { lemma, .. } = n {
+                if let Some(vrai) = formes.get(lemma.as_str()) {
+                    *lemma = vrai.clone();
+                }
+            }
+        });
+    }
+}
+
+/// Le pendant mutable de [`pour_chaque_inline`]. Même exigence d'exhaustivité.
+pub fn pour_chaque_inline_mut(bloc: &mut Block, f: &mut impl FnMut(&mut Inline)) {
+    match bloc {
+        Block::Heading { nodes, .. } | Block::Para { nodes } | Block::Quote { nodes } => {
+            descendre_mut(nodes, f)
+        }
+        Block::Verses { verses } => {
+            for v in verses {
+                descendre_mut(&mut v.nodes, f)
+            }
+        }
+        Block::List { items, .. } => {
+            for item in items {
+                descendre_mut(item, f)
+            }
+        }
+        Block::Table { headers, rows } => {
+            for c in headers {
+                descendre_mut(c, f)
+            }
+            for l in rows {
+                for c in l {
+                    descendre_mut(c, f)
+                }
+            }
+        }
+        Block::Rule => {}
+    }
+}
+
+fn descendre_mut(nodes: &mut [Inline], f: &mut impl FnMut(&mut Inline)) {
+    for n in nodes {
+        f(n);
+        match n {
+            Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Gloss { children }
+            | Inline::Link { children, .. } => descendre_mut(children, f),
+            Inline::Text { .. }
+            | Inline::Term { .. }
+            | Inline::Shem { .. }
+            // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
+            | Inline::Renvoi { .. }
             | Inline::Translit { .. }
             | Inline::Heb { .. }
             | Inline::Break => {}
@@ -193,11 +288,41 @@ pub fn liens_morts(
             });
     };
 
+    // **La cible du niveau 3 entre ici**, et pas seulement les `**…**` du corps.
+    //
+    // Elle tient par construction : `niveau_trois` monte son index sur les
+    // entrées *livrées*, donc il ne peut pas écrire un lemme absent du fichier.
+    // Mais « ça tient par construction » est une propriété du code d'aujourd'hui,
+    // pas du fichier livré, et ce contrôle-ci pose la question de la liseuse :
+    // *le lemme écrit dans le nœud est-il une clé de l'index livré ?* Un jour où
+    // l'index se monterait sur les fiches lues plutôt que sur les publiées, le
+    // lien serait mort et rien ne le dirait — le mot serait doré, touchable, et
+    // n'ouvrirait rien.
+    let cible = |n: &Inline| match n {
+        Inline::Translit {
+            translit, cible, ..
+        } => match cible {
+            Some(CibleDuNiveauTrois::Term { lemma }) => {
+                Some(("term", translit.clone(), lemma.clone()))
+            }
+            Some(CibleDuNiveauTrois::Shem { lemma }) => {
+                Some(("shem", translit.clone(), lemma.clone()))
+            }
+            None => None,
+        },
+        _ => None,
+    };
+
     for unite in unites {
-        pour_chaque_inline_livre(unite, &mut |n| match n {
-            Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
-            Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
-            _ => {}
+        pour_chaque_inline_livre(unite, &mut |n| {
+            match n {
+                Inline::Term { v, lemma } => relever("term", v, lemma, &unite.id),
+                Inline::Shem { v, lemma } => relever("shem", v, lemma, &unite.id),
+                _ => {}
+            }
+            if let Some((couche, forme, lemme)) = cible(n) {
+                relever(couche, &forme, &lemme, &unite.id);
+            }
         });
     }
     for e in glossaire {
@@ -207,10 +332,15 @@ pub fn liens_morts(
             .flatten()
         {
             for bloc in blocs {
-                pour_chaque_inline(bloc, &mut |n| match n {
-                    Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
-                    Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
-                    _ => {}
+                pour_chaque_inline(bloc, &mut |n| {
+                    match n {
+                        Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
+                        Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
+                        _ => {}
+                    }
+                    if let Some((couche, forme, lemme)) = cible(n) {
+                        relever(couche, &forme, &lemme, &ou);
+                    }
                 });
             }
         }
@@ -218,10 +348,15 @@ pub fn liens_morts(
     for e in shemot {
         let ou = format!("lexique/{}", e.lemma);
         for bloc in &e.definition {
-            pour_chaque_inline(bloc, &mut |n| match n {
-                Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
-                Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
-                _ => {}
+            pour_chaque_inline(bloc, &mut |n| {
+                match n {
+                    Inline::Term { v, lemma } => relever("term", v, lemma, &ou),
+                    Inline::Shem { v, lemma } => relever("shem", v, lemma, &ou),
+                    _ => {}
+                }
+                if let Some((couche, forme, lemme)) = cible(n) {
+                    relever(couche, &forme, &lemme, &ou);
+                }
             });
         }
     }
@@ -251,9 +386,14 @@ pub fn liens_morts(
 /// **parashah** neuve fait rougir la CI, et c'est ce qu'on veut — le corpus ne
 /// doit pas continuer d'accumuler des liens que le lecteur touchera en vain.
 ///
-/// Le jour où l'émission rendra le lemme canonique, ce nombre descend à `0` et
-/// le contrôle devient une vraie garde. **C'est un chiffre à changer, pas un
-/// mécanisme à écrire.**
+/// **Il est à zéro depuis le 7 septembre 2026, et c'est le jour annoncé.**
+/// L'émission rend le lemme canonique, l'inclusion suit les fiches publiées :
+/// plus un seul lien livré ne manque sa cible. Le cliquet cesse d'être un
+/// plafond toléré et devient ce qu'un contrôle doit être — *aucun lien mort*.
+///
+/// Le mécanisme n'a pas changé d'une ligne pour y arriver. C'était un chiffre à
+/// changer, pas un mécanisme à écrire : posé à `237` il protégeait déjà contre
+/// l'aggravation, et il n'a jamais fallu le « brancher le jour où ».
 ///
 /// **Un cliquet se resserre dès que le compte baisse, sinon il cesse de
 /// cliqueter.** Laissé au-dessus du réel, il autorise en silence le retour de
@@ -267,7 +407,7 @@ pub fn liens_morts(
 /// - puis `237`, descendu à `224` quand les dix-neuf gras d'emphase du
 ///   `CLAUDE.md` ont été retirés — treize liens de moins, dans les notes de
 ///   balisage que le contrôle venait de rendre visibles.
-pub const PLAFOND_LIENS_MORTS: usize = 224;
+pub const PLAFOND_LIENS_MORTS: usize = 0;
 
 /// Ce que les parcours restreints du pipeline ne voient pas.
 ///
@@ -281,12 +421,31 @@ pub const PLAFOND_LIENS_MORTS: usize = 224;
 /// Cette fonction ne répare rien et ne juge rien : elle dit combien de nœuds
 /// touchables vivent hors de leur portée. Si le nombre est nul, leur zéro est
 /// un zéro. S'il ne l'est pas, il reste à vérifier — et on saura qu'il faut.
+/// Un nœud qui répond au doigt.
+///
+/// **Le niveau 3 en fait partie depuis qu'il ouvre sa fiche**, et l'y ajouter
+/// n'est pas cosmétique : ce compte mesure ce que les parcours restreints ne
+/// visitent pas — un titre d'unité, les notes d'un pied. Sans cette ligne, une
+/// translittération touchable oubliée par un tel parcours resterait inerte sans
+/// qu'aucun nombre ne bouge, et le contrôle aurait continué de rendre une mesure
+/// exacte pour une question qui a changé sous lui.
+///
+/// Une translittération **sans** cible n'y entre pas : elle ne promet rien, donc
+/// aucun parcours ne peut lui manquer quelque chose.
+fn est_touchable(n: &Inline) -> bool {
+    match n {
+        Inline::Term { .. } | Inline::Shem { .. } => true,
+        Inline::Translit { cible, .. } => cible.is_some(),
+        _ => false,
+    }
+}
+
 pub fn hors_de_portee(unites: &[&Chapter]) -> usize {
     let mut total = 0usize;
     let mut restreint = 0usize;
     for u in unites {
         pour_chaque_inline_livre(u, &mut |n| {
-            if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+            if est_touchable(n) {
                 total += 1;
             }
         });
@@ -296,7 +455,7 @@ pub fn hors_de_portee(unites: &[&Chapter]) -> usize {
                 Block::Heading { .. } | Block::Para { .. } | Block::Verses { .. }
             ) {
                 pour_chaque_inline(bloc, &mut |n| {
-                    if matches!(n, Inline::Term { .. } | Inline::Shem { .. }) {
+                    if est_touchable(n) {
                         restreint += 1;
                     }
                 });
@@ -387,7 +546,11 @@ fn mots(s: &str) -> usize {
 fn mots_hors_glose(nodes: &[Inline], total: &mut usize) {
     for n in nodes {
         match n {
-            Inline::Text { v } | Inline::Term { v, .. } | Inline::Shem { v, .. } => {
+            Inline::Text { v }
+            | Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            // Un renvoi porte du texte que le lecteur lit : il compte.
+            | Inline::Renvoi { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }
@@ -409,7 +572,11 @@ fn mots_hors_glose(nodes: &[Inline], total: &mut usize) {
 fn mots_tout(nodes: &[Inline], total: &mut usize) {
     for n in nodes {
         match n {
-            Inline::Text { v } | Inline::Term { v, .. } | Inline::Shem { v, .. } => {
+            Inline::Text { v }
+            | Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            // Un renvoi porte du texte que le lecteur lit : il compte.
+            | Inline::Renvoi { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }
@@ -564,6 +731,59 @@ mod tests {
                 "dans-une-liste"
             ]
         );
+    }
+
+    /// **Le lemme canonique est écrit dans le nœud, pas seulement calculé.**
+    ///
+    /// C'est le défaut que tout ce module a servi à mesurer : la résolution
+    /// existait pour compter les occurrences et n'atteignait jamais le nœud
+    /// livré. Ce test verrouille l'écriture.
+    #[test]
+    fn une_forme_flechie_recoit_le_lemme_de_son_entree() {
+        let mut blocs = vec![Block::Para {
+            nodes: vec![Inline::Term {
+                v: "gibborim".into(),
+                lemma: "gibborim".into(),
+            }],
+        }];
+        let formes = BTreeMap::from([("gibborim".to_string(), "gibbor".to_string())]);
+        canoniser(&mut blocs, &formes);
+        let Block::Para { nodes } = &blocs[0] else {
+            unreachable!()
+        };
+        let Inline::Term { v, lemma } = &nodes[0] else {
+            unreachable!()
+        };
+        assert_eq!(lemma, "gibbor", "le lemme doit être canonique");
+        assert_eq!(v, "gibborim", "l'affichage ne doit pas bouger");
+    }
+
+    /// La canonisation descend dans les gloses et les pieds comme le reste :
+    /// un intraduisible expliqué dans une glose est touchable lui aussi.
+    #[test]
+    fn la_canonisation_descend_dans_les_gloses() {
+        let mut blocs = vec![Block::Para {
+            nodes: vec![Inline::Gloss {
+                children: vec![Inline::Term {
+                    v: "mal'akhim".into(),
+                    lemma: "malakhim".into(),
+                }],
+            }],
+        }];
+        canoniser(
+            &mut blocs,
+            &BTreeMap::from([("malakhim".into(), "malakh".into())]),
+        );
+        let Block::Para { nodes } = &blocs[0] else {
+            unreachable!()
+        };
+        let Inline::Gloss { children } = &nodes[0] else {
+            unreachable!()
+        };
+        let Inline::Term { lemma, .. } = &children[0] else {
+            unreachable!()
+        };
+        assert_eq!(lemma, "malakh");
     }
 
     /// **Le pied de section est livré, donc il est mesuré.**
@@ -726,9 +946,88 @@ mod tests {
                 Inline::Translit {
                     translit: "chesed".into(),
                     hebrew: "חֶסֶד".into(),
+                    cible: None,
                 },
             ],
         }]);
         assert_eq!(densite(&u).mots_corps, 2);
+    }
+}
+
+#[cfg(test)]
+mod epreuves_du_niveau_trois {
+    use super::*;
+    use crate::schema::{ChapterKind, Status, Verse};
+
+    fn translit(cible: Option<CibleDuNiveauTrois>) -> Inline {
+        Inline::Translit {
+            translit: "chesed".into(),
+            hebrew: "חֶסֶד".into(),
+            cible,
+        }
+    }
+
+    fn unite(noeuds_du_titre: Vec<Inline>, corps: Vec<Inline>) -> Chapter {
+        Chapter {
+            id: "bereshit-1".into(),
+            book_id: "bereshit".into(),
+            kind: ChapterKind::Chapter,
+            n: 1,
+            title: "Bereshit 1".into(),
+            title_nodes: noeuds_du_titre,
+            subtitle: None,
+            status: Status::Locked,
+            blocks: vec![Block::Verses {
+                verses: vec![Verse { n: 1, nodes: corps }],
+            }],
+            footer: None,
+            verse_count: 1,
+            lemmas: vec![],
+            source: "bereshit-1.md".into(),
+        }
+    }
+
+    /// **Le contrôle doit pouvoir rougir sur la cible.**
+    ///
+    /// Aujourd'hui l'invariant tient par construction : `niveau_trois` monte son
+    /// index sur les entrées *livrées*, donc il ne peut pas écrire un lemme
+    /// absent du fichier. Mais c'est une propriété du code d'aujourd'hui, pas du
+    /// fichier livré — et un contrôle qui ne mesure que ce qui ne peut pas
+    /// arriver ne mesure rien. Celui-ci pose la question de la liseuse.
+    #[test]
+    fn une_cible_absente_de_l_index_livre_est_un_lien_mort() {
+        let u = unite(
+            vec![],
+            vec![translit(Some(CibleDuNiveauTrois::Term {
+                lemma: "chesed".into(),
+            }))],
+        );
+        let morts = liens_morts(&[&u], &[], &[]);
+
+        assert_eq!(morts.len(), 1);
+        assert_eq!(morts[0].lemme, "chesed");
+        assert_eq!(morts[0].couche, "term");
+    }
+
+    /// Et une translittération inerte n'est pas un lien mort : elle ne promet
+    /// rien. Confondre les deux ferait rougir le build sur 1257 nœuds corrects.
+    #[test]
+    fn une_translitteration_sans_cible_n_est_pas_un_lien_mort() {
+        let u = unite(vec![], vec![translit(None)]);
+        assert!(liens_morts(&[&u], &[], &[]).is_empty());
+    }
+
+    /// **Le titre d'une unité est livré comme son corps.** Un parcours restreint
+    /// qui l'oublierait laisserait le niveau 3 inerte là et touchable ailleurs,
+    /// sans qu'aucun nombre ne bouge — la forme silencieuse de l'oubli.
+    #[test]
+    fn une_cible_dans_le_titre_compte_hors_de_portee() {
+        let u = unite(
+            vec![translit(Some(CibleDuNiveauTrois::Shem {
+                lemma: "noach".into(),
+            }))],
+            vec![],
+        );
+        assert_eq!(hors_de_portee(&[&u]), 1);
     }
 }

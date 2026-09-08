@@ -49,7 +49,7 @@ struct SchemaMappingTests {
         #expect(valeur == "YHWH")
         #expect(lemme == "yhwh")
 
-        guard case .translit(let translit, let hebreu) = nodes[2] else {
+        guard case .translit(let translit, let hebreu, _) = nodes[2] else {
             Issue.record("le troisième nœud devrait être un niveau 3")
             return
         }

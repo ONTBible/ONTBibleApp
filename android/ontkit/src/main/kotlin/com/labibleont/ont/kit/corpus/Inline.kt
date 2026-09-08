@@ -29,6 +29,24 @@ package com.labibleont.ont.kit.corpus
  * ajouté au pipeline casse la compilation de l'app** au lieu de disparaître
  * silencieusement du texte.
  */
+/**
+ * Ce qu'une translittération de niveau 3 ouvre.
+ *
+ * **Deux destinations, et elles ne se confondent pas** : une entrée de
+ * glossaire vit dans `glossary.json`, une fiche de Shem dans `shemot.json`, et
+ * ce sont deux rappels distincts côté liseuse.
+ *
+ * Un type plutôt qu'un lemme et une sorte : il n'y a rien à tenir ensemble, le
+ * lemme ne s'écrit pas sans dire où il mène. Et le `when` qu'il impose est
+ * exhaustif — une troisième destination casserait la compilation au lieu de
+ * s'oublier.
+ */
+public sealed interface CibleDuNiveauTrois {
+    public data class Term(public val lemma: String) : CibleDuNiveauTrois
+
+    public data class Shem(public val lemma: String) : CibleDuNiveauTrois
+}
+
 public sealed interface Inline {
 
     /** Le corps de la traduction. */
@@ -53,6 +71,23 @@ public sealed interface Inline {
     public data class Shem(public val value: String, public val lemma: String) : Inline
 
     /**
+     * Un renvoi d'une **chuqqah** vers une autre.
+     *
+     * Un Shem désigne un **porteur** — quelqu'un. Un renvoi désigne un
+     * **énoncé**. Les confondre ferait croire au lecteur qu'il touche un nom
+     * propre, et l'amènerait sur un texte qui n'en est pas un.
+     *
+     * Le pipeline lit `((cible|libellé))` et non `[[…]]`, parce que ce dernier
+     * devient un Shem **sans regarder la cible** : le vault porte des renvois
+     * vers des porteurs pas encore écrits, et distinguer sur la cible ferait
+     * sortir en Shem tout renvoi vers une chuqqah non encore écrite.
+     *
+     * `cible` peut ne désigner aucune chuqqah existante : le corpus s'écrit, et
+     * un renvoi mort dit « ce n'est pas encore écrit », jamais « introuvable ».
+     */
+    public data class Renvoi(public val value: String, public val cible: String) : Inline
+
+    /**
      * `(*chasdo* / חַסְדּוֹ)`.
      *
      * Les deux parts sont séparées parce qu'elles ne se composent pas de la
@@ -62,6 +97,19 @@ public sealed interface Inline {
     public data class Translit(
         public val translit: String,
         public val hebrew: String,
+        /**
+         * La fiche que la translittération ouvre, **quand elle en ouvre une**.
+         *
+         * Le lecteur est sur le mot hébreu : c'est le moment où il veut sa
+         * fiche, et l'appareil s'arrêtait au corps du texte.
+         *
+         * **`null` est le cas ordinaire**, et il est honnête. Le pipeline ne
+         * résout que l'exact — un lemme, une forme déclarée au §2.5, un Shem
+         * publié — et laisse inerte tout ce qui demanderait de deviner : une
+         * règle morphologique qui se trompe ne rend pas le mot inerte, elle le
+         * rend touchable **vers la mauvaise fiche**.
+         */
+        public val cible: CibleDuNiveauTrois? = null,
     ) : Inline
 
     /** Une séquence en écriture hébraïque rencontrée hors d'un [Translit]. */
@@ -170,6 +218,9 @@ private fun kotlin.collections.List<Inline>.brut(
             // l'appareil, qu'on retire sans rien perdre.
             is Inline.Term -> append(node.value)
             is Inline.Shem -> append(node.value)
+            // Un renvoi aussi : la phrase le nomme, et un partage ne doit pas
+            // laisser un trou là où le lecteur a lu un mot.
+            is Inline.Renvoi -> append(node.value)
             is Inline.Hebrew -> if (level3) append(node.value)
             is Inline.Translit ->
                 if (level3) append("(${node.translit} / ${node.hebrew})")

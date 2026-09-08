@@ -1,4 +1,5 @@
 import Foundation
+import Sentry
 import ONTData
 import Testing
 
@@ -160,3 +161,81 @@ struct ObservabilityTests {
     }
 }
 
+
+/// **Ce qui part, et pas seulement ce qu'on expurge.**
+///
+/// Les épreuves d'à côté nourrissent `redact` directement : elles mesurent la
+/// qualité de l'expurgation. Aucune ne mesurait son **périmètre**, et c'est là
+/// que le défaut vivait — trois champs nommés sur une enveloppe qui en porte
+/// une dizaine, et les trois nommés étaient précisément ceux qu'on écrit
+/// soi-même, donc les moins exposés.
+///
+/// `crumb.data` est le plus chargé de tous : le SDK y range les URL réseau et
+/// les noms d'écran, sans qu'aucun appelant ne le demande. Il n'était pas
+/// touché.
+@Suite("L'enveloppe qui part chez Sentry")
+struct EnveloppeExpurgeeTests {
+    private let citation = "valeur inattendue \"ce passage me bouleverse\""
+
+    private func evenement() -> Event {
+        let e = Event(level: .error)
+        e.message = SentryMessage(formatted: citation)
+        return e
+    }
+
+    @Test("le fil d'Ariane porte ses données, et elles sont expurgées")
+    func lesDonneesDuFilDAriane() {
+        let e = evenement()
+        let miette = Breadcrumb(level: .info, category: "app")
+        miette.message = citation
+        miette.data = ["url": citation, "profond": ["liste": [citation]]]
+        e.breadcrumbs = [miette]
+
+        let sorti = Observability.expurger(e)
+        let data = sorti.breadcrumbs?.first?.data
+
+        #expect(data?["url"] as? String != citation)
+        let profond = data?["profond"] as? [String: Any]
+        let liste = profond?["liste"] as? [Any]
+        #expect(liste?.first as? String != citation, "le sac imbriqué n'est pas descendu")
+    }
+
+    @Test("extra, tags, transaction et empreinte sont expurgés")
+    func lesAutresChamps() {
+        let e = evenement()
+        e.extra = ["note": citation]
+        e.tags = ["unite": citation]
+        e.transaction = citation
+        e.fingerprint = [citation]
+
+        let sorti = Observability.expurger(e)
+
+        #expect(sorti.extra?["note"] as? String != citation)
+        #expect(sorti.tags?["unite"] != citation)
+        #expect(sorti.transaction != citation)
+        #expect(sorti.fingerprint?.first != citation)
+    }
+
+    /// **Les clés survivent.** Elles nomment le champ, elles ne le contiennent
+    /// pas — et une clé expurgée rendrait le rapport illisible sans rien
+    /// protéger de plus.
+    @Test("les clés ne sont pas expurgées")
+    func lesClesSurvivent() {
+        let e = evenement()
+        e.extra = ["note": citation]
+
+        #expect(Observability.expurger(e).extra?.keys.contains("note") == true)
+    }
+
+    /// Ce qui n'est pas du texte traverse tel quel : le convertir pour le faire
+    /// passer par `redact` l'abîmerait sans rien protéger.
+    @Test("un nombre traverse intact")
+    func unNombreTraverse() {
+        let e = evenement()
+        e.extra = ["octets": 4192, "actif": true]
+
+        let sorti = Observability.expurger(e)
+        #expect(sorti.extra?["octets"] as? Int == 4192)
+        #expect(sorti.extra?["actif"] as? Bool == true)
+    }
+}

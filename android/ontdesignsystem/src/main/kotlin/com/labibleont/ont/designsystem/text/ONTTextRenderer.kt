@@ -13,6 +13,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTTypography
+import com.labibleont.ont.kit.corpus.CibleDuNiveauTrois
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.corpus.Verse
 import androidx.compose.ui.graphics.Color
@@ -45,6 +46,14 @@ public object ONTTextRenderer {
     /** L'étiquette portée par le lien d'un **Shem** — un nom propre. */
     public const val TAG_SHEM: String = "ont:shem"
 
+    /**
+     * Le renvoi d'une chuqqah vers une autre.
+     *
+     * L'étiquette porte la **cible**, jamais le libellé : `((amar|dire))`
+     * affiche « dire » et mène à `amar`.
+     */
+    public const val TAG_RENVOI: String = "ont:renvoi"
+
     /** L'étiquette portée par le lien d'un verset, en lecture continue. */
     public const val TAG_VERSET: String = "ont:verse"
 
@@ -61,9 +70,10 @@ public object ONTTextRenderer {
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
         onShem: ((String) -> Unit)? = null,
+        onRenvoi: ((String) -> Unit)? = null,
     ): AnnotatedString = buildAnnotatedString {
         val prepares = nodes.prepared(showGloss = showGloss, showLevel3 = showLevel3)
-        ajouter(prepares, typo, inGloss = false, onTerme = onTerme, onShem = onShem)
+        ajouter(prepares, typo, inGloss = false, onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi)
     }
 
     /**
@@ -80,6 +90,7 @@ public object ONTTextRenderer {
         showLevel3: Boolean,
         onTerme: ((String) -> Unit)? = null,
         onShem: ((String) -> Unit)? = null,
+        onRenvoi: ((String) -> Unit)? = null,
         onVerset: ((Int) -> Unit)? = null,
         /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
         fond: androidx.compose.ui.graphics.Color? = null,
@@ -103,7 +114,7 @@ public object ONTTextRenderer {
     ): AnnotatedString = buildAnnotatedString {
         val corps = buildAnnotatedString {
             append(numeroDeVerset(verse.n, typo))
-            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme, onShem))
+            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme, onShem, onRenvoi))
         }
 
         // ## L'estompage se calcule, il ne s'applique pas
@@ -219,6 +230,7 @@ public object ONTTextRenderer {
         inGloss: Boolean,
         onTerme: ((String) -> Unit)?,
         onShem: ((String) -> Unit)?,
+        onRenvoi: ((String) -> Unit)?,
         /**
          * La teinte d'une accentuation englobante, s'il y en a une.
          *
@@ -322,12 +334,97 @@ public object ONTTextRenderer {
                     }
                 }
 
+                is Inline.Renvoi -> {
+                    // **Coloré et touchable, comme sur iOS.**
+                    //
+                    // Il ne l'était pas : la teinte disait « ceci mène
+                    // ailleurs » et le doigt n'obtenait rien. Une couleur qui
+                    // promet ce qu'on ne tient pas est pire qu'une couleur
+                    // absente — le lecteur croit avoir mal visé, et recommence.
+                    //
+                    // C'était la seule divergence de comportement entre les
+                    // deux liseuses. La session iOS l'avait laissée
+                    // délibérément plutôt que de faire descendre un rappel dans
+                    // six signatures d'un fichier qui n'est pas le sien.
+                    val style = if (inGloss) {
+                        typo.renvoi.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.renvoi
+                    }
+                    if (onRenvoi == null) {
+                        withStyle(style) { append(node.value) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = "$TAG_RENVOI/${node.cible}",
+                                // Sans soulignement, comme l'intraduisible et
+                                // le Shem : la teinte dit déjà la couche.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                // **La cible, pas le libellé.** `((amar|dire))`
+                                // affiche « dire » et mène à `amar` ; passer ce
+                                // qu'on lit mènerait à une chuqqah qui n'existe
+                                // pas.
+                                linkInteractionListener = { onRenvoi(node.cible) },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.value) }
+                        }
+                    }
+                }
+
                 is Inline.Hebrew ->
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 
                 is Inline.Translit -> {
+                    // **La part latine se touche, l'hébreu non.** L'hébreu se
+                    // compose en RTL : une zone tactile à cheval sur la barre
+                    // oblique traverserait deux directions d'écriture.
+                    //
+                    // **Ce qui ouvre prend la couleur de sa destination** —
+                    // l'or d'un intraduisible, la terre brûlée d'un Shem —, ce
+                    // qui n'ouvre pas garde le gris de l'apparat. Sur 2086
+                    // translittérations, 829 répondent et 1257 non ; sans la
+                    // couleur, le lecteur devrait essayer sur chacune pour
+                    // savoir sur laquelle essayer.
+                    val cible = node.cible
+                    val style = when (cible) {
+                        is CibleDuNiveauTrois.Term ->
+                            typo.translit.copy(color = typo.term.color)
+                        is CibleDuNiveauTrois.Shem ->
+                            typo.translit.copy(color = typo.shem.color)
+                        null -> typo.translit
+                    }
+                    val ouvrir: (() -> Unit)? = when (cible) {
+                        is CibleDuNiveauTrois.Term -> onTerme?.let { { it(cible.lemma) } }
+                        is CibleDuNiveauTrois.Shem -> onShem?.let { { it(cible.lemma) } }
+                        null -> null
+                    }
+                    val etiquette = when (cible) {
+                        is CibleDuNiveauTrois.Term -> "$TAG_TERME/${cible.lemma}"
+                        is CibleDuNiveauTrois.Shem -> "$TAG_SHEM/${cible.lemma}"
+                        null -> null
+                    }
+
                     withStyle(typo.apparatus) { append("(") }
-                    withStyle(typo.translit) { append(node.translit) }
+                    if (ouvrir == null || etiquette == null) {
+                        withStyle(style) { append(node.translit) }
+                    } else {
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                tag = etiquette,
+                                // Sans soulignement, comme l'intraduisible et
+                                // le Shem : la teinte dit déjà la couche.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { ouvrir() },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.translit) }
+                        }
+                    }
                     withStyle(typo.apparatus) { append(" / ") }
                     hebreu(node.hebrew, typo.hebrewSmall)
                     withStyle(typo.apparatus) { append(")") }
@@ -335,7 +432,7 @@ public object ONTTextRenderer {
 
                 is Inline.Gloss -> {
                     withStyle(typo.apparatus) { append("[") }
-                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, onShem = onShem, accentuation = accentuation)
+                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi, accentuation = accentuation)
                     withStyle(typo.apparatus) { append("]") }
                 }
 
@@ -353,17 +450,18 @@ public object ONTTextRenderer {
                         inGloss,
                         onTerme,
                         onShem,
+                        onRenvoi,
                         accentuation = ONTColors.accentuation(typo.theme),
                     )
 
                 is Inline.Emphasis ->
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                        ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
+                        ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, accentuation)
                     }
 
                 // Le lien du vault ne mène nulle part dans la liseuse : on en
                 // garde le texte, pas la cible.
-                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, onShem, accentuation)
+                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, accentuation)
 
                 Inline.LineBreak -> append("\n")
             }

@@ -3696,6 +3696,96 @@ règle de l'audit — *une non-réponse vaut « statut inconnu », pas
 « supprimable »* — a tenu tout du long. Un compte faux dans ce sens-là ne coûte
 qu'une vérification ; dans l'autre, il coûte le travail.
 
+## 7 septembre 2026 — le canal stable du cask est ouvert, sur décision de l'auteur
+
+L'étiquette `brew-v1.0.5` est posée sur la tête d'`app-store` — le commit de la
+promotion #235, celui que la revue Apple est en train de lire. Le workflow
+`Cask` a fait le reste en un tir : compilation, signature Developer ID,
+notarisation, release **stable** (pas une prerelease), et réécriture de
+`Casks/la-bible-ont.rb` dans le tap. Vérifié comme Gatekeeper le fera, sur
+l'artefact téléchargé depuis la release et non sur un build local :
+`spctl --assess` répond `accepted, source=Notarized Developer ID`, `stapler
+validate` passe, l'empreinte du zip est celle que le cask écrit.
+
+    brew install --cask ontbible/ont/la-bible-ont
+
+**La décision était à l'auteur, et elle a été posée comme telle** : publier le
+stable avant le verdict d'Apple engage le nom du projet sur un canal public.
+Il a tranché « maintenant » — les deux canaux sont indépendants, la
+notarisation ne touche pas au quota App Store Connect, et l'App Store dira son
+mot quand il l'aura lu.
+
+**Pour les trois dépôts : rien à porter, une chose à savoir.** Le tap
+(`ONTBible/homebrew-ont`) sert désormais **deux** casks — `la-bible-ont` depuis
+`app-store`, `la-bible-ont@beta` depuis `beta-test` — et le README de profil de
+l'auteur annonce la release stable par son propre script. La promotion d'une
+version passe donc par **deux gestes** désormais : la chaîne de branches pour
+l'App Store, l'étiquette `brew-v*` pour Homebrew — le second ne suit pas le
+premier tout seul, et c'est voulu : une étiquette est une décision, pas un
+réflexe.
+
+### 31 août 2026 — Android avait la moitié du remède
+
+Le corpus publié qui écrase un bundle plus neuf a été corrigé en deux temps sur
+iOS : d'abord la **cause** — `synchroniser` refuse un manifeste plus vieux que
+le corpus embarqué —, puis l'**effet**, quand la 1.0.5 a embarqué la couche des
+Shemot et n'a affiché aucun nom. Le disque portait le corpus de l'avant-veille
+et répondait à sa place ; refuser d'en *poser* un mauvais ne fait rien à celui
+qui est déjà là.
+
+**Android n'avait reçu que le premier temps.** `plusRecentQueLeBundle` y était,
+mot pour mot ; `purgerSiLeBundleEstPlusNeuf` n'existait pas. Le montage étant
+identique — le disque recouvre le bundle fichier par fichier, sans condition —
+le défaut y attendait à l'identique, et indéfiniment : jusqu'au jour où le site
+publie plus récent que la copie périmée.
+
+- **Android** — la purge portée, appelée dans `MainActivity` **avant** la
+  construction des dépôts. Après eux, elle ne réparerait que le lancement
+  suivant. L'estampille du disque est désormais écrite, après les fichiers,
+  pour la même raison que le registre d'empreintes ;
+- **iOS** — rien : c'est de lui que vient le remède ;
+- **site** — rien : `corpus-publie.py` refuse déjà de publier un corpus
+  indatable, et c'est ce refus qui rend l'ordre calculable des deux côtés ;
+- **vault** — rien.
+
+**Ce que ça dit du portage.** Une correction en deux temps se porte en un seul
+si l'on ne lit que le premier commit. Le second ne se voyait pas comme une
+correction — il fermait un trou laissé *par* la correction, sur une autre
+fonction, dans un autre fichier. Chercher `plusRecent` chez le voisin le
+trouvait et concluait « c'est porté ».
+
+**Et le piège de l'égalité, qui n'existait que côté Kotlin.** Écrire la purge
+comme `!plusRecent(disque, bundle)` paraît juste : `plusRecent` est déjà la
+comparaison, et la nier semble donner « le disque est périmé ». Mais elle est
+**stricte**, et l'égalité est le cas *ordinaire* — le disque porte alors
+exactement le corpus du bundle. L'app aurait purgé et retéléchargé vingt méga à
+chaque lancement, sur le forfait du lecteur, pour reposer les mêmes octets.
+Aucune erreur, aucun texte faux : seulement une app qui consomme. L'épreuve
+`a date egale le disque est garde` tient ce cas, et rougit contre cette
+écriture-là.
+
+**Et sous le trou, la garde était creuse.** En vérifiant la purge sur
+l'émulateur — elle n'effaçait rien —, on a trouvé pourquoi : le manifeste **du
+bundle** porte `generatedAt`, celui **du site** porte `genere`, et Android les
+décodait avec la même classe. Kotlinx cherchait `genere` dans le document du
+pipeline, ne le trouvait pas, prenait la valeur par défaut. `dateDuBundle()`
+rendait la chaîne vide **depuis toujours**.
+
+Ce n'est pas une dégradation de la garde, c'est son **annulation** : un bundle
+indatable n'a rien à opposer — à raison, sinon ses lecteurs n'auraient plus
+jamais de mise à jour —, donc `plusRecentQueLeBundle` acceptait tout. Android
+avait la fonction, ses six épreuves, sa documentation, et aucune protection.
+
+Les épreuves étaient vertes parce qu'elles nourrissaient la date **déjà
+décodée**. Le défaut vivait un cran en amont, dans le décodage, et aucune
+d'elles ne le traversait. C'est la même famille que tout le reste de ces deux
+jours : l'instrument mesurait exactement, à côté.
+
+Trois épreuves de plus partent maintenant d'un vrai document du pipeline. iOS
+lisait la bonne clé — `objet["generatedAt"]` —, le site aussi ; le défaut était
+propre à Kotlin, et il venait de réutiliser un type parce que les deux
+documents s'appelaient « manifeste ».
+
 ### 7 septembre 2026 — le journal a deux régimes, et le contrôle mesurait le mauvais
 
 Décision de l'auteur : **tronc commun et entrées locales.** Seul ce qui traverse
@@ -3782,3 +3872,217 @@ la télémétrie sait filtrer* — en inventer un, c'est le publier.
 **Reste opérationnel, chez l'auteur** : vérifier les événements déjà reçus
 côté Sentry (l'accès outillé a expiré, le jeton local n'est qu'un jeton CI),
 et faire tourner le secret si l'exposition se confirme.
+
+## 8 septembre 2026 — le niveau 3 devient touchable, et le champ qui le porte traverse les trois
+
+Le lecteur lit `(*chesed* / חֶסֶד)`, il est dessus, c'est exactement le moment où
+il veut la fiche — et rien ne répond. Le même mot, balisé `**chesed**` trente
+lignes plus haut, l'ouvre pourtant. L'appareil qui relie un mot à sa fiche
+s'arrêtait au corps du texte, à l'endroit précis où on le demande.
+
+`Inline::Translit` porte désormais une **`cible`**, remplie à la construction :
+`{"t":"term","lemma":"…"}` ou `{"t":"shem","lemma":"…"}`, escamotée quand il n'y
+en a pas. Sur 2086 translittérations, **829 se résolvent** — 398 vers une entrée
+de glossaire, 431 vers un Shem — et 1257 restent inertes.
+
+**Aucune résolution morphologique, et c'est la décision.** `vayiven` vient de
+`banah`, `lehavdil` de `badal` ; ces règles se codent. Le problème n'est pas leur
+difficulté mais leur **mode d'échec** : une règle qui se trompe ne rend pas le
+mot inerte, elle le rend touchable ==vers la mauvaise fiche==. Le lecteur arrive
+ailleurs sans que rien ne le dise. L'abstention se voit, la substitution
+silencieuse non. Le chemin de sortie est le §2.5, et `dist/report.md` classe
+maintenant les 989 formes restantes **par fréquence** pour que la déclaration
+commence par ce qui sert le plus — `YHWH Elohim` en tête, 26 occurrences.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — le pipeline émet le champ ; iOS et Android le lisent et le rendent
+  touchable, avec la couleur de la destination. 191 épreuves iOS, `:ontdata` et
+  `:ontkit` verts côté Android.
+- **Site** — il compile contre la caisse `ont-pipeline` elle-même, donc **un
+  champ ajouté à `Inline::Translit` casse sa compilation**, immédiatement et par
+  construction. Porté dans la même session : branche `lier-le-niveau-trois`.
+  ==Elle ne compile qu'une fois le pipeline fusionné sur `device`== — c'est la
+  dépendance de chemin `../ONTBibleApp/pipeline`, et l'ordre de fusion est donc
+  App puis Site, jamais l'inverse.
+- **Vault** — rien à porter, une liste de travail à recevoir : la section
+  « Niveau 3 non résolu — par où déclarer » du rapport.
+
+### Deux défauts trouvés en chemin, et ils se ressemblent
+
+**Le codegen Swift ne savait pas décoder un optionnel dans une variante d'enum.**
+`cible` est le premier, et la Swift engendrée écrivait
+`try container.decode(Cible?.self, forKey:)` — qui lève `keyNotFound` sur une clé
+absente, là où le `Decodable` synthétisé lirait `decodeIfPresent`. Mesuré sur un
+`{"a":"x"}`. Le commentaire du module affirmait « les optionnels vont bien tout
+seuls » : vrai du synthétisé, faux de l'écrit à la main — et une variante d'enum
+tagué s'écrit **toujours**. Le champ escamoté étant le cas ordinaire, la faute
+n'aurait pas raté un nœud : elle aurait fait échouer le décodage du corpus
+entier.
+
+**`.github/scripts/epreuves.py` n'était lancé par personne.** Écrit le 31 août
+contre un faux App Store Connect, précisément pour les deux défauts que
+`py_compile` ne voit pas — et `tests.yml` s'arrêtait à `py_compile`. Sa propre
+docstring donnait la commande, et personne ne la tapait. Même famille d'un cran
+au-dessus : l'instrument exact qui ne répond à la question de personne. La CI les
+lance maintenant.
+
+## 8 septembre 2026 — la 1.0.6, et le rappel que trois livraisons mortes n'avaient pas obtenu
+
+Apple a validé la **1.0.5**. Le numéro public est donc brûlé : App Store Connect
+refuse un téléversement qui le reprend, et le refus arrive **après** la
+compilation et la signature de l'archive. Puis ça recommence à chaque fusion tant
+que le numéro n'a pas bougé — cinq livraisons de suite en août.
+
+Troisième occurrence en quinze jours : 1.0.3 le 24 août, 1.0.4 le 30, 1.0.5 le 8
+septembre. `app/project.yml` portait les deux premières écrites et la conclusion
+« ce qui manque est un **rappel**, pas une automatisation ». La phrase y est
+restée, et la troisième est arrivée. ==Un texte qui nomme ce qui manque ne le
+fournit pas.==
+
+`livraison.yml` demande maintenant à App Store Connect si le numéro est libre, en
+tête, avant la première étape qui coûte — iOS et macOS, chacun sur sa plateforme.
+
+**Pourquoi Apple et non les releases GitHub.** Une release existe dès qu'une
+version atteint `app-store`, donc dès la *soumission*, pas dès l'approbation. Une
+version soumise puis **rejetée** accepte parfaitement un nouveau build sous le
+même numéro ; s'appuyer sur la release bloquerait exactement la correction qu'un
+rejet appelle. L'instrument aurait été exact, et il aurait répondu à une autre
+question que celle qu'on pose.
+
+**Pour les trois dépôts** : rien à porter, une chose à savoir — la version
+publique de l'app est **1.0.6** partout où l'on en parle, et le geste de la
+monter n'est plus laissé à la mémoire de qui livre.
+
+### Addendum du 8 septembre au soir — `## Formes`, et l'endroit où l'on déclare
+
+Le classement envoyé au vault dans la journée conseillait *« ajouter la forme au
+§2.5 de son entrée »*. **C'était faux**, et la session du vault l'a relevé.
+
+L'auteur a tranché le même jour (§2.5 ter) qu'une fiche déclare ses propres
+formes fléchies, **après son corps** :
+
+    lexique/<lemme>.md
+
+    ## Formes
+
+    vayomer · vayomru · amarti · vaʾomar
+
+Pas au §2.5 du document de référence : celui-ci réserve `**…**` aux
+**intraduisibles**, et y déclarer `vayomer` ferait d'`amar` un intraduisible —
+lui faisant perdre son rendu « formuler » du §3.1. Le même endroit ne peut pas
+dire les deux.
+
+**Le pipeline ne lisait aucune de ces sections.** Trente-quatre fiches, cent
+soixante-quatre formes écrites, zéro effet : `form_index` ne se construisait
+qu'à partir du `CLAUDE.md`. Le contrôle positif était sous le nez — `asah.md`
+déclare `vayaʿas`, et le rapport du même build l'imprimait en inerte à six
+occurrences. Mesuré par la session du vault sur trois états successifs du vault,
+sans lire une ligne de code.
+
+Corrigé : **844 → 977 translittérations résolues sur 2085**, et la prose du
+rapport dit maintenant le bon endroit — dans le même commit que le lecteur, et
+pas avant, sinon on enverrait écrire dans un endroit que rien ne lit.
+
+**Ce que ça change pour le vault, et c'est tout ce qu'il y a à retenir** : la
+section « Niveau 3 non résolu — par où déclarer » du rapport porte la liste, et
+son remède est `## Formes` dans la fiche. Pour un nom propre, c'est la fiche de
+Shem qu'il faut écrire. Sept fiches — `halakh`, `mut`, `yada`, `sim`, `zera`,
+`gan`, `toledot` — existent dans `lexique/` **sans entrée de glossaire** : leurs
+formes restent inertes tant que l'entrée n'est pas écrite, parce qu'un lien vers
+une fiche absente de `glossary.json` donnerait un mot doré qui n'ouvre rien.
+
+## 8 septembre 2026 — un jeton survivait à son compte, et l'app le savait déjà faire
+
+`DELETE /me` répondait `204`, et le jeton d'accès continuait d'ouvrir `PUT /sync`
+pendant **cinquante-neuf minutes**. Le lecteur pouvait donc réécrire ce qu'il
+venait de faire effacer.
+
+**Ce n'est pas un scénario d'attaquant.** C'est l'app elle-même qui le ferait :
+elle pousse sa file locale à la prochaine occasion, sans savoir que le compte
+n'est plus. L'effacement cessait d'être final, et rien ne le disait — ni au
+lecteur, ni au journal.
+
+Un JWT ne se révoque pas : signé, il vaut jusqu'à son expiration. Le remède posé
+dans `domain/token.rs` — le garder court, une heure — est juste pour une fuite.
+Il ne l'est pas pour un effacement, qui doit valoir tout de suite.
+
+`erase` supprime toute la partition du lecteur, **profil compris**. « Le compte
+existe-t-il » et « ce jeton vaut-il encore » sont donc la même question, posée à
+un objet qui existe déjà. Une liste de révocation aurait demandé un type d'objet
+neuf, un TTL à tenir, et un endroit de plus où l'oubli d'une écriture rouvre le
+trou.
+
+### Ce que ça change pour les trois clients — vérifié, pas supposé
+
+Le contrat de forme ne bouge pas : ==aucune réponse ne change de shape==. Ce qui
+change est qu'un `401` peut désormais arriver **là où l'app n'en attendait pas**
+— sur une route qui répondait encore il y a une heure.
+
+- **iOS** — `AccountModel.synchronise()` porte déjà
+  `catch AccountError.unauthorized { signOut() }`. Un compte effacé ailleurs
+  déconnecte proprement au lieu de ressusciter ses données. Rien à porter.
+- **Le site** — `infrastructure/comptes.rs` traduit `401` en
+  `ErreurDeCompte::Refuse` sur ses deux appels de synchronisation. Rien à porter.
+- **Android** — la synchronisation n'est pas encore branchée ; le jour où elle
+  le sera, le `401` doit déconnecter et non réessayer. Une boucle de
+  rafraîchissement échouerait de toute façon : le jeton de rafraîchissement vit
+  en base, et l'effacement l'emporte avec le reste.
+
+`DELETE /me` reste **idempotent** : c'est la seule route qui ne vérifie que la
+signature. Un second appel n'a rien à effacer et ne doit pas se plaindre.
+
+Le prix est un `GetItem` par requête authentifiée. L'alternative gratuite — une
+écriture conditionnelle sur `PUT /sync` seulement — fermait la réécriture sans
+rien coûter, mais laissait un compte effacé lire et diffuser. **Une révocation
+qui ne vaut que sur une route n'est pas une révocation.**
+
+`livraison.yml` ignore `backend/**` : ce correctif ne consomme aucune place de
+téléversement Apple. Il part par `deployer-backend.yml`.
+
+## 8 septembre 2026 au soir — l'habillage d'une feuille appartient à la présentation
+
+Relevé à l'écran, deux fois de suite sur la même feuille. Celle de prononciation
+s'ouvrait **plein écran et sans poignée** pendant que celle de lecture s'ouvrait
+à mi-hauteur ; puis elle **touchait les deux bords** pendant que l'autre
+respirait.
+
+Deux écarts, une seule cause, et ce n'était pas une faute d'écriture. Les deux
+habillages **existaient** :
+
+- les paliers, dans `ontHauteurDeFeuille` — à demander au point d'appel, et une
+  feuille sur sept le demandait ;
+- la gouttière, dans `ontRow`, avec le commentaire juste — *« chaque écran qui
+  l'emploie en profite, sans y penser »* — et enfermée dans un `#if os(macOS)`.
+
+==Un habillage qu'on ajoute à la main est un habillage qu'on oublie.== Et
+l'oubli ne se voit nulle part dans le code : il se voit à l'écran, en ouvrant
+les deux feuilles à la suite, en y pensant.
+
+**Le renversement** : l'habillage est le défaut, la dérogation s'écrit. Les deux
+dérogations de l'app sont maintenant lisibles — `paliers: .pleine` pour le
+compte, `paliers: .mesures([.medium])` pour une note. Avant, on ne pouvait pas
+distinguer un choix d'un oubli.
+
+**La marge n'est pas dans l'habillage**, et c'est délibéré : elle y doublerait
+celle du `Form` groupé des réglages. Une rangée ne connaît pas le style de sa
+liste ; la conséquence s'écrit là où le style se choisit — `ontListeDeProse()`.
+
+**Nommer plutôt qu'exempter.** Le Lexique est un index : son rail de lettres
+doit rester collé au bord, là où le pouce le cherche. Plutôt qu'une exception
+dans le contrôle, il a son nom — `ontListeDIndex()`. Une liste sans gouttière
+est soit un index, soit un oubli, et la forme nue ne dit pas lequel ; une liste
+d'exceptions vieillit, un nom tient.
+
+### Ce que ça change pour chaque dépôt
+
+- **App / iOS** — fait. `scripts/eprouver-les-feuilles.sh` en CI : un `.sheet(`
+  nu ou un `.listStyle(.plain)` nu hors du système de design fait échouer le
+  build. Il a trouvé trois contournements du premier coup, dans `RootView`.
+- **App / Android** — ==à faire, et c'est le même défaut d'un cran plus loin==.
+  Les `ModalBottomSheet` de Compose ont leur propre habillage, choisi par
+  appelant. La règle à y porter est celle-ci, pas le code : l'habillage au
+  système, la dérogation écrite, et un contrôle qui interdit la forme nue.
+  L'arbitrage revient à la session Android — le rappel traverse ses signatures.
+- **Site** — rien à porter. Il n'a pas de feuilles modales : ses fiches sont des
+  pages. La conclusion est constatée, pas supposée.

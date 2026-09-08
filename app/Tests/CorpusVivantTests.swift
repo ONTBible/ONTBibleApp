@@ -127,7 +127,10 @@ struct CorpusVivantTests {
     @Test("une entrée corrigée se voit sans relancer")
     func leLexiqueSuit() {
         let glossaire = GlossaireMouvant()
-        let model = LexiconModel(glossary: glossaire)
+        // Les Shemot et la feuille de prononciation ne sont pas le sujet de
+        // cette épreuve : des doublures vides disent qu'on ne les mesure pas.
+        let model = LexiconModel(
+            glossary: glossaire, shemot: AucunShem(), feuilles: AucuneFeuille())
         #expect(model.entries.isEmpty)
 
         glossaire.entrees = [
@@ -143,4 +146,15 @@ struct CorpusVivantTests {
         #expect(model.entries.count == 1)
         #expect(model.entry("bara")?.rendering == "orchestrer")
     }
+}
+
+/// Un dépôt de Shemot qui n'en porte aucun.
+private struct AucunShem: ShemotRepository {
+    func entries() throws -> [ShemEntry] { [] }
+}
+
+/// Un dépôt de feuille qui n'en porte aucune — l'état d'un vault qui ne l'a pas
+/// encore écrite.
+private struct AucuneFeuille: PrononciationRepository {
+    func feuille() -> FeuilleDePrononciation? { nil }
 }

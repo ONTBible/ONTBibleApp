@@ -345,3 +345,71 @@ struct ProfilAmorceParAppleTests {
         #expect(modele.profil.updatedAt == avant.updatedAt)
     }
 }
+/// **À qui appartient le travail posé sur cet appareil.**
+///
+/// `signOut()` laisse les annotations, délibérément — se déconnecter n'est pas
+/// effacer. Mais `signIn()` ne regardait pas non plus à qui elles étaient :
+/// deux comptes sur un même appareil, et les surlignages du premier partaient
+/// sous le compte du second à la première synchronisation. Sur des données de
+/// l'article 9.
+///
+/// Relevé par un audit externe le 8 septembre 2026.
+@MainActor
+struct ProprietaireDesDonneesTests {
+    /// Un jeton dont on ne lit que le `sub`. Ni signé ni valide — c'est le
+    /// serveur qui valide, et cette lecture ne prétend rien d'autre que
+    /// « quel compte ».
+    private func jeton(sujet: String) -> String {
+        let charge = Data(#"{"sub":"\#(sujet)","exp":9999999999}"#.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "entete.\(charge).signature"
+    }
+
+    @Test("le sujet se lit malgré l'absence de remplissage base64")
+    func sujetLisible() {
+        #expect(SujetDeSession.sujet(de: jeton(sujet: "compte-a")) == "compte-a")
+        #expect(SujetDeSession.sujet(de: "pas-un-jeton") == nil)
+        #expect(SujetDeSession.sujet(de: "a.pas-du-base64!.c") == nil)
+    }
+
+    /// Le cas ordinaire : on surligne, puis on se crée un compte. Le travail
+    /// est bien le sien — le compte l'adopte.
+    @Test("un travail que personne n'a réclamé est adopté")
+    func adoption() {
+        let store = InMemorySessionStore(consent: .grantedNow())
+        store.session = Session(
+            accessToken: jeton(sujet: "compte-a"), refreshToken: "r",
+            expiresAt: .distantFuture)
+        #expect(store.proprietaire == nil)
+    }
+
+    /// **Le cas dangereux.** Le second compte ne doit rien emporter, et le
+    /// premier ne doit rien perdre.
+    @Test("le travail d'un autre compte ne monte pas")
+    func travailDUnAutreCompte() {
+        let store = InMemorySessionStore(consent: .grantedNow(), proprietaire: "compte-a")
+        store.session = Session(
+            accessToken: jeton(sujet: "compte-b"), refreshToken: "r",
+            expiresAt: .distantFuture)
+
+        let sujet = SujetDeSession.sujet(de: store.session!.accessToken)
+        #expect(sujet == "compte-b")
+        #expect(store.proprietaire == "compte-a")
+        // Ce que la garde de `synchronise()` lit : les deux diffèrent, donc
+        // rien ne monte.
+        #expect(store.proprietaire != sujet)
+    }
+
+    /// Et le même compte n'est jamais gêné par sa propre garde.
+    @Test("le même compte retrouve son travail")
+    func memeCompte() {
+        let store = InMemorySessionStore(consent: .grantedNow(), proprietaire: "compte-a")
+        store.session = Session(
+            accessToken: jeton(sujet: "compte-a"), refreshToken: "r",
+            expiresAt: .distantFuture)
+        #expect(store.proprietaire == SujetDeSession.sujet(de: store.session!.accessToken))
+    }
+}

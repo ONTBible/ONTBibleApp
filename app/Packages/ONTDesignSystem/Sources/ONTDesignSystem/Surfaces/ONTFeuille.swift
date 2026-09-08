@@ -66,6 +66,69 @@ public final class ONTFeuilles {
     }
 }
 
+/// Les paliers qu'une feuille de l'ONT ouvre, et la poignée qui les annonce.
+///
+/// ## Le défaut que ça ferme, relevé à l'écran le 8 septembre 2026
+///
+/// La feuille de prononciation s'ouvrait **plein écran**, sans poignée. Celle
+/// de lecture s'ouvrait à mi-hauteur, avec poignée grise, et montait au
+/// glissement. Deux feuilles de la même app, deux comportements, et rien pour
+/// le dire au lecteur.
+///
+/// La cause n'était pas une faute d'écriture : `ontHauteurDeFeuille` existait,
+/// et **il fallait y penser au point d'appel**. Une seule feuille sur sept
+/// l'appelait. Un habillage qu'on ajoute à la main est un habillage qu'on
+/// oublie — l'oubli ne se voit pas dans le code, il se voit à l'écran, et
+/// seulement si l'on ouvre les deux feuilles à la suite.
+///
+/// D'où le renversement : **l'habillage est le défaut, la dérogation
+/// s'écrit**. Une feuille qui veut autre chose le dit ; une feuille qui ne dit
+/// rien ressemble aux autres.
+///
+/// ## Pourquoi `[.medium, .large]` et pas le plein écran
+///
+/// Une feuille qui couvre tout coupe le lecteur de ce qu'il lisait. À
+/// mi-hauteur, le texte reste visible derrière : la fiche de prononciation
+/// explique un mot qu'on est en train de lire, et le perdre de vue en
+/// l'expliquant est une perte sèche.
+///
+/// Et le palier moyen apporte la **poignée** : iOS ne la dessine que sur une
+/// feuille redimensionnable. Sans elle, rien ne dit que la feuille peut monter.
+public struct ONTPaliersDeFeuille: Sendable {
+    let detentes: Set<PresentationDetent>
+
+    /// Mi-hauteur d'abord, plein écran au glissement. L'habitude de l'ONT.
+    public static let ordinaire = ONTPaliersDeFeuille(detentes: [.medium, .large])
+
+    /// Plein écran d'emblée, pour ce qui n'a pas de « derrière » utile.
+    public static let pleine = ONTPaliersDeFeuille(detentes: [.large])
+
+    public static func mesures(_ detentes: Set<PresentationDetent>) -> Self {
+        ONTPaliersDeFeuille(detentes: detentes)
+    }
+}
+
+extension View {
+    /// L'habillage d'une feuille de l'ONT, posé par la présentation.
+    ///
+    /// Sur le Mac il ne fait rien : la carte y est dessinée par le projet, elle
+    /// n'a ni palier ni poignée. Voir `ONTPaliersDeFeuille` pour le pourquoi.
+    func ontHabillageDeFeuille(_ paliers: ONTPaliersDeFeuille) -> some View {
+        #if os(iOS)
+            return
+                self
+                .presentationDetents(paliers.detentes)
+                // **Visible, et non « automatique ».** Le défaut d'iOS ne la
+                // montre que dans certaines configurations — c'est ce qui a
+                // produit deux feuilles inégales sans qu'aucune ligne de code
+                // ne le demande.
+                .presentationDragIndicator(.visible)
+        #else
+            return self
+        #endif
+    }
+}
+
 extension View {
     /// La racine porte les modales que les vues déposent.
     ///
@@ -83,18 +146,20 @@ extension View {
     public func ontFeuille<Contenu: View>(
         presentee: Binding<Bool>,
         titre: String? = nil,
+        paliers: ONTPaliersDeFeuille = .ordinaire,
         @ViewBuilder contenu: @escaping () -> Contenu
     ) -> some View {
-        modifier(Feuille(presentee: presentee, titre: titre, contenu: contenu))
+        modifier(Feuille(presentee: presentee, titre: titre, paliers: paliers, contenu: contenu))
     }
 
     /// La même, pour une modale que son objet ouvre et ferme.
     public func ontFeuille<Objet: Identifiable, Contenu: View>(
         objet: Binding<Objet?>,
         titre: String? = nil,
+        paliers: ONTPaliersDeFeuille = .ordinaire,
         @ViewBuilder contenu: @escaping (Objet) -> Contenu
     ) -> some View {
-        modifier(FeuilleDObjet(objet: objet, titre: titre, contenu: contenu))
+        modifier(FeuilleDObjet(objet: objet, titre: titre, paliers: paliers, contenu: contenu))
     }
 
     /// La chrome qu'une feuille d'iOS doit porter, et que la carte du Mac porte
@@ -156,6 +221,7 @@ private struct PorteLesFeuilles: ViewModifier {
 private struct Feuille<Contenu: View>: ViewModifier {
     @Binding var presentee: Bool
     let titre: String?
+    let paliers: ONTPaliersDeFeuille
     @ViewBuilder let contenu: () -> Contenu
 
     #if os(macOS)
@@ -182,7 +248,9 @@ private struct Feuille<Contenu: View>: ViewModifier {
                 }
             }
         #else
-            content.sheet(isPresented: $presentee, content: contenu)
+            content.sheet(isPresented: $presentee) {
+                contenu().ontHabillageDeFeuille(paliers)
+            }
         #endif
     }
 
@@ -202,6 +270,7 @@ private struct Feuille<Contenu: View>: ViewModifier {
 private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
     @Binding var objet: Objet?
     let titre: String?
+    let paliers: ONTPaliersDeFeuille
     @ViewBuilder let contenu: (Objet) -> Contenu
 
     #if os(macOS)
@@ -230,7 +299,9 @@ private struct FeuilleDObjet<Objet: Identifiable, Contenu: View>: ViewModifier {
                 }
             }
         #else
-            content.sheet(item: $objet, content: contenu)
+            content.sheet(item: $objet) { choisi in
+                contenu(choisi).ontHabillageDeFeuille(paliers)
+            }
         #endif
     }
 
