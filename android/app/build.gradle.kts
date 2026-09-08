@@ -185,6 +185,24 @@ tasks.register<Sync>("copierLesDonnees") {
     description = "Recopie le corpus produit par le pipeline dans les assets."
     from(donneesDuPipeline)
     into(File(assetsEngendres, "data"))
+
+    // ## Le guide de prononciation n'est pas lu par Android
+    //
+    // `corpus.sh` copie `dist/*.json` — un **glob**, pas une liste. Tout
+    // nouveau document du pipeline entre donc dans les ressources sans que
+    // personne l'ait décidé, et de là dans le paquet de tous les lecteurs.
+    //
+    // C'est ce qui vient d'arriver : `prononciation.json`, seize kilo-octets
+    // qu'iOS lit dans sept fichiers et qu'Android n'ouvre nulle part.
+    // `verifierLeCorpus` l'a arrêté — c'est exactement ce pour quoi il existe.
+    //
+    // On exclut plutôt que de l'inscrire aux connus : inscrire déclare qu'un
+    // lecteur existe, et ce serait faux.
+    //
+    // **C'est un écart de parité, pas une décision** — voir l'issue ouverte le
+    // 8 septembre. Le jour où Android saura le lire, cette ligne disparaît et
+    // le nom rejoint `connusDuCorpus`.
+    exclude("prononciation.json")
 }
 
 /**
@@ -239,6 +257,10 @@ val connusDuCorpus = setOf(
     "books", "corpus.json", "daily.json", "glossary.json",
     "manifest.json", "occurrences.json", "report.md", "search.json",
     "shemot.json",
+    // Exclu de la copie plutôt que lu — voir `copierLesDonnees`. Il figure ici
+    // pour que la garde ne redise pas ce qui est déjà tranché, et le
+    // commentaire de l'exclusion porte la raison.
+    "prononciation.json",
 )
 
 tasks.register("verifierLeCorpus") {

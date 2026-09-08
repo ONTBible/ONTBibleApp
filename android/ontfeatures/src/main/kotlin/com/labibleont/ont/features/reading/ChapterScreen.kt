@@ -87,6 +87,13 @@ public fun ChapterScreen(
     onTerme: (String) -> Unit,
     /** Le nom propre touché — voir `Inline.Shem`. */
     onShem: (String) -> Unit = {},
+    /**
+     * Ce qu'on fait d'un renvoi touché — la **cible**, pas le libellé.
+     *
+     * Il était coloré sans être touchable : la teinte promettait un ailleurs
+     * que le doigt n'obtenait pas, et le lecteur croyait avoir mal visé.
+     */
+    onRenvoi: (String) -> Unit = {},
     /** Les versets désignés — vide quand le lecteur lit sans rien viser. */
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
@@ -165,6 +172,7 @@ public fun ChapterScreen(
                 preferences = preferences,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
                 selection = selection,
                 onVerset = onVerset,
                 marque = marque,
@@ -276,6 +284,13 @@ private fun BlocDeTexte(
     onTerme: (String) -> Unit,
     /** Le nom propre touché — voir `Inline.Shem`. */
     onShem: (String) -> Unit = {},
+    /**
+     * Ce qu'on fait d'un renvoi touché — la **cible**, pas le libellé.
+     *
+     * Il était coloré sans être touchable : la teinte promettait un ailleurs
+     * que le doigt n'obtenait pas, et le lecteur croyait avoir mal visé.
+     */
+    onRenvoi: (String) -> Unit = {},
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
     marque: (Int) -> HighlightColor? = { null },
@@ -387,6 +402,7 @@ private fun BlocDeTexte(
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
                                 onVerset = onVerset,
                                 fond = fondDe(marque(verset.n), theme),
                                 estompe = selection.isNotEmpty() && verset.n !in selection,
@@ -448,6 +464,7 @@ private fun BlocDeTexte(
                         showLevel3 = preferences.showLevel3,
                         onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
                         fond = fondDe(marque(verset.n), theme),
                     )
                     Text(
@@ -486,6 +503,7 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(vertical = 6.dp),
@@ -498,6 +516,7 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -515,6 +534,7 @@ private fun BlocDeTexte(
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
                             ),
                         )
                     },

@@ -892,6 +892,30 @@ private fun Racine(
                             onPositionLue = { n -> lecture.retenir(n) },
                             marque = { verset -> lecture.surlignage(verset)?.color },
                             onShem = { lemme -> shem = lemme },
+                            // ## Ce qu'un renvoi fait, tant qu'il n'a nulle part où mener
+                            //
+                            // Les chuqqot n'ont pas encore d'écran — l'onglet
+                            // est à concevoir, et c'est iOS qui le décide. Mais
+                            // laisser le renvoi muet était pire : coloré, donc
+                            // promettant un ailleurs, et sourd au doigt. Le
+                            // lecteur croyait avoir mal visé et recommençait.
+                            //
+                            // On dit donc la vérité, comme la fiche d'un lemme
+                            // sans entrée le fait déjà : « balisé dans le texte
+                            // mais pas encore d'entrée ». Un renvoi mort dit
+                            // « ce n'est pas encore écrit », jamais
+                            // « introuvable » — c'est la formule du domaine.
+                            //
+                            // Provisoire et assumé : le jour où l'écran existe,
+                            // c'est cette ligne-ci qu'on remplace, et elle est
+                            // seule.
+                            onRenvoi = { cible ->
+                                portee.launch {
+                                    messages.showSnackbar(
+                                        "« $cible » est une chuqqah qui n'est pas encore lisible ici.",
+                                    )
+                                }
+                            },
                             onTerme = { lemme ->
                                 lexique.charger()
                                 terme = lemme
