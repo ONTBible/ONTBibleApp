@@ -14,6 +14,19 @@ import Foundation
 ///
 /// Les garder distincts, c'est ce qui rend les trois interrupteurs de lecture
 /// gratuits : masquer un niveau, c'est ne pas émettre ses nœuds.
+/// Ce qu'une translittération de niveau 3 ouvre.
+///
+/// **Deux destinations, et elles ne se confondent pas** : une entrée de
+/// glossaire vit dans `glossary.json` et s'ouvre par `ont://term/…`, une fiche
+/// de Shem dans `shemot.json` et par `ont://shem/…`.
+///
+/// Un type plutôt qu'un lemme et une sorte : il n'y a rien à tenir ensemble, le
+/// lemme ne s'écrit pas sans dire où il mène.
+public enum CibleDuNiveauTrois: Hashable, Sendable {
+    case term(lemma: String)
+    case shem(lemma: String)
+}
+
 public enum Inline: Hashable, Sendable {
     case text(String)
     /// Un intraduisible. `lemma` est la clé qui ouvre sa fiche de lexique.
@@ -59,7 +72,19 @@ public enum Inline: Hashable, Sendable {
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
-    case translit(String, hebrew: String)
+    ///
+    /// `cible` est la fiche que la translittération ouvre, **quand elle en
+    /// ouvre une**. Le lecteur est sur le mot hébreu, c'est le moment où il
+    /// veut sa fiche ; l'appareil s'arrêtait au corps du texte, à l'endroit
+    /// précis où on le lui demande.
+    ///
+    /// **Nul est le cas ordinaire**, et il est honnête : le pipeline ne résout
+    /// que l'exact — un lemme, une forme déclarée au §2.5, un Shem publié — et
+    /// laisse inerte tout ce qui demanderait de deviner. Une règle
+    /// morphologique qui se trompe ne rend pas le mot inerte : elle le rend
+    /// touchable **vers la mauvaise fiche**, ce que le lecteur ne peut pas
+    /// voir.
+    case translit(String, hebrew: String, cible: CibleDuNiveauTrois?)
     /// Une séquence en écriture hébraïque rencontrée hors d'un `.translit`.
     case hebrew(String)
     case gloss([Inline])
@@ -133,7 +158,7 @@ public extension [Inline] {
                 repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }
-            case .translit(let translit, let hebrew):
+            case .translit(let translit, let hebrew, _):
                 if level3 { repliage.ajouter("(\(translit) / \(hebrew))") }
             case .gloss(let children):
                 if gloss { children.ecrire(dans: &repliage, gloss: gloss, level3: level3) }

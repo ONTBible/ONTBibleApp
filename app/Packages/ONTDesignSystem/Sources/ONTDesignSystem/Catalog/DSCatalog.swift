@@ -216,7 +216,10 @@ struct CatalogText: View {
         [
             .term("YHWH", lemma: "yhwh"),
             .text(" se laissa voir "),
-            .translit("vayera elav YHWH", hebrew: "וַיֵּרָא אֵלָיו יְהוָה"),
+            .translit(
+                "chesed", hebrew: "חֶסֶד", cible: .term(lemma: "chesed")),
+            .text(" "),
+            .translit("vayera elav YHWH", hebrew: "וַיֵּרָא אֵלָיו יְהוָה", cible: nil),
             .text(" "),
             .gloss([
                 .text("niphal de "),

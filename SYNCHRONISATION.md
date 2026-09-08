@@ -3719,3 +3719,122 @@ Trois épreuves de plus partent maintenant d'un vrai document du pipeline. iOS
 lisait la bonne clé — `objet["generatedAt"]` —, le site aussi ; le défaut était
 propre à Kotlin, et il venait de réutiliser un type parce que les deux
 documents s'appelaient « manifeste ».
+
+## 8 septembre 2026 — le niveau 3 devient touchable, et le champ qui le porte traverse les trois
+
+Le lecteur lit `(*chesed* / חֶסֶד)`, il est dessus, c'est exactement le moment où
+il veut la fiche — et rien ne répond. Le même mot, balisé `**chesed**` trente
+lignes plus haut, l'ouvre pourtant. L'appareil qui relie un mot à sa fiche
+s'arrêtait au corps du texte, à l'endroit précis où on le demande.
+
+`Inline::Translit` porte désormais une **`cible`**, remplie à la construction :
+`{"t":"term","lemma":"…"}` ou `{"t":"shem","lemma":"…"}`, escamotée quand il n'y
+en a pas. Sur 2086 translittérations, **829 se résolvent** — 398 vers une entrée
+de glossaire, 431 vers un Shem — et 1257 restent inertes.
+
+**Aucune résolution morphologique, et c'est la décision.** `vayiven` vient de
+`banah`, `lehavdil` de `badal` ; ces règles se codent. Le problème n'est pas leur
+difficulté mais leur **mode d'échec** : une règle qui se trompe ne rend pas le
+mot inerte, elle le rend touchable ==vers la mauvaise fiche==. Le lecteur arrive
+ailleurs sans que rien ne le dise. L'abstention se voit, la substitution
+silencieuse non. Le chemin de sortie est le §2.5, et `dist/report.md` classe
+maintenant les 989 formes restantes **par fréquence** pour que la déclaration
+commence par ce qui sert le plus — `YHWH Elohim` en tête, 26 occurrences.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — le pipeline émet le champ ; iOS et Android le lisent et le rendent
+  touchable, avec la couleur de la destination. 191 épreuves iOS, `:ontdata` et
+  `:ontkit` verts côté Android.
+- **Site** — il compile contre la caisse `ont-pipeline` elle-même, donc **un
+  champ ajouté à `Inline::Translit` casse sa compilation**, immédiatement et par
+  construction. Porté dans la même session : branche `lier-le-niveau-trois`.
+  ==Elle ne compile qu'une fois le pipeline fusionné sur `device`== — c'est la
+  dépendance de chemin `../ONTBibleApp/pipeline`, et l'ordre de fusion est donc
+  App puis Site, jamais l'inverse.
+- **Vault** — rien à porter, une liste de travail à recevoir : la section
+  « Niveau 3 non résolu — par où déclarer » du rapport.
+
+### Deux défauts trouvés en chemin, et ils se ressemblent
+
+**Le codegen Swift ne savait pas décoder un optionnel dans une variante d'enum.**
+`cible` est le premier, et la Swift engendrée écrivait
+`try container.decode(Cible?.self, forKey:)` — qui lève `keyNotFound` sur une clé
+absente, là où le `Decodable` synthétisé lirait `decodeIfPresent`. Mesuré sur un
+`{"a":"x"}`. Le commentaire du module affirmait « les optionnels vont bien tout
+seuls » : vrai du synthétisé, faux de l'écrit à la main — et une variante d'enum
+tagué s'écrit **toujours**. Le champ escamoté étant le cas ordinaire, la faute
+n'aurait pas raté un nœud : elle aurait fait échouer le décodage du corpus
+entier.
+
+**`.github/scripts/epreuves.py` n'était lancé par personne.** Écrit le 31 août
+contre un faux App Store Connect, précisément pour les deux défauts que
+`py_compile` ne voit pas — et `tests.yml` s'arrêtait à `py_compile`. Sa propre
+docstring donnait la commande, et personne ne la tapait. Même famille d'un cran
+au-dessus : l'instrument exact qui ne répond à la question de personne. La CI les
+lance maintenant.
+
+## 8 septembre 2026 — la 1.0.6, et le rappel que trois livraisons mortes n'avaient pas obtenu
+
+Apple a validé la **1.0.5**. Le numéro public est donc brûlé : App Store Connect
+refuse un téléversement qui le reprend, et le refus arrive **après** la
+compilation et la signature de l'archive. Puis ça recommence à chaque fusion tant
+que le numéro n'a pas bougé — cinq livraisons de suite en août.
+
+Troisième occurrence en quinze jours : 1.0.3 le 24 août, 1.0.4 le 30, 1.0.5 le 8
+septembre. `app/project.yml` portait les deux premières écrites et la conclusion
+« ce qui manque est un **rappel**, pas une automatisation ». La phrase y est
+restée, et la troisième est arrivée. ==Un texte qui nomme ce qui manque ne le
+fournit pas.==
+
+`livraison.yml` demande maintenant à App Store Connect si le numéro est libre, en
+tête, avant la première étape qui coûte — iOS et macOS, chacun sur sa plateforme.
+
+**Pourquoi Apple et non les releases GitHub.** Une release existe dès qu'une
+version atteint `app-store`, donc dès la *soumission*, pas dès l'approbation. Une
+version soumise puis **rejetée** accepte parfaitement un nouveau build sous le
+même numéro ; s'appuyer sur la release bloquerait exactement la correction qu'un
+rejet appelle. L'instrument aurait été exact, et il aurait répondu à une autre
+question que celle qu'on pose.
+
+**Pour les trois dépôts** : rien à porter, une chose à savoir — la version
+publique de l'app est **1.0.6** partout où l'on en parle, et le geste de la
+monter n'est plus laissé à la mémoire de qui livre.
+
+### Addendum du 8 septembre au soir — `## Formes`, et l'endroit où l'on déclare
+
+Le classement envoyé au vault dans la journée conseillait *« ajouter la forme au
+§2.5 de son entrée »*. **C'était faux**, et la session du vault l'a relevé.
+
+L'auteur a tranché le même jour (§2.5 ter) qu'une fiche déclare ses propres
+formes fléchies, **après son corps** :
+
+    lexique/<lemme>.md
+
+    ## Formes
+
+    vayomer · vayomru · amarti · vaʾomar
+
+Pas au §2.5 du document de référence : celui-ci réserve `**…**` aux
+**intraduisibles**, et y déclarer `vayomer` ferait d'`amar` un intraduisible —
+lui faisant perdre son rendu « formuler » du §3.1. Le même endroit ne peut pas
+dire les deux.
+
+**Le pipeline ne lisait aucune de ces sections.** Trente-quatre fiches, cent
+soixante-quatre formes écrites, zéro effet : `form_index` ne se construisait
+qu'à partir du `CLAUDE.md`. Le contrôle positif était sous le nez — `asah.md`
+déclare `vayaʿas`, et le rapport du même build l'imprimait en inerte à six
+occurrences. Mesuré par la session du vault sur trois états successifs du vault,
+sans lire une ligne de code.
+
+Corrigé : **844 → 977 translittérations résolues sur 2085**, et la prose du
+rapport dit maintenant le bon endroit — dans le même commit que le lecteur, et
+pas avant, sinon on enverrait écrire dans un endroit que rien ne lit.
+
+**Ce que ça change pour le vault, et c'est tout ce qu'il y a à retenir** : la
+section « Niveau 3 non résolu — par où déclarer » du rapport porte la liste, et
+son remède est `## Formes` dans la fiche. Pour un nom propre, c'est la fiche de
+Shem qu'il faut écrire. Sept fiches — `halakh`, `mut`, `yada`, `sim`, `zera`,
+`gan`, `toledot` — existent dans `lexique/` **sans entrée de glossaire** : leurs
+formes restent inertes tant que l'entrée n'est pas écrite, parce qu'un lien vers
+une fiche absente de `glossary.json` donnerait un mot doré qui n'ouvre rien.

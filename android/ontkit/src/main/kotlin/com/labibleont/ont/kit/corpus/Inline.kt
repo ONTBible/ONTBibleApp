@@ -29,6 +29,24 @@ package com.labibleont.ont.kit.corpus
  * ajouté au pipeline casse la compilation de l'app** au lieu de disparaître
  * silencieusement du texte.
  */
+/**
+ * Ce qu'une translittération de niveau 3 ouvre.
+ *
+ * **Deux destinations, et elles ne se confondent pas** : une entrée de
+ * glossaire vit dans `glossary.json`, une fiche de Shem dans `shemot.json`, et
+ * ce sont deux rappels distincts côté liseuse.
+ *
+ * Un type plutôt qu'un lemme et une sorte : il n'y a rien à tenir ensemble, le
+ * lemme ne s'écrit pas sans dire où il mène. Et le `when` qu'il impose est
+ * exhaustif — une troisième destination casserait la compilation au lieu de
+ * s'oublier.
+ */
+public sealed interface CibleDuNiveauTrois {
+    public data class Term(public val lemma: String) : CibleDuNiveauTrois
+
+    public data class Shem(public val lemma: String) : CibleDuNiveauTrois
+}
+
 public sealed interface Inline {
 
     /** Le corps de la traduction. */
@@ -79,6 +97,19 @@ public sealed interface Inline {
     public data class Translit(
         public val translit: String,
         public val hebrew: String,
+        /**
+         * La fiche que la translittération ouvre, **quand elle en ouvre une**.
+         *
+         * Le lecteur est sur le mot hébreu : c'est le moment où il veut sa
+         * fiche, et l'appareil s'arrêtait au corps du texte.
+         *
+         * **`null` est le cas ordinaire**, et il est honnête. Le pipeline ne
+         * résout que l'exact — un lemme, une forme déclarée au §2.5, un Shem
+         * publié — et laisse inerte tout ce qui demanderait de deviner : une
+         * règle morphologique qui se trompe ne rend pas le mot inerte, elle le
+         * rend touchable **vers la mauvaise fiche**.
+         */
+        public val cible: CibleDuNiveauTrois? = null,
     ) : Inline
 
     /** Une séquence en écriture hébraïque rencontrée hors d'un [Translit]. */

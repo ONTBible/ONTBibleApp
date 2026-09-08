@@ -502,6 +502,67 @@ fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
 pub struct Fiche {
     pub titre: String,
     pub blocs: Vec<Block>,
+    /// Les formes fléchies que la fiche déclare elle-même, §2.5 ter du vault.
+    ///
+    /// ## Pourquoi ici et non au §2.5 du document de référence
+    ///
+    /// Le §2.5 réserve `**…**` aux **intraduisibles**. Y déclarer `vayomer`
+    /// ferait donc d'`amar` un intraduisible, et lui ferait perdre son rendu
+    /// « formuler » du §3.1 — la déclaration d'une forme n'est pas la
+    /// déclaration d'un intraduisible, et le même endroit ne peut pas dire les
+    /// deux.
+    ///
+    /// L'auteur a tranché le 8 septembre 2026 : une fiche déclare ses propres
+    /// formes, après son corps.
+    ///
+    /// ```text
+    /// ## Formes
+    ///
+    /// vayomer · vayomru · amarti · vaʾomar
+    /// ```
+    ///
+    /// ## Ce que ça n'est pas
+    ///
+    /// **Ce n'est pas de la résolution morphologique.** Le pipeline ne devine
+    /// rien : il lit ce que l'auteur a écrit. Le mode d'échec qu'on refuse
+    /// ailleurs — une règle qui se trompe et envoie vers la mauvaise fiche —
+    /// ne s'ouvre pas ici, puisqu'il n'y a pas de règle.
+    pub formes: Vec<String>,
+}
+
+/// Les formes déclarées d'une fiche, lues de sa section `## Formes`.
+///
+/// **Jusqu'au `##` suivant, et pas plus loin.** La section vit après le corps ;
+/// prendre tout ce qui suit ramasserait la section d'après.
+///
+/// Le séparateur est le point médian `·`, celui que l'auteur emploie. Les
+/// formes ne sont **pas** slugifiées ici : c'est l'appelant qui le fait, avec
+/// `inline::slugify`, la même fonction que le reste du pipeline. Réimplémenter
+/// la normalisation dans un lecteur neuf, ce serait rouvrir le défaut des
+/// demi-anneaux savants par la porte d'à côté — `vayaʿas` et `vayaas` ne se
+/// rejoindraient plus.
+fn formes_declarees(texte: &str) -> Vec<String> {
+    let mut dedans = false;
+    let mut formes = Vec::new();
+    for ligne in texte.lines() {
+        let t = ligne.trim();
+        if let Some(titre) = t.strip_prefix("## ") {
+            // Une seule section `Formes` par fiche : la première rencontrée
+            // ferme la question, et la suivante — quelle qu'elle soit — la
+            // clôt.
+            dedans = titre.trim().eq_ignore_ascii_case("formes");
+            continue;
+        }
+        if dedans && !t.is_empty() {
+            formes.extend(
+                t.split('·')
+                    .map(str::trim)
+                    .filter(|f| !f.is_empty())
+                    .map(str::to_string),
+            );
+        }
+    }
+    formes
 }
 
 pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
@@ -534,7 +595,15 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
             .filter_map(bloc_de_fiche)
             .collect();
         if !blocs.is_empty() {
-            fiches.insert(lemme, Fiche { titre: nom, blocs });
+            let formes = formes_declarees(&texte);
+            fiches.insert(
+                lemme,
+                Fiche {
+                    titre: nom,
+                    blocs,
+                    formes,
+                },
+            );
         }
     }
     fiches
@@ -676,6 +745,71 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
         glossary: entries.into_values().collect(),
         form_index,
         book_names,
+    }
+}
+
+#[cfg(test)]
+mod formes_de_fiche {
+    use super::formes_declarees;
+
+    /// **Sur une fixture, pas sur le vault.** Le vault a ses `## Formes` sur une
+    /// branche, pas sur `main` : une épreuve qui lirait `lexique/` mesurerait
+    /// l'état d'un dépôt voisin, et rougirait ou verdirait selon la branche
+    /// qu'on a sous la main. Ce qui se mesure ici est le **lecteur**.
+    #[test]
+    fn la_section_formes_se_lit_jusqu_au_titre_suivant() {
+        let fiche = "\
+# amar
+
+Le verbe de la parole.
+
+## Formes
+
+vayomer · vayomru · vaʾomar · amarti
+
+## Ailleurs
+
+Ce paragraphe n'est pas une forme.
+";
+        assert_eq!(
+            formes_declarees(fiche),
+            ["vayomer", "vayomru", "vaʾomar", "amarti"]
+        );
+    }
+
+    /// Une fiche sans section n'en déclare aucune — et n'échoue pas.
+    #[test]
+    fn une_fiche_sans_section_ne_declare_rien() {
+        assert!(formes_declarees("# chesed\n\nLa bonté fidèle.\n").is_empty());
+    }
+
+    /// **Le point médian seul sépare.** Une forme peut contenir un tiret ou une
+    /// espace — `mot tamut` en est une — et découper autrement les couperait.
+    #[test]
+    fn le_point_median_seul_separe() {
+        assert_eq!(
+            formes_declarees("## Formes\n\nmot tamut · ha-adam\n"),
+            ["mot tamut", "ha-adam"]
+        );
+    }
+
+    /// La section peut tenir sur plusieurs lignes : le vault en écrit de
+    /// longues, et rien n'oblige à les tenir sur une seule.
+    #[test]
+    fn plusieurs_lignes_se_cumulent() {
+        assert_eq!(
+            formes_declarees("## Formes\n\nun · deux\n\ntrois\n"),
+            ["un", "deux", "trois"]
+        );
+    }
+
+    /// **Rien n'est slugifié ici.** L'appelant emploie `inline::slugify`, la
+    /// même fonction que tout le pipeline. Normaliser dans ce lecteur-ci
+    /// rouvrirait le défaut des demi-anneaux savants par la porte d'à côté :
+    /// `vayaʿas` et `vayaas` cesseraient de se rejoindre.
+    #[test]
+    fn les_formes_sortent_telles_qu_ecrites() {
+        assert_eq!(formes_declarees("## Formes\n\nvayaʿas\n"), ["vayaʿas"]);
     }
 }
 
