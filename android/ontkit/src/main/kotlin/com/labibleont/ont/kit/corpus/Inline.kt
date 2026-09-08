@@ -53,6 +53,23 @@ public sealed interface Inline {
     public data class Shem(public val value: String, public val lemma: String) : Inline
 
     /**
+     * Un renvoi d'une **chuqqah** vers une autre.
+     *
+     * Un Shem désigne un **porteur** — quelqu'un. Un renvoi désigne un
+     * **énoncé**. Les confondre ferait croire au lecteur qu'il touche un nom
+     * propre, et l'amènerait sur un texte qui n'en est pas un.
+     *
+     * Le pipeline lit `((cible|libellé))` et non `[[…]]`, parce que ce dernier
+     * devient un Shem **sans regarder la cible** : le vault porte des renvois
+     * vers des porteurs pas encore écrits, et distinguer sur la cible ferait
+     * sortir en Shem tout renvoi vers une chuqqah non encore écrite.
+     *
+     * `cible` peut ne désigner aucune chuqqah existante : le corpus s'écrit, et
+     * un renvoi mort dit « ce n'est pas encore écrit », jamais « introuvable ».
+     */
+    public data class Renvoi(public val value: String, public val cible: String) : Inline
+
+    /**
      * `(*chasdo* / חַסְדּוֹ)`.
      *
      * Les deux parts sont séparées parce qu'elles ne se composent pas de la
@@ -170,6 +187,9 @@ private fun kotlin.collections.List<Inline>.brut(
             // l'appareil, qu'on retire sans rien perdre.
             is Inline.Term -> append(node.value)
             is Inline.Shem -> append(node.value)
+            // Un renvoi aussi : la phrase le nomme, et un partage ne doit pas
+            // laisser un trou là où le lecteur a lu un mot.
+            is Inline.Renvoi -> append(node.value)
             is Inline.Hebrew -> if (level3) append(node.value)
             is Inline.Translit ->
                 if (level3) append("(${node.translit} / ${node.hebrew})")

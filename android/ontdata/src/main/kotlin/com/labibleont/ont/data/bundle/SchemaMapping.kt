@@ -82,6 +82,7 @@ internal fun DtoInline.versDomaine(): Inline = when (this) {
     is DtoInline.Text -> Inline.Text(v)
     is DtoInline.Term -> Inline.Term(v, lemma)
     is DtoInline.Shem -> Inline.Shem(v, lemma)
+    is DtoInline.Renvoi -> Inline.Renvoi(v, cible)
     is DtoInline.Translit -> Inline.Translit(translit, hebrew)
     is DtoInline.Heb -> Inline.Hebrew(v)
     is DtoInline.Gloss -> Inline.Gloss(children.versDomaine())
