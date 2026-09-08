@@ -401,6 +401,38 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
         // pas encore écrits : ce sont des marques de travail à faire, pas des
         // erreurs. C'est au contrôle de les nommer, et il le fait — dégrader en
         // texte nu ferait disparaître la liste de ce qui manque.
+        // ── `((cible|libellé))` — un renvoi d'une chuqqah vers une autre ──
+        //
+        // Posé **avant** le niveau 3, qui lit aussi une parenthèse ouvrante :
+        // celui-ci exige de l'hébreu, un renvoi n'en a pas, donc les deux ne se
+        // disputent rien. L'ordre n'est qu'une commodité de lecture.
+        //
+        // Détection **locale** : on ne cherche pas si la cible existe. Le vault
+        // porte des renvois vers des chuqqot pas encore écrites, et les typer
+        // d'après leur résolution les ferait sortir en `Shem` — la faute que la
+        // marque à part existe pour éviter.
+        if c == b'(' && bytes.get(i + 1) == Some(&b'(') {
+            if let Some(rel) = src[i + 2..].find("))") {
+                let end = i + 2 + rel;
+                if end > i + 2 {
+                    let brut = &src[i + 2..end];
+                    let (cible, libelle) = match brut.split_once('|') {
+                        Some((c, l)) => (c.trim(), l.trim()),
+                        None => (brut.trim(), brut.trim()),
+                    };
+                    if !cible.is_empty() {
+                        flush!();
+                        out.push(Inline::Renvoi {
+                            v: libelle.to_string(),
+                            cible: slugify(cible),
+                        });
+                        i = end + 2;
+                        continue;
+                    }
+                }
+            }
+        }
+
         if c == b'[' && bytes.get(i + 1) == Some(&b'[') {
             if let Some(rel) = src[i + 2..].find("]]") {
                 let end = i + 2 + rel;
@@ -497,7 +529,11 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
             // Un Shem est du corps de texte : le nom **est** ce que la phrase
             // dit. L'éteindre laisserait un trou là où le lecteur attend un
             // sujet — au contraire de l'appareil, qu'on retire sans rien perdre.
-            Inline::Term { v, .. } | Inline::Shem { v, .. } => out.push_str(v),
+            // Un renvoi est du corps de texte au même titre qu'un Shem : la
+            // phrase le nomme, l'éteindre laisserait un trou.
+            Inline::Term { v, .. } | Inline::Shem { v, .. } | Inline::Renvoi { v, .. } => {
+                out.push_str(v)
+            }
             Inline::Heb { v } => {
                 if options.level3 {
                     out.push_str(v);
@@ -711,6 +747,7 @@ mod tests {
                 Inline::Accentuation { .. } => "accentuation",
                 Inline::Em { .. } => "em",
                 Inline::Shem { .. } => "shem",
+                Inline::Renvoi { .. } => "renvoi",
                 Inline::Link { .. } => "link",
                 Inline::Break => "break",
             })
@@ -1020,5 +1057,63 @@ mod triple_asterisque {
         assert_eq!(slugify("mal'akh"), "malakh");
         assert_eq!(slugify("mal\u{2019}akh"), "malakh");
         assert_eq!(slugify("mal\u{02BC}akh"), "malakh");
+    }
+
+    /// `((cible|libellé))` — un renvoi d'une chuqqah vers une autre.
+    ///
+    /// La marque est à part de `[[…]]` parce que ce dernier devient un `Shem`
+    /// **sans regarder la cible** : le vault porte des renvois vers des
+    /// porteurs pas encore écrits, et distinguer sur la cible ferait sortir en
+    /// `Shem` tout renvoi vers une chuqqah non encore écrite — le cas le plus
+    /// fréquent, puisque le corpus s'écrit.
+    #[test]
+    fn un_renvoi_ne_devient_pas_un_shem() {
+        let n = parse_inline("voir ((l-olam-est-un-regard|L'olam est un regard)) plus loin");
+        let renvoi = n
+            .iter()
+            .find_map(|x| match x {
+                Inline::Renvoi { v, cible } => Some((v.clone(), cible.clone())),
+                _ => None,
+            })
+            .expect("un renvoi est attendu");
+        assert_eq!(renvoi.0, "L'olam est un regard");
+        assert_eq!(renvoi.1, "l-olam-est-un-regard");
+        assert!(
+            !n.iter().any(|x| matches!(x, Inline::Shem { .. })),
+            "aucun Shem ne doit naître d'une double parenthèse"
+        );
+    }
+
+    /// Sans barre, la cible sert de libellé — même convention que `[[…]]`.
+    #[test]
+    fn un_renvoi_sans_libelle_prend_sa_cible() {
+        let n = parse_inline("((yhwh-ha-maqom))");
+        assert!(matches!(
+            n.first(),
+            Some(Inline::Renvoi { v, cible })
+                if v == "yhwh-ha-maqom" && cible == "yhwh-ha-maqom"
+        ));
+    }
+
+    /// **Le voisinage du niveau 3, qui lit aussi une parenthèse ouvrante.**
+    ///
+    /// `(*translittération* / hébreu)` exige de l'hébreu ; un renvoi n'en a
+    /// pas. Les deux ne se disputent rien — et cette épreuve le tient, pour que
+    /// personne ne les réordonne en croyant que l'ordre n'a pas d'importance.
+    #[test]
+    fn le_niveau_trois_reste_intact() {
+        let n = parse_inline("le mot (*davar* / דָּבָר) ici");
+        assert!(
+            n.iter().any(|x| matches!(x, Inline::Translit { .. })),
+            "le niveau 3 doit survivre à l'arrivée des doubles parenthèses"
+        );
+        assert!(!n.iter().any(|x| matches!(x, Inline::Renvoi { .. })));
+    }
+
+    /// Une parenthèse simple reste du texte : la marque exige les deux.
+    #[test]
+    fn une_parenthese_simple_reste_du_texte() {
+        let n = parse_inline("une remarque (entre parenthèses) ordinaire");
+        assert!(!n.iter().any(|x| matches!(x, Inline::Renvoi { .. })));
     }
 }

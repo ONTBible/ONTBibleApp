@@ -34,6 +34,28 @@ public enum Inline: Hashable, Sendable {
     /// trois cents noms ferait promettre une fiche de concept là où il y a un
     /// porteur, et remplirait le Lexique de ce qui n'y a rien à faire.
     case shem(String, lemma: String)
+
+    /// Un renvoi d'une **chuqqah** vers une autre.
+    ///
+    /// ## Pourquoi ce n'est pas un Shem
+    ///
+    /// Un Shem désigne un **porteur** — quelqu'un. Un renvoi désigne un
+    /// **énoncé** — une chuqqah. Les confondre ferait croire au lecteur qu'il
+    /// touche un nom propre, et l'amènerait sur un texte qui n'en est pas un.
+    ///
+    /// ## Une marque à part, décidée en amont
+    ///
+    /// Le pipeline lit `((cible|libellé))`, et non `[[…]]`, parce que ce
+    /// dernier devient un Shem **sans regarder la cible** — délibérément : le
+    /// vault porte des renvois vers des porteurs pas encore écrits, et ce sont
+    /// des marques de travail à faire, pas des erreurs. Distinguer sur la cible
+    /// obligerait à résoudre avant de typer, et un renvoi vers une chuqqah pas
+    /// encore écrite sortirait en Shem.
+    ///
+    /// `cible` est le slug de la chuqqah visée. Elle peut ne pas exister : le
+    /// corpus s'écrit, et un renvoi mort dit **« ce n'est pas encore écrit »**,
+    /// jamais « introuvable ».
+    case renvoi(String, cible: String)
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
@@ -104,6 +126,10 @@ public extension [Inline] {
             // marquage. Il reste dans un partage, dans une recherche et
             // dans un résumé — au contraire de l'hébreu, qu'on omet.
             case .shem(let value, _):
+                repliage.ajouter(value)
+            // Un renvoi aussi : la phrase le nomme, et le partage d'un verset
+            // ne doit pas laisser un trou là où le lecteur a lu un mot.
+            case .renvoi(let value, _):
                 repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }

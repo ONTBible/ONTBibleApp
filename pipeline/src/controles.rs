@@ -91,6 +91,8 @@ fn descendre(nodes: &[Inline], f: &mut impl FnMut(&Inline)) {
             Inline::Text { .. }
             | Inline::Term { .. }
             | Inline::Shem { .. }
+            // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
+            | Inline::Renvoi { .. }
             | Inline::Translit { .. }
             | Inline::Heb { .. }
             | Inline::Break => {}
@@ -182,6 +184,8 @@ fn descendre_mut(nodes: &mut [Inline], f: &mut impl FnMut(&mut Inline)) {
             Inline::Text { .. }
             | Inline::Term { .. }
             | Inline::Shem { .. }
+            // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
+            | Inline::Renvoi { .. }
             | Inline::Translit { .. }
             | Inline::Heb { .. }
             | Inline::Break => {}
@@ -483,7 +487,11 @@ fn mots(s: &str) -> usize {
 fn mots_hors_glose(nodes: &[Inline], total: &mut usize) {
     for n in nodes {
         match n {
-            Inline::Text { v } | Inline::Term { v, .. } | Inline::Shem { v, .. } => {
+            Inline::Text { v }
+            | Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            // Un renvoi porte du texte que le lecteur lit : il compte.
+            | Inline::Renvoi { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }
@@ -505,7 +513,11 @@ fn mots_hors_glose(nodes: &[Inline], total: &mut usize) {
 fn mots_tout(nodes: &[Inline], total: &mut usize) {
     for n in nodes {
         match n {
-            Inline::Text { v } | Inline::Term { v, .. } | Inline::Shem { v, .. } => {
+            Inline::Text { v }
+            | Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            // Un renvoi porte du texte que le lecteur lit : il compte.
+            | Inline::Renvoi { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }

@@ -29,6 +29,16 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://shem/\(lemma)")
     }
 
+    /// L'adresse d'un **renvoi** vers une autre chuqqah.
+    ///
+    /// Un hôte à part — `chuqqah` et non `shem` — parce que la cible n'est pas
+    /// du même genre : un Shem mène à un porteur, un renvoi mène à un énoncé.
+    /// Partager l'hôte ferait résoudre les deux dans la même table, et le
+    /// premier slug commun mènerait au mauvais écran.
+    public static func renvoiURL(_ cible: String) -> URL? {
+        URL(string: "\(termScheme)://chuqqah/\(cible)")
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -291,6 +301,14 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = shemURL(lemma)
+                piece[MarqueDeTerme.self] = true
+                output += piece
+
+            case .renvoi(let value, let cible):
+                var style = type.renvoi
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.link = renvoiURL(cible)
                 piece[MarqueDeTerme.self] = true
                 output += piece
 
