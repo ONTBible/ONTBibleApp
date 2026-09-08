@@ -3839,6 +3839,54 @@ Shem qu'il faut écrire. Sept fiches — `halakh`, `mut`, `yada`, `sim`, `zera`,
 formes restent inertes tant que l'entrée n'est pas écrite, parce qu'un lien vers
 une fiche absente de `glossary.json` donnerait un mot doré qui n'ouvre rien.
 
+## 8 septembre 2026 — un jeton survivait à son compte, et l'app le savait déjà faire
+
+`DELETE /me` répondait `204`, et le jeton d'accès continuait d'ouvrir `PUT /sync`
+pendant **cinquante-neuf minutes**. Le lecteur pouvait donc réécrire ce qu'il
+venait de faire effacer.
+
+**Ce n'est pas un scénario d'attaquant.** C'est l'app elle-même qui le ferait :
+elle pousse sa file locale à la prochaine occasion, sans savoir que le compte
+n'est plus. L'effacement cessait d'être final, et rien ne le disait — ni au
+lecteur, ni au journal.
+
+Un JWT ne se révoque pas : signé, il vaut jusqu'à son expiration. Le remède posé
+dans `domain/token.rs` — le garder court, une heure — est juste pour une fuite.
+Il ne l'est pas pour un effacement, qui doit valoir tout de suite.
+
+`erase` supprime toute la partition du lecteur, **profil compris**. « Le compte
+existe-t-il » et « ce jeton vaut-il encore » sont donc la même question, posée à
+un objet qui existe déjà. Une liste de révocation aurait demandé un type d'objet
+neuf, un TTL à tenir, et un endroit de plus où l'oubli d'une écriture rouvre le
+trou.
+
+### Ce que ça change pour les trois clients — vérifié, pas supposé
+
+Le contrat de forme ne bouge pas : ==aucune réponse ne change de shape==. Ce qui
+change est qu'un `401` peut désormais arriver **là où l'app n'en attendait pas**
+— sur une route qui répondait encore il y a une heure.
+
+- **iOS** — `AccountModel.synchronise()` porte déjà
+  `catch AccountError.unauthorized { signOut() }`. Un compte effacé ailleurs
+  déconnecte proprement au lieu de ressusciter ses données. Rien à porter.
+- **Le site** — `infrastructure/comptes.rs` traduit `401` en
+  `ErreurDeCompte::Refuse` sur ses deux appels de synchronisation. Rien à porter.
+- **Android** — la synchronisation n'est pas encore branchée ; le jour où elle
+  le sera, le `401` doit déconnecter et non réessayer. Une boucle de
+  rafraîchissement échouerait de toute façon : le jeton de rafraîchissement vit
+  en base, et l'effacement l'emporte avec le reste.
+
+`DELETE /me` reste **idempotent** : c'est la seule route qui ne vérifie que la
+signature. Un second appel n'a rien à effacer et ne doit pas se plaindre.
+
+Le prix est un `GetItem` par requête authentifiée. L'alternative gratuite — une
+écriture conditionnelle sur `PUT /sync` seulement — fermait la réécriture sans
+rien coûter, mais laissait un compte effacé lire et diffuser. **Une révocation
+qui ne vaut que sur une route n'est pas une révocation.**
+
+`livraison.yml` ignore `backend/**` : ce correctif ne consomme aucune place de
+téléversement Apple. Il part par `deployer-backend.yml`.
+
 ## 8 septembre 2026 au soir — l'habillage d'une feuille appartient à la présentation
 
 Relevé à l'écran, deux fois de suite sur la même feuille. Celle de prononciation
