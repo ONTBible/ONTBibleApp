@@ -335,6 +335,72 @@ pour ce qui attend l'auteur.
 
 ---
 
+## Tronc commun et entrées locales
+
+Le journal ci-dessous a **deux régimes**, et c'est une décision de l'auteur du
+7 septembre 2026.
+
+**Le tronc commun** — ce qui a traversé. Identique dans les trois dépôts, à
+l'octet. Une entrée du tronc porte dans son corps ce qu'elle engage pour les
+autres, d'ordinaire sous la forme *« Pour les trois dépôts : … »*.
+
+**Les entrées locales** — ce qu'un dépôt apprend et qui ne concerne que lui. Une
+barre latérale qui ne se ferme pas, un test qui rougit chez un seul. Elles
+restent chez elles, et le contrôle de concordance ne les compte pas comme une
+divergence.
+
+### La marque
+
+Le titre d'une entrée locale se termine par `*(local)*` :
+
+    ### 4 septembre 2026 — la barre flottante, construite puis écartée *(local)*
+
+Trois raisons de la mettre là, et pas ailleurs :
+
+- **elle se voit en écrivant**, dans le titre, avant qu'on ait rédigé la
+  première ligne — donc au moment où l'on décide encore si ça traverse ;
+- **elle est dans le titre**, qui est l'unité que le contrôle lit déjà. Une
+  marque enfouie dans le corps obligerait à parcourir le texte pour trancher, et
+  un contrôle qui doit lire pour savoir ce qu'il compare finit par se tromper ;
+- **elle est asymétrique du marquage commun, et c'est voulu.** Une entrée qui
+  traverse a quelque chose à *dire* — quoi, à qui, ce que ça change —, donc elle
+  le dit dans son corps. Une entrée locale n'a rien à ajouter : elle ne voyage
+  pas, et un mot suffit.
+
+### Ce que ça change pour le contrôle
+
+`scripts/concorder-la-synchronisation.py` compare désormais **les troncs**, et
+non les fichiers entiers. Les entrées locales sont retirées avant l'empreinte,
+puis **comptées et rapportées par dépôt** — jamais tues. Une entrée locale est
+une décision, pas un accident : le contrôle doit pouvoir dire combien chacun en
+porte, sinon la marque devient un moyen de sortir du champ de la mesure.
+
+### La racine
+
+Elle porte **le tronc commun seul**. Elle n'est le local de personne, et rien ne
+la met à jour : lui donner les entrées locales d'un dépôt lui confierait un
+texte que personne n'entretient là où il se trouve.
+
+### Le cas qui a rendu la règle nécessaire
+
+Le 7 septembre, la concordance annonçait *cinquante-neuf entrées à porter de
+l'app vers les deux autres*. La mesure était triple-fausse — elle comptait des
+titres et non des entrées, elle prenait des sous-titres pour des entrées, et
+elle manquait les entrées écrites en `##` là où le vault écrit `###`. Il y en
+avait **quinze**, six cent deux lignes.
+
+Et le compte juste n'aurait pas suffi : ces quinze parlaient de barres
+latérales et de feuilles macOS. Les verser dans le vault de la traduction en
+aurait fait ce que l'en-tête du journal refuse — *pas un changelog du dépôt*.
+
+**Une identité obtenue en important un changelog n'est pas une concordance,
+c'est une dilution.** Le contrôle mesurait l'identité et ne savait pas dire si
+une entrée *devait* traverser ; il sait maintenant qu'il y a deux régimes, et il
+mesure celui qui doit l'être.
+
+---
+
+
 ## Journal
 
 Ce qui a traversé, et quand. Une ligne par franchissement — pas un changelog du
@@ -3057,7 +3123,7 @@ les deux ont failli manquer :
 Et il se contrôle en CI par régénération et comparaison — l'échec ==dit la
 commande== et ne régénère pas en silence, la CI n'écrivant pas à la place de
 qui a relu.
-## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté
+## 3 septembre 2026 — une feuille du Mac ne se ferme pas d'un clic à côté *(local)*
 
 Deux captures, deux griefs : « le bas de l'interface est pas ouf, en plus cliquer
 à l'extérieur ne ferme pas la modal ». Les deux sortent de la **présentation**,
@@ -3114,7 +3180,7 @@ que c'est la dernière posée qui se dessine. Chacune a été retournée contre 
 propre défaut — geste jeté, `removeAll()`, `.first` au lieu de `.last` — et
 rougit sur lui seul.
 
-## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé
+## 3 septembre 2026 — le tour des quatorze vues, et le crasheur que la veille avait posé *(local)*
 
 « L'app macOS paraît rigide, formes strictes ; iOS est fluffy, rebondie. » Le
 constat de l'auteur, vérifié en capturant **chaque vue** du Mac — quatorze — et
@@ -3167,7 +3233,7 @@ là-bas. Le chantier suivant est décidé avec l'auteur : micro-animations
 50→900** à la Tailwind avec les rôles sémantiques (accent, danger…) par-dessus
 — ancrée sur les couleurs relevées du logo et du site, pas redessinée.
 
-## 3 septembre 2026 — la refonte du mouvement, couche des fondations
+## 3 septembre 2026 — la refonte du mouvement, couche des fondations *(local)*
 
 L'auteur, designer : « en termes d'UI/UX motion design on est loin, je veux une
 refonte ». Ses références : Craft, CleanMyMac pour la densité de micro-
@@ -3220,7 +3286,7 @@ restantes (NavigationLink du corpus), l'orchestration d'arrivée des écrans, le
 survol des intraduisibles dans le texte, la pastille de la barre. Vue par vue,
 planche à l'appui.
 
-## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes
+## 4 septembre 2026 — la reprise sans geste, et deux écrans passés en cartes *(local)*
 
 ### « Impossible de swiper » — les deux chemins, encore
 
@@ -3251,7 +3317,7 @@ pastille** (`theme.danger` sur `dangerSurface`) au lieu du `.red` système,
 survol et pression. Les capsules ont servi le soir même : l'auteur s'est
 connecté avec Apple sur le Mac — première connexion réussie de la plateforme.
 
-## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt
+## 4 septembre 2026 — la barre qui flotte pour de vrai, et l'interface qui répond au doigt *(local)*
 
 « Tu te moques de moi pour la sidebar ? » — et le reproche était juste : le
 panneau flottant avait été posé, mais la barre peignait encore son fond opaque
@@ -3294,7 +3360,7 @@ tout bouton au style de la maison sonne, sans site à instrumenter.
 sur ce qui flotte au-dessus du texte — la pastille de lecture d'abord. Sur
 iOS, les deux ne font rien : le système y donne déjà ses retours.
 
-## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas
+## 4 septembre 2026 — le survol par mot, et l'attribut qui ne voyageait pas *(local)*
 
 La table d'un livre et les résultats de recherche ont rejoint les cartes par
 ligne — même recette, cascade comprise ; la carte du Qahal a pris la pression.
@@ -3326,7 +3392,7 @@ qui marche : des **plages de caractères** extraites de la chaîne finale
 caractère zéro, `distance(to:)` rend chaque index absolu. Le minimum et non le
 premier run : l'hébreu en RTL réordonne les runs visuellement.
 
-## 4 septembre 2026 — la barre flottante, construite puis écartée en main
+## 4 septembre 2026 — la barre flottante, construite puis écartée en main *(local)*
 
 Trois états en une soirée : la barre opaque, la barre flottante à la Craft
 (coins, marges, ombre, sol unifié), puis — l'auteur l'ayant prise en main —
@@ -3340,7 +3406,7 @@ aubergine à 0,65 — et une barre qui ne peint plus son propre fond. Le détour
 n'était pas gratuit : c'est en la voyant flotter qu'on a su que ce n'était pas
 elle. Décision d'auteur, consignée pour que personne ne la reconstruise.
 
-## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon
+## 4 septembre 2026 — la toile et les deux panneaux : Craft, lu pour de bon *(local)*
 
 « Non, la sidebar Craft elle flotte, mec. » Exact — et la relecture de sa
 capture a montré ce que la première tentative avait raté : **ce n'est pas la
@@ -3362,7 +3428,7 @@ faut recouvrir son sol comme pour la page ; et une prévisualisation réduite
 écrase un écart de ton réel (14,6,8 contre 48,37,40 au pixel) — juger les
 retraits fins à l'échelle 1.
 
-## 4 septembre 2026 — la mesure a clos le débat de la barre
+## 4 septembre 2026 — la mesure a clos le débat de la barre *(local)*
 
 L'entrée précédente (« deux panneaux sur une toile ») était la **troisième
 lecture fausse** de la même capture. L'auteur a corrigé une fois de plus — « les
@@ -3383,7 +3449,7 @@ est celle de toute la semaine : **une référence visuelle se mesure, elle ne se
 relit pas** — l'œil a affirmé trois architectures différentes du même écran,
 le balayage en a établi une en trente lignes.
 
-## 4 septembre 2026 — la bidouille retirée : la barre est celle du système
+## 4 septembre 2026 — la bidouille retirée : la barre est celle du système *(local)*
 
 Fin du feuilleton de la barre, sur l'ordre de l'auteur : « enlève la bidouille ».
 `PanneauFlottant.swift` est supprimé — vitre à la main, voile, toile, page en
@@ -3719,6 +3785,93 @@ Trois épreuves de plus partent maintenant d'un vrai document du pipeline. iOS
 lisait la bonne clé — `objet["generatedAt"]` —, le site aussi ; le défaut était
 propre à Kotlin, et il venait de réutiliser un type parce que les deux
 documents s'appelaient « manifeste ».
+
+### 7 septembre 2026 — le journal a deux régimes, et le contrôle mesurait le mauvais
+
+Décision de l'auteur : **tronc commun et entrées locales.** Seul ce qui traverse
+est partagé et identique partout ; ce qu'un dépôt apprend pour lui-même reste
+chez lui, marqué. ==La règle vit dans la section « Tronc commun et entrées
+locales »== ci-dessus, avec la marque et ses raisons — elle n'est pas redite
+ici, c'est le journal qui renvoie à la règle et non l'inverse.
+
+**Ce que le contrôle faisait de travers.** Il comparait les fichiers entiers, et
+n'avait donc qu'une façon de résorber un écart : ==importer chez les autres ce
+qu'un dépôt avait délibérément gardé pour lui==. Il mesurait l'identité sans
+pouvoir dire si une entrée *devait* traverser.
+
+**Ce qu'il fait maintenant :** l'empreinte porte sur le tronc, les entrées
+locales sont retirées avant la mesure, puis ==comptées et listées par dépôt==.
+Jamais tues : une entrée locale est une décision, pas un accident, et une marque
+qui ferait sortir du champ de la mesure sans laisser de trace serait un moyen de
+se dispenser du contrôle.
+
+**Pour les trois dépôts.** Quand une mesure ne peut se résoudre que d'une seule
+façon, ==c'est souvent la mesure qui est mal posée==, pas l'écart qui est
+coupable. Ici, la seule issue offerte était de verser six cents lignes de barres
+latérales macOS dans le vault de la traduction — ce que l'en-tête de ce journal
+refuse en toutes lettres.
+
+**Et le chemin pour y arriver mérite d'être gardé, parce qu'il a fallu trois
+relevés faux pour l'atteindre.** La concordance annonçait ==cinquante-neuf
+entrées à porter== ; il y en avait quinze, et aucune ne devait partir.
+
+    59   comptait des titres, dont des sous-titres internes aux entrées
+    44   mon propre relevé : ils étaient TOUS des sous-titres
+    15   les vraies entrées — écrites en ## quand le vault écrit ###
+
+Chaque relevé rendait un nombre bien formé. Le premier prenait la partie pour le
+tout, le deuxième ne mesurait que du bruit, et le troisième n'est sorti qu'en
+==comparant les contenus== plutôt que les titres — la règle écrite le matin même,
+appliquée l'après-midi à autre chose.
+
+**Éprouvé sur un cas dont on connaît la réponse**, avant de livrer : les quinze
+marquées `*(local)*` dans une copie de travail, le tronc de l'app tombe à ==zéro
+ligne absente du tronc du vault==. Et la mesure retournée révèle l'autre sens,
+qu'on ne cherchait pas : il ne manquait à l'app que ==deux entrées==, déjà sur sa
+branche d'intégration. La concordance était presque faite depuis le début ; c'est
+l'instrument qui la disait rompue.
+
+### 8 septembre 2026 — le secret de diffusion voyage dans Authorization, parce que la télémétrie ne filtre que ce qu'elle connaît
+
+L'audit cyber du 8 septembre (C02) l'a reproduit avec le SDK réel et un
+transport en mémoire : un événement Sentry du backend portait l'en-tête
+`x-secret-diffusion` — le secret qui autorise `/diffuser` — et un autre le
+`?code=` d'un retour OAuth. Le témoin `Authorization` était, lui, correctement
+absent.
+
+Le mécanisme, lu dans `sentry-tower` 0.48.5 : quand `send_default_pii` est
+faux, les en-têtes passent par la liste `is_sensitive_header` du SDK — un
+en-tête **maison** n'y figure pas, donc traverse — et l'URL par
+`scrub_pii_from_url`, qui retire les identifiants et **garde la query**. Et
+les transactions n'ont aucun crochet d'expurgation dans cette version : seul
+`before_send` existe, et il ne voit que les événements.
+
+Le remède a deux étages, parce qu'un seul ne suffisait pas :
+
+- **le contrat** (ONTBibleApp#249, `device`) : le secret voyage dans
+  `Authorization: Bearer` — l'en-tête que le SDK filtre nativement,
+  transactions comprises. L'ancien en-tête reste accepté le temps de la
+  transition, puis tombera ;
+- **la ceinture** (même PR, module `observabilite`, éprouvé) : un
+  `before_send` retire l'en-tête hérité et toute query string des événements
+  — si un secret repasse un jour par un chemin non filtré, il meurt avant
+  l'envoi.
+
+**L'annonceur du site n'envoie plus que Bearer** (ONTBibleWebapp#124) — pas de
+période à double en-tête : chaque envoi de l'ancien le remettrait dans les
+transactions, que rien ne sait expurger. La fenêtre est assumée et écrite dans
+le script : tant que le backend déployé (palier `app-store`) ne connaît pas
+Bearer, une annonce de parution est refusée en 401 — non fatale par
+construction, le corpus se publie quand même.
+
+**Ce que ça engage.** Tout futur appelant de `/diffuser` emploie
+`Authorization: Bearer` ; l'en-tête maison meurt à la fin de la transition.
+Et la leçon vaut au-delà du cas : *un secret ne voyage que dans un en-tête que
+la télémétrie sait filtrer* — en inventer un, c'est le publier.
+
+**Reste opérationnel, chez l'auteur** : vérifier les événements déjà reçus
+côté Sentry (l'accès outillé a expiré, le jeton local n'est qu'un jeton CI),
+et faire tourner le secret si l'exposition se confirme.
 
 ## 8 septembre 2026 — le niveau 3 devient touchable, et le champ qui le porte traverse les trois
 
