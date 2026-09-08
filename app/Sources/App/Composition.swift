@@ -52,11 +52,18 @@ final class Composition {
     private let lexiqueSurDisque: DiskGlossaryRepository
     /// Les fiches des noms propres.
     ///
-    /// **Depuis le bundle seul, sans doublure de disque.** Les mises à jour de
-    /// corpus n'en portent pas encore ; le jour où elles le feront, ce champ
-    /// prendra son `DiskShemotRepository` comme le glossaire a le sien, et rien
-    /// d'autre ne bougera.
-    let shemotSurDisque: BundleShemotRepository
+    /// **Du disque quand il en porte, du bundle sinon** — comme le glossaire.
+    ///
+    /// Le jour annoncé est arrivé : `shemot.json` et `search.json` voyagent
+    /// désormais avec le corpus. Sans ça, les fiches des noms propres et
+    /// l'index de recherche restaient ceux de l'installation pendant que le
+    /// texte se corrigeait en minutes.
+    let shemotSurDisque: DiskShemotRepository
+    /// L'index de recherche, doublé lui aussi.
+    ///
+    /// Gardé sur la composition pour la seule raison qui vaut : il faut
+    /// pouvoir lui dire d'oublier après une mise à jour, comme aux autres.
+    private let rechercheSurDisque: DiskSearchIndex
 
     var dailyPool: [DailyVerse] { daily.pool() }
 
@@ -114,8 +121,10 @@ final class Composition {
         let glossary = DiskGlossaryRepository()
         self.corpusSurDisque = corpus
         self.lexiqueSurDisque = glossary
-        self.shemotSurDisque = BundleShemotRepository()
-        let index = BundleSearchIndex()
+        let shemot = DiskShemotRepository(socle: BundleShemotRepository(bundle: source))
+        self.shemotSurDisque = shemot
+        let index = DiskSearchIndex(socle: BundleSearchIndex(bundle: source))
+        self.rechercheSurDisque = index
         let store = FileReaderStore()
         // Un fichier à part : le profil se supprime avec le compte, les
         // réglages de lecture survivent à une déconnexion.
@@ -146,9 +155,11 @@ final class Composition {
             // un silence : on redemande un jeton. Voir `PushDistant`.
             PushDistant.reprendreSiBesoin()
 
-            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, reading, lexicon] in
+            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, reading, lexicon] in
                 corpusSurDisque.oublier()
                 lexiqueSurDisque.oublier()
+                shemotSurDisque.oublier()
+                rechercheSurDisque.oublier()
                 // Le réveil d'arrière-plan n'est pas sur l'acteur principal, et les
                 // modèles y vivent : on repasse par lui pour le dire aux vues.
                 Task { @MainActor in
@@ -163,7 +174,7 @@ final class Composition {
             CorpusRefresh.schedule()
         #endif
 
-        Task { [corpusSurDisque, lexiqueSurDisque, reading, lexicon] in
+        Task { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, reading, lexicon] in
             // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
             //
             // Elle ne bloque **rien** : l'app a déjà tout ce qu'il lui faut,
@@ -180,6 +191,8 @@ final class Composition {
             // d'avant, et rien ne leur dit qu'elle a vieilli.
             corpusSurDisque.oublier()
             lexiqueSurDisque.oublier()
+            shemotSurDisque.oublier()
+            rechercheSurDisque.oublier()
 
             // Et sans ces deux lignes, l'oubli ne se voit pas non plus.
             //

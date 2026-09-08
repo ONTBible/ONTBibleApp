@@ -54,6 +54,14 @@ public actor CorpusUpdater {
                 "quotidien": "daily.json",
                 "glossaire": "glossary.json",
                 "occurrences": "occurrences.json",
+                // **Le nœud s'appelle `recherche`, le fichier `search.json`.**
+                //
+                // Le manifeste est écrit en français comme le reste du corpus ;
+                // le nom du fichier vient du pipeline et date d'avant. Les
+                // confondre ferait chercher un fichier qui n'existe pas, et le
+                // bundle répondrait à sa place — sans que rien ne le dise.
+                "recherche": "search.json",
+                "shemot": "shemot.json",
             ]
             return fichiers.compactMap { cle, entree in
                 noms[cle].map { (local: $0, entree: entree) }
