@@ -293,7 +293,6 @@ public final class DiskSearchIndex: SearchIndex, @unchecked Sendable {
         }
         cached = records
         return records
-    }
 
     private func lire<T: Decodable>(_ nom: String) -> T? {
         guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
@@ -306,5 +305,51 @@ public final class DiskSearchIndex: SearchIndex, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         cached = nil
+    }
+}
+
+/// La feuille de prononciation, du disque quand elle y est, du bundle sinon.
+///
+/// Même montage que le glossaire, pour la même raison : le texte se corrige, et
+/// une feuille figée à l'installation expliquerait la prononciation d'hier.
+public final class DiskPrononciationRepository: PrononciationRepository, @unchecked Sendable {
+    private let dossier: URL
+    private let bundle: Foundation.Bundle
+    private let lock = NSLock()
+    private var cachee: FeuilleDePrononciation??
+
+    public init(
+        dossier: URL = CorpusUpdater.dossierParDefaut(),
+        bundle: Foundation.Bundle = .main
+    ) {
+        self.dossier = dossier
+        self.bundle = bundle
+    }
+
+    public func feuille() -> FeuilleDePrononciation? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cachee { return cachee }
+        let dto: ONTSchema.PrononciationFile? =
+            lire("prononciation.json")
+            ?? (try? BundleLoader.decode("prononciation", bundle: bundle))
+        let feuille = dto.map {
+            FeuilleDePrononciation(titre: $0.title, blocs: $0.blocks.map(Block.init))
+        }
+        cachee = feuille
+        return feuille
+
+    private func lire<T: Decodable>(_ nom: String) -> T? {
+        guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(T.self, from: octets)
+    }
+
+    public func oublier() {
+        lock.lock()
+        defer { lock.unlock() }
+        cachee = nil
     }
 }

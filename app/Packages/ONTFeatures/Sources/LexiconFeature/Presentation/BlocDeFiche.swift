@@ -21,6 +21,19 @@ struct BlocDeFiche: View {
     @Environment(\.ontTheme) private var theme
     let block: Block
 
+    /// **Vrai quand le bloc vit dans une feuille pleine et non dans une fiche.**
+    ///
+    /// Les tailles de titre ci-dessous ont été choisies pour une fiche posée
+    /// *dans* une section de formulaire : elles se resserrent pour ne pas
+    /// rivaliser avec l'en-tête qui les contient. Dans une feuille qui n'a pas
+    /// d'en-tête au-dessus d'elle, le même réglage rend un titre **plus petit
+    /// que le corps** — mesuré à l'écran sur la feuille de prononciation, où
+    /// « Le cas qui a fait écrire cette feuille » se lisait comme un paragraphe.
+    ///
+    /// Un drapeau plutôt qu'une seconde vue : les deux rendus partagent tout le
+    /// reste, et les dédoubler les ferait diverger à la première correction.
+    var titresPleins = false
+
     var body: some View {
         switch block {
         case .paragraph(let nodes):
@@ -34,9 +47,14 @@ struct BlocDeFiche: View {
             // signifie », qui le contient. Deux tailles suffisent, et la
             // seconde n'est qu'une nuance.
             Text(ONTTextRenderer.compose(nodes, theme: theme))
-                .font(level <= 2 ? .subheadline.weight(.semibold) : .footnote.weight(.semibold))
+                .font(
+                    titresPleins
+                        ? (level <= 2 ? ONTUI.title3.weight(.semibold) : ONTUI.headline)
+                        : (level <= 2
+                            ? .subheadline.weight(.semibold) : .footnote.weight(.semibold))
+                )
                 .foregroundStyle(theme.accent)
-                .padding(.top, 6)
+                .padding(.top, titresPleins ? 14 : 6)
                 // Un titre est un en-tête pour VoiceOver, sans quoi il se lit
                 // comme une phrase de plus dans le flot.
                 .accessibilityAddTraits(.isHeader)

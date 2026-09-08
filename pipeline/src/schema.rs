@@ -679,6 +679,32 @@ pub struct CorpusFile {
     pub corpora: Vec<CorpusOutline>,
 }
 
+/// `dist/prononciation.json` — la feuille qui explique comment lire ce qui est
+/// écrit.
+///
+/// ## Pourquoi un fichier et non une section du document de référence
+///
+/// Le `CLAUDE.md` du vault est lu pour en tirer des **entrées de termes**. Lui
+/// faire sortir en plus une section entière mêlerait deux extractions dans un
+/// même lecteur, et la seconde casserait la première le jour où quelqu'un
+/// touche au format.
+///
+/// Un fichier a en prime un `status`, comme le reste du corpus : cette feuille
+/// est du contenu qu'on relit, pas de la configuration.
+///
+/// ## Pourquoi des blocs et non du markdown
+///
+/// Elle cite `**chokhmah**`, `**malʾakh**`, `[[Chanokh]]`. En blocs, le rendu
+/// pose l'or et la terre brûlée et les rend touchables **sans une ligne de
+/// code** dans les liseuses. En chaîne, il faudrait réimplémenter le rendu
+/// trois fois, avec la certitude qu'ils divergeraient.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrononciationFile {
+    pub schema: u32,
+    pub title: String,
+    pub blocks: Vec<Block>,
+}
+
 /// `dist/glossary.json` — le lexique des intraduisibles.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlossaryFile {

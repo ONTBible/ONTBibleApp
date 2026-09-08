@@ -116,3 +116,36 @@ public protocol ProfilRepository: AnyObject {
     /// Tout effacer — appelé par l'effacement du compte.
     func oublier()
 }
+
+// MARK: - La prononciation
+
+/// La feuille qui explique comment lire ce qui est écrit.
+///
+/// ## Pourquoi un port et non une constante
+///
+/// Le texte vit dans le vault — `lexique/prononciation.md` — et se relit comme
+/// le reste du corpus. L'écrire dans l'app en ferait une seconde source, qui
+/// divergerait à la première correction et que personne ne penserait à
+/// remettre à jour.
+///
+/// Elle peut être **absente** : le pipeline n'écrit rien quand le vault ne la
+/// porte pas, et l'écran dit alors ce qu'il attend au lieu de faire croire à
+/// une panne.
+public protocol PrononciationRepository: Sendable {
+    func feuille() -> FeuilleDePrononciation?
+}
+
+/// Le titre et le corps de la feuille.
+///
+/// Des `Block`, jamais du markdown : la feuille cite `chokhmah`, `malʾakh` et
+/// `Chanokh`, et c'est le rendu du corpus qui les pose en or et en terre
+/// brûlée, touchables, sans une ligne de code de plus.
+public struct FeuilleDePrononciation: Hashable, Sendable {
+    public let titre: String
+    public let blocs: [Block]
+
+    public init(titre: String, blocs: [Block]) {
+        self.titre = titre
+        self.blocs = blocs
+    }
+}
