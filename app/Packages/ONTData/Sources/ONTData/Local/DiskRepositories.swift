@@ -190,3 +190,121 @@ public final class DiskGlossaryRepository: GlossaryRepository, @unchecked Sendab
         cachedOccurrences = nil
     }
 }
+
+/// Les fiches des noms propres, lues du disque quand elles y sont.
+///
+/// ## Le défaut que ça ferme
+///
+/// `shemot.json` n'était pas distribué : les fiches restaient celles de
+/// l'installation pendant que le texte se corrigeait en minutes. Un lecteur qui
+/// touchait un nom en or obtenait la fiche d'il y a trois semaines — et **rien
+/// du tout** pour un Shem apparu depuis. Le cas était réel : `gavriel`,
+/// `moshe`, `sinai` et `eliyahu` sont nommés dans le corpus sans fiche
+/// distribuée.
+///
+/// Relevé par un audit externe le 8 septembre 2026 — A10.
+///
+/// ## Pourquoi lire, et non reconstruire
+///
+/// Reconstruire les fiches ou l'index dans l'app demanderait de réimplémenter
+/// l'indexation du pipeline dans **trois liseuses**, avec la certitude qu'elles
+/// divergeront. Le pipeline est le seul endroit où la forme se décide ; les
+/// liseuses la lisent.
+public final class DiskShemotRepository: ShemotRepository, @unchecked Sendable {
+    private let dossier: URL
+    private let socle: any ShemotRepository
+    private let lock = NSLock()
+    private var cached: [ShemEntry]?
+
+    public init(
+        dossier: URL = CorpusUpdater.dossierParDefaut(),
+        socle: any ShemotRepository = BundleShemotRepository()
+    ) {
+        self.dossier = dossier
+        self.socle = socle
+    }
+
+    public func entries() throws -> [ShemEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cached { return cached }
+        let entries: [ShemEntry]
+        if let file: ONTSchema.ShemotFile = lire("shemot.json") {
+            entries = file.entries.map(ShemEntry.init)
+        } else {
+            entries = try socle.entries()
+        }
+        cached = entries
+        return entries
+    }
+
+    private func lire<T: Decodable>(_ nom: String) -> T? {
+        guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(T.self, from: octets)
+    }
+
+    /// Oublie ce qui est en mémoire, après une mise à jour.
+    public func oublier() {
+        lock.lock()
+        defer { lock.unlock() }
+        cached = nil
+    }
+}
+
+/// L'index de recherche, lu du disque quand il y est.
+///
+/// Même raison que les fiches : un index figé à l'installation ne trouve pas
+/// ce qui a été écrit depuis. Et il est le plus gros des fichiers du corpus —
+/// six cents kilo-octets —, donc le plus susceptible d'échouer sur un lien
+/// mauvais. Le bundle répond en attendant, comme partout ailleurs.
+///
+/// **La clé publiée est `recherche`, et le fichier local `search.json`.** Le
+/// premier est le nom du nœud dans le manifeste, écrit en français comme le
+/// reste ; le second est le nom que le pipeline donne au fichier depuis le
+/// début. Les confondre ferait chercher un fichier qui n'existe pas, et le
+/// bundle répondrait à sa place — sans que rien ne le dise.
+public final class DiskSearchIndex: SearchIndex, @unchecked Sendable {
+    private let dossier: URL
+    private let socle: any SearchIndex
+    private let lock = NSLock()
+    private var cached: [SearchRecord]?
+
+    public init(
+        dossier: URL = CorpusUpdater.dossierParDefaut(),
+        socle: any SearchIndex = BundleSearchIndex()
+    ) {
+        self.dossier = dossier
+        self.socle = socle
+    }
+
+    public func records() -> [SearchRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cached { return cached }
+        let records: [SearchRecord]
+        if let file: ONTSchema.SearchFile = lire("search.json") {
+            records = file.records.map(SearchRecord.init)
+        } else {
+            records = socle.records()
+        }
+        cached = records
+        return records
+    }
+
+    private func lire<T: Decodable>(_ nom: String) -> T? {
+        guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(T.self, from: octets)
+    }
+
+    public func oublier() {
+        lock.lock()
+        defer { lock.unlock() }
+        cached = nil
+    }
+}
