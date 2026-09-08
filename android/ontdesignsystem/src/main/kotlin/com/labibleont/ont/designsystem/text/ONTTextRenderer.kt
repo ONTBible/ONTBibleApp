@@ -322,6 +322,27 @@ public object ONTTextRenderer {
                     }
                 }
 
+                is Inline.Renvoi -> {
+                    // **Coloré, pas encore touchable — et c'est délibéré.**
+                    //
+                    // La teinte est portée dès maintenant : sans elle, un
+                    // renvoi sortirait dans l'encre du corps et le lecteur ne
+                    // saurait pas qu'il en est un. C'est le minimum qui ne
+                    // ment pas.
+                    //
+                    // Le toucher demande un rappel de plus — `onRenvoi` — à
+                    // faire descendre dans six signatures de ce fichier. C'est
+                    // du travail de cette liseuse, posé par la session iOS qui
+                    // a introduit le nœud et ne voulait pas le bâcler chez
+                    // quelqu'un d'autre.
+                    val style = if (inGloss) {
+                        typo.renvoi.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.renvoi
+                    }
+                    withStyle(style) { append(node.value) }
+                }
+
                 is Inline.Hebrew ->
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 

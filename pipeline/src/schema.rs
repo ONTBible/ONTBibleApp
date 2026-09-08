@@ -84,6 +84,34 @@ pub enum Inline {
     /// `v` garde la casse du texte, `lemma` est la clé de jointure vers la fiche.
     Shem { v: String, lemma: String },
 
+    /// Un renvoi d'une **chuqqah** vers une autre — `((cible|libellé))`.
+    ///
+    /// ## Pourquoi une marque à elle, et pas `[[…]]`
+    ///
+    /// `[[…]]` devient un `Shem` **sans jamais regarder la cible**, et c'est
+    /// délibéré : le vault porte des renvois vers des porteurs pas encore
+    /// écrits, et ce sont des marques de travail à faire, pas des erreurs.
+    ///
+    /// Distinguer sur la cible obligerait donc à **résoudre avant de typer** —
+    /// et produirait exactement le défaut que ce principe prévient : un renvoi
+    /// vers une chuqqah pas encore écrite sortirait en `Shem`. C'est le cas le
+    /// plus fréquent, puisque le corpus s'écrit.
+    ///
+    /// Doubles parenthèses, donc : **détection locale, aucune résolution.**
+    ///
+    /// ## Ce que la marque coûte
+    ///
+    /// `((…))` n'est pas un lien Obsidian : on ne saute plus d'une chuqqah à
+    /// l'autre depuis l'éditeur. Arbitré en connaissance de ce prix, contre une
+    /// détection qui ne dépend de rien.
+    ///
+    /// ## Le voisinage est sûr
+    ///
+    /// Le niveau 3 — `(*translittération* / hébreu)` — exige de l'hébreu dans
+    /// la parenthèse, ce qu'un renvoi n'a pas. Les deux ne se disputent rien,
+    /// dans un ordre ou dans l'autre.
+    Renvoi { v: String, cible: String },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :

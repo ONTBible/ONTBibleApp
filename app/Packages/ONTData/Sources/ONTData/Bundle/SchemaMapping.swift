@@ -45,6 +45,8 @@ extension Inline {
             self = .term(v, lemma: lemma)
         case .shem(let v, let lemma):
             self = .shem(v, lemma: lemma)
+        case .renvoi(let v, let cible):
+            self = .renvoi(v, cible: cible)
         case .translit(let translit, let hebrew):
             self = .translit(translit, hebrew: hebrew)
         case .heb(let v):

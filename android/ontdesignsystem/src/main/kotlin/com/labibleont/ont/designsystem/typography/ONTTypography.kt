@@ -102,6 +102,15 @@ public data class ONTTypography(
             color = ONTColors.shem(theme),
         )
 
+    /** Un **renvoi** entre chuqqot — même graisse que le corps, seule la
+     * teinte distingue, comme pour le Shem. */
+    public val renvoi: SpanStyle
+        get() = SpanStyle(
+            fontFamily = body,
+            fontSize = size.pt,
+            color = ONTColors.renvoi(theme),
+        )
+
     /**
      * Niveau 1 — une accentuation, qui ne se touche pas.
      *
