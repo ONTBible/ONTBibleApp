@@ -336,7 +336,7 @@ async fn pull(
     headers: HeaderMap,
     Query(query): Query<SinceQuery>,
 ) -> Result<Response, ApiError> {
-    let user = authenticate(&app, &headers)?;
+    let user = authentifier(&app, &headers).await?;
     Ok(Json(app.pull(&user, query.since).await?).into_response())
 }
 
@@ -345,13 +345,21 @@ async fn push(
     headers: HeaderMap,
     Json(body): Json<PushRequest>,
 ) -> Result<Response, ApiError> {
-    let user = authenticate(&app, &headers)?;
+    let user = authentifier(&app, &headers).await?;
     app.push(&user, body).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
+/// **La seule route qui ne vérifie que la signature**, et c'est délibéré.
+///
+/// `DELETE` doit être idempotent : un second appel sur un compte déjà effacé
+/// n'a rien à effacer et ne doit pas se plaindre. Y exiger l'existence du
+/// compte rendrait `401` sur une opération qui a réussi.
+///
+/// Et il n'y a rien à protéger ici : un jeton dont le compte est parti ne peut
+/// rien obtenir de cette route qu'il n'ait déjà obtenu.
 async fn erase(State(app): State<App>, headers: HeaderMap) -> Result<Response, ApiError> {
-    let user = authenticate(&app, &headers)?;
+    let user = signature_valide(&app, &headers)?;
     app.erase(&user).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
@@ -363,7 +371,7 @@ async fn erase(State(app): State<App>, headers: HeaderMap) -> Result<Response, A
 /// asymétriques via un JWKS public, et un autorisateur Lambda ajouterait une
 /// invocation facturée à chaque requête. Ici, c'est une vérification de
 /// signature en mémoire — quelques microsecondes.
-fn authenticate(app: &App, headers: &HeaderMap) -> Result<UserId, ApiError> {
+fn signature_valide(app: &App, headers: &HeaderMap) -> Result<UserId, ApiError> {
     let token = headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
@@ -371,6 +379,38 @@ fn authenticate(app: &App, headers: &HeaderMap) -> Result<UserId, ApiError> {
         .ok_or(ApiError::Unauthorized)?;
 
     app.tokens.verify(token).map_err(|_| ApiError::Unauthorized)
+}
+
+/// La signature **et** l'existence du compte.
+///
+/// ## Ce que la signature seule laissait passer
+///
+/// Un JWT ne se révoque pas : une fois signé, il vaut jusqu'à son expiration.
+/// Le remède posé dans `domain/token.rs` est de le garder court — une heure.
+///
+/// Une heure est courte pour une fuite. Elle ne l'est **pas** pour un
+/// effacement de compte : le lecteur demande `DELETE /me`, reçoit `204`, et son
+/// jeton continue d'ouvrir `PUT /sync` pendant cinquante-neuf minutes. Il peut
+/// donc réécrire ce qu'il vient de faire effacer.
+///
+/// **Et ce n'est pas un scénario d'attaquant.** C'est l'app elle-même qui le
+/// ferait : elle pousse sa file locale à la prochaine occasion, sans savoir que
+/// le compte n'est plus. L'effacement cesse d'être final, et personne ne le
+/// voit — ni le lecteur, ni le journal.
+///
+/// ## Le profil comme preuve de vie
+///
+/// `erase` supprime toute la partition du lecteur, profil compris. « Le compte
+/// existe-t-il » et « ce jeton vaut-il encore » sont donc la même question,
+/// posée à un objet qui existe déjà. Une liste de révocation demanderait un
+/// type d'objet neuf, un TTL à tenir, et un endroit de plus où l'oubli d'une
+/// écriture rouvre le trou.
+async fn authentifier(app: &App, headers: &HeaderMap) -> Result<UserId, ApiError> {
+    let user = signature_valide(app, headers)?;
+    if !app.users.exists(&user).await.map_err(ApiError::Domain)? {
+        return Err(ApiError::Unauthorized);
+    }
+    Ok(user)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,6 +521,86 @@ mod tests {
             capacites_annoncees(app_offrant(BTreeSet::from([Capacite::Synchronisation]))).await;
 
         assert!(!annoncees.iter().any(|c| c.starts_with("auth.")));
+    }
+
+    /// **Un jeton survit à son compte, et c'est le défaut qu'on ferme.**
+    ///
+    /// Un JWT ne se révoque pas : signé, il vaut une heure. Le lecteur demande
+    /// `DELETE /me`, reçoit `204`, et son jeton continue d'ouvrir `PUT /sync`
+    /// pendant cinquante-neuf minutes — il peut donc réécrire ce qu'il vient de
+    /// faire effacer.
+    ///
+    /// Et ce n'est pas un scénario d'attaquant : c'est l'app qui pousse sa file
+    /// locale sans savoir que le compte n'est plus.
+    #[tokio::test]
+    async fn un_jeton_ne_survit_pas_a_l_effacement_de_son_compte() {
+        let app = app_offrant(BTreeSet::from([Capacite::Synchronisation]));
+        let jeton = app
+            .tokens
+            .issue(
+                &crate::domain::token::UserId("u-1".into()),
+                time::OffsetDateTime::now_utc(),
+            )
+            .expect("un jeton d'accès");
+
+        // Avant l'effacement, la route répond.
+        assert_ne!(
+            statut_de_sync(app.clone(), &jeton).await,
+            StatusCode::UNAUTHORIZED
+        );
+
+        app.erase(&crate::domain::token::UserId("u-1".into()))
+            .await
+            .expect("l'effacement");
+
+        // Après, le **même** jeton — toujours bien signé, toujours dans sa
+        // fenêtre d'une heure — n'ouvre plus rien.
+        assert_eq!(statut_de_sync(app, &jeton).await, StatusCode::UNAUTHORIZED);
+    }
+
+    /// **`DELETE` reste idempotent**, et c'est pour ça que cette route ne
+    /// vérifie que la signature. Un second appel n'a rien à effacer et ne doit
+    /// pas se plaindre : répondre `401` à une opération qui a réussi serait
+    /// mentir sur son résultat.
+    #[tokio::test]
+    async fn effacer_deux_fois_ne_se_plaint_pas() {
+        let app = app_offrant(BTreeSet::from([Capacite::Synchronisation]));
+        let jeton = app
+            .tokens
+            .issue(
+                &crate::domain::token::UserId("u-2".into()),
+                time::OffsetDateTime::now_utc(),
+            )
+            .expect("un jeton d'accès");
+
+        for _ in 0..2 {
+            let reponse = router(app.clone())
+                .oneshot(
+                    Request::builder()
+                        .method("DELETE")
+                        .uri("/me")
+                        .header("authorization", format!("Bearer {jeton}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(reponse.status(), StatusCode::NO_CONTENT);
+        }
+    }
+
+    async fn statut_de_sync(app: App, jeton: &str) -> StatusCode {
+        router(app)
+            .oneshot(
+                Request::builder()
+                    .uri("/sync")
+                    .header("authorization", format!("Bearer {jeton}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
     }
 
     /// La route ne demande pas de session : l'app doit pouvoir demander

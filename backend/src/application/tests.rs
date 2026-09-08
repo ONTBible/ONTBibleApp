@@ -93,6 +93,15 @@ impl UserRepository for FakeUsers {
         self.erased.lock().unwrap().push(user.clone());
         Ok(())
     }
+
+    /// **La doublure imite le vrai dépôt, elle ne le simplifie pas.** Chez
+    /// DynamoDB, `erase` supprime la partition entière, profil compris : un
+    /// compte effacé n'existe plus. Une doublure qui répondrait toujours `true`
+    /// rendrait vertes des épreuves qui ne mesurent rien — c'est exactement ce
+    /// qui laisse un trou d'authentification passer.
+    async fn exists(&self, user: &UserId) -> Result<bool, DomainError> {
+        Ok(!self.erased.lock().unwrap().contains(user))
+    }
 }
 
 #[derive(Default)]
