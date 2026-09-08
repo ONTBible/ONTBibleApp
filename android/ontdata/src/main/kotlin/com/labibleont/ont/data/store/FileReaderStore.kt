@@ -11,6 +11,7 @@ import com.labibleont.ont.kit.reader.ReadingFont
 import com.labibleont.ont.kit.reader.ReadingPosition
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.kit.reader.ReadingTheme
+import com.labibleont.ont.kit.ports.ErreurSansContenu
 import com.labibleont.ont.kit.ports.Reporter
 import com.labibleont.ont.kit.ports.SilentReporter
 import java.io.File
@@ -95,9 +96,13 @@ public class FileReaderStore(
             // remontée, personne ne l'apprend jamais — il réinstalle, ou il
             // s'en va.
             //
-            // Le nom du fichier ne dit rien du lecteur ; son contenu, si. On
-            // ne remonte que l'erreur et l'endroit.
-            rapporteur.report(echec, "relecture de l'état du lecteur")
+            // **On ne remonte pas l'erreur, on remonte son type.**
+            //
+            // Le message d'une erreur de décodage porte le fichier — donc les
+            // notes du lecteur. Ce commentaire disait « on ne remonte que
+            // l'erreur et l'endroit » ; c'était faux, et le canal écrit pour
+            // protéger ces données les faisait sortir.
+            rapporteur.report(ErreurSansContenu(echec), "relecture de l'état du lecteur")
             mettreDeCoteLIllisible()
             Etat()
         }
@@ -266,7 +271,7 @@ public class FileReaderStore(
             // Le surlignage que le lecteur vient de poser n'est pas enregistré.
             // Il le voit à l'écran — l'état en mémoire, lui, a changé — et il
             // le perdra au prochain lancement sans avoir rien vu.
-            rapporteur.report(it, "écriture de l'état du lecteur")
+            rapporteur.report(ErreurSansContenu(it), "écriture de l'état du lecteur")
         }
     }
 
