@@ -4168,3 +4168,37 @@ décompose exactement — 134 dont le lemme a une entrée, 67 dont il n'en a pas
 `ecrire-la-premiere-khuqqah`, ==pas sur `main`==, qui est 21 commits derrière.
 Un build de CI qui n'en montre aucun gain ne voudra pas dire que le lecteur est
 cassé — c'est pourquoi ses épreuves partent d'une fixture et non de `lexique/`.
+
+### Remesure après les quinze entrées du §3 — et une régression qu'elle a trouvée
+
+Les quatorze fiches ont reçu leur entrée le jour même, plus `akhal`. Le remède
+n'était pas le §2.5 mais **le §3** : y déclarer `gan`, `erev` ou `boqer` en
+aurait fait des ==intraduisibles== et leur aurait retiré leur rendu français,
+quand le §3 produit un lemme pour les termes ==traduits==.
+
+Remesuré sur le pipeline de `device`, vault à `6ba7cd3` :
+
+    inertes    1 090 → 992        (−98, prévision 1023 — mieux que prévu)
+    glossaire    120 → 136 entrées
+    fiches sans entrée   17 → 2
+
+Les deux qui restent sont `eliyahu` et `gavriel`, et ==aucune entrée de
+glossaire ne les sauvera== : ce sont des **Shemot**, qui passent par `[[Nom]]`.
+Leur remède est un lien dans le corpus, pas un lemme. Le rapport les range
+pourtant sous « Fiches sans entrée de glossaire », ce qui envoie chercher le
+mauvais remède — à distinguer côté pipeline.
+
+**Et la remesure a trouvé ce qu'elle ne cherchait pas** : ==8 marqueurs
+déséquilibrés==, tous dans `brouillons/…/bereshit-1.md`, là où le compteur était
+à zéro deux commits plus tôt. Ce n'est ==pas== le faux positif du §13.2 : mesuré
+par ==paragraphe==, l'unité réelle du balisage, il en reste ==8 sur 58==.
+
+La cause est une glose qui ==enjambe un blanc de paragraphe== — `*[` s'ouvre au
+verset ¹, court sur deux paragraphes intermédiaires, et `]*` ne se referme que
+trois paragraphes plus loin. Le pipeline analyse le balisage ==par paragraphe== :
+le lecteur verrait donc les marqueurs bruts à l'écran.
+
+Le motif mérite d'être retenu : **un contrôle vert ne dit rien d'un contrôle
+qu'on n'a pas relu.** Le compteur d'anomalies est imprimé à chaque build, à côté
+de celui qu'on regardait ; il était passé de 0 à 8 sans que le travail en cours
+ait rien à voir avec lui.
