@@ -81,6 +81,61 @@ struct LivreVault {
     slug: String,
 }
 
+/// Une ligne de `<témoin>/<livre>-apparat.jsonl`.
+///
+/// ## Pourquoi ce fichier ne s'appelle pas « apparat » en aval
+///
+/// « Apparat critique » fait attendre des ==manuscrits== — le Sinaiticus, le
+/// Vaticanus. Celui du SBLGNT n'en montre aucun : il compare **quatre
+/// éditions imprimées** entre 1857 et 2012. Le mot tromperait le lecteur, et
+/// il tromperait aussi la session qui lira ce code dans six mois. Le champ
+/// émis s'appelle donc `editions` — il dit ce que le fichier compare, et rien
+/// d'autre. Décision de la session iOS, et elle va plus loin que la mienne.
+#[derive(Debug, Deserialize)]
+struct EntreeApparat {
+    c: u32,
+    v: u32,
+    lecon: String,
+    editions: Vec<String>,
+    #[serde(default)]
+    crochets: Vec<String>,
+    variantes: Vec<VarianteApparat>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct VarianteApparat {
+    pub t: String,
+    pub editions: Vec<String>,
+    /// Les éditions qui impriment la leçon ==tout en la tenant pour douteuse==
+    /// — la notation ⟦ ⟧ de Westcott-Hort. Séparé d'`editions` parce qu'une
+    /// distinction aplatie à l'émission serait irrécupérable à l'écran, et
+    /// qu'elle tombe sur les passages les plus connus : la sueur de sang de
+    /// Luc 22, la finale longue de Marc, la femme adultère.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub crochets: Vec<String>,
+}
+
+/// Ce qui est émis pour une unité : les endroits où les éditeurs divergent.
+#[derive(Debug, Clone, Serialize)]
+pub struct DivergencePubliee {
+    /// La **position** dans le tableau des versets de l'unité. C'est la clé.
+    pub i: usize,
+    /// Le numéro affiché, pour que la liseuse vérifie qu'elle n'a pas glissé.
+    /// Il se répète dans une unité à deux chapitres — voir l'en-tête.
+    pub n: u32,
+    pub lecon: String,
+    pub editions: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub crochets: Vec<String>,
+    pub variantes: Vec<VarianteApparat>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EditionsComparees {
+    pub temoin: String,
+    pub unites: BTreeMap<String, Vec<DivergencePubliee>>,
+}
+
 /// Une ligne de `<témoin>/<livre>.jsonl`.
 #[derive(Debug, Deserialize)]
 struct VersetSource {
@@ -122,6 +177,13 @@ pub struct LivrePublie {
     /// vault, jamais composé par l'app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transmission: Option<String>,
+    /// Là où les **éditions imprimées** divergent — jamais les manuscrits.
+    /// À côté de `temoins`, jamais dedans : `temoins` répond à « que porte ce
+    /// témoin ici », celui-ci à « où les éditeurs se sont-ils séparés ». Deux
+    /// questions, deux fichiers ; les mêler ferait passer un désaccord
+    /// d'éditeur pour un témoin textuel.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editions: Option<FichierPublie>,
     /// `temoin` — le texte est perdu ; `fichier` — il existe mais aucune
     /// édition n'en est réutilisable. Quatre des six livres sans source
     /// recevront la leur : un rendu qui dirait « jamais » les trahirait.
@@ -220,10 +282,47 @@ pub struct Preparation {
     pub manifeste: ManifesteSources,
     /// `(chemin relatif, contenu)` pour chaque livre × témoin.
     pub fichiers: Vec<(String, LivreSources)>,
+    /// Les fichiers frères des divergences d'éditions.
+    pub fichiers_editions: Vec<(String, EditionsComparees)>,
     /// Les unités écartées faute de jointure sûre. Rien de faux n'est émis.
     pub ecartees: Vec<String>,
     /// Ce qui mérite l'œil de l'auteur sans rien empêcher.
     pub releves: Vec<String>,
+}
+
+/// Accroche les divergences d'éditions aux positions d'une unité.
+///
+/// ## Pourquoi par position et non par numéro de verset
+///
+/// Le numéro affiché ==n'est pas unique dans une unité== : quand une
+/// **parashah** couvre deux chapitres bibliques, la numérotation repart de ¹
+/// au second (§2.2 du vault). *Bereshit* 7 porte ainsi deux versets « 1 ».
+///
+/// Un apparat accroché par numéro s'attacherait donc aux deux — sur cette
+/// unité-là seulement, et sans rien dire. C'est le défaut qui passe tous les
+/// essais sauf un, et l'essai qui le trouve n'est écrit que par quelqu'un qui
+/// connaissait déjà le piège.
+///
+/// La position, elle, est unique par construction.
+fn attacher(
+    plage: &[(u32, u32)],
+    versets: &[VersetPublie],
+    par_ref: &BTreeMap<(u32, u32), Vec<EntreeApparat>>,
+) -> Vec<DivergencePubliee> {
+    let mut out = Vec::new();
+    for (i, cle_ref) in plage.iter().enumerate() {
+        for e in par_ref.get(cle_ref).into_iter().flatten() {
+            out.push(DivergencePubliee {
+                i,
+                n: versets[i].n,
+                lecon: e.lecon.clone(),
+                editions: e.editions.clone(),
+                crochets: e.crochets.clone(),
+                variantes: e.variantes.clone(),
+            });
+        }
+    }
+    out
 }
 
 /// Lit `sources/` et rend ce qu'il faut écrire — ou l'erreur qui arrête tout.
@@ -252,6 +351,8 @@ pub fn preparer(
     let mut sautees: Vec<String> = Vec::new();
     // Ce qui mérite l'œil de l'auteur sans rien empêcher.
     let mut releves: Vec<String> = Vec::new();
+    let mut editions_par_livre: BTreeMap<String, FichierPublie> = BTreeMap::new();
+    let mut fichiers_editions: Vec<(String, EditionsComparees)> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
     let mut fichiers = Vec::new();
 
@@ -288,6 +389,9 @@ pub fn preparer(
             }
 
             let mut unites_publiees: BTreeMap<String, Vec<VersetPublie>> = BTreeMap::new();
+            // La plage biblique de chaque unité, gardée pour l'apparat : il
+            // s'accroche aux mêmes positions que les versets.
+            let mut plages: BTreeMap<String, Vec<(u32, u32)>> = BTreeMap::new();
             for u in unites.iter().filter(|u| u.book_id == meta.slug) {
                 let Some(reference) = u.subtitle.as_ref().and_then(|s| s.reference.as_deref())
                 else {
@@ -400,11 +504,64 @@ pub fn preparer(
                         t: texte.clone(),
                     });
                 }
+                plages.insert(u.id.clone(), plage);
                 unites_publiees.insert(u.id.clone(), sortie);
             }
 
             if unites_publiees.is_empty() {
                 continue; // le livre n'a pas encore d'unité écrite
+            }
+
+            // ── Les divergences d'éditions, s'il y en a ───────────────────
+            //
+            // Même clé que les témoins — unité ONT et position — et pour la
+            // même raison : un apparat joint par (livre, chapitre, verset)
+            // s'accrocherait à ==deux endroits== dans une unité qui couvre
+            // deux chapitres bibliques, puisque le numéro de verset y repasse
+            // par ¹. Bereshit 7 le ferait ; les autres non. C'est le défaut
+            // qui passe tous les essais sauf un.
+            let chemin_app = dossier
+                .join(cle)
+                .join(format!("{livre_source}-apparat.jsonl"));
+            if chemin_app.is_file() {
+                let brut_app = fs::read_to_string(&chemin_app)
+                    .map_err(|e| format!("lecture de {}: {e}", chemin_app.display()))?;
+                let mut par_ref_app: BTreeMap<(u32, u32), Vec<EntreeApparat>> = BTreeMap::new();
+                for ligne in brut_app.lines().filter(|l| !l.trim().is_empty()) {
+                    let e: EntreeApparat = serde_json::from_str(ligne).map_err(|err| {
+                        format!("{} : ligne illisible — {err}", chemin_app.display())
+                    })?;
+                    par_ref_app.entry((e.c, e.v)).or_default().push(e);
+                }
+
+                let mut divergences: BTreeMap<String, Vec<DivergencePubliee>> = BTreeMap::new();
+                for (id_unite, versets) in &unites_publiees {
+                    let Some(plage) = plages.get(id_unite) else {
+                        continue;
+                    };
+                    let pour_l_unite = attacher(plage, versets, &par_ref_app);
+                    if !pour_l_unite.is_empty() {
+                        divergences.insert(id_unite.clone(), pour_l_unite);
+                    }
+                }
+
+                if !divergences.is_empty() {
+                    let rendu_app = EditionsComparees {
+                        temoin: cle.clone(),
+                        unites: divergences,
+                    };
+                    let corps_app = serde_json::to_string(&rendu_app).map_err(|e| e.to_string())?;
+                    let relatif_app = format!("sources/{cle}/{}-editions.json", meta.slug);
+                    editions_par_livre.insert(
+                        meta.slug.clone(),
+                        FichierPublie {
+                            octets: corps_app.len(),
+                            sha256: sha256(corps_app.as_bytes()),
+                            chemin: relatif_app.clone(),
+                        },
+                    );
+                    fichiers_editions.push((relatif_app, rendu_app));
+                }
             }
 
             let rendu = LivreSources {
@@ -417,6 +574,7 @@ pub fn preparer(
                 .entry(meta.slug.clone())
                 .or_insert_with(|| LivrePublie {
                     temoins: BTreeMap::new(),
+                    editions: None,
                     transmission: None,
                     cause: None,
                 })
@@ -447,11 +605,19 @@ pub fn preparer(
         };
         let e = livres.entry(slug.clone()).or_insert_with(|| LivrePublie {
             temoins: BTreeMap::new(),
+            editions: None,
             transmission: None,
             cause: None,
         });
         e.transmission = Some(phrase.clone());
         e.cause = Some(cause.clone());
+    }
+
+    // Les divergences d'éditions rejoignent leur livre au manifeste.
+    for (slug, fichier) in editions_par_livre {
+        if let Some(l) = livres.get_mut(&slug) {
+            l.editions = Some(fichier);
+        }
     }
 
     Ok(Some(Preparation {
@@ -461,6 +627,7 @@ pub fn preparer(
             livres,
         },
         fichiers,
+        fichiers_editions,
         ecartees: sautees,
         releves,
     }))
@@ -527,4 +694,109 @@ pub fn lire_transmissions(racine: &Path) -> Result<BTreeMap<u32, (String, String
         out.insert(numero, (phrase, cause));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entree(c: u32, v: u32, lecon: &str) -> EntreeApparat {
+        EntreeApparat {
+            c,
+            v,
+            lecon: lecon.into(),
+            editions: vec!["WH".into()],
+            crochets: Vec::new(),
+            variantes: vec![VarianteApparat {
+                t: "autre".into(),
+                editions: vec!["RP".into()],
+                crochets: Vec::new(),
+            }],
+        }
+    }
+
+    fn verset(n: u32) -> VersetPublie {
+        VersetPublie {
+            n,
+            t: String::new(),
+        }
+    }
+
+    #[test]
+    fn une_divergence_tombe_sur_sa_position() {
+        let plage = vec![(3, 1), (3, 2), (3, 3)];
+        let versets: Vec<_> = (1..=3).map(verset).collect();
+        let mut par_ref = BTreeMap::new();
+        par_ref.insert((3, 2), vec![entree(3, 2, "δεύτερον")]);
+
+        let out = attacher(&plage, &versets, &par_ref);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].i, 1, "la deuxième position, non la deuxième clé");
+        assert_eq!(out[0].n, 2);
+    }
+
+    /// Le cas qui justifie tout le dispositif : une unité qui couvre deux
+    /// chapitres bibliques porte deux fois un verset « 1 ». Accrochées par
+    /// numéro, les deux divergences se confondraient ; accrochées par
+    /// position, elles restent distinctes.
+    #[test]
+    fn deux_versets_numero_un_ne_se_confondent_pas() {
+        // Gn 7:1-2 puis Gn 8:1-2 — la numérotation ONT repart à ¹.
+        let plage = vec![(7, 1), (7, 2), (8, 1), (8, 2)];
+        let versets = vec![verset(1), verset(2), verset(1), verset(2)];
+        let mut par_ref = BTreeMap::new();
+        par_ref.insert((7, 1), vec![entree(7, 1, "premier")]);
+        par_ref.insert((8, 1), vec![entree(8, 1, "second")]);
+
+        let out = attacher(&plage, &versets, &par_ref);
+        assert_eq!(out.len(), 2);
+        assert_eq!((out[0].i, out[0].n), (0, 1));
+        assert_eq!((out[1].i, out[1].n), (2, 1), "même numéro, autre position");
+        assert_ne!(out[0].lecon, out[1].lecon);
+    }
+
+    #[test]
+    fn plusieurs_divergences_sur_un_meme_verset_sont_gardees() {
+        let plage = vec![(1, 1)];
+        let versets = vec![verset(1)];
+        let mut par_ref = BTreeMap::new();
+        par_ref.insert(
+            (1, 1),
+            vec![entree(1, 1, "première"), entree(1, 1, "seconde")],
+        );
+
+        let out = attacher(&plage, &versets, &par_ref);
+        assert_eq!(out.len(), 2, "un verset porte souvent plusieurs entrées");
+        assert!(out.iter().all(|d| d.i == 0));
+    }
+
+    /// ⟦WH⟧ dit « imprimé mais tenu pour douteux ». Aplati, il ferait dire à
+    /// Westcott-Hort le contraire de ce qu'ils ont voulu dire — et il tombe
+    /// sur la sueur de sang de Luc 22 et la finale longue de Marc.
+    #[test]
+    fn le_doute_de_westcott_hort_survit_a_la_jointure() {
+        let plage = vec![(22, 43)];
+        let versets = vec![verset(1)];
+        let mut e = entree(22, 43, "καὶ ἐγένετο");
+        e.crochets = vec!["WH".into()];
+        let mut par_ref = BTreeMap::new();
+        par_ref.insert((22, 43), vec![e]);
+
+        let out = attacher(&plage, &versets, &par_ref);
+        assert_eq!(out[0].crochets, vec!["WH".to_string()]);
+        assert!(
+            !out[0].editions.contains(&"WH".to_string()) || !out[0].crochets.is_empty(),
+            "le doute ne doit pas se confondre avec l'appui"
+        );
+    }
+
+    /// Une unité sans divergence n'émet rien — et surtout pas un fichier vide,
+    /// qui ferait croire à une couche présente et muette.
+    #[test]
+    fn une_unite_sans_divergence_ne_rend_rien() {
+        let plage = vec![(1, 1), (1, 2)];
+        let versets = vec![verset(1), verset(2)];
+        let out = attacher(&plage, &versets, &BTreeMap::new());
+        assert!(out.is_empty());
+    }
 }

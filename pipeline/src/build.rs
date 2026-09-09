@@ -1263,6 +1263,9 @@ pub fn build() -> Result<BuildResult, String> {
         for (relatif, livre) in &sources.fichiers {
             bytes += write_json(&sortie.join(relatif), livre).map_err(|e| e.to_string())?;
         }
+        for (relatif, editions) in &sources.fichiers_editions {
+            bytes += write_json(&sortie.join(relatif), editions).map_err(|e| e.to_string())?;
+        }
         for dit in &sources.ecartees {
             eprintln!("source écartée — {dit}");
         }
