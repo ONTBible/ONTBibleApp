@@ -172,6 +172,13 @@ pub fn out() -> PathBuf {
 /// Un commentaire faux ne se contente pas d'être inexact : il se cite.
 pub const TREES: [(&str, &str); 2] = [("locked", "locked"), ("brouillon", "brouillons")];
 
+/// Le dossier des chuqqot, dans chacun des deux arbres.
+///
+/// **À côté du squelette, pas dedans.** Les 70 slots sont les livres du
+/// corpus ; une chuqqah n'est pas un livre et n'a pas de numéro. Elle énonce
+/// une règle du fonctionnement, et se lit d'un bout à l'autre.
+pub const CHUQQOT: &str = "chuqqot";
+
 /// L'arborescence vide des 70 slots — elle définit le squelette du corpus.
 pub const SKELETON: &str = "in-writing";
 

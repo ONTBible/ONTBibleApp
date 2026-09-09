@@ -23,6 +23,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
+use crate::chuqqot;
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
@@ -30,10 +31,10 @@ use crate::niveau_trois;
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;
 use crate::schema::{
-    Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, Corpus, CorpusFile, CorpusOutline,
-    DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest, Mode, ModeOutline,
-    Occurrence, OccurrencesFile, PrononciationFile, SearchFile, SearchRecord, ShemEntry,
-    ShemotFile, Status, Stub, TermLevel,
+    Block, Book, BookOutline, BuildStats, Chapter, ChapterKind, ChuqqotFile, Corpus, CorpusFile,
+    CorpusOutline, DailyFile, DailyVerse, GlossaryEntry, GlossaryFile, Group, Inline, Manifest,
+    Mode, ModeOutline, Occurrence, OccurrencesFile, PrononciationFile, SearchFile, SearchRecord,
+    ShemEntry, ShemotFile, Status, Stub, TermLevel,
 };
 use crate::search::index_chapter;
 use crate::vault::{read_tree, VaultBook};
@@ -1103,6 +1104,14 @@ pub fn build() -> Result<BuildResult, String> {
     let corpora = corpora;
     let shemot = shemot;
 
+    // **Les chuqqot**, lues des deux arbres et publiées d'un seul.
+    //
+    // La garde vit dans `chuqqot::lire` et non ici : un brouillon n'entre
+    // jamais dans la valeur publiée, donc aucun chemin d'écriture ne peut le
+    // reprendre par mégarde. Voir l'en-tête du module pour la décision de
+    // l'auteur et sa raison.
+    let chuqqot = chuqqot::lire(&racine, &TREES);
+
     let indexed = index_occurrences(&lu.chapters, &mut glossary, &form_index);
 
     let books: Vec<&Book> = corpora
@@ -1156,6 +1165,18 @@ pub fn build() -> Result<BuildResult, String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    // Écrit même vide : un fichier absent et un fichier sans entrée ne se
+    // distinguent pas côté liseuse, et l'un des deux voudrait dire « le réseau
+    // a échoué ».
+    bytes += write_json(
+        &sortie.join("chuqqot.json"),
+        &ChuqqotFile {
+            schema: 1,
+            entries: chuqqot.publiees.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
 
     bytes += write_json(
         &sortie.join("shemot.json"),
@@ -1433,6 +1454,7 @@ pub fn build() -> Result<BuildResult, String> {
             ors_morts: &ors_morts,
             shemot_sans_fiche: &shemot_sans_fiche,
             niveau_trois: &restes_du_niveau_trois,
+            chuqqot_en_attente: &chuqqot.en_attente,
             liens_morts: &liens_morts,
             densites: &densites,
             hors_de_portee,
@@ -1574,6 +1596,14 @@ struct Anomalies<'a> {
     hors_de_portee: usize,
     /// Les formes que deux entrées revendiquent.
     formes_partagees: &'a [(String, Vec<String>)],
+    /// Les chuqqot écrites qui attendent leur validation.
+    ///
+    /// **Ce n'est pas une anomalie, c'est du travail en cours** — et c'est
+    /// pour ça que la section le dit au lieu de le compter. Sans elle, six
+    /// textes écrits restent invisibles à qui décide quoi valider : le
+    /// pipeline ne lisait même pas leur dossier, et l'onglet de l'app
+    /// annonçait « ils ne sont pas encore écrits » alors qu'ils l'étaient.
+    chuqqot_en_attente: &'a [String],
     /// Les translittérations de niveau 3 qu'aucune fiche publiée ne couvre.
     ///
     /// **Classées par fréquence, et c'est tout l'intérêt de la section.** La
@@ -1613,6 +1643,7 @@ fn format_report(
         ors_morts,
         shemot_sans_fiche,
         niveau_trois: restes_du_niveau_trois,
+        chuqqot_en_attente,
         liens_morts,
         densites,
         hors_de_portee,
@@ -1734,6 +1765,31 @@ fn format_report(
         ]);
         for s in shemot_sans_fiche {
             l.push(format!("- {s}"));
+        }
+    }
+
+    // Les chuqqot écrites et retenues. Ni une anomalie, ni un oubli : une
+    // décision qui attend, et qui n'est visible nulle part ailleurs.
+    if !chuqqot_en_attente.is_empty() {
+        l.extend([
+            String::new(),
+            "## Chuqqot écrites, en attente de validation".into(),
+            String::new(),
+            format!(
+                "{} chuqqot sont rédigées dans `brouillons/chuqqot/` et **ne sont pas",
+                chuqqot_en_attente.len()
+            ),
+            "distribuées**. C'est la règle, arbitrée le 9 septembre 2026 : une unité de".into(),
+            "traduction voyage marquée « Brouillon » — le lecteur sait où il met les".into(),
+            "pieds —, mais un **énoncé permanent** « en attente de validation » se".into(),
+            "contredit lui-même.".into(),
+            String::new(),
+            "Le geste est de la passer dans `locked/chuqqot/`. Rien d'autre : la lecture".into(),
+            "des deux arbres est déjà là, et la garde vit dans `chuqqot::lire`.".into(),
+            String::new(),
+        ]);
+        for titre in chuqqot_en_attente {
+            l.push(format!("- {titre}"));
         }
     }
 
@@ -2250,6 +2306,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                chuqqot_en_attente: &[],
                 niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &sans,
                 liens_morts: &[],
@@ -2283,6 +2340,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                chuqqot_en_attente: &[],
                 niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &[],
                 liens_morts: &[],

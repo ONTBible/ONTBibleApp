@@ -465,6 +465,21 @@ pub struct Reference {
 /// **Le niveau 1 reste écarté, lui, et pour une raison.** C'est le titre de la
 /// fiche, c'est-à-dire le lemme, que la liseuse affiche déjà en tête. Le garder
 /// ferait lire le mot deux fois de suite.
+/// La prose d'un document du vault, découpée en blocs.
+///
+/// Partagée entre les fiches de `lexique/` et les chuqqot : elles emploient le
+/// même vocabulaire — titres, `**intraduisibles**`, `==accentuations==`,
+/// niveau 3. Leur écrire deux analyseurs donnerait deux grammaires pour une
+/// seule langue, et elles divergeraient à la première correction.
+pub fn blocs_de_prose(texte: &str) -> Vec<Block> {
+    texte
+        .split("\n\n")
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .filter_map(bloc_de_fiche)
+        .collect()
+}
+
 fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
     let para = || {
         Some(Block::Para {
@@ -588,12 +603,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         let lemme = slugify(&nom);
-        let blocs: Vec<Block> = texte
-            .split("\n\n")
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .filter_map(bloc_de_fiche)
-            .collect();
+        let blocs: Vec<Block> = blocs_de_prose(&texte);
         if !blocs.is_empty() {
             let formes = formes_declarees(&texte);
             fiches.insert(
