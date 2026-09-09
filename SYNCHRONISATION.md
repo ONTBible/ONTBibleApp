@@ -4202,3 +4202,53 @@ Le motif mérite d'être retenu : **un contrôle vert ne dit rien d'un contrôle
 qu'on n'a pas relu.** Le compteur d'anomalies est imprimé à chaque build, à côté
 de celui qu'on regardait ; il était passé de 0 à 8 sans que le travail en cours
 ait rien à voir avec lui.
+
+**Réparée le jour même**, et le zéro n'est pas ce qu'elle a rapporté de plus.
+Cinq blancs de paragraphe résorbés, `bereshit-1` revient à zéro marqueur. Mais :
+
+    total des niveaux 3    2 075 → 2 089    (+14)
+    résolus                1 065 → 1 074    (+9)
+    inertes                1 010 → 1 015    (+5)
+
+**Un `*[` non refermé emporte la suite de son paragraphe.** Les
+translittérations qui s'y trouvaient n'étaient pas inertes — elles
+==n'existaient pas== pour le pipeline. La réparation ne nettoie donc pas
+seulement l'affichage : elle rend au corpus quatorze niveaux 3, dont neuf déjà
+touchables.
+
+==Le compte d'inertes monte, et ce n'est pas une régression.== 992 → 997 : qui
+lit ce chiffre sans le total conclura l'inverse de ce qui s'est passé. Les deux
+lignes ne se séparent pas.
+
+**Le contrôle qui manquait existe** — `scripts/verifier-le-balisage.py` dans le
+vault, qui mesure gras, accentuations **et gloses**, par paragraphe. Son
+écriture a coûté quatre tentatives, et c'est la partie qui sert :
+
+    comptage naïf          15 signalés   (8 réels, 7 faux positifs)
+    délimiteurs resserrés  101
+    liens neutralisés       90
+    balayage atomique        0           ← juste
+
+Un lien de **Shem** voisine les mêmes caractères qu'une glose et produit des
+faux positifs ==dans les deux sens== — `*[[Enosh]]` est une italique ouvrant sur
+un lien, `*[[[Amrafel]] …]*` une vraie glose ouvrant sur un lien. Il faut
+balayer en sautant chaque lien comme un bloc atomique.
+
+==Un instrument plus fin n'est pas un instrument plus juste== : les deux
+versions intermédiaires étaient six fois pires que le comptage naïf. C'est le
+§13.2 vu de l'autre côté — là, un relevé bien formé mesurait autre chose que la
+question ; ici, un raffinement bien intentionné s'éloigne de la réponse. Le même
+geste sauve dans les deux cas : **éprouver sur un cas dont on connaît la
+réponse**.
+
+**Croisement des deux instruments**, parce qu'un accord entre outils
+indépendants vaut mieux que deux relevés du même :
+
+    état cassé (6ba7cd3)    le script  8    le pipeline  8
+    état réparé (8d80853)   le script  0    le pipeline  0
+
+Et pas seulement le nombre — ==les mêmes huit paragraphes==. L'un balaie du
+Markdown en sautant les liens ; l'autre lit ce que l'analyseur Rust a produit,
+où les liens sont déjà des nœuds et ne peuvent plus tromper. Les trois
+tentatives ratées du script reconstruisaient à la main ce que l'analyseur savait
+déjà faire.
