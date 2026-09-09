@@ -43,7 +43,26 @@ struct HeroDePrononciation: View {
             HStack(alignment: .center, spacing: spacing.m) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Comment ça se prononce")
-                        .font(.custom(ONTFonts.display, size: ONTUI.points(17)))
+                        // **Une fonte sémantique, pas la fonte de titre.**
+                        //
+                        // La fonte d'affichage porte un interligne large, fait
+                        // pour un titre d'écran qui tient sur une ligne. Dès
+                        // que ce libellé passe à deux lignes — et il y passe
+                        // au premier cran d'accessibilité — le blanc entre les
+                        // deux fait le double de celui du sous-titre, et le
+                        // pavé se lit comme deux fragments au lieu d'un titre.
+                        //
+                        // **Mesuré, et une hypothèse écartée en chemin** :
+                        // `relativeTo: .headline` ne change rien. La courbe
+                        // d'échelle n'était pas en cause, l'interligne l'était.
+                        //
+                        // C'est ce que fait déjà le pavé « Reprendre » de
+                        // l'onglet Bible — `ONTUI.subheadline` — et c'est
+                        // précisément celui qui tient à toutes les tailles.
+                        // La chrome emploie les fontes du système ; la fonte
+                        // de la marque reste au texte et aux titres d'écran,
+                        // qui ne se replient pas.
+                        .font(ONTUI.headline)
                     Text("Les cinq sons que le français n'a pas")
                         .font(ONTUI.footnote)
                         .opacity(0.85)
