@@ -4086,3 +4086,85 @@ d'exceptions vieillit, un nom tient.
   L'arbitrage revient à la session Android — le rappel traverse ses signatures.
 - **Site** — rien à porter. Il n'a pas de feuilles modales : ses fiches sont des
   pages. La conclusion est constatée, pas supposée.
+
+## 9 septembre 2026 — l'apparat critique rejoint le verset, et la position est la clé
+
+L'apparat du SBLGNT est importé depuis le 8 septembre — 6 934 entrées, 27
+livres — mais il dormait dans le vault. Il est maintenant **joint aux versets**
+et émis : `sources/<témoin>/<livre>-editions.json`. PR #240, fusionnée dans
+`device`.
+
+**Ce qu'est un apparat, en une phrase**, parce que le mot ne se devine pas :
+c'est la note où un éditeur dit *« ici, les éditions ne portent pas le même
+texte »* — WH lit ceci, NA28 cela, RP autre chose. Il ne compare pas des
+manuscrits mais **des éditeurs qui les ont dépouillés**.
+
+**Douze sigles, pas six.** Le premier relevé en avait déclaré six, choisis sur
+un échantillon. Les six autres — `NA27`, `WHmarg`, `WHapp`, `Tregmarg`, `NIV`,
+`Holmes`, `TR`, `Greeven` — laissaient ==39 variantes muettes et 10 leçons
+polluées== : le sigle non reconnu restait collé au grec, et la liseuse aurait
+affiché « ἐγένετο Holmes » comme s'il s'agissait du texte. Corrigé en mesurant
+==tous== les jetons latins du corpus, jamais en échantillonnant.
+
+**Le point de grammaire qui aurait tout cassé en silence** : le `;` grec est un
+==point d'interrogation==. Découper les variantes dessus aurait coupé en deux
+chaque leçon contenant une question. Le découpage ne se fait donc qu'après un
+sigle, jamais sur le signe seul.
+
+### La clé de jointure est la position, jamais le numéro affiché
+
+C'est le piège de cette PR, et il vaut pour tout ce qui s'adosse aux versets
+d'une unité.
+
+Le §2.2 fait repartir la numérotation à ¹ quand un nouveau chapitre biblique
+commence **au milieu** d'une **parashah**. Une unité qui couvre *Bereshit* 7-8
+porte donc ==deux versets numérotés ¹==. Indexer par `n` ferait tomber l'apparat
+du second sur le premier, ==sans que rien ne le dise== : le numéro existe, le
+verset existe, le lien est faux.
+
+`DivergencePubliee` porte donc `i` — la position dans le tableau — comme clé, et
+`n` seulement pour que la liseuse vérifie qu'elle n'a pas glissé. L'épreuve
+`deux_versets_numero_un_ne_se_confondent_pas` a été validée en lui injectant le
+défaut exact ; elle échoue en `left: (0, 1)` / `right: (2, 1)`.
+
+### Ce que ça change pour chaque dépôt
+
+- **App / iOS et Android** — ==rien aujourd'hui, tout demain==. Le fichier
+  n'est émis que là où des éditeurs divergent, donc uniquement sur le grec de la
+  *Berit Hadashah* — dont aucun livre n'est écrit. Le manifeste porte
+  `editions` en champ ==optionnel==, à côté de `temoins` et jamais dedans : les
+  deux répondent à des questions différentes — « que porte ce témoin ici » et
+  « où les éditeurs se sont-ils séparés » —, et les mêler ferait passer un
+  désaccord d'éditeur pour un témoin textuel. Un consommateur qui parcourt le
+  manifeste ne casse pas ; celui qui devinerait les chemins, si.
+- **Site** — même chose, et pour la même raison. Il lit `dist/` à la
+  compilation : un fichier de plus, optionnel, découvert par le manifeste.
+- **Vault** — rien. La conclusion est constatée, pas supposée : le vault ne
+  porte que les `.jsonl` de `sources/`, que cette PR lit sans les modifier.
+
+### Correction au compte de l'addendum d'hier soir — quatorze fiches, pas sept
+
+L'addendum « `## Formes`, et l'endroit où l'on déclare » nomme sept fiches de
+`lexique/` sans entrée de glossaire, dont les formes restent inertes. Le compte
+vient de `liens_morts`, qui mesure ce qui est ==publié==. Mesuré du côté du
+==gain possible==, il y en a **quatorze**, et elles retiennent **67
+occurrences** :
+
+    7  halakh      5  zakhar      4  neqevah
+    7  toledot     5  mut         4  yada
+    6  erev        4  gan         4  tevah
+    6  boqer       4  meorot      3  chen
+    6  zera                       2  sim
+
+Les deux comptes sont justes ; ils ne mesurent pas la même chose, et c'est le
+second qui sert à décider par où commencer.
+
+Vérification indépendante du gain annoncé, sur le pipeline de `device` (6ea75f6)
+et l'arbre du vault à `3f67c09` : ==1 223 → 1 090 occurrences inertes==, soit
+**−133**. Le chiffre tient. La prévision faite à la main en donnait 201, qui se
+décompose exactement — 134 dont le lemme a une entrée, 67 dont il n'en a pas.
+
+**Et une prémisse à ne pas hériter** : ces 34 fiches sont sur
+`ecrire-la-premiere-khuqqah`, ==pas sur `main`==, qui est 21 commits derrière.
+Un build de CI qui n'en montre aucun gain ne voudra pas dire que le lecteur est
+cassé — c'est pourquoi ses épreuves partent d'une fixture et non de `lexique/`.
