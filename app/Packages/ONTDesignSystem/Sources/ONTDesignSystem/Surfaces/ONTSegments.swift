@@ -54,6 +54,12 @@ public struct ONTSegments<Valeur: Hashable>: View {
                 rangee(defilante: true)
             }
             .scrollIndicators(.hidden)
+            // **Le rail commence à son début.** Sans ancrage, le défilement
+            // s'ouvrait ailleurs et le segment choisi sortait par la gauche :
+            // « Intraduisibles » réduit à un « s » et à un fragment de capsule.
+            // Relevé sur l'iPhone de Gloire, sur la première version de ce
+            // défilement.
+            .defaultScrollAnchor(.leading)
         }
         .padding(3)
         .background {
