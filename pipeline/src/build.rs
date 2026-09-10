@@ -1378,6 +1378,7 @@ pub fn build() -> Result<BuildResult, String> {
         &sortie.join("manifest.json"),
         &Manifest {
             schema: 1,
+            contrat: crate::schema::CONTRAT_DES_NOEUDS,
             // L'estampille du **contenu**, pas de la compilation — la date du
             // dernier commit du vault, passée par `ONT_GENERE`.
             //

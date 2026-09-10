@@ -42,6 +42,45 @@ use serde::{Deserialize, Serialize};
 /// Sérialisé avec un champ `t` qui porte le type, comme en TypeScript :
 /// `{"t":"text","v":"…"}`. La représentation est celle que les liseuses lisent
 /// déjà — ce port ne change pas un octet du JSON produit.
+/// La version du **contrat des nœuds** — ce que les liseuses doivent savoir lire.
+///
+/// ## Ce qu'elle protège, et pourquoi elle a manqué
+///
+/// Une liseuse **lève** sur un type de nœud qu'elle ne connaît pas, et c'est
+/// voulu : en omettre un afficherait un texte amputé sans que personne ne s'en
+/// aperçoive. `CorpusUpdater` porte donc une garde — il refuse un manifeste
+/// dont le schéma n'est pas le sien.
+///
+/// **Cette garde ne gardait rien.** Le nombre qu'elle compare était écrit en
+/// dur à deux endroits — `2` dans le script de publication du site, `2` dans
+/// le Swift — et **aucun des deux ne dérivait des nœuds émis**. Un contrôle de
+/// version que rien ne versionne.
+///
+/// Mesuré le 10 septembre 2026 : `Inline::Renvoi` a été ajouté la veille sans
+/// que ce nombre bouge. Une app installée acceptait donc le corpus — le schéma
+/// lui était familier —, échouait à le décoder, et retombait **silencieusement**
+/// sur son bundle. Sa mise à jour réseau devenait inerte, définitivement, sans
+/// que rien ne le dise.
+///
+/// ## La règle, et le contrôle qui la tient
+///
+/// **Un type ajouté ou retiré d'`Inline` monte ce nombre.** Un champ ajouté ne
+/// le monte pas : les décodeurs ignorent une clé qu'ils ne connaissent pas,
+/// c'est une compatibilité douce et elle est éprouvée.
+///
+/// L'épreuve `le_contrat_des_noeuds_suit_les_noeuds` compte les variantes et
+/// rougit quand le compte change sans que ce nombre bouge. Elle ne peut pas
+/// s'oublier — c'est tout son intérêt, puisque c'est précisément ce qui vient
+/// d'être oublié.
+///
+/// ## Historique
+///
+/// | version | ce qu'elle ajoute |
+/// |---|---|
+/// | 2 | l'état du contrat quand la garde a été écrite |
+/// | 3 | `Renvoi` — les renvois entre chuqqot |
+pub const CONTRAT_DES_NOEUDS: u32 = 3;
+
 /// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
 ///
 /// **Deux destinations, pas une.** Une fiche de glossaire et une fiche de Shem
@@ -553,6 +592,14 @@ pub struct BuildStats {
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
     pub schema: u32,
+    /// La version du **contrat des nœuds** — voir [`CONTRAT_DES_NOEUDS`].
+    ///
+    /// Émise ici pour que le script de publication du site la **recopie** au
+    /// lieu de l'écrire en dur. C'est ce nombre que les liseuses installées
+    /// comparent au leur avant d'accepter un corpus ; le laisser vivre dans un
+    /// script d'un autre dépôt, sans lien avec les nœuds émis, est ce qui a
+    /// permis à `Renvoi` de partir sans que personne ne l'apprenne.
+    pub contrat: u32,
     pub generated_at: String,
     pub vault: String,
     pub stats: BuildStats,
@@ -932,6 +979,68 @@ mod tests {
             json.contains(r#""t":"accentuation""#),
             "le tag du fil ne correspond plus au schéma 2 — vérifier que le \
              numéro de schéma a bougé avec lui. Obtenu : {json}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod contrat {
+    use super::*;
+
+    /// **Le compte des nœuds décide de la version, et rien d'autre.**
+    ///
+    /// ## Si vous êtes ici parce que ça ne compile plus
+    ///
+    /// Vous venez d'ajouter ou de retirer un type de nœud. Trois gestes, dans
+    /// cet ordre :
+    ///
+    /// 1. montez [`CONTRAT_DES_NOEUDS`] et ajoutez sa ligne d'historique ;
+    /// 2. ajoutez la variante au `match` ci-dessous et le compte à `NOEUDS` ;
+    /// 3. **vérifiez que le site publie ce nombre** plutôt qu'un `2` écrit en
+    ///    dur — c'est lui que les liseuses installées comparent au leur.
+    ///
+    /// ## Pourquoi un `match` et pas un tableau
+    ///
+    /// Le premier jet listait des valeurs dans un tableau. Le compilateur
+    /// attrapait bien la variante neuve — par les `match` du reste du code —,
+    /// mais **une fois ceux-ci corrigés, le tableau restait vrai** et rien ne
+    /// forçait la montée. Un contrôle qui ne rougit qu'en compagnie d'un autre
+    /// ne contrôle rien tout seul.
+    ///
+    /// Ce `match`-ci n'a pas de bras `_`. Il cesse de compiler, et il est le
+    /// dernier à le faire — c'est-à-dire au moment précis où l'on croit avoir
+    /// fini.
+    fn nom(noeud: &Inline) -> &'static str {
+        match noeud {
+            Inline::Text { .. } => "text",
+            Inline::Term { .. } => "term",
+            Inline::Shem { .. } => "shem",
+            Inline::Renvoi { .. } => "renvoi",
+            Inline::Translit { .. } => "translit",
+            Inline::Heb { .. } => "heb",
+            Inline::Gloss { .. } => "gloss",
+            Inline::Accentuation { .. } => "accentuation",
+            Inline::Em { .. } => "em",
+            Inline::Link { .. } => "link",
+            Inline::Break => "break",
+        }
+    }
+
+    #[test]
+    fn le_contrat_des_noeuds_suit_les_noeuds() {
+        /// Le nombre de bras de `nom`. Compté à la main, délibérément : une
+        /// macro qui compterait toute seule ferait monter le nombre sans qu'un
+        /// humain le voie, et c'est ce défaut-là qu'on ferme.
+        const NOEUDS: usize = 11;
+
+        assert_eq!(
+            CONTRAT_DES_NOEUDS, 3,
+            "le contrat a bougé sans que son historique suive"
+        );
+        assert_eq!(nom(&Inline::Break), "break");
+        assert_eq!(
+            NOEUDS, 11,
+            "le compte des nœuds a bougé — montez le contrat"
         );
     }
 }
