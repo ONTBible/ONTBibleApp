@@ -140,11 +140,44 @@ pub fn out() -> PathBuf {
 
 /// Les deux états du flux de validation (§12).
 ///
-/// `locked/` fait référence. `brouillons/` miroite exactement son arborescence
-/// et **ne voyage pas** dans la distribution — mais le pipeline le lit quand
-/// même, pour que la liseuse d'atelier puisse l'afficher et que le rapport dise
-/// où en est le corpus.
+/// `locked/` fait référence, `brouillons/` miroite exactement son arborescence.
+///
+/// ## Les deux voyagent, et il n'y a qu'une distribution
+///
+/// Ce commentaire affirmait que `brouillons/` **ne voyage pas** dans la
+/// distribution. C'était faux, et il se contredisait dans sa propre phrase :
+/// « ne voyage pas — mais le pipeline le lit quand même ». Il n'y a qu'un
+/// `dist/`, et ce qu'il porte est ce que la liseuse reçoit.
+///
+/// Mesuré le 9 septembre 2026 sur un `dist/` bâti à `8d80853` :
+///
+/// ```text
+/// 35 unités  locked
+/// 11 unités  brouillon      ← livrées, et lues par l'app
+/// ```
+///
+/// Relevé par Gloire, qui a vu ses parashiot en brouillon **dans l'app**. La
+/// distinction visée — une « liseuse d'atelier » qui verrait ce que le public
+/// ne voit pas — n'a jamais existé dans le code.
+///
+/// ## Ce que la validation est donc, et ce qu'elle n'est pas
+///
+/// **Une déclaration d'état, pas une barrière de publication.** Une unité en
+/// brouillon part chez le lecteur, marquée « Brouillon — en attente de
+/// validation », et c'est le marquage qui porte l'information. Le passage vers
+/// `locked/` dit que le texte fait référence ; il ne décide pas s'il sort.
+///
+/// La phrase a été répétée comme une garantie — « rien ne partira avant
+/// validation » — sur un sujet où c'est le texte de l'auteur qui est en jeu.
+/// Un commentaire faux ne se contente pas d'être inexact : il se cite.
 pub const TREES: [(&str, &str); 2] = [("locked", "locked"), ("brouillon", "brouillons")];
+
+/// Le dossier des chuqqot, dans chacun des deux arbres.
+///
+/// **À côté du squelette, pas dedans.** Les 70 slots sont les livres du
+/// corpus ; une chuqqah n'est pas un livre et n'a pas de numéro. Elle énonce
+/// une règle du fonctionnement, et se lit d'un bout à l'autre.
+pub const CHUQQOT: &str = "chuqqot";
 
 /// L'arborescence vide des 70 slots — elle définit le squelette du corpus.
 pub const SKELETON: &str = "in-writing";

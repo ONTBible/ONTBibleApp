@@ -32,6 +32,8 @@ pub mod build;
 #[cfg(feature = "parsers")]
 pub mod chapter;
 #[cfg(feature = "parsers")]
+pub mod chuqqot;
+#[cfg(feature = "parsers")]
 pub mod config;
 #[cfg(feature = "parsers")]
 pub mod controles;

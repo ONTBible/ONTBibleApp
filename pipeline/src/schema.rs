@@ -765,6 +765,58 @@ pub struct PrononciationFile {
 }
 
 /// `dist/glossary.json` — le lexique des intraduisibles.
+/// Une **chuqqah** — un énoncé permanent de l'ontologie hébraïque.
+///
+/// De *chaqaq* (חָקַק), graver dans la pierre : ce qui est gravé tient de
+/// soi-même, et le reste s'y appuie. Ce n'est ni une opinion qu'on défend, ni
+/// un commentaire qui accompagne un texte.
+///
+/// ## Pourquoi un type et non une fiche de lexique
+///
+/// Une fiche de lexique explique **un mot** ; une chuqqah énonce **une règle du
+/// fonctionnement**, et elle se lit d'un bout à l'autre. Les deux portent de la
+/// prose, mais l'une se consulte et l'autre se lit — c'est ce qui décide de
+/// leur place à l'écran, et donc de leur type.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Chuqqah {
+    /// Le nom du fichier, slugifié — `les-quatre-modes-de-presence`.
+    ///
+    /// **C'est aussi son adresse sur le site**, `/fr/chuqqot/{id}`. Une adresse
+    /// qui bouge après indexation perd ce que le référencement lui a donné : ce
+    /// champ ne se renomme pas à la légère.
+    pub id: String,
+    /// Le titre, lu de la ligne `# ` du fichier.
+    pub title: String,
+    /// L'ordre de lecture, tiré du nom de fichier quand il le porte.
+    ///
+    /// `chuqqot-0-intro` ouvre la série. Les autres suivent, alphabétiquement,
+    /// faute d'un ordre déclaré ailleurs — et c'est dit plutôt que deviné.
+    pub rank: u32,
+    pub blocks: Vec<Block>,
+}
+
+/// Les chuqqot **publiées** — et elles le sont toutes, par construction.
+///
+/// ## La garde vit dans l'émission, pas dans un filtre
+///
+/// Décision de l'auteur, le 9 septembre 2026 : une chuqqah en brouillon ne
+/// sort pas. Les unités de traduction, elles, continuent de voyager marquées
+/// « Brouillon » — la validation y est une déclaration d'état.
+///
+/// La distinction tient à ce qu'on lit : un chapitre en cours porte sa mention
+/// et le lecteur sait où il met les pieds ; une chuqqah énonce ce qui est tenu
+/// pour établi, et un énoncé permanent « en attente de validation » se
+/// contredit lui-même.
+///
+/// **Ce type ne porte donc pas de `status`**, et c'est délibéré : il n'y a
+/// qu'un état possible ici. Un champ qui ne peut prendre qu'une valeur invite à
+/// l'autre.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChuqqotFile {
+    pub schema: u32,
+    pub entries: Vec<Chuqqah>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlossaryFile {
     pub schema: u32,
