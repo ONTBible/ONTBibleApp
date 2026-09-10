@@ -79,7 +79,8 @@ use serde::{Deserialize, Serialize};
 /// |---|---|
 /// | 2 | l'état du contrat quand la garde a été écrite |
 /// | 3 | `Renvoi` — les renvois entre chuqqot |
-pub const CONTRAT_DES_NOEUDS: u32 = 3;
+/// | 4 | `Reference` — les renvois vers un autre passage |
+pub const CONTRAT_DES_NOEUDS: u32 = 4;
 
 /// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
 ///
@@ -1071,6 +1072,7 @@ mod contrat {
             Inline::Term { .. } => "term",
             Inline::Shem { .. } => "shem",
             Inline::Renvoi { .. } => "renvoi",
+            Inline::Reference { .. } => "reference",
             Inline::Translit { .. } => "translit",
             Inline::Heb { .. } => "heb",
             Inline::Gloss { .. } => "gloss",
@@ -1086,15 +1088,15 @@ mod contrat {
         /// Le nombre de bras de `nom`. Compté à la main, délibérément : une
         /// macro qui compterait toute seule ferait monter le nombre sans qu'un
         /// humain le voie, et c'est ce défaut-là qu'on ferme.
-        const NOEUDS: usize = 11;
+        const NOEUDS: usize = 12;
 
         assert_eq!(
-            CONTRAT_DES_NOEUDS, 3,
+            CONTRAT_DES_NOEUDS, 4,
             "le contrat a bougé sans que son historique suive"
         );
         assert_eq!(nom(&Inline::Break), "break");
         assert_eq!(
-            NOEUDS, 11,
+            NOEUDS, 12,
             "le compte des nœuds a bougé — montez le contrat"
         );
     }
