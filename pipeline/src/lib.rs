@@ -38,6 +38,8 @@ pub mod config;
 #[cfg(feature = "parsers")]
 pub mod controles;
 #[cfg(feature = "parsers")]
+pub mod emissions;
+#[cfg(feature = "parsers")]
 pub mod inline;
 #[cfg(feature = "parsers")]
 pub mod niveau_trois;
