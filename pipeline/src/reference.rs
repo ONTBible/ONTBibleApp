@@ -304,6 +304,12 @@ pub struct BookName {
     pub translit: String,
     /// Le titre en écriture hébraïque.
     pub hebrew: String,
+    /// Le nom français — **le pont de navigation** vers la Bible que le lecteur
+    /// connaît (§2.6), et depuis le 10 septembre 2026 ce qui **dit la
+    /// numérotation** : `Genèse 9:25` est la numérotation reçue, `Bereshit 9:8`
+    /// l'unité ONT. Les trois formes de répertoire le portent en première
+    /// cellule — mesuré, non supposé.
+    pub french: String,
 }
 
 /// Associe à chaque identifiant de livre son nom canonique.
@@ -326,6 +332,8 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
         let Some(hebrew_cell) = cells.iter().find(|c| has_hebrew(c)) else {
             continue;
         };
+        // Les trois formes de répertoire mènent par le nom français.
+        let french = cells.first().map(|c| cell_text(c)).unwrap_or_default();
 
         for cell in &cells {
             if cell == hebrew_cell {
@@ -337,6 +345,7 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
                 couvrantes.entry(id.clone()).or_insert_with(|| BookName {
                     translit: translit.clone(),
                     hebrew: cell_text(hebrew_cell),
+                    french: french.clone(),
                 });
             }
             if !id.is_empty() && known_ids.contains(&id) && !names.contains_key(&id) {
@@ -345,6 +354,7 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
                     BookName {
                         translit,
                         hebrew: cell_text(hebrew_cell),
+                        french: french.clone(),
                     },
                 );
                 break;
@@ -410,6 +420,11 @@ fn numeroter(
             BookName {
                 translit: format!("{} {rang}", commun.translit),
                 hebrew: format!("{} {ordinal}", commun.hebrew),
+                // Le français est hérité **tel quel**. L'entrée commune porte
+                // « 1-2 Corinthiens » : en tirer « 1 Corinthiens » serait une
+                // déduction sur une forme que le vault n'écrit pas, et la
+                // détection s'appuierait alors sur un nom inventé.
+                french: commun.french.clone(),
             },
         );
     }

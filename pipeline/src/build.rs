@@ -24,6 +24,7 @@ use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::chuqqot;
+use crate::inline::{declarer_les_livres, Systeme};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
@@ -660,6 +661,31 @@ pub fn build() -> Result<BuildResult, String> {
         mut form_index,
         book_names,
     } = read_reference(&texte_reference, &ids);
+
+    // **Les livres que la détection de références reconnaîtra**, §2.6 du vault.
+    //
+    // Posé ici et pas ailleurs : `read_chapters` appelle `parse_inline` plus
+    // bas, et sans déclaration préalable aucune référence ne serait détectée.
+    // L'ordre est une dépendance réelle, pas une commodité.
+    //
+    // Le nom dit la numérotation — décision de l'auteur du 10 septembre 2026.
+    // Quatre livres portent le même nom dans les deux langues (`Amos`, `Ruth`,
+    // `Esther`, `Daniel`) : le français est posé **en second** et l'emporte,
+    // parce qu'aucun d'eux n'a d'unité ONT et que la numérotation reçue est
+    // donc la seule qu'une référence puisse viser. Le §2.6 inscrit cette
+    // limite ; le jour où l'un d'eux sera traduit, il lui faudra une marque.
+    let mut livres: BTreeMap<String, Systeme> = BTreeMap::new();
+    for nom in book_names.values() {
+        if !nom.translit.is_empty() {
+            livres.insert(nom.translit.clone(), Systeme::Ont);
+        }
+    }
+    for nom in book_names.values() {
+        if !nom.french.is_empty() {
+            livres.insert(nom.french.clone(), Systeme::Recu);
+        }
+    }
+    declarer_les_livres(livres);
 
     // Les fiches denses recouvrent la définition tirée de `CLAUDE.md`. Elles ne
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
