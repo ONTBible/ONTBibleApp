@@ -563,3 +563,37 @@ jobs:
               print("::error::aucun test n'a tourné — le vert ne veut rien dire")
               sys.exit(1)
           PY
+
+      # ## Le bundle de publication, parce que `test` ne le construit pas
+      #
+      # `./gradlew test` compile en **debug**, où R8 ne tourne pas. Un défaut qui
+      # n'existe qu'en release passe donc au vert ici — jusqu'au jour de la
+      # livraison, où il n'y a plus de marge.
+      #
+      # C'est arrivé le 3 septembre 2026. Le coffre à jetons (#208) a employé
+      # `EncryptedSharedPreferences` pour la première fois ; tink est entré dans
+      # le graphe de R8 avec ses annotations `com.google.errorprone.*`, absentes à
+      # l'exécution par construction ; et le bundle a cessé de se bâtir. **Sept
+      # jours**, sans que rien ne le dise, pendant que des testeurs attendaient
+      # une version. La CI était verte tout du long.
+      #
+      # Une dépendance déclarée mais inutilisée est invisible à R8 : il élague ce
+      # que personne n'atteint. C'est le jour où l'on s'en sert qu'elle amène
+      # toute sa surface avec elle — et ce jour-là n'est pas celui où on l'a
+      # ajoutée.
+      #
+      # Aucun secret n'est requis : sans magasin de clés, `signingConfig` vaut
+      # `null` et le bundle sort **non signé**. On ne le livre pas — on vérifie
+      # qu'il se construit, et c'est R8 qui nous intéresse.
+      - name: Le bundle de publication se construit-il
+        working-directory: ONTBibleApp/android
+        run: |
+          set -euo pipefail
+          ./gradlew :app:bundleRelease --stacktrace
+          # Le compte plutôt que le tampon, comme pour les tests : un `BUILD
+          # SUCCESSFUL` qui ne dépose aucun fichier resterait vert.
+          if [ ! -f app/build/outputs/bundle/release/app-release.aab ]; then
+            echo "::error::build vert, mais aucun bundle déposé"
+            exit 1
+          fi
+          echo "bundle déposé — $(du -h app/build/outputs/bundle/release/app-release.aab | cut -f1)"
