@@ -112,10 +112,26 @@ android {
         // qu'on cherche du côté de l'authentification quand on ne connaît pas
         // la règle.
         //
-        // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
-        // ne l'oblige à suivre le compteur.
+        // `versionName` ne suit pas le compteur — c'est ce que le lecteur lit,
+        // et il a le droit de rester stable d'un build interne à l'autre.
+        //
+        // Mais il doit **bouger entre deux binaires téléversés**, et ça ne
+        // l'avait pas été : les versions 1 et 2 portent toutes deux « 0.1.0 ».
+        // Or c'est le seul numéro qui sorte jusqu'au testeur — la fiche Play,
+        // les réglages du téléphone et « À propos de cette application »
+        // n'affichent que lui, jamais le `versionCode`.
+        //
+        // Le 10 septembre 2026, une testeuse a signalé un défaut corrigé le
+        // 28 août. Savoir si elle l'avait déjà demandait de savoir laquelle des
+        // deux versions elle avait installée — et rien ne pouvait le dire, ni
+        // chez elle, ni sur son téléphone, ni dans ce dépôt. Seule la Play
+        // Console le savait, parce qu'elle est le seul écran qui montre le
+        // `versionCode`.
+        //
+        // Un numéro que le lecteur voit et qui ne distingue pas deux binaires
+        // ne renseigne personne : il ressemble à une version sans en être une.
         versionCode = numeroDeVersion()
-        versionName = "0.1.0"
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
