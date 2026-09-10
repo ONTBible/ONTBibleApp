@@ -175,6 +175,44 @@ pub enum Inline {
     /// dans un ordre ou dans l'autre.
     Renvoi { v: String, cible: String },
 
+    /// Une référence vers un autre passage — `*Genèse* 4:25`, `Bereshit 9:8`.
+    ///
+    /// ## Le nom du livre dit la numérotation
+    ///
+    /// Décision de l'auteur du 10 septembre 2026. Deux systèmes coexistent, et
+    /// c'est **le nom** qui les sépare : `Genèse 9:25` est le verset 25 du
+    /// chapitre 9 de la Genèse reçue, `Bereshit 9:8` est le verset ⁸ de
+    /// l'unité ONT n° 9. Ce sont le même verset, et la forme double est permise.
+    ///
+    /// La règle ne signale pas l'exception — **elle supprime le cas
+    /// d'exception**. Une notation qui repose sur le contexte se lit juste tant
+    /// qu'on connaît le contexte ; un nom se lit seul.
+    ///
+    /// Le corpus portait les deux sous une seule graphie, et ça a coûté deux
+    /// renvois qui menaient à un verset ne parlant pas de ce que la glose
+    /// annonçait — en production, sur 218 renvois déjà cliquables.
+    ///
+    /// ## Détection locale, aucune résolution
+    ///
+    /// Comme `Renvoi`. La grande majorité des renvois du corpus vise des livres
+    /// **pas encore écrits** : les typer sur leur cible les rendrait tous
+    /// inertes, et il faudrait tout reprendre à chaque livre traduit. La
+    /// jointure se fait après, contre l'index de `chapter.rs`.
+    ///
+    /// `verset` est nul sur `Genèse 3`, qui vise une unité entière ;
+    /// `dernier` ne paraît que sur une plage — `1:11-12`.
+    Reference {
+        v: String,
+        livre: String,
+        /// `"recu"` ou `"ont"`.
+        systeme: String,
+        chapitre: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        verset: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dernier: Option<u32>,
+    },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :

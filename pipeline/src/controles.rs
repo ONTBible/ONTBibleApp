@@ -93,6 +93,8 @@ fn descendre(nodes: &[Inline], f: &mut impl FnMut(&Inline)) {
             | Inline::Shem { .. }
             // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
             | Inline::Renvoi { .. }
+            // Une référence aussi : elle porte le syntagme affiché.
+            | Inline::Reference { .. }
             | Inline::Translit { .. }
             | Inline::Heb { .. }
             | Inline::Break => {}
@@ -186,6 +188,8 @@ fn descendre_mut(nodes: &mut [Inline], f: &mut impl FnMut(&mut Inline)) {
             | Inline::Shem { .. }
             // Un renvoi est une feuille : il porte son libellé, pas d'enfants.
             | Inline::Renvoi { .. }
+            // Une référence aussi : elle porte le syntagme affiché.
+            | Inline::Reference { .. }
             | Inline::Translit { .. }
             | Inline::Heb { .. }
             | Inline::Break => {}
@@ -550,7 +554,9 @@ fn mots_hors_glose(nodes: &[Inline], total: &mut usize) {
             | Inline::Term { v, .. }
             | Inline::Shem { v, .. }
             // Un renvoi porte du texte que le lecteur lit : il compte.
-            | Inline::Renvoi { v, .. } => {
+            | Inline::Renvoi { v, .. }
+            // Une référence aussi — « *Genèse* 4:25 » se lit dans la phrase.
+            | Inline::Reference { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }
@@ -576,7 +582,9 @@ fn mots_tout(nodes: &[Inline], total: &mut usize) {
             | Inline::Term { v, .. }
             | Inline::Shem { v, .. }
             // Un renvoi porte du texte que le lecteur lit : il compte.
-            | Inline::Renvoi { v, .. } => {
+            | Inline::Renvoi { v, .. }
+            // Une référence aussi — « *Genèse* 4:25 » se lit dans la phrase.
+            | Inline::Reference { v, .. } => {
                 *total += mots(v)
             }
             Inline::Em { children }

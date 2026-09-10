@@ -35,6 +35,7 @@
 //! caractère. Le contenu entre marqueurs, lui, n'est jamais découpé au milieu.
 
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -475,6 +476,36 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
             }
         }
 
+        // 4c. La référence — `*Genèse* 4:25`, `Bereshit 9:8`
+        //
+        // **Avant l'italique, et c'est tout le point.** Dans `*Genèse* 4:25`,
+        // l'italique se ferme AVANT les chiffres : le cas 5 produirait un `Em`
+        // puis un texte nu, et la référence sortirait coupée en deux.
+        //
+        // La branche ne mord que sur une majuscule ou une astérisque, et
+        // seulement si la liste blanche connaît le nom — `*Pharaon* 4:25` a
+        // exactement la même forme et n'en est pas une.
+        if c == b'*' || c.is_ascii_uppercase() || c >= 0xC0 {
+            if let Some(livres) = LIVRES.get() {
+                if let Some(r) = detecter_une_reference(&src[i..], livres) {
+                    flush!();
+                    out.push(Inline::Reference {
+                        v: r.texte,
+                        livre: r.livre,
+                        systeme: match r.systeme {
+                            Systeme::Recu => "recu".to_string(),
+                            Systeme::Ont => "ont".to_string(),
+                        },
+                        chapitre: r.chapitre,
+                        verset: r.verset,
+                        dernier: r.dernier,
+                    });
+                    i += r.largeur;
+                    continue;
+                }
+            }
+        }
+
         // 5. L'italique ordinaire — `* … *`
         if c == b'*' {
             if let Some(end) = find_em_end(bytes, i + 1) {
@@ -536,6 +567,28 @@ pub struct ReferenceDetectee {
     pub dernier: Option<u32>,
     /// Longueur consommée dans la source, en octets.
     pub largeur: usize,
+}
+
+/// Les livres que la détection reconnaît, posés une fois par construction.
+///
+/// ## Pourquoi un registre global, et ce qu'il coûte
+///
+/// `parse_inline` est récursive et appelée de partout ; y faire passer la liste
+/// en paramètre la ferait rippler dans tout le fichier et chez ses appelants,
+/// pour une donnée qui **ne change jamais pendant une construction** — elle est
+/// lue une fois dans les répertoires du §2.6.
+///
+/// Le prix est réel et il faut le nommer : un état global se teste mal, et deux
+/// constructions dans le même processus se partageraient le registre. C'est
+/// pourquoi `detecter_une_reference` prend la liste **en paramètre** et reste
+/// pure — le global ne sert qu'au branchement, et les tests ne le touchent pas.
+static LIVRES: OnceLock<BTreeMap<String, Systeme>> = OnceLock::new();
+
+/// Déclare les livres pour toute la construction. Sans appel, aucune référence
+/// n'est détectée — le texte reste tel quel, ce qui est le bon défaut : mieux
+/// vaut ne rien poser que poser faux.
+pub fn declarer_les_livres(livres: BTreeMap<String, Systeme>) {
+    let _ = LIVRES.set(livres);
 }
 
 static REFERENCE: Lazy<Regex> = Lazy::new(|| {
@@ -629,9 +682,12 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
             // sujet — au contraire de l'appareil, qu'on retire sans rien perdre.
             // Un renvoi est du corps de texte au même titre qu'un Shem : la
             // phrase le nomme, l'éteindre laisserait un trou.
-            Inline::Term { v, .. } | Inline::Shem { v, .. } | Inline::Renvoi { v, .. } => {
-                out.push_str(v)
-            }
+            // Une référence aussi : « comme en *Genèse* 4:25 » perd son sens
+            // si le syntagme disparaît de l'extrait.
+            Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            | Inline::Renvoi { v, .. }
+            | Inline::Reference { v, .. } => out.push_str(v),
             Inline::Heb { v } => {
                 if options.level3 {
                     out.push_str(v);
@@ -848,6 +904,7 @@ mod tests {
                 Inline::Em { .. } => "em",
                 Inline::Shem { .. } => "shem",
                 Inline::Renvoi { .. } => "renvoi",
+                Inline::Reference { .. } => "reference",
                 Inline::Link { .. } => "link",
                 Inline::Break => "break",
             })
@@ -1290,6 +1347,33 @@ mod tests_de_la_reference {
     fn un_nom_compose_se_lit_en_entier() {
         let r = detecter_une_reference("*Sefar Gibbaraya* 4:10", &livres()).expect("une référence");
         assert_eq!(r.livre, "Sefar Gibbaraya");
+    }
+
+    #[test]
+    fn branchee_la_reference_sort_entiere_du_parseur() {
+        //
+        // Le seul test qui touche au registre global — il est posé une fois
+        // pour tout le processus, donc un seul test peut le faire.
+        //
+        // Ce qu'il vérifie est le piège de l'étape : sans la branche 4c, le
+        // cas de l'italique produirait `Em["Genèse"]` puis `Text[" 4:25"]`, et
+        // la référence sortirait EN DEUX MORCEAUX.
+        declarer_les_livres(livres());
+        let noeuds = parse_inline("comme en *Genèse* 4:25 — et Qayin");
+        let reference = noeuds.iter().find_map(|n| match n {
+            Inline::Reference { v, livre, systeme, chapitre, verset, .. } => {
+                Some((v.clone(), livre.clone(), systeme.clone(), *chapitre, *verset))
+            }
+            _ => None,
+        });
+        assert_eq!(
+            reference,
+            Some(("*Genèse* 4:25".to_string(), "Genèse".to_string(), "recu".to_string(), 4, Some(25)))
+        );
+        // Et rien n'a été mangé autour.
+        let entier: String = plain_text(&noeuds, PlainOptions::default());
+        assert!(entier.contains("comme en"), "« {entier} »");
+        assert!(entier.contains("et Qayin"), "« {entier} »");
     }
 
     #[test]
