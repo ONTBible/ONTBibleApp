@@ -39,7 +39,8 @@ use std::sync::OnceLock;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::schema::{Inline, TermLevel};
+use crate::schema::{
+    PorteeDeLaReference,Inline, TermLevel};
 
 /// L'écriture hébraïque, par sa propriété Unicode.
 ///
@@ -497,8 +498,16 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
                             Systeme::Ont => "ont".to_string(),
                         },
                         chapitre: r.chapitre,
-                        verset: r.verset,
-                        dernier: r.dernier,
+                        // La détection rend deux `Option` parce qu'elle lit
+                        // une forme de surface ; le schéma, lui, refuse
+                        // l'état illégal. La conversion se fait ici, une fois.
+                        portee: match (r.verset, r.dernier) {
+                            (Some(premier), Some(dernier)) => {
+                                PorteeDeLaReference::Plage { premier, dernier }
+                            }
+                            (Some(n), None) => PorteeDeLaReference::Verset { n },
+                            _ => PorteeDeLaReference::Chapitre,
+                        },
                     });
                     i += r.largeur;
                     continue;
@@ -1361,14 +1370,20 @@ mod tests_de_la_reference {
         declarer_les_livres(livres());
         let noeuds = parse_inline("comme en *Genèse* 4:25 — et Qayin");
         let reference = noeuds.iter().find_map(|n| match n {
-            Inline::Reference { v, livre, systeme, chapitre, verset, .. } => {
-                Some((v.clone(), livre.clone(), systeme.clone(), *chapitre, *verset))
+            Inline::Reference { v, livre, systeme, chapitre, portee } => {
+                Some((v.clone(), livre.clone(), systeme.clone(), *chapitre, portee.clone()))
             }
             _ => None,
         });
         assert_eq!(
             reference,
-            Some(("*Genèse* 4:25".to_string(), "Genèse".to_string(), "recu".to_string(), 4, Some(25)))
+            Some((
+                "*Genèse* 4:25".to_string(),
+                "Genèse".to_string(),
+                "recu".to_string(),
+                4,
+                PorteeDeLaReference::Verset { n: 25 }
+            ))
         );
         // Et rien n'a été mangé autour.
         let entier: String = plain_text(&noeuds, PlainOptions::default());

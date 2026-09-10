@@ -105,6 +105,26 @@ pub enum CibleDuNiveauTrois {
     Shem { lemma: String },
 }
 
+/// Ce qu'une référence vise à l'intérieur de son chapitre.
+///
+/// **Un type somme, et pas deux `Option`.** `verset: None` avec
+/// `dernier: Some(33)` serait une plage sans début — personne ne l'écrira, et
+/// c'est justement pour ça que ça finirait par arriver. Ici l'état illégal est
+/// irreprésentable, et le `match` des liseuses devient exhaustif.
+///
+/// Il fait aussi disparaître une convention tacite : `Genèse 3` et
+/// `Genèse 3:1` ne se distinguaient que par la nullité d'un champ.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum PorteeDeLaReference {
+    /// `Genèse 3` — l'unité entière, pas un verset.
+    Chapitre,
+    /// `Genèse 3:24` — un verset.
+    Verset { n: u32 },
+    /// `Genèse 1:11-12` — une plage. La navigation vise son ouverture.
+    Plage { premier: u32, dernier: u32 },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Inline {
@@ -199,18 +219,15 @@ pub enum Inline {
     /// inertes, et il faudrait tout reprendre à chaque livre traduit. La
     /// jointure se fait après, contre l'index de `chapter.rs`.
     ///
-    /// `verset` est nul sur `Genèse 3`, qui vise une unité entière ;
-    /// `dernier` ne paraît que sur une plage — `1:11-12`.
+    /// `portee` dit ce que la référence vise — un chapitre entier, un verset,
+    /// ou une plage. Voir `PorteeDeLaReference`.
     Reference {
         v: String,
         livre: String,
         /// `"recu"` ou `"ont"`.
         systeme: String,
         chapitre: u32,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        verset: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        dernier: Option<u32>,
+        portee: PorteeDeLaReference,
     },
 
     /// Niveau 3 — `(*translittération* / hébreu)`.

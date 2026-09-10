@@ -27,6 +27,25 @@ public enum CibleDuNiveauTrois: Hashable, Sendable {
     case shem(lemma: String)
 }
 
+/// Ce qu'une référence vise à l'intérieur de son chapitre.
+///
+/// **Un type somme, et pas deux valeurs nulles.** « verset absent, dernier
+/// présent » serait une plage sans début : personne ne l'écrit, et c'est
+/// justement pour ça que ça finirait par arriver. Ici l'état illégal n'existe
+/// pas, et le `switch` de la liseuse devient exhaustif.
+///
+/// Défini ici et non repris du schéma engendré : le domaine ne connaît rien du
+/// monde extérieur, et un champ renommé dans le vault ne doit pas se propager
+/// jusqu'à lui.
+public enum PorteeDeLaReference: Hashable, Sendable {
+    /// `Genèse 3` — l'unité entière, pas un verset.
+    case chapitre
+    /// `Genèse 3:24` — un verset.
+    case verset(Int)
+    /// `Genèse 1:11-12` — une plage. La navigation vise son ouverture.
+    case plage(premier: Int, dernier: Int)
+}
+
 public enum Inline: Hashable, Sendable {
     case text(String)
     /// Un intraduisible. `lemma` est la clé qui ouvre sa fiche de lexique.
@@ -69,6 +88,31 @@ public enum Inline: Hashable, Sendable {
     /// corpus s'écrit, et un renvoi mort dit **« ce n'est pas encore écrit »**,
     /// jamais « introuvable ».
     case renvoi(String, cible: String)
+
+    /// Une référence vers un autre passage — `*Genèse* 4:25`, `Bereshit 9:8`.
+    ///
+    /// **Le nom du livre dit la numérotation**, décision de l'auteur du
+    /// 10 septembre 2026 : `Genèse 9:25` est la numérotation reçue,
+    /// `Bereshit 9:8` le verset ⁸ de l'unité ONT. Ce sont le même verset.
+    ///
+    /// `systeme` porte ce choix, résolu par le pipeline — la liseuse n'a pas à
+    /// le redéduire d'une forme de chaîne.
+    ///
+    /// `portee` est un type somme et non deux valeurs nulles : « Genèse 3 » et
+    /// « Genèse 3:1 » ne se distinguaient sinon que par une convention tacite,
+    /// et une plage sans début restait représentable.
+    ///
+    /// **La cible peut ne pas exister** : la grande majorité des renvois du
+    /// corpus vise des livres pas encore traduits. Le pipeline ne résout pas —
+    /// il détecte. C'est à la liseuse de dire « pas encore écrit », jamais
+    /// « introuvable ».
+    case reference(
+        String,
+        livre: String,
+        systeme: String,
+        chapitre: Int,
+        portee: PorteeDeLaReference
+    )
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
@@ -155,6 +199,10 @@ public extension [Inline] {
             // Un renvoi aussi : la phrase le nomme, et le partage d'un verset
             // ne doit pas laisser un trou là où le lecteur a lu un mot.
             case .renvoi(let value, _):
+                repliage.ajouter(value)
+            // Une référence aussi — « comme en *Genèse* 4:25 » perd son sens
+            // si le syntagme disparaît d'un extrait ou d'une recherche.
+            case .reference(let value, _, _, _, _):
                 repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }
