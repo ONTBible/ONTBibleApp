@@ -188,9 +188,16 @@ struct LargeursTests {
 
     /// Le plancher de couverture de la mesure de marge.
     ///
-    /// Relevé, pas choisi : c'est ce que la matrice rend aujourd'hui, arrondi
-    /// vers le bas avec de la marge. Voir `laMargeResteMesurable`.
-    static let mesuresAttendues = 200
+    /// **Relevé le 10 septembre 2026 : 462 cas répondent.** Le plancher est posé
+    /// nettement en dessous, parce qu'il ne mesure pas la qualité de la
+    /// couverture mais son effondrement — un sujet retiré, un cran écarté, un
+    /// composant qui gagne un fond translucide font varier ce nombre sans que
+    /// rien n'aille mal.
+    ///
+    /// Le relever quand des sujets s'ajoutent est légitime. Le baisser pour
+    /// faire passer une épreuve rouge ne l'est pas : ce serait exactement la
+    /// dérive qu'il est là pour rendre visible.
+    static let mesuresAttendues = 400
 
     /// La part de la surface qui doit porter de l'encre pour qu'une mesure
     /// veuille dire quelque chose.
@@ -413,9 +420,20 @@ struct LargeursTests {
         //
         // On compte donc les cas où elle **répond**. Le plancher est un ordre de
         // grandeur, pas une cible : il ne dit pas « la couverture est bonne », il
-        // dit « la couverture ne s'est pas effondrée ». Le relever quand des
-        // sujets s'ajoutent est légitime ; le baisser pour faire passer une
-        // épreuve rouge ne l'est pas.
+        // dit « la couverture ne s'est pas effondrée ».
+        //
+        // ## Ce que ce compte ne distingue pas, et qu'il faut savoir en le lisant
+        //
+        // Un sujet qui pèse zéro n'est pas forcément immesurable : `margeDuContenu`
+        // rend aussi `nil` quand elle n'a **rien trouvé** en s'enfonçant de
+        // `profondeur` points, c'est-à-dire quand la marge est confortable. La
+        // carte de partage en est là — 90 points de marge, bien au-delà des 48
+        // qu'on explore — et les cartes du jour aussi, faute de fond à elles :
+        // ce sont leurs conteneurs qui les habillent.
+        //
+        // Le relevé par sujet est donc imprimé dans le message d'échec, et pas
+        // seulement le total : c'est lui qui dit si un zéro veut dire « large »
+        // ou « aveugle », et les deux ne se corrigent pas pareil.
         var mesures = 0
         var parSujet: [String: Int] = [:]
         for sujet in Sujet.allCases {
