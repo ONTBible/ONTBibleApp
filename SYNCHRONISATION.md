@@ -4252,3 +4252,138 @@ Markdown en sautant les liens ; l'autre lit ce que l'analyseur Rust a produit,
 où les liens sont déjà des nœuds et ne peuvent plus tromper. Les trois
 tentatives ratées du script reconstruisaient à la main ce que l'analyseur savait
 déjà faire.
+
+## 10 septembre 2026 — sept jours sans paquet livrable, sous une CI verte
+
+L'app Android n'était plus empaquetable pour Play depuis le 3 septembre.
+`:app:minifyReleaseWithR8` échouait net :
+
+    Missing class com.google.errorprone.annotations.CanIgnoreReturnValue
+    (referenced from: com.google.crypto.tink.KeysetManager … et 52 autres)
+
+Personne ne l'a su, parce que **personne ne construisait de bundle** et que la CI
+n'en construisait pas non plus.
+
+### Une dépendance inutilisée est invisible, et le jour où l'on s'en sert n'est pas celui où on l'a ajoutée
+
+`security-crypto` — donc tink — est déclaré depuis le portage du 24 août. Le
+bundle du 2 septembre se construisait pourtant sans peine, et sa carte proguard
+dit pourquoi : **zéro** occurrence de `com.google.crypto.tink`. R8 élague ce que
+personne n'atteint ; la bibliothèque n'entrait pas dans le graphe, donc ses
+annotations manquantes ne regardaient personne.
+
+Le 3 septembre, le coffre à jetons a employé `EncryptedSharedPreferences` pour la
+première fois. La carte du bundle d'aujourd'hui en compte **13 979**.
+
+    2 septembre    tink dans la carte :      0     bundle : construit
+    10 septembre   tink dans la carte : 13 979     bundle : construit, après correctif
+
+Deux relevés, deux artefacts distincts, le même instrument — c'est ce croisement
+qui date le basculement à la journée.
+
+### Le contrôle ne pouvait pas rougir
+
+La CI lance `./gradlew test`, qui compile en **debug**, où R8 ne tourne pas. Elle
+est restée verte sept jours — ==y compris sur une PR ouverte le matin même du
+diagnostic==, dont le contrôle `Android` est passé en 4 min 9 s pendant que le
+bundle ne se construisait pas.
+
+Ce n'est pas la variante « un contrôle qui s'exécute sans exiger » du 9 septembre.
+C'est un cran plus bas : **un contrôle qui ne mesure pas la chose**. Il exigeait,
+il rougissait, il était branché — et il regardait ailleurs.
+
+Et le détail qui pique : `proguard-rules.pro` portait **déjà deux fois** la phrase
+« rien ne le montre en debug, où R8 ne tourne pas », écrite pour
+`kotlinx.serialization`, puis pour Room. Troisième occurrence.
+
+> ==Une leçon écrite trois fois et jamais outillée n'est pas une leçon.==
+
+Le job `Android` construit donc désormais `:app:bundleRelease`. Sans magasin de
+clés, `signingConfig` vaut `null` et le bundle sort non signé : aucun secret n'est
+requis pour vérifier que R8 passe. Et l'étape **compte le fichier déposé** plutôt
+que le tampon `BUILD SUCCESSFUL`, comme l'étape des tests le faisait déjà.
+
+### La garde neuve a rougi à son premier tour, sur autre chose
+
+`verifierLeCorpus` a arrêté `chuqqot.json` : un document que le pipeline produit
+depuis le 10 septembre, dont iOS a un onglet entier, et qu'Android n'ouvre nulle
+part. Exclu de la copie, inscrit aux connus avec sa raison, écart consigné.
+
+C'est le **second en trois jours** après `prononciation.json`. `corpus.sh` copie
+`dist/*.json` par **glob**, pas par liste : tout ce que le pipeline produit entre
+dans les ressources, et seul `verifierLeCorpus` l'arrête — côté Android
+uniquement.
+
+C'est ce qui motive le portage de cette garde en amont, décidé par l'auteur. Un
+contrôle qui ne vit que chez un client ne protège que lui, et ce n'est pas là que
+la fuite commence. La version amont devra ==regarder les comptes, pas la
+présence== : un fichier vide et un fichier absent ne se distinguent pas, et l'un
+des deux est une panne.
+
+### Un numéro que le lecteur voit et qui ne distingue rien
+
+`versionName` était resté à `0.1.0` depuis le 24 août, pour les deux binaires
+téléversés. C'est le **seul** numéro qui sorte jusqu'au testeur — la fiche Play,
+les réglages du téléphone, « À propos de cette application » n'affichent que lui.
+
+Une testeuse a signalé un défaut corrigé le 28 août ; savoir si elle l'avait déjà
+exigeait de savoir laquelle des deux versions elle avait, et rien ne pouvait le
+dire. Seule la Play Console le savait, parce qu'elle affiche le `versionCode`.
+
+La doctrine ne change pas — elle vient d'iOS, où `CFBundleVersion` est daté et
+`CFBundleShortVersionString` s'écrit à la main, geste de dépôt délibéré. C'est ce
+geste qui n'avait jamais été fait : iOS en est à `1.0.6`.
+
+### Nommer, ramasser, compter — un partage de terrain, pas une hiérarchie
+
+La journée a mis trois mécanismes côte à côte sur le même problème, et la
+comparaison est plus utile qu'aucun des trois pris seul.
+
+Le site **ne peut pas** avoir le défaut d'Android. Chaque fichier de `dist/` y
+est nommé un par un, et `include_str!` **exige un chemin littéral** : ce qui
+n'est pas nommé n'entre pas dans le binaire. Il n'y a pas d'équivalent du
+`dist/*.json` d'Android. Le défaut ne se rattrape pas, il ne naît pas.
+
+    site       chaque fichier nommé, `include_str!` littéral
+               → la classe de défaut est supprimée
+    Android    `dist/*.json` par glob, puis `verifierLeCorpus` refuse les inconnus
+               → la classe de défaut existe, un contrôle l'attrape
+
+**Mais la supériorité de nommer a un périmètre**, et la session du site l'a posé
+elle-même avant que la formule ne circule sans lui : ==nommer ne s'applique que
+là où l'ensemble est fini et connu à la compilation==. Ses cinq fichiers, oui.
+`dist/books/`, non — elle le parcourt par `read_dir`, et il le faut : soixante-dix
+livres viendront, et c'est le vault qui les nomme.
+
+D'où la règle en trois termes, qui n'est pas un classement :
+
+    nommer     quand l'ensemble est fini et connu à la compilation
+    ramasser   quand il ne l'est pas — et alors un contrôle est obligatoire
+    compter    dans les deux cas, toujours
+
+Le troisième terme ne se déduit pas des deux autres. Un fichier vide et un
+fichier absent ne se distinguent pas, et l'un des deux est une panne : le vault
+a vu une table passer de 67 entrées à 0 sous une construction verte, et le site
+a vu des fiches vides répondre `200` du poids exact d'un lemme inventé.
+
+Et une quatrième exigence, que la garde d'Android **ne remplit pas** : `connusDuCorpus`
+vérifie qu'un fichier est **connu**, pas qu'il est **utilisé**. `prononciation.json`
+y figure depuis le 8 septembre et Android ne le lit toujours pas. ==Inscrire un nom
+y déclare un lecteur, et rien ne vérifie que la déclaration est vraie== — la garde a
+laissé exister le trou qu'elle devait fermer.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `-dontwarn com.google.errorprone.annotations.**` dans
+`proguard-rules.pro` ; le job `Android` construit `:app:bundleRelease` (environ
+3 à 4 minutes de plus sur chaque PR) ; `chuqqot.json` exclu de la copie ;
+`versionName` à `0.1.1`.
+
+**ONTBibleWebapp** — le site lit `dist/` lui aussi, et rien n'y vérifie qu'un
+document neuf a un lecteur. Deux sont arrivés en trois jours. La question à se
+poser : `prononciation.json` et `chuqqot.json` sont-ils servis, ignorés, ou
+embarqués sans être lus ?
+
+**ONTBibleTranslation** — rien à changer. Mais le vault est la source du glob :
+tout document neuf du pipeline atterrit chez deux clients qui n'en savent rien
+jusqu'à ce qu'un contrôle le dise.

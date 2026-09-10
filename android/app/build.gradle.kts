@@ -219,6 +219,23 @@ tasks.register<Sync>("copierLesDonnees") {
     // 8 septembre. Le jour où Android saura le lire, cette ligne disparaît et
     // le nom rejoint `connusDuCorpus`.
     exclude("prononciation.json")
+
+    // ## Les chuqqot non plus — et c'est la seconde fois en trois jours
+    //
+    // `chuqqot.json` est arrivé le 10 septembre 2026. iOS en a un onglet entier
+    // — `ChuqqotFeature/Presentation/ChuqqotTab.swift`, six fichiers Swift —,
+    // Android n'a que le mot dans trois commentaires, dont un de `MainActivity`
+    // qui dit lui-même « les chuqqot n'ont pas encore d'écran ».
+    //
+    // Ce n'est plus un accident isolé : deux documents neufs du pipeline en
+    // trois jours, tous deux arrivés jusqu'aux ressources d'Android sans lecteur.
+    // Le glob de `corpus.sh` les fait entrer, et seul `verifierLeCorpus` les
+    // arrête. Le portage de cette garde en amont, décidé par l'auteur, vaut pour
+    // les trois clients à la fois — ici on ne peut que refuser la copie.
+    //
+    // **Écart de parité, pas décision.** Le jour où Android saura les lire,
+    // cette ligne disparaît.
+    exclude("chuqqot.json")
 }
 
 /**
@@ -277,6 +294,8 @@ val connusDuCorpus = setOf(
     // pour que la garde ne redise pas ce qui est déjà tranché, et le
     // commentaire de l'exclusion porte la raison.
     "prononciation.json",
+    // Même traitement, même raison — voir `copierLesDonnees`.
+    "chuqqot.json",
 )
 
 tasks.register("verifierLeCorpus") {
