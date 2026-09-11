@@ -378,7 +378,7 @@ pub struct LiaisonDesMots {
     /// Le chemin inverse : le lemme d'une fiche → le numéro qu'elle déclare.
     ///
     /// Sert au veto, jamais à joindre. Voir `cible`.
-    strong_de: HashMap<String, String>,
+    strong_de: HashMap<String, Vec<String>>,
     /// **Le numéro qu'une fiche ne déclare pas, mais que le témoin lui donne.**
     ///
     /// Quand une fiche porte `אֵל` et que le témoin n'attribue qu'un seul
@@ -415,14 +415,30 @@ impl LiaisonDesMots {
         for fiche in fiches {
             let lemme = fiche.lemme;
             if let Some(strong) = fiche.strong {
-                let nu = numero_nu(strong);
-                strong_de.insert(lemme.to_string(), nu.clone());
-                strongs.insert(
-                    nu,
-                    CibleDuNiveauTrois::Term {
-                        lemma: lemme.to_string(),
-                    },
-                );
+                // **Un construit déclare deux numéros, joints par un `+`.**
+                //
+                // `tov varaʿ` porte `2896 b + 7451 b`, `ʾEl ʿElyon` porte
+                // `410 + 5945 b` — huit fiches du vault, sur décision de
+                // l'auteur : un construit hébreu est **deux mots** que le
+                // témoin segmente, et lui donner un seul numéro serait en
+                // taire un.
+                //
+                // Sans cette lecture, la chaîne entière servait de clé et ne
+                // correspondait à rien. Le mot n'aurait pas été mal joint — il
+                // n'aurait simplement jamais été joint, et la Source de ces
+                // huit fiches n'aurait rien servi. Un échec silencieux de plus,
+                // et celui-là je l'ai évité parce que la session du vault m'a
+                // prévenu avant de pousser.
+                let numeros: Vec<String> = strong.split('+').map(numero_nu).collect();
+                for nu in &numeros {
+                    strongs.insert(
+                        nu.clone(),
+                        CibleDuNiveauTrois::Term {
+                            lemma: lemme.to_string(),
+                        },
+                    );
+                }
+                strong_de.insert(lemme.to_string(), numeros);
             }
             let Some(hebreu) = fiche.hebreu else { continue };
             let vocalisee = sans_cantillation(hebreu);
@@ -542,12 +558,19 @@ impl LiaisonDesMots {
         // par la forme passe alors comme avant, avec sa part de risque, et
         // c'est un argument de plus pour écrire la Source partout.
         if let (Some(n), CibleDuNiveauTrois::Term { lemma }) = (&numero, &par_la_forme) {
-            let declare = self
+            // **Le veto tombe si le mot porte l'un des numéros déclarés.**
+            //
+            // Un construit en déclare deux ; un mot du témoin n'en porte qu'un,
+            // celui de sa moitié. Exiger l'égalité avec la liste entière
+            // refuserait les deux moitiés d'un composé que la fiche revendique
+            // pourtant.
+            let declares: Option<Vec<&String>> = self
                 .strong_de
                 .get(lemma)
-                .or_else(|| self.strong_atteste.get(lemma));
-            if let Some(declare) = declare {
-                if declare != n {
+                .map(|v| v.iter().collect())
+                .or_else(|| self.strong_atteste.get(lemma).map(|x| vec![x]));
+            if let Some(declares) = declares {
+                if !declares.contains(&n) {
                     return None;
                 }
             }
@@ -1960,6 +1983,32 @@ mod tests {
             liaison.cible("אֵ֣ל", Some("410")),
             Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
         );
+    }
+
+    /// **Un construit déclare deux numéros, et ses deux moitiés se joignent.**
+    ///
+    /// Huit fiches du vault portent un `+` — `tov varaʿ` est `2896 b + 7451 b`,
+    /// `ʾEl ʿElyon` est `410 + 5945 b`. Un construit hébreu est deux mots que
+    /// le témoin segmente, et lui donner un seul numéro en tairait un.
+    ///
+    /// Sans cette lecture, la chaîne entière servait de clé et ne
+    /// correspondait à rien : le mot n'était pas mal joint, il n'était jamais
+    /// joint. Un échec silencieux de plus.
+    #[test]
+    fn un_construit_joint_ses_deux_moities() {
+        let liaison = LiaisonDesMots::nouvelle([FichePourLaJointure {
+            lemme: "tov-vara",
+            hebreu: Some("טוֹב וָרָע"),
+            strong: Some("2896 b + 7451 b"),
+        }]);
+        let cible = CibleDuNiveauTrois::Term {
+            lemma: "tov-vara".into(),
+        };
+        // Chaque moitié ouvre la fiche du construit.
+        assert_eq!(liaison.cible("ט֥וֹב", Some("2896 b")), Some(cible.clone()));
+        assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b")), Some(cible));
+        // Et le veto tient toujours pour ce que la fiche ne déclare pas.
+        assert_eq!(liaison.cible("ט֥וֹב", Some("2897")), None);
     }
 
     /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
