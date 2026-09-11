@@ -379,6 +379,21 @@ targets:
       - path: MacSources
       - path: Resources
         buildPhase: resources
+        # **La même exclusion que sur iOS**, et pour la même raison.
+        #
+        # Je ne l'avais posée que sur une des deux cibles. La CI l'a dit tout
+        # de suite — « Multiple commands produce … Contents/Resources/
+        # bereshit.json » —, et elle avait raison de rougir : `sources/he-wlc/
+        # bereshit.json` et `books/bereshit.json` portent le même nom de base,
+        # que la phase de ressources aplatit à la racine.
+        #
+        # Une correction posée à un seul endroit dans un dépôt qui en a deux
+        # n'est pas une correction : c'est une moitié qui ressemble à un tout.
+        excludes:
+          - "data/sources"
+          - "data/sources/**"
+      - path: Resources/data/sources
+        type: folder
     info:
       path: Info-Mac.plist
       properties:
