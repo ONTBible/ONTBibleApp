@@ -4086,3 +4086,116 @@ d'exceptions vieillit, un nom tient.
   L'arbitrage revient à la session Android — le rappel traverse ses signatures.
 - **Site** — rien à porter. Il n'a pas de feuilles modales : ses fiches sont des
   pages. La conclusion est constatée, pas supposée.
+
+### 11 septembre 2026 — un nombre écrit à la main ne peut pas garder ce qui bouge
+
+Le site publiait `"schema": 2` dans le manifeste de `/corpus/`, écrit en dur
+dans `scripts/corpus-publie.py`. Ce nombre n'est pas une version de format :
+c'est **la garde de compatibilité des liseuses installées**.
+
+Une liseuse refuse un corpus dont le schéma n'est pas le sien, et *lève* sur un
+type de nœud qu'elle ne connaît pas. Les deux comportements sont justes — c'est
+leur **accord** qui ne l'était pas. Le jour où le pipeline émet un type de plus,
+le nombre ne bougeait pas : les liseuses acceptaient le corpus, échouaient à le
+décoder, et retombaient **pour toujours** sur leur bundle. Sans une erreur, sans
+un signe. Un corpus qu'on croit distribué et que personne ne lit.
+
+La leçon générale, et elle n'est pas propre à ce nombre : **la seule propriété
+qu'on demandait à cette valeur était de suivre une autre valeur.** Une valeur
+dont l'unique devoir est de suivre ne s'écrit pas, elle se recopie. Écrire à la
+main un nombre qui doit suivre, c'est promettre que quelqu'un se souviendra —
+et personne ne se souvient d'un littéral qui n'a jamais fait rougir.
+
+#### Ce que la demande avait de faux, et ce qui l'a sauvée
+
+La session du pipeline a trouvé le défaut et demandé de recopier son nouveau
+champ `contrat`, « qui vaut 4 aujourd'hui ». Exécutée telle quelle, la demande
+**cassait la production**. Trois mesures l'ont montré :
+
+- `CONTRAT_DES_NOEUDS` vaut **3** sur `origin/device`, pas 4 — sa propre table
+  d'historique dit « 3 = `Renvoi` » ;
+- le champ n'existe **que** sur `device`, et les deux workflows du site clonent
+  `dev` : il n'y avait rien à recopier ;
+- surtout, les deux liseuses — iOS **et** Android, sur `device` *comme* sur
+  `app-store` — comparent encore à **2**, en **égalité stricte**. Publier 3
+  n'aurait pas fait « ignorer ce qu'elles ne comprennent pas » : elles auraient
+  refusé le corpus **entier**, donc aussi les corrections des livres qu'elles
+  lisaient très bien.
+
+Le diagnostic était juste et la valeur proposée était fausse. **Un défaut bien
+vu ne garantit pas le correctif proposé** — et un correctif reçu d'une session
+voisine se mesure comme tout le reste, y compris quand il vient de celui qui a
+vu le défaut le premier.
+
+Ce qui l'a sauvée est le réflexe déjà écrit ici : *on vérifie ce que l'autre
+affirme au lieu de le croire*. Trois `git grep` sur les branches du voisin, et
+la demande s'est retournée.
+
+#### Refuser vaut mieux que geler, et les deux valent moins que ne pas publier
+
+Il y a deux façons d'échouer, et elles ne se valent pas :
+
+| le nombre publié | ce que fait la liseuse |
+|---|---|
+| **trop bas** | elle accepte, échoue à décoder, retombe sur son bundle — **en silence, pour toujours** |
+| **trop haut** | elle refuse le corpus entier — net, réversible, elle garde le précédent |
+
+Le refus est le moins mauvais des deux, mais il reste un échec. La bonne place
+de la garde est donc **avant la publication**, pas dans la liseuse : le script
+refuse de publier, le corpus précédent reste servi, et rien n'est à rattraper.
+
+Et le refus rend `REFUS` (code 2) : **il n'écarte que la publication du
+corpus**. Les pages du site partent quand même — elles embarquent `dist/` à la
+compilation et ne dépendent pas de ce qu'on publie là. C'est la correction de
+couplage déjà faite pour la garde de date, appliquée à sa voisine.
+
+#### Ne rien trouver n'est pas trouver zéro
+
+Le plafond se relève **à la source**, dans les fichiers des liseuses du dépôt
+voisin, plus celui de la version en vente que la CI va chercher sur
+`app-store`. Un nombre recopié dans le site aurait été un troisième endroit à
+tenir d'accord, c'est-à-dire un troisième endroit qui peut mentir.
+
+Une garde qui ne trouve **aucune** liseuse à comparer passerait sans rien
+vérifier, et son silence se lirait comme un accord. Elle refuse donc, et nomme
+ce qu'elle n'a pas su lire. C'est le témoin positif de la sonde des
+fournisseurs, posé sur un relevé de constante.
+
+Même piège, une ligne plus loin : l'ancienne étape de CI lisait la constante par
+`sed`. Une constante renommée rend une **chaîne vide**, et une chaîne vide
+passée telle quelle se lirait comme un plafond de zéro — la garde refuserait
+tout, en accusant le pipeline.
+
+#### Retirer un littéral casse ceux qui le lisaient
+
+L'étape « Le schéma du corpus » de `deployer.yml` `sed`-ait ce littéral dans le
+source Python du site pour le comparer à la liseuse en vente. En le retirant,
+son relevé rendait une chaîne vide et elle **tuait le déploiement** en annonçant
+un désaccord de schéma qui n'avait pas eu lieu.
+
+**Une constante écrite en dur finit toujours par être lue par quelqu'un
+d'autre.** Avant d'en retirer une, chercher qui la lit — ici un `grep` sur
+`.github/`, `scripts/` et `src/` l'a montrée en une seconde. L'étape **fournit**
+désormais le plafond au lieu de comparer : une seule autorité, qui refuse avant
+d'écrire au lieu d'après avoir copié huit fichiers.
+
+#### Ce que ça engage pour le pipeline et les liseuses
+
+`dev` ne porte pas encore `contrat` : la publication du corpus **s'écarte**,
+avec son motif, jusqu'à ce que `device` y arrive. Le site et les liseuses ne
+bougent pas pendant ce temps.
+
+Et quand `device` arrivera dans `dev` **tel quel** — `contrat = 3`, liseuses à
+`2`, sur la même branche —, elle restera écartée. C'est la garde qui fonctionne,
+pas un blocage. L'ordre est celui des liens universels au §4 du site, et il
+n'est pas négociable :
+
+> **le lecteur d'abord, ce qu'il lit ensuite.**
+
+`CorpusUpdater.schema` monte des deux côtés dans le même lot que
+`CONTRAT_DES_NOEUDS`, on livre les liseuses, **puis** le corpus suit. Autrement
+la chaîne reste en pause — sans que rien ne casse, et sans que rien ne parte.
+
+Reste ouvert, et c'est au pipeline : son contrôle de contrat ne mesure pas la
+colonne du site, faute de cloner `ONTBibleWebapp` dans sa CI. Un type de nœud
+que le site ne rend pas y passerait donc pour rendu.
