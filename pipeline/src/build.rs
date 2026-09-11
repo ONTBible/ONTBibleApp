@@ -1370,6 +1370,7 @@ pub fn build() -> Result<BuildResult, String> {
         &numero_vers_slug,
         &mut liaison,
         &translitterations,
+        &crate::config::genere(),
     )?;
     if let Some(sources) = &preparation {
         bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)

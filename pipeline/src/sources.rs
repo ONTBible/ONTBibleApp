@@ -169,6 +169,40 @@ struct OshbSource {
 #[derive(Debug, Clone, Serialize)]
 pub struct ManifesteSources {
     pub schema: u32,
+    /// **De quand date cette génération**, au même format et par la même
+    /// fonction que le manifeste du corpus.
+    ///
+    /// ## Ce qui manquait, et ce que ça bloquait
+    ///
+    /// Le manifeste des sources ne portait aucune date. Relevé par la session
+    /// macOS en ouvrant le chantier de `SourcesUpdater` : ses deux gardes
+    /// d'âge — refuser une génération plus vieille, purger au lancement ce qui
+    /// est antérieur au bundle — sont **indélivrables** sans estampille.
+    ///
+    /// Le corpus en portait une depuis toujours ; les sources sont nées sans,
+    /// et personne ne l'a vu tant que personne n'a eu à comparer deux
+    /// générations.
+    ///
+    /// ## Vide plutôt que fausse
+    ///
+    /// `config::genere` rend une chaîne **vide** quand `ONT_GENERE` manque ou
+    /// n'a pas la forme exacte. C'est la doctrine du corpus, et elle vaut ici
+    /// pour la même raison : les liseuses comparent ces chaînes, et une date
+    /// voisine mais mal formée s'ordonne n'importe comment. Un dossier figé se
+    /// voit et se répare ; un dossier silencieusement remplacé par du plus
+    /// ancien ne se voit pas.
+    ///
+    /// ## Une seule estampille pour la génération entière
+    ///
+    /// Pas une par témoin. L'invariant que la session macOS a posé et que
+    /// j'adopte : **une génération = un dossier atomique = une estampille ; le
+    /// bundle est le plancher ; sous le plancher on purge, on ne fusionne
+    /// jamais.**
+    ///
+    /// Il dissout la crainte que j'avais formulée — une génération plus neuve
+    /// pour le grec et plus vieille pour l'hébreu. Elle ne peut pas exister si
+    /// l'on ne bascule jamais un témoin seul.
+    pub genere: String,
     pub temoins: BTreeMap<String, TemoinPublie>,
     pub livres: BTreeMap<String, LivrePublie>,
 }
@@ -1107,6 +1141,18 @@ pub fn preparer(
     numero_vers_slug: &BTreeMap<u32, String>,
     liaison: &mut LiaisonDesMots,
     translitterations: &Translitterations,
+    // **L'estampille de cette génération, passée et non cherchée.**
+    //
+    // `config` vit derrière le jeu de fonctionnalités `parsers` ; ce module-ci
+    // est compilé **toujours**, parce que le site le lit sans rien analyser.
+    // Aller chercher `crate::config::genere()` d'ici compilait en local et
+    // cassait la CI, qui construit aussi en `--no-default-features`. Le
+    // compilateur d'ici ne voyait rien : le module manquant n'existe que dans
+    // l'autre jeu.
+    //
+    // Le recevoir est de toute façon plus juste : ce module ne décide pas de
+    // quand une génération date, il l'inscrit.
+    genere: &str,
 ) -> Result<Option<Preparation>, String> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
@@ -1484,6 +1530,7 @@ pub fn preparer(
     Ok(Some(Preparation {
         manifeste: ManifesteSources {
             schema: 1,
+            genere: genere.to_string(),
             temoins,
             livres,
         },
@@ -1922,6 +1969,40 @@ mod tests {
         assert_eq!(numero_nu("c/d/776"), "776");
         assert_eq!(numero_nu("1254 a"), "1254 a");
         assert_eq!(numero_nu("430"), "430");
+    }
+
+    /// **L'estampille des sources suit celle du corpus, ou reste vide.**
+    ///
+    /// Le manifeste des sources est né sans date, et personne ne l'a vu tant
+    /// que personne n'a eu à comparer deux générations. Cette épreuve garde la
+    /// forme : vingt signes, UTC, secondes obligatoires — et **vide** dès que
+    /// ce n'est pas exactement ça.
+    ///
+    /// Une date mal formée est pire qu'aucune : les liseuses comparent ces
+    /// chaînes, et une forme voisine s'ordonne n'importe comment.
+    /// **L'estampille traverse jusqu'au manifeste, telle qu'on la donne.**
+    ///
+    /// Ce module ne décide pas de quand une génération date — il l'inscrit. La
+    /// forme est gardée en amont, par `config::genere`, qui rend une chaîne
+    /// **vide** plutôt qu'une date approximative : les liseuses comparent ces
+    /// chaînes, et une forme voisine s'ordonne n'importe comment.
+    ///
+    /// Ce qui se garde ici, c'est que le champ ne se perde pas en route — le
+    /// manifeste des sources est né sans date et personne ne l'a vu pendant
+    /// trois jours.
+    #[test]
+    fn l_estampille_traverse_jusqu_au_manifeste() {
+        let manifeste = ManifesteSources {
+            schema: 1,
+            genere: "2026-09-11T17:23:15Z".into(),
+            temoins: BTreeMap::new(),
+            livres: BTreeMap::new(),
+        };
+        let json = serde_json::to_string(&manifeste).expect("sérialisable");
+        assert!(
+            json.contains("\"genere\":\"2026-09-11T17:23:15Z\""),
+            "l'estampille ne traverse pas : {json}"
+        );
     }
 
     fn verset(n: u32) -> VersetPublie {
