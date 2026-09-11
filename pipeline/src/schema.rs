@@ -93,7 +93,8 @@ pub const MARQUE_ENGENDRE: &str = "// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIF
 /// |---|---|
 /// | 2 | l'état du contrat quand la garde a été écrite |
 /// | 3 | `Renvoi` — les renvois entre chuqqot |
-pub const CONTRAT_DES_NOEUDS: u32 = 3;
+/// | 4 | `Reference` — les renvois vers un autre passage |
+pub const CONTRAT_DES_NOEUDS: u32 = 4;
 
 /// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
 ///
@@ -117,6 +118,55 @@ pub enum CibleDuNiveauTrois {
     Term { lemma: String },
     /// Une fiche de Shem — `ont://shem/<lemma>`.
     Shem { lemma: String },
+}
+
+/// Ce qu'une référence vise à l'intérieur de son chapitre.
+///
+/// **Un type somme, et pas deux `Option`.** `verset: None` avec
+/// `dernier: Some(33)` serait une plage sans début — personne ne l'écrira, et
+/// c'est justement pour ça que ça finirait par arriver. Ici l'état illégal est
+/// irreprésentable, et le `match` des liseuses devient exhaustif.
+///
+/// Il fait aussi disparaître une convention tacite : `Genèse 3` et
+/// `Genèse 3:1` ne se distinguaient que par la nullité d'un champ.
+/// L'unité que la référence ouvre, quand le corpus la porte.
+///
+/// **Pourquoi elle est résolue ici et non dans la liseuse.** Une référence dit
+/// « Genèse 7:11 », et les unités ONT ne coïncident pas avec les chapitres
+/// reçus : seule la table des plages de tout le corpus sait que 7:11 tombe
+/// dans `bereshit-7`. Cette table n'existe qu'ici. La laisser reconstruire par
+/// chaque liseuse, c'est la faire écrire trois fois, en trois langages, à
+/// partir d'une chaîne d'affichage — « 1:1 — 2:3 » — qui n'a jamais été un
+/// format de données.
+///
+/// **Pourquoi elle est facultative.** Une référence à Ésaïe est parfaitement
+/// bien formée et ne mène nulle part : le livre n'est pas traduit. `None` dit
+/// exactement cela, et la liseuse n'a pas à le deviner en cherchant un livre
+/// qu'elle ne trouvera pas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CibleDeLaReference {
+    /// Le livre qui porte l'unité — `bereshit`.
+    pub livre: String,
+    /// L'unité à ouvrir — `bereshit-7`.
+    pub unite: String,
+    /// Le verset à désigner en arrivant, **dans la numérotation de l'unité**.
+    ///
+    /// Nul quand la référence vise un chapitre entier, et nul aussi quand le
+    /// compte des versets ne confirme pas le calcul — voir `renvois::interne`.
+    /// Mieux vaut ouvrir la bonne unité sans rien désigner que d'en désigner
+    /// un faux.
+    pub verset: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum PorteeDeLaReference {
+    /// `Genèse 3` — l'unité entière, pas un verset.
+    Chapitre,
+    /// `Genèse 3:24` — un verset.
+    Verset { n: u32 },
+    /// `Genèse 1:11-12` — une plage. La navigation vise son ouverture.
+    Plage { premier: u32, dernier: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -188,6 +238,48 @@ pub enum Inline {
     /// la parenthèse, ce qu'un renvoi n'a pas. Les deux ne se disputent rien,
     /// dans un ordre ou dans l'autre.
     Renvoi { v: String, cible: String },
+
+    /// Une référence vers un autre passage — `*Genèse* 4:25`, `Bereshit 9:8`.
+    ///
+    /// ## Le nom du livre dit la numérotation
+    ///
+    /// Décision de l'auteur du 10 septembre 2026. Deux systèmes coexistent, et
+    /// c'est **le nom** qui les sépare : `Genèse 9:25` est le verset 25 du
+    /// chapitre 9 de la Genèse reçue, `Bereshit 9:8` est le verset ⁸ de
+    /// l'unité ONT n° 9. Ce sont le même verset, et la forme double est permise.
+    ///
+    /// La règle ne signale pas l'exception — **elle supprime le cas
+    /// d'exception**. Une notation qui repose sur le contexte se lit juste tant
+    /// qu'on connaît le contexte ; un nom se lit seul.
+    ///
+    /// Le corpus portait les deux sous une seule graphie, et ça a coûté deux
+    /// renvois qui menaient à un verset ne parlant pas de ce que la glose
+    /// annonçait — en production, sur 218 renvois déjà cliquables.
+    ///
+    /// ## Détection locale, aucune résolution
+    ///
+    /// Comme `Renvoi`. La grande majorité des renvois du corpus vise des livres
+    /// **pas encore écrits** : les typer sur leur cible les rendrait tous
+    /// inertes, et il faudrait tout reprendre à chaque livre traduit. La
+    /// jointure se fait après, contre l'index de `chapter.rs`.
+    ///
+    /// `portee` dit ce que la référence vise — un chapitre entier, un verset,
+    /// ou une plage. Voir `PorteeDeLaReference`.
+    Reference {
+        v: String,
+        livre: String,
+        /// `"recu"` ou `"ont"`.
+        systeme: String,
+        chapitre: u32,
+        portee: PorteeDeLaReference,
+        /// Où cette référence mène, quand le corpus porte le passage.
+        ///
+        /// Posée par `renvois::resoudre_les_references`, après l'assemblage :
+        /// la table des plages demande le corpus entier, et un chapitre seul
+        /// ne sait pas ce que contiennent les autres.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        cible: Option<CibleDeLaReference>,
+    },
 
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
@@ -1030,6 +1122,7 @@ mod contrat {
             Inline::Term { .. } => "term",
             Inline::Shem { .. } => "shem",
             Inline::Renvoi { .. } => "renvoi",
+            Inline::Reference { .. } => "reference",
             Inline::Translit { .. } => "translit",
             Inline::Heb { .. } => "heb",
             Inline::Gloss { .. } => "gloss",
@@ -1045,15 +1138,15 @@ mod contrat {
         /// Le nombre de bras de `nom`. Compté à la main, délibérément : une
         /// macro qui compterait toute seule ferait monter le nombre sans qu'un
         /// humain le voie, et c'est ce défaut-là qu'on ferme.
-        const NOEUDS: usize = 11;
+        const NOEUDS: usize = 12;
 
         assert_eq!(
-            CONTRAT_DES_NOEUDS, 3,
+            CONTRAT_DES_NOEUDS, 4,
             "le contrat a bougé sans que son historique suive"
         );
         assert_eq!(nom(&Inline::Break), "break");
         assert_eq!(
-            NOEUDS, 11,
+            NOEUDS, 12,
             "le compte des nœuds a bougé — montez le contrat"
         );
     }

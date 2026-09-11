@@ -28,6 +28,7 @@ use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE,
 use crate::controles;
 use crate::emissions;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
+use crate::inline::{declarer_les_livres, Systeme};
 use crate::niveau_trois;
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;
@@ -662,6 +663,31 @@ pub fn build() -> Result<BuildResult, String> {
         book_names,
     } = read_reference(&texte_reference, &ids);
 
+    // **Les livres que la détection de références reconnaîtra**, §2.6 du vault.
+    //
+    // Posé ici et pas ailleurs : `read_chapters` appelle `parse_inline` plus
+    // bas, et sans déclaration préalable aucune référence ne serait détectée.
+    // L'ordre est une dépendance réelle, pas une commodité.
+    //
+    // Le nom dit la numérotation — décision de l'auteur du 10 septembre 2026.
+    // Quatre livres portent le même nom dans les deux langues (`Amos`, `Ruth`,
+    // `Esther`, `Daniel`) : le français est posé **en second** et l'emporte,
+    // parce qu'aucun d'eux n'a d'unité ONT et que la numérotation reçue est
+    // donc la seule qu'une référence puisse viser. Le §2.6 inscrit cette
+    // limite ; le jour où l'un d'eux sera traduit, il lui faudra une marque.
+    let mut livres: BTreeMap<String, Systeme> = BTreeMap::new();
+    for nom in book_names.values() {
+        if !nom.translit.is_empty() {
+            livres.insert(nom.translit.clone(), Systeme::Ont);
+        }
+    }
+    for nom in book_names.values() {
+        if !nom.french.is_empty() {
+            livres.insert(nom.french.clone(), Systeme::Recu);
+        }
+    }
+    declarer_les_livres(livres);
+
     // Les fiches denses recouvrent la définition tirée de `CLAUDE.md`. Elles ne
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
@@ -802,6 +828,12 @@ pub fn build() -> Result<BuildResult, String> {
                     for unite in unites_mut(livre) {
                         let origine = unite.id.clone();
                         renvois::lier(&mut unite.blocks, &index, &origine);
+                        // La même table, pour les nœuds que `lier` ne voit
+                        // plus : une référence reconnue à la lecture n'est
+                        // plus du texte nu quand il passe. Et sur l'unité
+                        // entière, pas seulement son corps — les notes de pied
+                        // et les titres en portent aussi.
+                        renvois::resoudre_l_unite(unite, &index);
                     }
                 }
             }

@@ -7,6 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.TextLayoutResult
 
 /**
@@ -117,3 +119,51 @@ public fun DrawScope.pointille(
 
 private fun Float.dpEnPx(density: Float): Float = this * density
 private fun Int.dpEnPx(density: Float): Float = this * density
+
+/**
+ * Les plages d'un texte composé qui portent une **référence biblique**.
+ *
+ * ## Pourquoi elles se relisent au lieu d'être portées
+ *
+ * `ONTTextRenderer.compose` rend une `AnnotatedString`, et rien d'autre : c'est
+ * ce qui lui permet d'être appelé depuis une quinzaine d'endroits sans qu'aucun
+ * n'ait à savoir ce qu'il y a dedans. Lui faire rendre une paire — le texte et
+ * ses plages — aurait obligé les quinze à défaire cette paire, y compris les
+ * douze qui ne dessinent aucun pointillé.
+ *
+ * L'information voyage donc **dans** la chaîne, par l'étiquette du lien que la
+ * référence pose déjà. Rien à ajouter à la composition, rien à changer aux
+ * appelants qui ne s'en servent pas.
+ *
+ * Le pointillé s'arrête au fragment de la référence : il souligne « *Genèse*
+ * 9:27 » et pas la phrase qui l'accueille.
+ */
+public fun AnnotatedString.plagesDeReference(): kotlin.collections.List<IntRange> =
+    getLinkAnnotations(0, length).mapNotNull { plage ->
+        val lien = plage.item as? LinkAnnotation.Clickable ?: return@mapNotNull null
+        if (!lien.tag.startsWith(ONTTextRenderer.TAG_REFERENCE)) return@mapNotNull null
+        (plage.start until plage.end).takeIf { !it.isEmpty() }
+    }
+
+/**
+ * Le pointillé **ambre** des références, tracé sous un texte déjà composé.
+ *
+ * Séparé du pointillé de désignation parce que les deux ne portent ni la même
+ * couleur ni le même sens : l'un est une propriété du texte — « ceci mène
+ * ailleurs » —, l'autre un geste du lecteur qui vise un verset. Ils peuvent se
+ * croiser sur la même ligne, et alors chacun garde sa teinte.
+ */
+public fun DrawScope.pointilleDesReferences(
+    layout: TextLayoutResult?,
+    texte: AnnotatedString,
+    couleur: Color,
+) {
+    pointille(layout, texte.plagesDeReference(), couleur)
+}
+
+/** La forme modificateur, pour les textes qui n'ont pas de `Canvas` frère. */
+public fun Modifier.soulignerLesReferences(
+    layout: TextLayoutResult?,
+    texte: AnnotatedString,
+    couleur: Color,
+): Modifier = soulignerEnPointille(layout, texte.plagesDeReference(), couleur)

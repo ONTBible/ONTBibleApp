@@ -64,6 +64,17 @@ extension Inline {
         // l'autre.
         case .renvoi(let v, let cible):
             self = .renvoi(v, cible: cible)
+        case .reference(let v, let livre, let systeme, let chapitre, let portee, let cible):
+            self = .reference(
+                v,
+                livre: livre,
+                systeme: systeme,
+                chapitre: chapitre,
+                portee: PorteeDeLaReference(portee),
+                cible: cible.map {
+                    CibleDeLaReference(livre: $0.livre, unite: $0.unite, verset: $0.verset)
+                }
+            )
         case .translit(let translit, let hebrew, let cible):
             self = .translit(translit, hebrew: hebrew, cible: cible.map(CibleDuNiveauTrois.init))
         case .heb(let v):
@@ -356,5 +367,22 @@ extension Chuqqah {
             rang: dto.rank,
             blocs: dto.blocks.map(Block.init)
         )
+    }
+}
+
+extension PorteeDeLaReference {
+    /// Traduit la portée du schéma vers celle du domaine.
+    ///
+    /// Le `switch` est exhaustif des deux côtés : une portée ajoutée au
+    /// pipeline **casse la compilation ici**, et c'est le signal voulu.
+    init(_ portee: ONTSchema.PorteeDeLaReference) {
+        switch portee {
+        case .chapitre:
+            self = .chapitre
+        case .verset(let n):
+            self = .verset(n)
+        case .plage(let premier, let dernier):
+            self = .plage(premier: premier, dernier: dernier)
+        }
     }
 }
