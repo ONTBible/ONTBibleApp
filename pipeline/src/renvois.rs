@@ -27,7 +27,9 @@ use std::collections::HashMap;
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::schema::{Block, Inline};
+use crate::schema::{
+    Block, Chapter, ChapterKind, CibleDeLaReference, Footer, Inline, PorteeDeLaReference, Status,
+};
 
 /// Où mène un renvoi résolu.
 pub struct Cible {
@@ -152,6 +154,24 @@ impl Index {
         Self { livres, plages }
     }
 
+    /// L'identifiant du livre que ce nom désigne — nom ONT ou nom français.
+    fn livre(&self, nom: &str) -> Option<&String> {
+        self.livres.get(nom)
+    }
+
+    /// Vrai quand le corpus porte cette unité.
+    ///
+    /// Sert au système **ONT**, où le numéro écrit *est* celui de l'unité :
+    /// il n'y a rien à chercher dans les plages, seulement à vérifier que
+    /// l'unité existe. Sans cette vérification, « *Yovelim* 11 » rendrait
+    /// `yovelim-11` — un identifiant bien formé vers un livre que personne
+    /// n'a traduit.
+    fn porte_l_unite(&self, livre: &str, unite: &str) -> bool {
+        self.plages
+            .get(livre)
+            .is_some_and(|u| u.iter().any(|(id, _, _)| id == unite))
+    }
+
     /// L'unité qui contient ce renvoi, s'il en existe une.
     fn resoudre(&self, livre: &str, chapitre: u32, verset: Option<u32>) -> Option<Cible> {
         let id = self.livres.get(livre)?;
@@ -180,6 +200,146 @@ static RENVOI: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b([A-ZÉÈ][\p{L}'’-]*(?:\s+[a-z]{2,3}-[\p{L}'’-]+|\s+[A-ZÉÈ][\p{L}'’-]*)?)\s+(\d{1,3})(?::(\d{1,3}))?\b")
         .expect("le motif des renvois")
 });
+
+/// **Donne sa destination à chaque `Reference` d'un arbre de blocs.**
+///
+/// ## Pourquoi une seconde passe, à côté de `lier`
+///
+/// `lier` découpe du **texte nu** et le remplace par un lien absolu. Il ne
+/// voit plus rien à découper depuis que `parse_inline` reconnaît la référence
+/// à la lecture : le nœud existe déjà quand `lier` passe, et un nœud n'est pas
+/// du texte.
+///
+/// Mesuré le 11 septembre 2026, et c'est ce qui a motivé cette fonction : sur
+/// la branche qui introduit `Reference`, le corpus portait **915 références et
+/// 0 renvoi résolu**, là où `dev` en résolvait 221. La détection avait
+/// quadruplé et la navigation était tombée à zéro — un instrument plus exact
+/// qui répond à une autre question que celle qu'on pose.
+///
+/// ## Les deux systèmes ne se résolvent pas pareil
+///
+/// - **`recu`** — « Genèse 7:11 » nomme un chapitre et un verset du texte
+///   reçu. Il faut la table des plages pour savoir quelle unité les couvre, et
+///   traduire le verset dans la numérotation de cette unité. C'est exactement
+///   ce que `resoudre` fait déjà pour les renvois de texte nu.
+/// - **`ont`** — « *Bereshit* 17 » nomme **l'unité elle-même**. Il n'y a rien
+///   à chercher : l'identifiant se compose, et la seule question est de savoir
+///   si le corpus le porte. Le passer par `resoudre` serait une faute discrète
+///   — le numéro y serait lu comme un chapitre reçu, ce qui tombe juste pour
+///   Bereshit à partir de la troisième unité et faux partout ailleurs.
+pub fn resoudre_l_unite(unite: &mut Chapter, index: &Index) {
+    // **Les trois endroits où une unité porte des nœuds**, et non le seul
+    // qu'on regarde spontanément.
+    //
+    // `blocks` est le corps, et c'est tout ce que `lier` visite. Or 47 des
+    // références de Bereshit vivent dans les **notes de pied** et 19 dans les
+    // **nœuds de titre** — deux conteneurs qu'aucune passe n'avait jamais
+    // ouverts. Ils ne se voient pas parce qu'une référence non résolue
+    // ressemble exactement à du texte.
+    resoudre_inline(&mut unite.title_nodes, index);
+    resoudre_les_references(&mut unite.blocks, index);
+    if let Some(footer) = &mut unite.footer {
+        resoudre_les_references(&mut footer.notes, index);
+    }
+}
+
+pub fn resoudre_les_references(blocs: &mut Vec<Block>, index: &Index) {
+    for bloc in blocs.iter_mut() {
+        // **Exhaustif, sans `_`.** `lier` s'arrête aux quatre blocs de prose
+        // et laisse les listes et les tableaux, et c'est resté invisible parce
+        // qu'un renvoi non lié ressemble à du texte. Relevé le 11 septembre
+        // 2026 : 129 des 342 références sans destination vivaient là, dont des
+        // renvois vers Bereshit 1, qui existe depuis le premier jour.
+        //
+        // Le jour où un bloc s'ajoute, ce `match` cesse de compiler au lieu de
+        // l'oublier en silence.
+        match bloc {
+            Block::Heading { nodes, .. } | Block::Para { nodes } | Block::Quote { nodes } => {
+                resoudre_inline(nodes, index)
+            }
+            Block::Verses { verses } => {
+                for v in verses {
+                    resoudre_inline(&mut v.nodes, index);
+                }
+            }
+            Block::List { items, .. } => {
+                for item in items {
+                    resoudre_inline(item, index);
+                }
+            }
+            Block::Table { headers, rows } => {
+                for cellule in headers {
+                    resoudre_inline(cellule, index);
+                }
+                for ligne in rows {
+                    for cellule in ligne {
+                        resoudre_inline(cellule, index);
+                    }
+                }
+            }
+            Block::Rule => {}
+        }
+    }
+}
+
+fn resoudre_inline(noeuds: &mut [Inline], index: &Index) {
+    for noeud in noeuds {
+        // Exhaustif ici aussi, et pour la même raison : une variante à enfants
+        // qui s'ajoute doit rougir, pas se taire.
+        match noeud {
+            Inline::Reference { livre, systeme, chapitre, portee, cible, .. } => {
+                *cible = viser(index, livre, systeme, *chapitre, portee);
+            }
+            Inline::Gloss { children }
+            | Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Link { children, .. } => resoudre_inline(children, index),
+            Inline::Text { .. }
+            | Inline::Term { .. }
+            | Inline::Shem { .. }
+            | Inline::Renvoi { .. }
+            | Inline::Translit { .. }
+            | Inline::Heb { .. }
+            | Inline::Break => {}
+        }
+    }
+}
+
+/// Ce que cette référence ouvre, ou rien.
+fn viser(
+    index: &Index,
+    livre: &str,
+    systeme: &str,
+    chapitre: u32,
+    portee: &PorteeDeLaReference,
+) -> Option<CibleDeLaReference> {
+    let id = index.livre(livre)?;
+
+    // Le verset **écrit**, quelle que soit la portée. Une plage vise son
+    // ouverture : « 11:26-32 » amène à 26, comme un renvoi ordinaire.
+    let verset = match portee {
+        PorteeDeLaReference::Chapitre => None,
+        PorteeDeLaReference::Verset { n } => Some(*n),
+        PorteeDeLaReference::Plage { premier, .. } => Some(*premier),
+    };
+
+    if systeme == "ont" {
+        let unite = format!("{id}-{chapitre}");
+        if !index.porte_l_unite(id, &unite) {
+            return None;
+        }
+        // Le verset est **déjà** dans la numérotation de l'unité — le système
+        // ONT ne connaît pas d'autre compte. Rien à traduire.
+        return Some(CibleDeLaReference { livre: id.clone(), unite, verset });
+    }
+
+    let vise = index.resoudre(livre, chapitre, verset)?;
+    Some(CibleDeLaReference {
+        livre: vise.livre,
+        unite: vise.unite,
+        verset: vise.verset,
+    })
+}
 
 /// Rend navigables les renvois d'un arbre de blocs.
 pub fn lier(blocs: &mut Vec<Block>, index: &Index, origine: &str) {
@@ -313,6 +473,120 @@ mod tests {
             index.resoudre("Bereshit", 9, Some(20)).unwrap().unite,
             "bereshit-9"
         );
+    }
+
+    fn index_d_essai() -> Index {
+        Index {
+            livres: HashMap::from([
+                ("Bereshit".into(), "bereshit".into()),
+                ("Genèse".into(), "bereshit".into()),
+            ]),
+            plages: HashMap::from([(
+                "bereshit".to_string(),
+                vec![
+                    ("bereshit-1".to_string(), lire_plage("1:1 — 2:3").unwrap(), 34),
+                    ("bereshit-2".to_string(), lire_plage("2:4-25").unwrap(), 22),
+                ],
+            )]),
+        }
+    }
+
+    fn reference(livre: &str, systeme: &str, chapitre: u32, portee: PorteeDeLaReference) -> Inline {
+        Inline::Reference {
+            v: format!("{livre} {chapitre}"),
+            livre: livre.to_string(),
+            systeme: systeme.to_string(),
+            chapitre,
+            portee,
+            cible: None,
+        }
+    }
+
+    fn cible(noeud: &Inline) -> Option<CibleDeLaReference> {
+        match noeud {
+            Inline::Reference { cible, .. } => cible.clone(),
+            _ => panic!("pas une référence"),
+        }
+    }
+
+    /// **Le défaut du 11 septembre 2026, retourné en contrôle.**
+    ///
+    /// Les notes de pied et les nœuds de titre portaient 66 références que
+    /// personne ne résolvait, parce que la passe ne visitait que `blocks`. Ce
+    /// test rougit contre le code d'avant : il place la même référence dans
+    /// les trois conteneurs et exige les trois.
+    #[test]
+    fn les_trois_conteneurs_d_une_unite_sont_visites() {
+        let index = index_d_essai();
+        let mut unite = Chapter {
+            id: "bereshit-1".into(),
+            book_id: "bereshit".into(),
+            kind: ChapterKind::Chapter,
+            n: 1,
+            title: "Bereshit 1".into(),
+            title_nodes: vec![reference("Genèse", "recu", 1, PorteeDeLaReference::Verset { n: 4 })],
+            subtitle: None,
+            status: Status::Locked,
+            blocks: vec![Block::Para {
+                nodes: vec![reference("Genèse", "recu", 1, PorteeDeLaReference::Verset { n: 4 })],
+            }],
+            footer: Some(Footer {
+                version: None,
+                locked: true,
+                notes: vec![Block::List {
+                    ordered: false,
+                    items: vec![vec![reference(
+                        "Genèse",
+                        "recu",
+                        1,
+                        PorteeDeLaReference::Verset { n: 4 },
+                    )]],
+                }],
+            }),
+            verse_count: 34,
+            lemmas: vec![],
+            source: String::new(),
+        };
+
+        resoudre_l_unite(&mut unite, &index);
+
+        let titre = cible(&unite.title_nodes[0]);
+        assert_eq!(titre.as_ref().map(|c| c.unite.as_str()), Some("bereshit-1"), "le titre");
+
+        let Block::Para { nodes } = &unite.blocks[0] else { panic!("pas un para") };
+        assert_eq!(cible(&nodes[0]).map(|c| c.unite), Some("bereshit-1".into()), "le corps");
+
+        let Some(Block::List { items, .. }) = unite.footer.as_ref().map(|f| &f.notes[0]) else {
+            panic!("pas une liste")
+        };
+        assert_eq!(cible(&items[0][0]).map(|c| c.unite), Some("bereshit-1".into()), "la note");
+    }
+
+    /// **Le système ONT ne se résout pas par les plages, et le confondre est
+    /// une faute discrète.**
+    ///
+    /// « *Bereshit* 2 » en système ONT nomme l'unité 2. Passé par `resoudre`,
+    /// le 2 serait lu comme un chapitre reçu et tomberait dans `bereshit-1`,
+    /// qui couvre 1:1 — 2:3. Juste par accident pour les unités tardives,
+    /// faux ici.
+    #[test]
+    fn une_reference_ont_nomme_l_unite_pas_le_chapitre_recu() {
+        let index = index_d_essai();
+        let ont = viser(&index, "Bereshit", "ont", 2, &PorteeDeLaReference::Chapitre);
+        assert_eq!(ont.map(|c| c.unite), Some("bereshit-2".into()));
+
+        let recu = viser(&index, "Genèse", "recu", 2, &PorteeDeLaReference::Chapitre);
+        assert_eq!(recu.map(|c| c.unite), Some("bereshit-1".into()));
+    }
+
+    /// Un livre non traduit rend `None`, et non un identifiant bien formé.
+    #[test]
+    fn un_livre_absent_du_corpus_ne_vise_rien() {
+        let index = index_d_essai();
+        assert!(viser(&index, "Ésaïe", "recu", 40, &PorteeDeLaReference::Chapitre).is_none());
+        // Bien formé, mais l'unité n'existe pas : « Bereshit 41 » sur un
+        // corpus qui s'arrête à la deuxième unité.
+        assert!(viser(&index, "Bereshit", "ont", 41, &PorteeDeLaReference::Chapitre).is_none());
     }
 }
 

@@ -508,6 +508,12 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
                             (Some(n), None) => PorteeDeLaReference::Verset { n },
                             _ => PorteeDeLaReference::Chapitre,
                         },
+                        // **Nulle ici, et c'est le seul état possible.** La
+                        // résolution demande la table des plages de tout le
+                        // corpus, et l'on est en train de lire un chapitre :
+                        // les autres n'existent pas encore. Elle est posée
+                        // plus tard, par `renvois::resoudre_les_references`.
+                        cible: None,
                     });
                     i += r.largeur;
                     continue;
@@ -1370,7 +1376,7 @@ mod tests_de_la_reference {
         declarer_les_livres(livres());
         let noeuds = parse_inline("comme en *Genèse* 4:25 — et Qayin");
         let reference = noeuds.iter().find_map(|n| match n {
-            Inline::Reference { v, livre, systeme, chapitre, portee } => {
+            Inline::Reference { v, livre, systeme, chapitre, portee, .. } => {
                 Some((v.clone(), livre.clone(), systeme.clone(), *chapitre, portee.clone()))
             }
             _ => None,

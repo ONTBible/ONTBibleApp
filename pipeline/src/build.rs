@@ -827,6 +827,12 @@ pub fn build() -> Result<BuildResult, String> {
                     for unite in unites_mut(livre) {
                         let origine = unite.id.clone();
                         renvois::lier(&mut unite.blocks, &index, &origine);
+                        // La même table, pour les nœuds que `lier` ne voit
+                        // plus : une référence reconnue à la lecture n'est
+                        // plus du texte nu quand il passe. Et sur l'unité
+                        // entière, pas seulement son corps — les notes de pied
+                        // et les titres en portent aussi.
+                        renvois::resoudre_l_unite(unite, &index);
                     }
                 }
             }

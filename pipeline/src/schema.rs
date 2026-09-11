@@ -115,6 +115,35 @@ pub enum CibleDuNiveauTrois {
 ///
 /// Il fait aussi disparaître une convention tacite : `Genèse 3` et
 /// `Genèse 3:1` ne se distinguaient que par la nullité d'un champ.
+/// L'unité que la référence ouvre, quand le corpus la porte.
+///
+/// **Pourquoi elle est résolue ici et non dans la liseuse.** Une référence dit
+/// « Genèse 7:11 », et les unités ONT ne coïncident pas avec les chapitres
+/// reçus : seule la table des plages de tout le corpus sait que 7:11 tombe
+/// dans `bereshit-7`. Cette table n'existe qu'ici. La laisser reconstruire par
+/// chaque liseuse, c'est la faire écrire trois fois, en trois langages, à
+/// partir d'une chaîne d'affichage — « 1:1 — 2:3 » — qui n'a jamais été un
+/// format de données.
+///
+/// **Pourquoi elle est facultative.** Une référence à Ésaïe est parfaitement
+/// bien formée et ne mène nulle part : le livre n'est pas traduit. `None` dit
+/// exactement cela, et la liseuse n'a pas à le deviner en cherchant un livre
+/// qu'elle ne trouvera pas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CibleDeLaReference {
+    /// Le livre qui porte l'unité — `bereshit`.
+    pub livre: String,
+    /// L'unité à ouvrir — `bereshit-7`.
+    pub unite: String,
+    /// Le verset à désigner en arrivant, **dans la numérotation de l'unité**.
+    ///
+    /// Nul quand la référence vise un chapitre entier, et nul aussi quand le
+    /// compte des versets ne confirme pas le calcul — voir `renvois::interne`.
+    /// Mieux vaut ouvrir la bonne unité sans rien désigner que d'en désigner
+    /// un faux.
+    pub verset: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum PorteeDeLaReference {
@@ -229,6 +258,13 @@ pub enum Inline {
         systeme: String,
         chapitre: u32,
         portee: PorteeDeLaReference,
+        /// Où cette référence mène, quand le corpus porte le passage.
+        ///
+        /// Posée par `renvois::resoudre_les_references`, après l'assemblage :
+        /// la table des plages demande le corpus entier, et un chapitre seul
+        /// ne sait pas ce que contiennent les autres.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        cible: Option<CibleDeLaReference>,
     },
 
     /// Niveau 3 — `(*translittération* / hébreu)`.
