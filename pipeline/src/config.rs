@@ -83,7 +83,7 @@ pub fn genere() -> String {
 /// voir qu'un champ vide.
 ///
 /// Les millisecondes et les offsets sont refusés, même valides en ISO 8601.
-fn bien_formee(s: &str) -> bool {
+pub(crate) fn bien_formee(s: &str) -> bool {
     let o = s.as_bytes();
     o.len() == 20
         && o[..4].iter().all(u8::is_ascii_digit)
