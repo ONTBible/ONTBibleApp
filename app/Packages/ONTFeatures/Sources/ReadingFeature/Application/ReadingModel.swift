@@ -16,6 +16,25 @@ public final class ReadingModel {
     private let positions: any PositionRepository
     private let preferencesStore: any PreferencesRepository
 
+    /// **Les langues sources, tendues telles quelles à la feuille du verset
+    /// d'origine.**
+    ///
+    /// Le seul port de ce modèle qui ne soit pas orchestré ici, et il vaut
+    /// mieux dire pourquoi que de laisser croire à un oubli.
+    ///
+    /// La feuille n'a rien à demander au modèle : elle veut les témoins d'un
+    /// livre et le texte d'une unité, c'est-à-dire exactement les deux méthodes
+    /// du port. Un passe-plat par le modèle n'ajouterait qu'une signature de
+    /// plus à tenir d'accord.
+    ///
+    /// Reste la question de la route. L'environnement de SwiftUI aurait été le
+    /// chemin court — c'est celui de `ontFicheDunMot` —, mais une clé
+    /// d'environnement exige une valeur par défaut, et celle d'un dépôt de
+    /// sources ne peut être que « aucun témoin » : la réponse normale pour six
+    /// livres sur sept. L'oubli se lirait alors comme un état ordinaire. Ici,
+    /// il ne compile pas.
+    public let sources: any SourcesRepository
+
     /// Les réglages de lecture, observables.
     ///
     /// Doublés en mémoire parce que SwiftUI doit voir le changement : le dépôt
@@ -43,13 +62,15 @@ public final class ReadingModel {
         corpus: any CorpusRepository,
         highlights: any HighlightRepository,
         positions: any PositionRepository,
-        preferences: any PreferencesRepository
+        preferences: any PreferencesRepository,
+        sources: any SourcesRepository
     ) {
         self.corpus = corpus
         self.highlights = highlights
         self.positions = positions
         self.preferencesStore = preferences
         self.preferences = preferences.preferences
+        self.sources = sources
     }
 
     // MARK: - Surlignages
