@@ -686,11 +686,41 @@ pub struct Manifest {
     pub schema: u32,
     /// La version du **contrat des nœuds** — voir [`CONTRAT_DES_NOEUDS`].
     ///
-    /// Émise ici pour que le script de publication du site la **recopie** au
-    /// lieu de l'écrire en dur. C'est ce nombre que les liseuses installées
-    /// comparent au leur avant d'accepter un corpus ; le laisser vivre dans un
-    /// script d'un autre dépôt, sans lien avec les nœuds émis, est ce qui a
-    /// permis à `Renvoi` de partir sans que personne ne l'apprenne.
+    /// Émise ici pour que le script de publication du site la **lise** au lieu
+    /// de deviner quels types de nœuds ce build émet.
+    ///
+    /// ## Ce que ce nombre n'est pas, et la phrase qui a coûté une journée
+    ///
+    /// Ce commentaire a dit, du 10 au 11 septembre 2026 : « c'est ce nombre
+    /// que les liseuses installées comparent au leur avant d'accepter un
+    /// corpus ». **C'est faux**, et trois sessions l'ont cru — iOS, Android et
+    /// le site —, au point de se recommander mutuellement de monter les
+    /// gardes des liseuses. Suivi, le conseil faisait refuser le corpus publié
+    /// à toutes les installations : la panne qu'on croyait prévenir.
+    ///
+    /// Il y a **deux manifestes**, et ils ne portent pas la même question :
+    ///
+    /// | fichier | écrit par | ce que les liseuses en font |
+    /// |---|---|---|
+    /// | `dist/manifest.json` | ce pipeline | rien — seul `generated_at` est lu, du bundle |
+    /// | `corpus/manifeste.json` | `corpus-publie.py`, dans `ONTBibleWebapp` | **`schema` est comparé** |
+    ///
+    /// `contrat` ne traverse jamais le second. Ce que les liseuses comparent
+    /// est `schema`, qui vaut 2 depuis la 1.0.3 et qui est la copropriété du
+    /// site et des liseuses — pas cette constante.
+    ///
+    /// ## Alors à quoi il sert
+    ///
+    /// À dire au **site** quels types de nœuds ce build émet, pour qu'il ne
+    /// publie pas un corpus portant un nœud que ses pages ne savent pas
+    /// rendre. C'est ce qui a manqué quand `Renvoi` est parti sans que
+    /// personne ne l'apprenne.
+    ///
+    /// Et ce n'est pas une protection pour les lecteurs déjà installés : une
+    /// garde sur ce que le pipeline *déclare* aurait laissé passer `Renvoi`,
+    /// qui vit dans le schéma de `dev` **sans** ce champ. Protéger les
+    /// installés reste le geste de la 1.0.3 : monter `schema` côté liseuses,
+    /// livrer, **puis** publier le nouveau nombre.
     pub contrat: u32,
     pub generated_at: String,
     pub vault: String,
