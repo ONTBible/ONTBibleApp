@@ -60,8 +60,29 @@ public enum ONTTextRenderer {
             composants.queryItems = [URLQueryItem(name: "livre", value: livre)]
             return composants.url
         }
-        // `renvoi` et non `read` : le second ouvre la carte d'actions par-dessus
-        // le passage, ce qui est juste pour le widget et faux pour un détour.
+        // **`renvoi`, qui désigne ET empile** — et non `read`, qui remplace.
+        //
+        // Deux arbitrages de l'auteur, le 11 septembre 2026, l'écran sous les
+        // yeux, et j'avais tranché à l'envers les deux fois.
+        //
+        // *« Quand je navigue vers le verset je veux qu'il soit selected. »*
+        // J'avais choisi de viser sans désigner, au motif qu'un renvoi est un
+        // détour et que la carte de surlignage répond à une question qu'on n'a
+        // pas posée. Ce que le raisonnement manquait : arriver dans une unité
+        // de trente versets sans que rien ne marque celui qu'on venait
+        // chercher, c'est arriver nulle part. La désignation n'est pas le
+        // préambule d'un partage, c'est la réponse à « lequel ».
+        //
+        // *« Le bouton de retour doit me ramener au bon chapitre et au bon
+        // niveau de scroll. »* `read` **remplace** la pile de navigation, ce
+        // qui est exact pour le widget — on entre dans le corpus, on n'en
+        // venait pas. Un renvoi est l'inverse : une sortie depuis une lecture
+        // en cours. Remplacer la pile faisait perdre au lecteur son chapitre
+        // et sa hauteur de défilement, et le renvoyait à l'index du livre.
+        //
+        // Les deux fois, le raisonnement était cohérent et regardait la
+        // mauvaise chose : ce que le geste *est*, au lieu de ce que le lecteur
+        // a sous les yeux en le faisant.
         composants.host = "renvoi"
         composants.path = "/\(cible.livre)/\(cible.unite)"
         if let verset = cible.verset {

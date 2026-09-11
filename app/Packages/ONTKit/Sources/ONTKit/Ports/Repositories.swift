@@ -57,6 +57,67 @@ public protocol ShemotRepository: Sendable {
     func entries() throws -> [ShemEntry]
 }
 
+// MARK: - Les langues sources
+
+/// L'accès au texte dans sa langue d'origine.
+///
+/// ## Pourquoi un port de plus, et non deux méthodes sur `CorpusRepository`
+///
+/// Parce que le poids n'est pas le même, et que le moment de lecture non plus.
+/// Le corpus arrive au lancement ; un témoin, lui, ne se charge que si le
+/// lecteur demande à voir la référence — `he-wlc/bereshit.json` pèse 476 Ko à
+/// lui seul, et la plupart des lecteurs n'ouvriront jamais cette feuille. Le
+/// mêler au corpus ferait payer ce prix à tout le monde, widget compris.
+///
+/// ## Deux méthodes, et la coupure entre elles est le manifeste
+///
+/// `sources(livre:)` ne lit que le manifeste — quelques kilo-octets, la liste
+/// des témoins et leurs crédits. `unite(livre:temoin:unite:)` ouvre le fichier
+/// du témoin. Un écran qui veut seulement dire « ce livre existe en hébreu et
+/// en grec » n'a donc rien de lourd à charger.
+///
+/// ## Rien ne lève
+///
+/// L'absence est le cas ordinaire à tous les étages : six des sept livres du
+/// manifeste n'ont aucun témoin, et un témoin annoncé peut ne pas être embarqué
+/// — l'app ne livre que l'hébreu, le reste se télécharge. Faire lever ces cas
+/// obligerait chaque appelant à traiter en erreur ce qui est un état normal.
+public protocol SourcesRepository: Sendable {
+    /// Les témoins d'un livre, ou ce qu'on dit quand il n'y en a pas.
+    /// Ne lit que le manifeste — aucun texte n'est chargé.
+    func sources(livre: String) -> SourcesDuLivre
+
+    /// Le texte d'une unité chez un témoin, **chargé à la demande**.
+    ///
+    /// `nil` quand ce témoin ne porte pas ce livre, quand son fichier n'est ni
+    /// sur le disque ni dans le bundle, ou quand l'unité n'y figure pas.
+    func unite(livre: String, temoin: String, unite: String) -> UniteSource?
+}
+
+extension SourcesRepository {
+    /// Le texte d'une unité chez **tous** ses témoins, dans l'ordre du
+    /// manifeste. Les témoins introuvables sont omis, sans bruit.
+    public func unite(livre: String, unite id: String) -> [UniteSource] {
+        sources(livre: livre).temoinsDisponibles.compactMap {
+            unite(livre: livre, temoin: $0.cle, unite: id)
+        }
+    }
+
+    /// **La question que cette couche existe pour répondre** : pour telle unité
+    /// et telle position, le texte source de chaque témoin disponible.
+    ///
+    /// `rang` est une **position**, jamais un numéro affiché — voir
+    /// `UniteSource.verset(rang:)`. Un témoin qui n'a pas de verset à cette
+    /// position est simplement absent du résultat : les témoins ne comptent pas
+    /// toujours pareil, et l'Apocalypse 12 porte 18 versets au SBLGNT contre 17
+    /// au byzantin.
+    public func verset(livre: String, unite id: String, rang: Int) -> [VersetChezUnTemoin] {
+        unite(livre: livre, unite: id).compactMap { source in
+            source.verset(rang: rang).map { VersetChezUnTemoin(temoin: source.temoin, verset: $0) }
+        }
+    }
+}
+
 // MARK: - Recherche
 
 /// L'index de recherche.

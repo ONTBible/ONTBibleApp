@@ -434,7 +434,15 @@ pub const ARTEFACTS: &[Artefact] = &[
         lectures: &[
             (
                 Liseuse::Ios,
-                Lecture::Lacune("`SourcesUpdater` est spécifié, pas encore écrit"),
+                // **iOS lit la couche des sources depuis le 11 septembre
+                // 2026.** La feuille du verset d'origine l'ouvre sur un appui
+                // long : le verset hébreu mot à mot, chaque mot touchable.
+                //
+                // La lacune disait vrai la veille et fausse le lendemain, et
+                // c'est le contrôle qui l'a dit — il a refusé le build à la
+                // première régénération du corpus après la fusion. C'est
+                // exactement ce pour quoi il existe.
+                Lecture::Lit,
             ),
             (
                 Liseuse::Android,
@@ -454,7 +462,15 @@ pub const ARTEFACTS: &[Artefact] = &[
         lectures: &[
             (
                 Liseuse::Ios,
-                Lecture::Lacune("`SourcesUpdater` est spécifié, pas encore écrit"),
+                // **iOS lit la couche des sources depuis le 11 septembre
+                // 2026.** La feuille du verset d'origine l'ouvre sur un appui
+                // long : le verset hébreu mot à mot, chaque mot touchable.
+                //
+                // La lacune disait vrai la veille et fausse le lendemain, et
+                // c'est le contrôle qui l'a dit — il a refusé le build à la
+                // première régénération du corpus après la fusion. C'est
+                // exactement ce pour quoi il existe.
+                Lecture::Lit,
             ),
             (
                 Liseuse::Android,

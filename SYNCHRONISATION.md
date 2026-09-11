@@ -4596,6 +4596,254 @@ artefact de sa propre construction se croit informé==. Elle est ici, et elle
 attendra d'avoir coûté quelque chose chez un voisin pour y monter au tronc.
 
 ---
+
+## 11 septembre 2026 — la détection avait quadruplé, la navigation était tombée à zéro
+
+L'auteur ouvre l'app et dit trois choses : pas de pointillé, la fonctionnalité
+annoncée n'apparaît pas, et « les ref de verset ne sont vraisemblablement pas
+cliquables ». Les trois étaient vraies, pour trois raisons différentes, et
+aucune n'était celle qu'on aurait devinée.
+
+### Le renvoi biblique, vu par deux mécanismes qui s'ignorent
+
+`renvois.rs` résout depuis toujours les renvois écrits en clair — « Bereshit
+1:4 » — et les rend navigables. Il ne crée **pas** de nœud nouveau, et son
+en-tête dit pourquoi : un tag inconnu fait lever les liseuses installées. Il
+réemploie donc `Inline::Link` avec une adresse absolue vers `ontbible.com`.
+Sur `dev`, ==221 renvois cliquables==.
+
+La branche `indexer-les-renvois-bibliques` introduit `Inline::Reference`, qui
+porte le livre, le système de numérotation, le chapitre et la portée. Bien plus
+riche : ==915 détectés==. Et ==0 résolu==.
+
+La cause est mécanique et invisible. `renvois::lier` ne découpe que du **texte
+nu**. Depuis que `parse_inline` reconnaît la référence à la lecture, il n'y a
+plus de texte nu à découper quand `lier` passe — le nœud existe déjà. Le
+mécanisme ancien n'a pas été débranché : il a été rendu sans objet.
+
+**Un nœud qui dit mieux ce qu'une chose *est* peut supprimer ce qu'elle
+*faisait*.** Rien ne rougit : les deux modules compilent, leurs tests passent,
+et le corpus sort avec quatre fois plus d'information et plus aucun lien. Le
+défaut n'existe qu'entre les deux, et aucun des deux ne le voit.
+
+### Trois conteneurs, et un seul était visité
+
+La jointure posée, il restait ==80 références non résolues à tort== — vers
+Bereshit 1, qui existe depuis le premier jour. Elles vivaient dans les blocs
+`list` et `table`, dans les **notes de pied** et dans les **nœuds de titre**.
+
+`lier` ne visitait que `blocks`, et ne l'a jamais fait autrement. Le trou avait
+l'âge du module. Il ne se voit pas parce qu'==une référence non résolue
+ressemble exactement à du texte==.
+
+Les deux `match` sont désormais exhaustifs, sans `_` : un bloc ou un nœud qui
+s'ajoute cesse de compiler au lieu de s'oublier. ==707 sur 915==, et zéro à
+tort — les 208 restantes visent des livres que personne n'a traduits, et
+`None` le dit plutôt qu'un identifiant bien formé vers rien.
+
+### Le nombre que personne ne comparait
+
+Trois sessions — iOS, Android, le site — ont tenu pendant une journée que
+`CONTRAT_DES_NOEUDS` (3) et `CorpusUpdater.schema` (2) étaient en désaccord, et
+se sont recommandé mutuellement de monter les gardes des liseuses. **Suivi, le
+conseil faisait refuser le corpus publié à toutes les installations.**
+
+Il y a **deux manifestes** :
+
+| fichier | écrit par | ce que les liseuses en font |
+|---|---|---|
+| `dist/manifest.json` | le pipeline | rien — seul `generatedAt` est lu, du bundle |
+| `corpus/manifeste.json` | `corpus-publie.py`, dans `ONTBibleWebapp` | ==`schema` est comparé== |
+
+`contrat` ne traverse jamais le second. La semence était une phrase dans le
+commentaire du champ, côté pipeline : « c'est ce nombre que les liseuses
+installées comparent au leur ». Fausse, et recopiée de session en session.
+
+Ce qui l'a tranché est une ligne de `CorpusUpdater.swift` — « 2 depuis 1.0.3,
+où l'accentuation a changé de nom sur le fil ». ==Le nombre était nommé, daté
+et justifié depuis le début. Trois sessions ont raisonné sur ce qu'il devait
+valoir sans aller lire ce qu'il valait.==
+
+Et l'objection qui a clos le sujet vient du site : une garde sur le `contrat`
+garderait ce que le pipeline **déclare**, pas ce qu'il **émet**. Elle aurait
+laissé passer `Renvoi`, qui vit dans le schéma de `dev` sans ce champ. Le site
+garde donc sur le contenu — il parcourt les nœuds réellement émis et refuse un
+type hors liste. Protéger les installés reste le geste de la 1.0.3 : monter
+`schema` côté liseuses, livrer, **puis** publier.
+
+### `device` ne nomme pas une seule chose
+
+La session Android relève `CONTRAT_DES_NOEUDS` : **0 occurrence**, avec témoin
+positif au même instrument. La session iOS relève : **4 occurrences**, dont la
+constante à 3. Les deux mesures sont exactes.
+
+    git log --oneline -1 device          →  a29d7ec
+    git log --oneline -1 origin/device   →  25c219f
+    git rev-list --count device..origin/device  →  99
+
+==La branche locale `device` avait 99 commits de retard.== `git show
+device:<fichier>` rend alors un fichier vieux de trois jours sans le moindre
+avertissement.
+
+**Sur un arbre que sept sessions partagent, une référence locale n'est à jour
+que si quelqu'un l'a tirée.** Interroger l'état partagé se fait par
+`origin/<branche>`, et `git fetch` avant de conclure. C'est la même forme que
+tout le reste de la journée : un instrument exact appliqué à autre chose que ce
+qu'on croit mesurer.
+
+### Deux arbitrages qui ont corrigé un raisonnement cohérent
+
+L'auteur, l'écran sous les yeux, a renversé deux décisions prises ici. Les deux
+raisonnements se tenaient et regardaient la mauvaise chose — ==ce que le geste
+*est*, au lieu de ce que le lecteur a sous les yeux en le faisant==.
+
+**« Je veux qu'il soit selected. »** On avait choisi de viser sans désigner : un
+renvoi est un détour, et la carte d'actions répond à une question qu'on n'a pas
+posée. Mais arriver dans une unité de trente versets sans que rien ne marque
+celui qu'on venait chercher, c'est arriver nulle part. La désignation n'est pas
+le préambule d'un partage, c'est la réponse à « lequel ».
+
+**« Le retour doit me ramener au bon chapitre et au bon niveau de scroll. »**
+Le routeur **remplaçait** la pile pour tout lien. C'est exact quand on *entre*
+dans le corpus — widget, carte du jour, lien reçu : le lecteur n'en venait pas.
+Un renvoi est l'inverse, une *sortie* depuis une lecture en cours.
+
+| geste | la pile |
+|---|---|
+| widget, carte du jour, lien reçu | **remplace** — le retour mène au sommaire |
+| renvoi touché dans une glose | **empile** — le retour rend la lecture |
+
+Deux pièges rencontrés : ne pas empiler sur soi-même (un renvoi peut viser
+l'unité qu'on lit déjà), et poser le livre sous l'unité quand la pile est vide
+(le renvoi peut être touché depuis une fiche du lexique).
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — `Inline::Reference` porte `cible: Option<CibleDeLaReference>`
+  (`livre`, `unite`, `verset`), omise quand le livre n'est pas traduit. Les
+  trois liseuses doivent la lire. Android l'a portée dans la même journée, et
+  sans `NavHost` : sa pile est tenue à la main, et rien n'y survit tout seul —
+  `remember` et non `rememberSaveable`, parce qu'==un retour faux après mort du
+  processus est pire qu'un retour perdu==.
+- **ONTBibleWebapp** — `reference` **et** `renvoi` doivent entrer dans la liste
+  des types connus **avec leur rendu**, sinon la garde de publication refuse.
+  C'est le comportement voulu.
+- **ONTBibleTranslation** — rien à porter. Les 208 références inertes visent des
+  livres non traduits ; elles se résoudront d'elles-mêmes à mesure que le vault
+  avance, sans que personne n'ait à y toucher.
+
+---
+
+## 11 septembre 2026, l'après-midi — le simulateur est un appareil sans main
+
+L'auteur : « c'est bizarre, le long press fonctionne sur le sim mais pas sur mon
+iPhone ». **Quatre causes empilées, et aucune ne suffisait seule.** Trois
+corrections plausibles ont été posées avant qu'une sonde d'une ligne ne tranche.
+
+### Les quatre silences
+
+**Le geste n'existait pas en prose continue.** Il était posé sur `VerseRow`, la
+branche des versets séparés. L'auteur lit en prose ; l'appareil de mesure, non.
+==Les deux appareils ne rendaient pas la même vue== — et la comparaison qui
+fondait tout le raisonnement ne comparait donc rien.
+
+**La feuille était présentée depuis une vue trop imbriquée.** Une feuille
+attachée sous une pile paresseuse est ignorée **sans un mot** : pas d'erreur,
+pas de ligne de journal, rien. Elle est désormais tenue au niveau du chapitre,
+et les deux modes de lecture y poussent leur demande.
+
+**L'état posé depuis un rappel UIKit ne réveillait pas SwiftUI.** Le rappel
+arrive pendant le traitement du toucher, hors du cycle de rendu : la
+modification était bien enregistrée, et rien ne la relevait.
+
+**La sélection de texte du système gagnait le geste.** Relevée sur une **capture
+de l'auteur**, le pavé gris couvrant tout le bloc. Un toucher synthétisé
+n'appelle pas l'interaction de texte : ==aucun banc ne pouvait la montrer==.
+
+### Pourquoi le simulateur passait, et l'appareil non
+
+`LongPressGesture` abandonne dès que le doigt s'écarte de `maximumDistance`, qui
+vaut **10 points** par défaut. Le simulateur est piloté par un pointeur qui ne
+bouge pas : le geste y part toujours. Un doigt tremble.
+
+Le SDK nomme lui-même la différence — `GestureInputKinds` distingue
+`directTouch` de `pointer`. ==Le simulateur n'est pas un appareil plus petit,
+c'est un appareil sans main== : il a l'écran, le système et la mémoire, il n'a
+pas la main. Et les gestes sont précisément ce qu'il ne sait pas éprouver.
+
+Le remède n'élargit pas la tolérance — ce qui laisserait le geste concurrent de
+la zone défilante, et l'un des deux perdrait. `UIGestureRecognizerRepresentable`
+fait entrer un vrai `UILongPressGestureRecognizer` dans l'arbitrage d'UIKit, qui
+sait de naissance cohabiter avec un `UIScrollView`. On ne départage plus deux
+gestes, on laisse le système le faire.
+
+### Une hypothèse n'est pas un diagnostic, même quand elle est vraie
+
+Les trois premières corrections ont été annoncées comme des causes **trouvées**.
+C'étaient des causes **possibles** — et chacune était vraie, ce qui est plus
+coûteux qu'une erreur franche : une fois réparée, le symptôme ne bouge pas, et
+le raisonnement qui l'a produite sort intact.
+
+La sonde qui a tranché ne demandait qu'une chose — ==« est-ce que le geste
+part ? »== — et elle n'avait pas été posée. Séparer « ça ne part pas » de « ça
+part et rien ne suit » coûtait une ligne, et faisait tomber deux hypothèses d'un
+coup.
+
+Le correctif du troisième silence s'est retourné à son tour, et c'est la mesure
+sur l'appareil qui l'a dit : reporter d'un tour de boucle — `Task { @MainActor }`
+— **empêche** la feuille de s'ouvrir, là où l'appel immédiat dans le rappel la
+laisse passer. L'explication était plausible et fausse. Elle est écrite dans
+`ONTAppuiLong`, au-dessus de la ligne qu'elle justifie, et non ici.
+
+### La même forme, quatre fois dans la journée — et trois sont déjà écrites
+
+Un instrument exact braqué sur autre chose que la question. Les trois autres
+occurrences sont au journal, chacune à sa place, et il ne s'agit pas de les
+redire :
+
+- le contrôle d'inventaire du pipeline trouvait ses preuves dans `Schema.swift`
+  et `Schema.kt`, **que le pipeline venait d'écrire lui-même** à l'étape
+  suivante — vert au premier passage, rouge au second. Entrée « le contrôle
+  lisait ce que le pipeline venait d'écrire » ;
+- `device` en local avait **99 commits de retard**, et deux sessions ont compté
+  `CONTRAT_DES_NOEUDS` sur deux objets différents — 0 d'un côté, 4 de l'autre,
+  les deux mesures exactes. Entrée « la détection avait quadruplé, la navigation
+  était tombée à zéro » ;
+- un plafond de « 118 fiches » relevé sur un `dist/glossary.json` daté du
+  **8 septembre**, antérieur à une passe de renommage : il portait encore
+  `nephilim`. Le bon chiffre est 133. Entrée « deux jointures qu'on croyait être
+  une seule ».
+
+Ce qu'aucune ne dit seule, et qui ne se voit qu'en les mettant côte à côte : une
+branche en retard se rattrape par `git fetch` et se lit par `origin/<branche>`,
+mais ==un artefact engendré n'a pas de date visible dans sa mesure==. Le
+simulateur est de la même famille sans être un artefact : il rend fidèlement un
+état du monde qui n'est pas celui qu'on interroge.
+
+    un banc sans main ne mesure pas un geste
+    un artefact engendré ne porte pas sa date
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — `ONTAppuiLong` vit dans `ONTDesignSystem`, et son extension
+  `ontAppuiLong` est **hors** du `#if canImport(UIKit)` : enfermée dedans, elle
+  disparaissait pour macOS, et la liseuse du Mac cessait de compiler sur un
+  geste qu'elle n'emploie même pas. Là où le pont n'existe pas, on retombe sur
+  le geste de SwiftUI, qui ne connaît pas la position et rend le centre — mieux
+  vaut désigner le verset du milieu que n'ouvrir rien. **Android porte les mêmes
+  deux modes de lecture** : un geste posé sur une seule des deux branches y
+  produira le même silence, et cela se vérifie sur un appareil, pas sur
+  l'émulateur.
+- **ONTBibleWebapp** — rien à porter, et la raison vaut d'être écrite plutôt que
+  supposée : le site n'a pas d'appui long, et sa sélection de texte est celle du
+  navigateur. Ce qui lui revient est la leçon, pas le correctif — un navigateur
+  sans tête est lui aussi un appareil sans main.
+- **ONTBibleTranslation** — rien à porter. La feuille ouvre le verset hébreu et
+  se joint au vault par ce que les fiches déclarent ; ce contrat est celui de
+  l'entrée « deux jointures qu'on croyait être une seule », et il n'a pas bougé
+  cet après-midi.
+
+---
 ## 11 septembre 2026 — deux jointures qu'on croyait être une seule
 
 Le chantier du lexique est parti d'une mesure : *Bereshit* 1-19 porte 6 478 mots

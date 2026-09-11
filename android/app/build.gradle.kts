@@ -236,6 +236,23 @@ tasks.register<Sync>("copierLesDonnees") {
     // **Écart de parité, pas décision.** Le jour où Android saura les lire,
     // cette ligne disparaît.
     exclude("chuqqot.json")
+    // **Les langues sources, même raison et même date qu'au-dessus.**
+    //
+    // `corpus.sh` embarque `sources/he-wlc` depuis le 11 septembre 2026, sur
+    // décision de l'auteur : l'hébreu n'est pas une langue source parmi
+    // d'autres, c'est la langue de presque tout le corpus, et le mettre à la
+    // demande revenait à mettre la fonctionnalité à la demande.
+    //
+    // Ce que le commentaire ci-dessous annonçait est donc arrivé, mot pour
+    // mot : une ligne ajoutée dans un script partagé, pour le bénéfice d'iOS,
+    // et 476 Ko qui atterrissent ici sans qu'aucune décision ait été prise de
+    // ce côté-ci. Android ne sait pas encore lire ce dossier — l'exclure est
+    // exact, l'embarquer serait mentir.
+    //
+    // **Écart de parité, pas décision.** Le jour où Android ouvrira le verset
+    // d'origine, ces deux lignes disparaissent et `sources` rejoint
+    // `connusDuCorpus`.
+    exclude("sources/**")
 }
 
 /**
@@ -290,12 +307,13 @@ val connusDuCorpus = setOf(
     "books", "corpus.json", "daily.json", "glossary.json",
     "manifest.json", "occurrences.json", "report.md", "search.json",
     "shemot.json",
-    // Exclu de la copie plutôt que lu — voir `copierLesDonnees`. Il figure ici
-    // pour que la garde ne redise pas ce qui est déjà tranché, et le
-    // commentaire de l'exclusion porte la raison.
+    // Exclus de la copie plutôt que lus — voir `copierLesDonnees`. Ils figurent
+    // ici pour que la garde ne redise pas ce qui est déjà tranché, et les
+    // commentaires des exclusions portent la raison.
     "prononciation.json",
     // Même traitement, même raison — voir `copierLesDonnees`.
     "chuqqot.json",
+    "sources",
 )
 
 tasks.register("verifierLeCorpus") {

@@ -605,9 +605,28 @@ pub fn declarer_les_livres(livres: BTreeMap<String, Systeme>) {
     let _ = LIVRES.set(livres);
 }
 
+/// **Deux écritures du même renvoi, et le vault emploie les deux.**
+///
+/// `Bereshit 1:4` est la forme courte. Mais la prose du corpus écrit aussi
+/// « écho délibéré de *Bereshit 1*, verset 2 » — le verset en toutes lettres,
+/// après une virgule, parce que la phrase le dit plutôt qu'elle ne le note.
+///
+/// Le motif ne connaissait que la première. Le renvoi s'arrêtait donc au
+/// chapitre, et « , verset 2 » restait du texte ordinaire à côté du lien :
+/// à l'écran, l'ambre couvrait « Bereshit 1 » et le doigt n'avait aucun moyen
+/// d'atteindre le verset 2. Relevé par l'auteur, capture à l'appui — « ici ça
+/// risque pas de pouvoir me ramener à Bereshit 1:2, c'est pas correctement
+/// agencé ». Quinze renvois du corpus sont dans ce cas.
+///
+/// `v.` et `vv.` entrent avec, parce qu'ils paraissent dans le même corpus et
+/// disent la même chose.
 static REFERENCE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^(\*?)([\p{Lu}][\p{L}\p{M}ʾʿ'’-]*(?: [\p{Lu}][\p{L}\p{M}ʾʿ'’-]*)*)(\*?)[  ]+(\d+)(?::(\d+)(?:\s*[-–]\s*(\d+))?)?")
-        .unwrap()
+    Regex::new(concat!(
+        r"^(\*?)([\p{Lu}][\p{L}\p{M}ʾʿ'’-]*(?: [\p{Lu}][\p{L}\p{M}ʾʿ'’-]*)*)(\*?)[  ]+(\d+)",
+        r"(?::(\d+)(?:\s*[-–]\s*(\d+))?",
+        r"|,?[  ]*(?:versets?|vv?\.)[  ]*(\d+)(?:\s*[-–]\s*(\d+))?)?"
+    ))
+    .unwrap()
 });
 
 /// Repère une référence **au début** de `src`, si la liste blanche la connaît.
@@ -652,8 +671,11 @@ pub fn detecter_une_reference(
         livre,
         systeme,
         chapitre: nombre(4)?,
-        verset: nombre(5),
-        dernier: nombre(6),
+        // Les deux écritures remplissent deux jeux de groupes, et une seule
+        // branche du motif peut mordre : `or` les réunit sans qu'aucune
+        // priorité n'ait à être décidée.
+        verset: nombre(5).or_else(|| nombre(7)),
+        dernier: nombre(6).or_else(|| nombre(8)),
         largeur: tout.len(),
     })
 }

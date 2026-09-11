@@ -273,26 +273,61 @@ public final class Router {
             return true
 
         case "renvoi":
-            // **Viser sans désigner**, et c'est toute la différence avec
-            // `read`.
+            // **Un renvoi empile ; tout le reste remplace.** C'est la seule
+            // différence avec `read`, et elle est entière.
             //
-            // `read` sert le widget et la carte du jour : le lecteur a touché
-            // *ce verset-là*, il arrive dessus et la carte d'actions est déjà
-            // ouverte — « Partager » est à un doigt. C'est le bon geste quand
-            // le verset est la destination.
+            // Le widget, la carte du jour, un lien reçu : ce sont des
+            // *entrées* dans le corpus. Le lecteur n'était nulle part, il
+            // arrive — remplacer la pile est exact, et le bouton de retour le
+            // ramène à la table des matières, qui est bien d'où il vient.
             //
-            // Un renvoi n'est pas une destination, c'est un détour. Le lecteur
-            // était dans une glose, il va voir le passage cité, il revient. Lui
-            // ouvrir la carte de surlignage par-dessus le texte qu'il vient
-            // chercher, c'est répondre à une question qu'il n'a pas posée — et
-            // c'est ce que faisait la première version, mesuré à l'écran.
+            // Un renvoi est une *sortie* depuis une lecture en cours. Le
+            // lecteur était dans une glose de Bereshit 7, à la moitié de
+            // l'unité ; il va voir Bereshit 1, et il veut revenir **là**.
+            // Remplacer la pile le renvoyait à l'index du livre : il perdait
+            // son chapitre et sa hauteur de défilement, et devait les
+            // retrouver à la main. Relevé par l'auteur le 11 septembre 2026.
             //
-            // On pose donc `pendingVerse`, qui fait défiler, et **pas**
-            // `pendingSelection`, qui ouvre la carte.
+            // Empiler les rend tous les deux : `NavigationStack` garde la vue
+            // parente vivante, donc sa position de défilement avec elle, et le
+            // bouton de retour est celui du système — rien à écrire pour lui.
             guard let book = parts.first, parts.count >= 2 else { return false }
             tab = .bible
-            biblePath = [.book(book), .chapter(book: book, chapter: parts[1])]
-            pendingVerse = VerseVise(parts[1], Self.firstVerse(in: url))
+            let vise = Destination.chapter(book: book, chapter: parts[1])
+            // **On empile toujours, même vers l'unité que la pile croit
+            // porter déjà.**
+            //
+            // Le premier jet s'en gardait : un renvoi peut viser l'unité qu'on
+            // lit — « voir plus haut au verset 4 » —, et empiler donnerait deux
+            // fois le même écran. Le raisonnement était bon et sa prémisse
+            // fausse : **le sommet de la pile n'est pas ce que le lecteur
+            // voit.** `ChapterSwipe` le dit de lui-même — « il ne touche pas au
+            // chemin de navigation » : feuilleter de la 5 à la 7 laisse la pile
+            // sur la 5 pendant qu'on lit la 7.
+            //
+            // Un renvoi vers *Bereshit 5*, touché depuis la 7 atteinte au
+            // doigt, tombait alors dans la garde, ne poussait rien — et comme
+            // ce renvoi vise un chapitre entier, il n'y avait pas même un
+            // verset à désigner. **Il ne se passait rien du tout.** Relevé par
+            // l'auteur, capture à l'appui : « ici ça navigue pas au bere 5, ça
+            // ne fait rien ».
+            //
+            // Un écran en double se voit et se défait d'un retour ; un silence
+            // se lit comme une panne. Entre les deux, on prend le double.
+            //
+            // La garde reviendra le jour où le routeur saura quelle unité est
+            // **affichée** — ce qu'il ignore aujourd'hui, et ce qu'aucune de ses
+            // propriétés ne dit.
+            //
+            // Une pile vide arrive quand le renvoi est touché hors de la
+            // lecture — dans une fiche du Lexique, par exemple. Le livre doit
+            // alors exister sous l'unité, sinon le retour sort de l'onglet.
+            if biblePath.isEmpty {
+                biblePath = [.book(book)]
+            }
+            biblePath.append(vise)
+            pendingSelection = Self.verses(in: url)
+            pendingVerse = VerseVise(parts[1], pendingSelection.min())
             return true
 
         case "indisponible":
