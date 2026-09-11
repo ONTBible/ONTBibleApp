@@ -43,10 +43,10 @@
 //! voudra les lemmes, un fichier frère les portera, et la question se posera
 //! là, isolée.
 
-use crate::schema::{Block, Chapter};
+use crate::schema::{Block, Chapter, CibleDuNiveauTrois};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
 
@@ -147,6 +147,21 @@ struct VersetSource {
 #[derive(Debug, Deserialize)]
 struct MotSource {
     t: String,
+    /// L'étiquetage **OSHB**, quand le témoin le porte.
+    ///
+    /// Il était lu et jeté : seul `t` survivait, et le verset sortait joint en
+    /// une seule chaîne. C'est ce qui rendait impossible la seule chose que le
+    /// lecteur demande devant un verset hébreu — toucher **un mot**.
+    #[serde(default)]
+    oshb: Option<OshbSource>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OshbSource {
+    /// Le numéro de Strong, éventuellement préfixé — « 121 », « b/7225 ».
+    lem: String,
+    /// Le code morphologique — « HNp », « HVqp3ms ».
+    morph: String,
 }
 
 // ───────────────────────────── ce qu'on émet ──────────────────────────────
@@ -209,6 +224,158 @@ pub struct VersetPublie {
     /// Le numéro **à afficher**. Pas une clé — voir l'en-tête du module.
     pub n: u32,
     pub t: String,
+    /// Le verset **mot à mot**, quand le témoin est étiqueté.
+    ///
+    /// `t` reste, et ce n'est pas une redondance : il porte la ponctuation et
+    /// les espaces que la liste de mots perd, et c'est lui qu'on copie ou
+    /// qu'on lit à voix haute. La liste, elle, est ce qu'on touche.
+    ///
+    /// Vide quand le témoin n'étiquette pas — le guèze de Dillmann, par
+    /// exemple. La liseuse rend alors le verset sans mots touchables, ce qui
+    /// est exact : il n'y a rien à ouvrir.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mots: Vec<MotPublie>,
+}
+
+/// Un mot du texte source, et la fiche qu'il ouvre quand il en ouvre une.
+#[derive(Debug, Clone, Serialize)]
+pub struct MotPublie {
+    /// La forme telle qu'elle est écrite, voyelles et cantillation comprises.
+    pub t: String,
+    /// Le numéro de Strong, tel que le témoin l'écrit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lem: Option<String>,
+    /// Le code morphologique du témoin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub morph: Option<String>,
+    /// La fiche ONT que ce mot ouvre — absente quand aucune ne lui correspond.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cible: Option<CibleDuNiveauTrois>,
+}
+
+// ─────────────────────── la jointure d'un mot à sa fiche ───────────────────
+
+/// **Ce qui relie un mot hébreu à une fiche du glossaire.**
+///
+/// ## Pourquoi pas le numéro de Strong, qui serait pourtant la bonne clé
+///
+/// Parce que les fiches ONT n'en portent pas. Elles portent leur forme
+/// hébraïque — `adam` → `אָדָם` —, et c'est tout ce qu'on a. Inventer une table
+/// Strong → lemme reviendrait à introduire une donnée que personne ne
+/// maintient, pour un gain qu'on ne saurait pas vérifier.
+///
+/// ## Deux épreuves, dans cet ordre, et la seconde peut refuser
+///
+/// 1. **La forme vocalisée**, cantillation ôtée. `אָדָ֥ם` devient `אָדָם` et
+///    tombe exactement sur la fiche. Aucune ambiguïté possible : mesuré sur la
+///    Genèse, 548 mots, zéro collision.
+/// 2. **Le squelette consonantique**, voyelles ôtées en plus. C'est lui qui
+///    ramasse les formes fléchies — `בְּרֹ֤א`, `בָּרָ֣א` et `בָּרָ֥א` mènent tous
+///    à `bara`. Il porte 1 355 mots au lieu de 548.
+///
+/// La seconde épreuve **coûte l'ambiguïté**, et le corpus la nomme : trois
+/// squelettes sur cent trente en portent deux — `דבר` est *davar* et *dibber*,
+/// `קדש` est *qadash* et *qodesh*, `ראה` est *roeh* et *raah*. Une voyelle les
+/// sépare, et le squelette l'a perdue.
+///
+/// **Ces trois-là ne mènent nulle part.** C'est la règle que le niveau 3 a déjà
+/// payée : une jointure qui se trompe ne rend pas le mot inerte, elle le rend
+/// touchable **vers la mauvaise fiche** — et le lecteur ne peut pas le voir. Un
+/// mot sans fiche se lit comme un mot sans fiche ; un mot qui ouvre la fiche
+/// d'un autre se lit comme la vérité.
+pub struct LiaisonDesMots {
+    vocalisees: HashMap<String, CibleDuNiveauTrois>,
+    /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
+    consonantiques: HashMap<String, CibleDuNiveauTrois>,
+}
+
+impl LiaisonDesMots {
+    pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
+        let mut vocalisees = HashMap::new();
+        let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
+        for (lemme, hebreu) in fiches {
+            let vocalisee = sans_cantillation(hebreu);
+            if vocalisee.is_empty() {
+                continue;
+            }
+            vocalisees.insert(
+                vocalisee.clone(),
+                CibleDuNiveauTrois::Term {
+                    lemma: lemme.to_string(),
+                },
+            );
+            par_squelette
+                .entry(consonnes(&vocalisee))
+                .or_default()
+                .push(lemme.to_string());
+        }
+        let consonantiques = par_squelette
+            .into_iter()
+            .filter_map(|(squelette, mut lemmes)| {
+                lemmes.sort();
+                lemmes.dedup();
+                // **Un seul prétendant, sinon rien.** Voir l'en-tête du type.
+                (lemmes.len() == 1).then(|| {
+                    (
+                        squelette,
+                        CibleDuNiveauTrois::Term {
+                            lemma: lemmes.remove(0),
+                        },
+                    )
+                })
+            })
+            .collect();
+        Self {
+            vocalisees,
+            consonantiques,
+        }
+    }
+
+    fn cible(&self, mot: &str) -> Option<CibleDuNiveauTrois> {
+        let vocalisee = sans_cantillation(mot);
+        if let Some(c) = self.vocalisees.get(&vocalisee) {
+            return Some(c.clone());
+        }
+        self.consonantiques.get(&consonnes(&vocalisee)).cloned()
+    }
+}
+
+/// Ôte les signes de cantillation et le maqaf, garde les voyelles.
+///
+/// La cantillation est une notation **musicale** : elle dit comment chanter le
+/// verset, jamais quel mot c'est. Deux occurrences du même mot en portent des
+/// différentes selon leur place dans la phrase — c'est ce qui fait que `אֱלֹהִ֑ים`
+/// et `אֱלֹהִ֖ים` sont le même mot et ne se comparent pas tels quels.
+fn sans_cantillation(s: &str) -> String {
+    s.chars()
+        .filter(|c| {
+            !matches!(
+                *c,
+                '\u{0591}'
+                    ..='\u{05AF}'
+                        | '\u{05BD}'
+                        | '\u{05BE}'
+                        | '\u{05BF}'
+                        | '\u{05C0}'
+                        | '\u{05C3}'
+                        | '\u{05C6}'
+            )
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+/// Ôte les voyelles en plus — il ne reste que les consonnes.
+fn consonnes(s: &str) -> String {
+    s.chars()
+        .filter(|c| {
+            !matches!(
+                *c,
+                '\u{05B0}'..='\u{05BC}' | '\u{05C1}' | '\u{05C2}' | '\u{05C7}'
+            )
+        })
+        .collect()
 }
 
 // ───────────────────────────── la plage biblique ──────────────────────────
@@ -367,6 +534,7 @@ pub fn preparer(
     unites: &[Chapter],
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
+    liaison: &LiaisonDesMots,
 ) -> Result<Option<Preparation>, String> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
@@ -414,6 +582,8 @@ pub fn preparer(
 
             // (chapitre, verset) → texte joint
             let mut par_ref: BTreeMap<(u32, u32), String> = BTreeMap::new();
+            // (chapitre, verset) → les mots, quand le témoin les étiquette.
+            let mut mots_par_ref: BTreeMap<(u32, u32), Vec<MotPublie>> = BTreeMap::new();
             let mut par_chapitre: BTreeMap<u32, u32> = BTreeMap::new();
             for ligne in contenu.lines().filter(|l| !l.trim().is_empty()) {
                 let v: VersetSource = serde_json::from_str(ligne)
@@ -423,6 +593,22 @@ pub fn preparer(
                         .map(|m| m.t.as_str())
                         .collect::<Vec<_>>()
                         .join(" ");
+                let mots: Vec<MotPublie> =
+                    v.w.iter()
+                        .filter(|m| m.oshb.is_some())
+                        .map(|m| {
+                            let o = m.oshb.as_ref().expect("filtré juste au-dessus");
+                            MotPublie {
+                                cible: liaison.cible(&m.t),
+                                t: m.t.clone(),
+                                lem: Some(o.lem.clone()),
+                                morph: Some(o.morph.clone()),
+                            }
+                        })
+                        .collect();
+                if !mots.is_empty() {
+                    mots_par_ref.insert((v.c, v.v), mots);
+                }
                 par_ref.insert((v.c, v.v), texte);
                 let e = par_chapitre.entry(v.c).or_insert(0);
                 *e = (*e).max(v.v);
@@ -561,6 +747,7 @@ pub fn preparer(
                     sortie.push(VersetPublie {
                         n: numeros.get(i).copied().unwrap_or((i + 1) as u32),
                         t: texte.clone(),
+                        mots: mots_par_ref.get(cle_ref).cloned().unwrap_or_default(),
                     });
                 }
                 plages.insert(u.id.clone(), plage);
@@ -781,10 +968,47 @@ mod tests {
         }
     }
 
+    /// **La jointure d'un mot à sa fiche, et son refus.**
+    ///
+    /// Les trois cas qui décident, et le troisième est le seul qui compte :
+    /// une jointure qui se trompe est invisible au lecteur.
+    #[test]
+    fn un_mot_ouvre_sa_fiche_quand_elle_est_seule() {
+        let liaison = LiaisonDesMots::nouvelle([
+            ("elohim", "אֱלֹהִים"),
+            ("bara", "בָּרָא"),
+            // Les deux qu'un squelette confond : une voyelle les sépare.
+            ("davar", "דָּבָר"),
+            ("dibber", "דִּבֵּר"),
+        ]);
+
+        // Vocalisé, cantillation ôtée — le cas exact.
+        assert_eq!(
+            liaison.cible("אֱלֹהִ֑ים"),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "elohim".into()
+            })
+        );
+        // Fléchi : seul le squelette tombe juste, et il est seul à le porter.
+        assert_eq!(
+            liaison.cible("בְּרֹ֤א"),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "bara".into()
+            })
+        );
+        // **Ambigu : rien.** `דבר` est *davar* et *dibber* ; la forme
+        // vocalisée du texte ne coïncide avec aucune des deux fiches, et le
+        // squelette en désigne deux. Ouvrir l'une des deux serait mentir.
+        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר"), None);
+        // Un mot qu'aucune fiche ne nomme.
+        assert_eq!(liaison.cible("אֵ֥ת"), None);
+    }
+
     fn verset(n: u32) -> VersetPublie {
         VersetPublie {
             n,
             t: String::new(),
+            mots: Vec::new(),
         }
     }
 

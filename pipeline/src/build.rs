@@ -1319,8 +1319,22 @@ pub fn build() -> Result<BuildResult, String> {
     let unites_toutes: Vec<crate::schema::Chapter> =
         written.iter().flat_map(|b| unites(b).cloned()).collect();
 
-    let preparation =
-        crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?;
+    // **La jointure d'un mot source à sa fiche se construit ici**, et pas dans
+    // `sources`, parce que c'est ici que le glossaire existe. Le module des
+    // sources n'a pas à savoir d'où viennent les fiches — il reçoit une table
+    // et s'en sert.
+    let liaison = crate::sources::LiaisonDesMots::nouvelle(
+        glossary
+            .iter()
+            .filter_map(|e| e.hebrew.as_deref().map(|h| (e.lemma.as_str(), h))),
+    );
+    let preparation = crate::sources::preparer(
+        &racine,
+        &unites_toutes,
+        &transmissions,
+        &numero_vers_slug,
+        &liaison,
+    )?;
     if let Some(sources) = &preparation {
         bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)
             .map_err(|e| e.to_string())?;
