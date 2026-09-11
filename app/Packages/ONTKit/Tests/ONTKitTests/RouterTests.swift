@@ -53,3 +53,58 @@ struct RouterTests {
         #expect(router.pendingVerse?.n == 19)
     }
 }
+
+// MARK: - Le renvoi empile
+
+@MainActor
+@Suite("Un renvoi empile au lieu de remplacer")
+struct RenvoiQuiEmpile {
+    /// Le cas que l'auteur a demandé : suivre un renvoi depuis une lecture en
+    /// cours, et que le retour rende le chapitre d'où l'on vient.
+    @Test func un_renvoi_empile_sur_la_lecture_en_cours() {
+        let router = Router()
+        router.open(URL(string: "ont://read/bereshit/bereshit-7")!)
+        #expect(router.biblePath.count == 2)
+
+        router.open(URL(string: "ont://renvoi/bereshit/bereshit-1?v=2")!)
+        #expect(
+            router.biblePath == [
+                .book("bereshit"),
+                .chapter(book: "bereshit", chapter: "bereshit-7"),
+                .chapter(book: "bereshit", chapter: "bereshit-1"),
+            ],
+            "la pile devrait porter trois échelons — \(router.biblePath)"
+        )
+        #expect(router.pendingSelection == [2])
+    }
+
+    /// `read` continue de remplacer : c'est ce que le widget attend.
+    @Test func read_remplace_toujours() {
+        let router = Router()
+        router.open(URL(string: "ont://read/bereshit/bereshit-7")!)
+        router.open(URL(string: "ont://read/bereshit/bereshit-1")!)
+        #expect(router.biblePath.count == 2, "read a empilé — \(router.biblePath)")
+    }
+
+    /// Un renvoi vers l'unité qu'on lit déjà ne s'empile pas sur lui-même.
+    @Test func un_renvoi_vers_soi_meme_n_empile_rien() {
+        let router = Router()
+        router.open(URL(string: "ont://read/bereshit/bereshit-7")!)
+        router.open(URL(string: "ont://renvoi/bereshit/bereshit-7?v=4")!)
+        #expect(router.biblePath.count == 2, "empilé sur soi-même — \(router.biblePath)")
+        #expect(router.pendingSelection == [4])
+    }
+
+    /// Touché hors de la lecture, le renvoi pose le livre sous l'unité.
+    @Test func un_renvoi_depuis_une_pile_vide_pose_le_livre() {
+        let router = Router()
+        router.open(URL(string: "ont://renvoi/bereshit/bereshit-1?v=2")!)
+        #expect(
+            router.biblePath == [
+                .book("bereshit"),
+                .chapter(book: "bereshit", chapter: "bereshit-1"),
+            ],
+            "\(router.biblePath)"
+        )
+    }
+}

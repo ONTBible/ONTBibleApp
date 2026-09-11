@@ -272,6 +272,46 @@ public final class Router {
             openedShem = LemmaSelection(lemma)
             return true
 
+        case "renvoi":
+            // **Un renvoi empile ; tout le reste remplace.** C'est la seule
+            // différence avec `read`, et elle est entière.
+            //
+            // Le widget, la carte du jour, un lien reçu : ce sont des
+            // *entrées* dans le corpus. Le lecteur n'était nulle part, il
+            // arrive — remplacer la pile est exact, et le bouton de retour le
+            // ramène à la table des matières, qui est bien d'où il vient.
+            //
+            // Un renvoi est une *sortie* depuis une lecture en cours. Le
+            // lecteur était dans une glose de Bereshit 7, à la moitié de
+            // l'unité ; il va voir Bereshit 1, et il veut revenir **là**.
+            // Remplacer la pile le renvoyait à l'index du livre : il perdait
+            // son chapitre et sa hauteur de défilement, et devait les
+            // retrouver à la main. Relevé par l'auteur le 11 septembre 2026.
+            //
+            // Empiler les rend tous les deux : `NavigationStack` garde la vue
+            // parente vivante, donc sa position de défilement avec elle, et le
+            // bouton de retour est celui du système — rien à écrire pour lui.
+            guard let book = parts.first, parts.count >= 2 else { return false }
+            tab = .bible
+            let vise = Destination.chapter(book: book, chapter: parts[1])
+            // **Ne pas empiler sur soi-même.** Un renvoi peut viser l'unité
+            // qu'on lit déjà — « voir plus haut au verset 4 ». Empiler
+            // donnerait deux fois le même écran, et le retour ramènerait à
+            // l'endroit d'où l'on n'est jamais parti.
+            if biblePath.last != vise {
+                // Une pile vide arrive quand le renvoi est touché hors de la
+                // lecture — dans une fiche du Lexique, par exemple. Le livre
+                // doit alors exister sous l'unité, sinon le retour sort de
+                // l'onglet.
+                if biblePath.isEmpty {
+                    biblePath = [.book(book)]
+                }
+                biblePath.append(vise)
+            }
+            pendingSelection = Self.verses(in: url)
+            pendingVerse = VerseVise(parts[1], pendingSelection.min())
+            return true
+
         case "indisponible":
             // Le nom voyage en paramètre : il porte des espaces et des
             // accents, qu'un segment de chemin rendrait illisibles.
