@@ -767,6 +767,22 @@ pub fn build() -> Result<BuildResult, String> {
         if let Some(fiche) = fiches.get(&entry.lemma) {
             let blocs = &fiche.blocs;
             entry.definition = Some(blocs.clone());
+            // **La source déclarée traverse jusqu'à l'entrée émise.**
+            //
+            // Écrite dans la fiche et non au §3, sur arbitrage de l'auteur : au
+            // §3 le champ n'aurait couvert que 133 fiches sur 357, le §3 étant
+            // un glossaire d'arbitrages de traduction et non un lexique.
+            //
+            // Elle était écrite dans 216 fiches et **personne ne la recevait** :
+            // le pipeline lisait `## Formes` et rien d'autre. C'est le même
+            // défaut que les formes déclarées ont connu trois jours plus tôt —
+            // cent soixante-quatre formes écrites, zéro effet — et il se
+            // reconnaît au même signe : une donnée que l'auteur écrit et qu'un
+            // lecteur n'a jamais appris à lire.
+            if let Some(source) = &fiche.source {
+                entry.strong = Some(source.strong.clone());
+                entry.hebreu_de_la_fiche = Some(source.hebreu.clone());
+            }
         }
     }
 
@@ -1324,11 +1340,13 @@ pub fn build() -> Result<BuildResult, String> {
     // `sources`, parce que c'est ici que le glossaire existe. Le module des
     // sources n'a pas à savoir d'où viennent les fiches — il reçoit une table
     // et s'en sert.
-    let liaison = crate::sources::LiaisonDesMots::nouvelle(
-        glossary
-            .iter()
-            .filter_map(|e| e.hebrew.as_deref().map(|h| (e.lemma.as_str(), h))),
-    );
+    let mut liaison = crate::sources::LiaisonDesMots::nouvelle(glossary.iter().map(|e| {
+        crate::sources::FichePourLaJointure {
+            lemme: e.lemma.as_str(),
+            hebreu: e.hebrew.as_deref(),
+            strong: e.strong.as_deref(),
+        }
+    }));
 
     // **La translittération des mots sources se récolte ici, sur le corpus
     // assemblé**, pour la même raison que la ligne d'au-dessus : c'est ici que
@@ -1350,7 +1368,7 @@ pub fn build() -> Result<BuildResult, String> {
         &unites_toutes,
         &transmissions,
         &numero_vers_slug,
-        &liaison,
+        &mut liaison,
         &translitterations,
     )?;
     if let Some(sources) = &preparation {

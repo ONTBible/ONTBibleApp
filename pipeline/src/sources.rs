@@ -329,16 +329,68 @@ pub struct MotPublie {
 /// mot sans fiche se lit comme un mot sans fiche ; un mot qui ouvre la fiche
 /// d'un autre se lit comme la vérité.
 pub struct LiaisonDesMots {
+    /// **Le numéro de Strong déclaré par la fiche**, et c'est la seule épreuve
+    /// vérifiable des trois.
+    ///
+    /// Les deux autres déduisent : elles rapprochent deux formes hébraïques et
+    /// pallient ce que la vocalisation perd. Celle-ci compare ce que la fiche
+    /// **dit** à ce que le témoin **dit** — deux affirmations, pas deux
+    /// apparences.
+    ///
+    /// D'où sa place en tête : là où elle répond, les autres n'ont pas à
+    /// deviner. Et là où elle se trompe, le témoin la contredit — un squelette
+    /// qui se trompe, lui, est silencieux.
+    strongs: HashMap<String, CibleDuNiveauTrois>,
+    /// Le chemin inverse : le lemme d'une fiche → le numéro qu'elle déclare.
+    ///
+    /// Sert au veto, jamais à joindre. Voir `cible`.
+    strong_de: HashMap<String, String>,
+    /// **Le numéro qu'une fiche ne déclare pas, mais que le témoin lui donne.**
+    ///
+    /// Quand une fiche porte `אֵל` et que le témoin n'attribue qu'un seul
+    /// numéro à cette forme exacte, ce numéro **est** celui de la fiche — la
+    /// chaîne est attestée de bout en bout, rien n'est supposé.
+    ///
+    /// Ça ne sert pas à joindre davantage : ça sert à **refuser**. Sans lui,
+    /// `אֶל` la préposition ouvrait la fiche de `ʾEl` le nom divin, quatre-vingt-
+    /// dix fois, parce que leur squelette est le même et qu'aucune des deux ne
+    /// déclarait de numéro.
+    ///
+    /// Rempli par `apprendre_du_temoin`, une fois par livre.
+    strong_atteste: HashMap<String, String>,
     vocalisees: HashMap<String, CibleDuNiveauTrois>,
     /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
     consonantiques: HashMap<String, CibleDuNiveauTrois>,
 }
 
+/// Ce qu'une fiche déclare d'elle-même, pour la jointure.
+pub struct FichePourLaJointure<'a> {
+    pub lemme: &'a str,
+    /// L'hébreu du §3, quand le terme y a une entrée.
+    pub hebreu: Option<&'a str>,
+    /// Le numéro de Strong que la fiche déclare — `559`, `1254 a`.
+    pub strong: Option<&'a str>,
+}
+
 impl LiaisonDesMots {
-    pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
+    pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = FichePourLaJointure<'a>>) -> Self {
+        let mut strongs = HashMap::new();
+        let mut strong_de = HashMap::new();
         let mut vocalisees = HashMap::new();
         let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
-        for (lemme, hebreu) in fiches {
+        for fiche in fiches {
+            let lemme = fiche.lemme;
+            if let Some(strong) = fiche.strong {
+                let nu = numero_nu(strong);
+                strong_de.insert(lemme.to_string(), nu.clone());
+                strongs.insert(
+                    nu,
+                    CibleDuNiveauTrois::Term {
+                        lemma: lemme.to_string(),
+                    },
+                );
+            }
+            let Some(hebreu) = fiche.hebreu else { continue };
             let vocalisee = sans_cantillation(hebreu);
             if vocalisee.is_empty() {
                 continue;
@@ -371,18 +423,116 @@ impl LiaisonDesMots {
             })
             .collect();
         Self {
+            strongs,
+            strong_de,
+            strong_atteste: HashMap::new(),
             vocalisees,
             consonantiques,
         }
     }
 
-    fn cible(&self, mot: &str) -> Option<CibleDuNiveauTrois> {
-        let vocalisee = sans_cantillation(mot);
-        if let Some(c) = self.vocalisees.get(&vocalisee) {
+    /// **Fait dire au témoin le numéro que la fiche tait.**
+    ///
+    /// Pour chaque forme hébraïque qu'une fiche porte, on regarde quel numéro
+    /// le témoin donne à cette forme **exacte**, vocalisation comprise. S'il
+    /// n'en donne qu'un, il est attesté et sert de veto ; s'il en donne
+    /// plusieurs, on ne conclut pas.
+    ///
+    /// Appelée une fois par livre, avant la jointure de ses mots.
+    fn apprendre_du_temoin(&mut self, mots: impl IntoIterator<Item = (String, String)>) {
+        let mut vus: HashMap<String, Option<String>> = HashMap::new();
+        for (forme, lem) in mots {
+            let f = sans_cantillation(&forme);
+            if !self.vocalisees.contains_key(&f) {
+                continue;
+            }
+            let n = numero_nu(&lem);
+            match vus.get(&f) {
+                None => {
+                    vus.insert(f, Some(n));
+                }
+                Some(Some(deja)) if *deja != n => {
+                    vus.insert(f, None);
+                }
+                _ => {}
+            }
+        }
+        for (forme, numero) in vus {
+            let Some(numero) = numero else { continue };
+            if let Some(CibleDuNiveauTrois::Term { lemma }) = self.vocalisees.get(&forme) {
+                // Ne recouvre jamais ce que la fiche déclare elle-même.
+                self.strong_atteste
+                    .entry(lemma.clone())
+                    .or_insert_with(|| numero.clone());
+            }
+        }
+    }
+
+    fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
+        let numero = lem.map(numero_nu);
+
+        // **Le numéro d'abord**, parce qu'il est le seul vérifiable.
+        if let Some(c) = numero.as_ref().and_then(|n| self.strongs.get(n)) {
             return Some(c.clone());
         }
-        self.consonantiques.get(&consonnes(&vocalisee)).cloned()
+
+        let vocalisee = sans_cantillation(mot);
+        let par_la_forme = self
+            .vocalisees
+            .get(&vocalisee)
+            .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
+            .cloned()?;
+
+        // **Et le numéro a aussi un droit de veto.**
+        //
+        // C'est là qu'il rapporte le plus, et ce n'est pas là qu'on l'attend.
+        // Mesuré à l'écran au premier build qui l'employait :
+        //
+        //   - `shem` déclare `8034`, « le nom » — et soixante-cinq mots
+        //     portant `8035`, qui est *Shem fils de Noach*, s'y joignaient par
+        //     la forme ;
+        //   - `אֶל` (413, la préposition « vers ») joignait la fiche `el`
+        //     quatre-vingt-dix fois.
+        //
+        // Les deux formes sont identiques, et seule la fonction du mot les
+        // sépare. Aucune normalisation de l'hébreu ne peut le voir — c'est
+        // précisément ce que « un squelette qui se trompe est silencieux »
+        // décrit.
+        //
+        // Donc : quand la fiche dit son numéro **et** que le témoin en dit un
+        // autre, on ne joint pas. Deux affirmations qui se contredisent ne
+        // valent pas mieux qu'une absence ; elles valent moins, parce qu'une
+        // absence se voit.
+        //
+        // Une fiche qui ne déclare rien ne peut rien contredire : la jointure
+        // par la forme passe alors comme avant, avec sa part de risque, et
+        // c'est un argument de plus pour écrire la Source partout.
+        if let (Some(n), CibleDuNiveauTrois::Term { lemma }) = (&numero, &par_la_forme) {
+            let declare = self
+                .strong_de
+                .get(lemma)
+                .or_else(|| self.strong_atteste.get(lemma));
+            if let Some(declare) = declare {
+                if declare != n {
+                    return None;
+                }
+            }
+        }
+        Some(par_la_forme)
     }
+}
+
+/// Le numéro de Strong **nu**, sans le préfixe de segmentation du témoin.
+///
+/// Le WLC écrit `c/853` — conjonction plus 853 —, `d/776`, `b/7225`. Le
+/// préfixe appartient à **l'occurrence** : il dit qu'un waw ou un article a
+/// été soudé devant le mot dans ce verset-là. Le lemme, lui, est le nombre.
+///
+/// La lettre qui suit, en revanche, reste : `1254 a` et `1254 b` sont deux
+/// mots que Strong distingue, et les confondre rouvrirait le défaut qu'on
+/// ferme.
+fn numero_nu(lem: &str) -> String {
+    lem.rsplit('/').next().unwrap_or(lem).trim().to_string()
 }
 
 /// Ôte les signes de cantillation et le maqaf, garde les voyelles.
@@ -955,7 +1105,7 @@ pub fn preparer(
     unites: &[Chapter],
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
-    liaison: &LiaisonDesMots,
+    liaison: &mut LiaisonDesMots,
     translitterations: &Translitterations,
 ) -> Result<Option<Preparation>, String> {
     let dossier = racine.join(SOURCES);
@@ -1004,6 +1154,29 @@ pub fn preparer(
             let contenu = fs::read_to_string(&chemin)
                 .map_err(|e| format!("lecture de {}: {e}", chemin.display()))?;
 
+            // **Une passe d'apprentissage avant la jointure.**
+            //
+            // Le témoin porte, pour chaque forme, le numéro que le lexique
+            // tait. On le lui demande une fois par livre, avant de joindre quoi
+            // que ce soit — voir `apprendre_du_temoin`.
+            //
+            // Deux passes sur le même contenu plutôt qu'une : la seconde a
+            // besoin de ce que la première établit, et joindre au fil de la
+            // lecture reviendrait à décider avant de savoir.
+            liaison.apprendre_du_temoin(
+                contenu
+                    .lines()
+                    .filter_map(|l| {
+                        let v: VersetSource = serde_json::from_str(l).ok()?;
+                        Some(
+                            v.w.into_iter()
+                                .filter_map(|m| m.oshb.map(|o| (m.t, o.lem)))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .flatten(),
+            );
+
             // (chapitre, verset) → texte joint
             let mut par_ref: BTreeMap<(u32, u32), String> = BTreeMap::new();
             // (chapitre, verset) → les mots, quand le témoin les étiquette.
@@ -1023,7 +1196,7 @@ pub fn preparer(
                         .map(|m| {
                             let o = m.oshb.as_ref().expect("filtré juste au-dessus");
                             MotPublie {
-                                cible: liaison.cible(&m.t),
+                                cible: liaison.cible(&m.t, Some(&o.lem)),
                                 // **Pas ici.** À cette ligne on lit un `.jsonl`
                                 // classé par référence biblique : on ne sait pas
                                 // encore dans quelle unité ni à quelle position
@@ -1417,24 +1590,31 @@ mod tests {
     /// une jointure qui se trompe est invisible au lecteur.
     #[test]
     fn un_mot_ouvre_sa_fiche_quand_elle_est_seule() {
+        fn fiche<'a>(l: &'a str, h: &'a str, st: Option<&'a str>) -> FichePourLaJointure<'a> {
+            FichePourLaJointure {
+                lemme: l,
+                hebreu: Some(h),
+                strong: st,
+            }
+        }
         let liaison = LiaisonDesMots::nouvelle([
-            ("elohim", "אֱלֹהִים"),
-            ("bara", "בָּרָא"),
+            fiche("elohim", "אֱלֹהִים", Some("430")),
+            fiche("bara", "בָּרָא", None),
             // Les deux qu'un squelette confond : une voyelle les sépare.
-            ("davar", "דָּבָר"),
-            ("dibber", "דִּבֵּר"),
+            fiche("davar", "דָּבָר", Some("1697")),
+            fiche("dibber", "דִּבֵּר", Some("1696")),
         ]);
 
         // Vocalisé, cantillation ôtée — le cas exact.
         assert_eq!(
-            liaison.cible("אֱלֹהִ֑ים"),
+            liaison.cible("אֱלֹהִ֑ים", None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "elohim".into()
             })
         );
         // Fléchi : seul le squelette tombe juste, et il est seul à le porter.
         assert_eq!(
-            liaison.cible("בְּרֹ֤א"),
+            liaison.cible("בְּרֹ֤א", None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "bara".into()
             })
@@ -1442,9 +1622,9 @@ mod tests {
         // **Ambigu : rien.** `דבר` est *davar* et *dibber* ; la forme
         // vocalisée du texte ne coïncide avec aucune des deux fiches, et le
         // squelette en désigne deux. Ouvrir l'une des deux serait mentir.
-        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר"), None);
+        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר", None), None);
         // Un mot qu'aucune fiche ne nomme.
-        assert_eq!(liaison.cible("אֵ֥ת"), None);
+        assert_eq!(liaison.cible("אֵ֥ת", None), None);
     }
 
     /// **La récolte des translittérations, et son refus.**
@@ -1686,6 +1866,62 @@ mod tests {
         let table =
             Translitterations::recoltee(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())));
         assert_eq!(table.pour("חֶ֥סֶד"), Some("chesed".to_string()));
+    }
+
+    /// **Le veto du numéro, et les deux chemins par lesquels il arrive.**
+    ///
+    /// C'est l'épreuve du défaut qui était vivant dans le corpus le
+    /// 11 septembre 2026 : `אֶל`, la préposition « vers » (413), ouvrait la
+    /// fiche de `ʾEl` le nom divin (410) — **quatre-vingt-dix fois**, parce que
+    /// leur squelette consonantique est le même et qu'aucune des deux fiches ne
+    /// déclarait son numéro.
+    #[test]
+    fn le_numero_refuse_ce_que_la_forme_confond() {
+        // `shem` déclare le sien : le veto part de la fiche.
+        let liaison = LiaisonDesMots::nouvelle([FichePourLaJointure {
+            lemme: "shem",
+            hebreu: Some("שֵׁם"),
+            strong: Some("8034"),
+        }]);
+        assert_eq!(
+            liaison.cible("שֵׁ֣ם", Some("8034")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "shem".into()
+            })
+        );
+        // Même forme, autre numéro — *Shem fils de Noach*. On ne joint pas.
+        assert_eq!(liaison.cible("שֵׁ֖ם", Some("8035")), None);
+
+        // `el` ne déclare rien : le veto doit venir du témoin.
+        let mut liaison = LiaisonDesMots::nouvelle([FichePourLaJointure {
+            lemme: "el",
+            hebreu: Some("אֵל"),
+            strong: None,
+        }]);
+        // Sans apprentissage, le squelette confond — et c'est le code d'avant.
+        assert_eq!(
+            liaison.cible("אֶל", Some("413")),
+            Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
+        );
+        // Le témoin dit que `אֵל` porte 410, et rien d'autre.
+        liaison.apprendre_du_temoin([
+            ("אֵ֣ל".to_string(), "410".to_string()),
+            ("אֵל".to_string(), "410".to_string()),
+        ]);
+        assert_eq!(liaison.cible("אֶל", Some("413")), None);
+        assert_eq!(
+            liaison.cible("אֵ֣ל", Some("410")),
+            Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
+        );
+    }
+
+    /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
+    #[test]
+    fn le_prefixe_du_temoin_ne_fait_pas_partie_du_lemme() {
+        assert_eq!(numero_nu("c/559"), "559");
+        assert_eq!(numero_nu("c/d/776"), "776");
+        assert_eq!(numero_nu("1254 a"), "1254 a");
+        assert_eq!(numero_nu("430"), "430");
     }
 
     fn verset(n: u32) -> VersetPublie {

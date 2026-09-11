@@ -670,6 +670,8 @@ mod tests {
             tagged: true,
             forms: forms.iter().map(|f| (*f).into()).collect(),
             hebrew: None,
+            strong: None,
+            hebreu_de_la_fiche: None,
             rendering: None,
             definition: None,
             tagging_note: None,
