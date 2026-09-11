@@ -26,6 +26,7 @@ use crate::chapter::{parse_chapter, ChapterSource};
 use crate::chuqqot;
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::controles;
+use crate::emissions;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
 use crate::inline::{declarer_les_livres, Systeme};
 use crate::niveau_trois;
@@ -1476,7 +1477,24 @@ pub fn build() -> Result<BuildResult, String> {
     // Après, pour que `dist/report.md` existe quand l'échec survient : sans
     // lui, celui qui reçoit l'échec n'a que le nombre et doit refaire à la main
     // le relevé que le pipeline vient de faire.
-    let rapport = format_report(
+    // ── Ce qui est émis, et ce que les liseuses lisent ───────────────────
+    //
+    // Le relevé se fait **ici**, sur `dist/` déjà écrit : tout ce que le build
+    // émet l'est plus haut, et le seul fichier qui manque encore est
+    // `report.md` — celui qui va porter ce relevé. `emissions` le sait et
+    // l'exempte ; sans quoi le contrôle s'accuserait lui-même à chaque build.
+    //
+    // Le module se branche par **deux lignes seulement**, et c'est délibéré :
+    // sa section s'ajoute au rapport après coup au lieu de passer par
+    // `Anomalies`. Deux autres sessions travaillent dans ce fichier ; leur
+    // imposer un conflit de fusion sur une structure partagée, pour une section
+    // qui n'a besoin d'aucune de ses données, serait un coût sans contrepartie.
+    let ecarts_d_emission = emissions::rapprocher(
+        &emissions::relever_dist(&sortie).map_err(|e| e.to_string())?,
+        &emissions::lire_les_sources(&emissions::racine_du_depot()),
+    );
+
+    let mut rapport = format_report(
         &corpora,
         &glossary,
         &Anomalies {
@@ -1495,7 +1513,17 @@ pub fn build() -> Result<BuildResult, String> {
         },
         &racine,
     );
+    rapport.push('\n');
+    rapport.push_str(&emissions::lignes_du_rapport(&ecarts_d_emission).join("\n"));
+    rapport.push('\n');
     fs::write(sortie.join("report.md"), rapport).map_err(|e| e.to_string())?;
+
+    // Le même cliquet que pour les liens morts, et posé pour la même raison :
+    // après l'écriture du rapport, pour que celui qui reçoit l'échec ait sous
+    // la main le relevé au lieu du seul nombre.
+    if ecarts_d_emission.iter().any(|e| e.rouge()) {
+        return Err(emissions::dire_l_echec(&ecarts_d_emission));
+    }
 
     let occurrences_mortes: usize = liens_morts.iter().map(|l| l.occurrences).sum();
     if occurrences_mortes > controles::PLAFOND_LIENS_MORTS {

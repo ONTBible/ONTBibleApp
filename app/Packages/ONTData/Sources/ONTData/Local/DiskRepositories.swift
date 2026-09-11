@@ -355,3 +355,101 @@ public final class DiskPrononciationRepository: PrononciationRepository, @unchec
         cachee = nil
     }
 }
+
+/// Les **chuqqot**, du disque quand elles y sont, du bundle sinon.
+///
+/// ## Le défaut que ça ferme
+///
+/// Le pipeline émet `dist/chuqqot.json` depuis le 11 septembre 2026. **Aucune
+/// des trois liseuses ne l'ouvrait**, et l'onglet Chuqqot de l'app affichait en
+/// dur « Cet onglet portera les chuqqot. Ils ne sont pas encore écrits. » —
+/// pendant que sept étaient écrites et attendaient leur validation.
+///
+/// Le contrôle `pipeline/src/emissions.rs` l'a nommé le jour même : un fichier
+/// émis que personne ne lit part quand même dans le paquet, chez le lecteur, et
+/// n'ouvre rien. C'est sa première trouvaille.
+///
+/// ## Le même montage que la prononciation, et pour la même raison
+///
+/// Disque d'abord, bundle en secours. Le bundle n'est pas un repli : c'est le
+/// socle — il fait marcher une installation neuve avant tout réseau. Ce que
+/// `CorpusUpdater` télécharge vient le recouvrir.
+///
+/// La conséquence vaut d'être dite : une chuqqah validée atteint les lecteurs
+/// **en minutes**, sans compilation, sans envoi à Apple, sans revue. C'est
+/// exactement ce qu'on veut d'un corpus qui se relit ; et c'est la raison pour
+/// laquelle une liste embarquée en dur dans l'app aurait été un contresens,
+/// même en attendant.
+///
+/// ## Pourquoi un tableau, et non le fichier entier
+///
+/// Le DTO porte `schema`, un numéro de version que le domaine n'a que faire de
+/// connaître. On le laisse ici : ce qui remonte est une liste de chuqqot, dans
+/// l'ordre. Le jour où une migration devra le lire, elle le lira à cet
+/// endroit-ci — le seul où les deux formes se rencontrent.
+///
+/// `@unchecked Sendable` assumé comme les voisins : le cache est protégé par un
+/// verrou, et le contenu décodé est immuable.
+public final class DiskChuqqotRepository: ChuqqotRepository, @unchecked Sendable {
+    private let dossier: URL
+    private let bundle: Foundation.Bundle
+    private let lock = NSLock()
+    private var cachees: [Chuqqah]?
+
+    public init(
+        dossier: URL = CorpusUpdater.dossierParDefaut(),
+        bundle: Foundation.Bundle = .main
+    ) {
+        self.dossier = dossier
+        self.bundle = bundle
+    }
+
+    public func chuqqot() -> [Chuqqah] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let cachees { return cachees }
+        let dto: ONTSchema.ChuqqotFile? =
+            lire("chuqqot.json")
+            ?? (try? BundleLoader.decode("chuqqot", bundle: bundle))
+
+        // **Le tri est refait ici, alors que le pipeline trie déjà.**
+        //
+        // Ce n'est pas une défiance envers lui : c'est que l'ordre de lecture
+        // est une propriété du *domaine*, pas de la sérialisation. Un fichier
+        // écrit à la main pour une épreuve, un corpus d'aperçu monté par le
+        // mode développeur du Mac, une future fusion de deux sources — aucun de
+        // ces chemins ne passe par le tri du pipeline, et tous passent par ici.
+        //
+        // `rang` d'abord, `id` en départage : deux chuqqot sans rang déclaré
+        // portent toutes deux `u32::MAX`, et sans second critère leur ordre
+        // dépendrait de la stabilité du tri, c'est-à-dire de rien.
+        let lues = (dto?.entries ?? []).map(Chuqqah.init)
+            .sorted { ($0.rang, $0.id) < ($1.rang, $1.id) }
+        cachees = lues
+        return lues
+    }
+
+    /// Voir `DiskCorpusRepository.lire(_:)` — **aucune erreur ne remonte**, et
+    /// c'est le cas normal : le fichier est absent tant que rien n'a été
+    /// téléchargé, et le bundle répond alors.
+    private func lire<T: Decodable>(_ nom: String) -> T? {
+        guard let octets = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(T.self, from: octets)
+    }
+
+    /// Oublie ce qui est en mémoire, après une mise à jour.
+    ///
+    /// Sans ça, une chuqqah fraîchement validée n'apparaîtrait qu'au prochain
+    /// lancement : le cache tient la version d'avant, et rien ne lui dit
+    /// qu'elle a vieilli. C'est le trou exact que `DiskPrononciationRepository`
+    /// porte encore — construit en ligne dans `Composition`, personne ne peut
+    /// lui dire d'oublier. On ne le reproduit pas.
+    public func oublier() {
+        lock.lock()
+        defer { lock.unlock() }
+        cachees = nil
+    }
+}

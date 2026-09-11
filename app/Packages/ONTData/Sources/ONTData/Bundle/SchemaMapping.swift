@@ -344,6 +344,32 @@ extension ShemEntry {
     }
 }
 
+// MARK: - Les chuqqot
+
+extension Chuqqah {
+    /// **La traduction est plate, et le renommage se fait ici.**
+    ///
+    /// Le fichier écrit `title` et `rank` ; le domaine dit `titre` et `rang`.
+    /// L'écart n'est pas une coquetterie : c'est précisément ce que cette
+    /// couche existe pour absorber. Aligner le domaine sur l'anglais du JSON
+    /// reviendrait à laisser un format de fichier nommer l'ONT — la dépendance
+    /// repartirait dans le mauvais sens, et un `rename` posé dans le pipeline
+    /// traverserait jusqu'au cœur de l'app.
+    ///
+    /// `rank` est un `u32` en Rust, rendu `Int` par le codegen. On ne le
+    /// contraint pas davantage ici : un rang négatif ne peut pas arriver du
+    /// pipeline, et s'en protéger par un type maison ferait porter à l'app une
+    /// garantie qui est déjà tenue à la source.
+    init(_ dto: ONTSchema.Chuqqah) {
+        self.init(
+            id: dto.id,
+            titre: dto.title,
+            rang: dto.rank,
+            blocs: dto.blocks.map(Block.init)
+        )
+    }
+}
+
 extension PorteeDeLaReference {
     /// Traduit la portée du schéma vers celle du domaine.
     ///
