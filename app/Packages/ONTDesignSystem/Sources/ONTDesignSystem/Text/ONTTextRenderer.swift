@@ -312,6 +312,42 @@ public enum ONTTextRenderer {
                 piece[MarqueDeTerme.self] = true
                 output += piece
 
+            case .reference(let value, _, _, _, _):
+                // **L'ambre du renvoi, et le pointillé de la désignation.**
+                //
+                // Arbitré à l'écran, les trois candidats côte à côte dans le
+                // vrai thème et la vraie fonte.
+                //
+                // *L'ambre seule* confondait la référence avec le renvoi de
+                // chuqqah, et le volume décidait : 1 182 références contre
+                // aucun renvoi publié aujourd'hui — l'ambre serait devenue la
+                // couleur de la référence, et le renvoi aurait été noyé dans
+                // sa propre teinte en arrivant.
+                //
+                // *Le pointillé seul*, à l'encre du corps, passait sous les
+                // jambages du « B » et du « 4 » et se lisait comme un défaut
+                // de rendu. Et sans couleur, rien ne disait qu'il répond.
+                //
+                // *Une cinquième teinte* a été écartée par mesure, pas par
+                // goût : il aurait fallu la tenir à ΔE 25 des quatre autres,
+                // et l'auteur lit à moins d'un dixième d'acuité. Les petites
+                // capitales aussi — les tables OpenType des vingt fontes du
+                // projet disent que Newsreader et Jost n'ont pas de `smcp`, et
+                // le lecteur choisit sa fonte : une distinction qui dépend de
+                // son réglage n'est pas une distinction.
+                //
+                // Reste que les deux marques disent chacune une moitié :
+                // l'ambre, « ceci mène ailleurs dans le corpus » ; le
+                // pointillé, « et c'est une désignation de verset ». Ce second
+                // signe existait déjà — c'est celui que le lecteur trace en
+                // désignant un verset pour le partager. Même sens, autre agent.
+                var style = type.renvoi
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.underlineStyle = Text.LineStyle(pattern: .dot)
+                piece[MarqueDeTerme.self] = true
+                output += piece
+
             case .hebrew(let value):
                 output += hebrewRun(value, style: inGloss ? type.hebrewSmall : type.hebrew)
 
