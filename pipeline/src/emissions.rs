@@ -1276,7 +1276,11 @@ mod tests {
         //
         // Ce test rougit sur le code d'avant : sans la reconnaissance de la
         // marque, le jeton se retrouve dans le source d'Android.
-        let vu = aspire("engendre", "Schema.kt", &schema_engendre("prononciation.json"));
+        let vu = aspire(
+            "engendre",
+            "Schema.kt",
+            &schema_engendre("prononciation.json"),
+        );
         assert!(
             !vu.contains("prononciation.json"),
             "un fichier engendré par le pipeline ne doit pas compter comme source : {vu}"
