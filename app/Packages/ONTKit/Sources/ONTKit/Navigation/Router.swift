@@ -294,20 +294,38 @@ public final class Router {
             guard let book = parts.first, parts.count >= 2 else { return false }
             tab = .bible
             let vise = Destination.chapter(book: book, chapter: parts[1])
-            // **Ne pas empiler sur soi-même.** Un renvoi peut viser l'unité
-            // qu'on lit déjà — « voir plus haut au verset 4 ». Empiler
-            // donnerait deux fois le même écran, et le retour ramènerait à
-            // l'endroit d'où l'on n'est jamais parti.
-            if biblePath.last != vise {
-                // Une pile vide arrive quand le renvoi est touché hors de la
-                // lecture — dans une fiche du Lexique, par exemple. Le livre
-                // doit alors exister sous l'unité, sinon le retour sort de
-                // l'onglet.
-                if biblePath.isEmpty {
-                    biblePath = [.book(book)]
-                }
-                biblePath.append(vise)
+            // **On empile toujours, même vers l'unité que la pile croit
+            // porter déjà.**
+            //
+            // Le premier jet s'en gardait : un renvoi peut viser l'unité qu'on
+            // lit — « voir plus haut au verset 4 » —, et empiler donnerait deux
+            // fois le même écran. Le raisonnement était bon et sa prémisse
+            // fausse : **le sommet de la pile n'est pas ce que le lecteur
+            // voit.** `ChapterSwipe` le dit de lui-même — « il ne touche pas au
+            // chemin de navigation » : feuilleter de la 5 à la 7 laisse la pile
+            // sur la 5 pendant qu'on lit la 7.
+            //
+            // Un renvoi vers *Bereshit 5*, touché depuis la 7 atteinte au
+            // doigt, tombait alors dans la garde, ne poussait rien — et comme
+            // ce renvoi vise un chapitre entier, il n'y avait pas même un
+            // verset à désigner. **Il ne se passait rien du tout.** Relevé par
+            // l'auteur, capture à l'appui : « ici ça navigue pas au bere 5, ça
+            // ne fait rien ».
+            //
+            // Un écran en double se voit et se défait d'un retour ; un silence
+            // se lit comme une panne. Entre les deux, on prend le double.
+            //
+            // La garde reviendra le jour où le routeur saura quelle unité est
+            // **affichée** — ce qu'il ignore aujourd'hui, et ce qu'aucune de ses
+            // propriétés ne dit.
+            //
+            // Une pile vide arrive quand le renvoi est touché hors de la
+            // lecture — dans une fiche du Lexique, par exemple. Le livre doit
+            // alors exister sous l'unité, sinon le retour sort de l'onglet.
+            if biblePath.isEmpty {
+                biblePath = [.book(book)]
             }
+            biblePath.append(vise)
             pendingSelection = Self.verses(in: url)
             pendingVerse = VerseVise(parts[1], pendingSelection.min())
             return true

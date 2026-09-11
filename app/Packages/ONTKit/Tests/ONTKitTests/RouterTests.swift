@@ -86,13 +86,30 @@ struct RenvoiQuiEmpile {
         #expect(router.biblePath.count == 2, "read a empilé — \(router.biblePath)")
     }
 
-    /// Un renvoi vers l'unité qu'on lit déjà ne s'empile pas sur lui-même.
-    @Test func un_renvoi_vers_soi_meme_n_empile_rien() {
+    /// **Un renvoi vers l'unité qu'on lit déjà empile quand même.**
+    ///
+    /// Ce test exigeait l'inverse. Il encodait une garde dont la prémisse est
+    /// fausse : le sommet de la pile n'est pas ce que le lecteur voit, puisque
+    /// le glissement de page ne touche pas au chemin. La garde avalait donc des
+    /// renvois parfaitement légitimes, et sans verset à désigner il ne restait
+    /// rien — un silence que le lecteur lit comme une panne.
+    @Test func un_renvoi_vers_l_unite_du_dessus_empile_quand_meme() {
         let router = Router()
         router.open(URL(string: "ont://read/bereshit/bereshit-7")!)
         router.open(URL(string: "ont://renvoi/bereshit/bereshit-7?v=4")!)
-        #expect(router.biblePath.count == 2, "empilé sur soi-même — \(router.biblePath)")
+        #expect(router.biblePath.count == 3, "n'a pas empilé — \(router.biblePath)")
         #expect(router.pendingSelection == [4])
+    }
+
+    /// Le cas qui a motivé le retrait : un renvoi **sans verset** vers l'unité
+    /// que la pile porte déjà. Il n'y a rien à désigner — s'il n'empile pas, il
+    /// ne fait rien.
+    @Test func un_renvoi_sans_verset_navigue_quand_meme() {
+        let router = Router()
+        router.open(URL(string: "ont://read/bereshit/bereshit-5")!)
+        let avant = router.biblePath
+        router.open(URL(string: "ont://renvoi/bereshit/bereshit-5")!)
+        #expect(router.biblePath != avant, "rien ne s'est passé — \(router.biblePath)")
     }
 
     /// Touché hors de la lecture, le renvoi pose le livre sous l'unité.
