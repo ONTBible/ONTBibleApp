@@ -288,6 +288,39 @@ pub struct Preparation {
     pub ecartees: Vec<String>,
     /// Ce qui mérite l'œil de l'auteur sans rien empêcher.
     pub releves: Vec<String>,
+    /// **La longueur réelle de chaque chapitre biblique** — `(livre ONT,
+    /// chapitre) → son dernier verset`, telle que les témoins la portent.
+    ///
+    /// ## À quoi ça sert ailleurs, puisque la jointure n'en a pas besoin
+    ///
+    /// `renvois::interne` doit connaître la longueur du premier chapitre d'une
+    /// plage à cheval, et il la **déduit** du nombre de versets de l'unité. La
+    /// déduction est juste tant que l'unité porte un verset par verset
+    /// biblique — et elle ne peut pas s'apercevoir qu'une unité en a réuni
+    /// deux, puisque c'est de ce compte-là qu'elle part.
+    ///
+    /// Ce module est le seul endroit du pipeline qui lise la longueur vraie :
+    /// elle est dans les `.jsonl` du vault, nulle part ailleurs. On la sort
+    /// donc ici pour que `renvois::eprouver_les_deductions` puisse confronter
+    /// l'affirmation à la mesure.
+    ///
+    /// ## Ce qui n'y figure pas, et pourquoi l'absence est un état
+    ///
+    /// Un chapitre n'entre ici que si **tous** les fichiers sources qui le
+    /// couvrent lui donnent la même longueur. Deux cas l'en font sortir, et
+    /// aucun des deux n'est une panne :
+    ///
+    /// - **les témoins se contredisent** — l'Apocalypse 12 porte 18 versets au
+    ///   SBLGNT et 17 au byzantin. La longueur « réelle » n'est alors pas un
+    ///   fait unique, et prendre l'une des deux serait choisir sans le dire ;
+    /// - **deux livres reçus partagent un livre ONT** — `melakhim` couvre 1 et
+    ///   2 Rois, dont les chapitres 1 portent le même numéro sans être le même
+    ///   chapitre. La clé `(melakhim, 1)` ne désigne alors rien de précis.
+    ///
+    /// L'absence vaut donc **non mesuré**, et le contrôle en aval la traite
+    /// comme telle — jamais comme un succès. Un contrôle qui rend vert faute
+    /// d'avoir regardé est pire qu'un contrôle absent.
+    pub longueurs_de_chapitre: BTreeMap<(String, u32), u32>,
 }
 
 /// Accroche les divergences d'éditions aux positions d'une unité.
@@ -355,6 +388,13 @@ pub fn preparer(
     let mut fichiers_editions: Vec<(String, EditionsComparees)> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
     let mut fichiers = Vec::new();
+    // La longueur de chaque chapitre biblique pendant qu'on l'établit.
+    //
+    // `Some(n)` : tous les fichiers sources vus jusqu'ici disent `n`. `None` :
+    // ils se contredisent — et une longueur contestée n'est pas une longueur.
+    // Voir `Preparation::longueurs_de_chapitre` pour les deux façons dont ça
+    // arrive, et pour ce que l'absence signifie en aval.
+    let mut longueurs: BTreeMap<(String, u32), Option<u32>> = BTreeMap::new();
 
     for (cle, t) in &vault.sources {
         temoins.insert(
@@ -386,6 +426,25 @@ pub fn preparer(
                 par_ref.insert((v.c, v.v), texte);
                 let e = par_chapitre.entry(v.c).or_insert(0);
                 *e = (*e).max(v.v);
+            }
+
+            // **Le versement au relevé des longueurs, ici et pas plus bas.**
+            //
+            // `par_chapitre` est complet dès cette ligne, et il le reste quoi
+            // qu'il advienne des unités : la garde de jointure qui suit peut
+            // sauter une unité — un brouillon divergent —, mais la longueur du
+            // chapitre, elle, est un fait du témoin, pas de l'unité. La
+            // mesurer avant est ce qui permet au contrôle d'aval d'attraper
+            // précisément les brouillons que la garde laisse passer.
+            for (&c, &dernier) in &par_chapitre {
+                longueurs
+                    .entry((meta.slug.clone(), c))
+                    .and_modify(|acquis| {
+                        if *acquis != Some(dernier) {
+                            *acquis = None;
+                        }
+                    })
+                    .or_insert(Some(dernier));
             }
 
             let mut unites_publiees: BTreeMap<String, Vec<VersetPublie>> = BTreeMap::new();
@@ -630,6 +689,13 @@ pub fn preparer(
         fichiers_editions,
         ecartees: sautees,
         releves,
+        // Seules les longueurs **unanimes** sortent. Une longueur contestée
+        // est retirée plutôt que tranchée : en aval, son absence se lira
+        // « non mesuré », ce qui est exactement ce qu'elle est.
+        longueurs_de_chapitre: longueurs
+            .into_iter()
+            .filter_map(|(cle, n)| n.map(|n| (cle, n)))
+            .collect(),
     }))
 }
 

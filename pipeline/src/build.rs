@@ -638,6 +638,17 @@ pub struct BuildResult {
     /// dernière, lui, bouge dès qu'on travaille — et c'est celle par laquelle
     /// on commencerait.
     pub moins_glosee: Option<(String, f64)>,
+    /// Les plages à cheval dont la longueur déduite a été confrontée au témoin
+    /// **et** tombe juste.
+    pub plages_mesurees: usize,
+    /// Celles qu'aucun témoin n'a permis de confronter.
+    ///
+    /// **Le dénominateur manquant, et il n'est pas décoratif.** Sans lui, « 1
+    /// plage mesurée » se lit comme « tout est vérifié » alors que ça peut
+    /// vouloir dire « une sur douze ». C'est la forme exacte du défaut qu'un
+    /// contrôle qui rend vert faute d'avoir regardé produit : la même sortie
+    /// qu'un contrôle qui a regardé.
+    pub plages_non_mesurees: usize,
 }
 
 /// Construit le corpus. Rend les chiffres, ou l'erreur qui a tout arrêté.
@@ -1308,9 +1319,9 @@ pub fn build() -> Result<BuildResult, String> {
     let unites_toutes: Vec<crate::schema::Chapter> =
         written.iter().flat_map(|b| unites(b).cloned()).collect();
 
-    if let Some(sources) =
-        crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?
-    {
+    let preparation =
+        crate::sources::preparer(&racine, &unites_toutes, &transmissions, &numero_vers_slug)?;
+    if let Some(sources) = &preparation {
         bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)
             .map_err(|e| e.to_string())?;
         for (relatif, livre) in &sources.fichiers {
@@ -1325,6 +1336,41 @@ pub fn build() -> Result<BuildResult, String> {
         for dit in &sources.releves {
             eprintln!("numérotation — {dit}");
         }
+    }
+
+    // ── L'épreuve des plages à cheval ────────────────────────────────────
+    //
+    // **Ici, et nulle part ailleurs, parce que c'est le seul point du build où
+    // les deux moitiés de la question existent en même temps.**
+    //
+    // La passe des renvois, bien plus haut, a fait *déduire* à `interne` la
+    // longueur du premier chapitre de chaque plage à cheval — elle n'avait
+    // que le corpus ONT sous la main. La longueur *réelle* n'apparaît qu'à la
+    // ligne d'au-dessus, quand `sources::preparer` a lu les `.jsonl` du vault.
+    // Confronter l'une à l'autre plus tôt serait mesurer une affirmation
+    // contre rien ; plus tard, il n'y a plus de « plus tard » utile.
+    //
+    // Et l'on mesure bien **ce que la passe a produit** : `unites_toutes` est
+    // cloné de `written`, qui emprunte `corpora` — la structure même que
+    // `resoudre_l_unite` a mutée. Rien entre les deux ne touche aux
+    // sous-titres ni aux versets ; seule la canonisation des lemmes passe, et
+    // elle ne descend que dans les nœuds inline.
+    //
+    // Le verdict, lui, est prononcé tout en bas, à côté du cliquet des liens
+    // morts : un échec ici laisserait `dist/report.md` non écrit, et celui qui
+    // le reçoit n'aurait plus que le message pour tout relevé.
+    let deductions = renvois::eprouver_les_deductions(
+        &unites_toutes,
+        &preparation
+            .as_ref()
+            .map(|s| s.longueurs_de_chapitre.clone())
+            .unwrap_or_default(),
+    );
+    // **Non mesuré se dit, il ne se tait pas.** Un vault sans `sources/`, un
+    // livre sans témoin, deux témoins qui se contredisent : l'épreuve n'a
+    // alors rien à confronter, et le silence se lirait comme un succès.
+    for dit in &deductions.non_mesurees {
+        eprintln!("plage à cheval non mesurée — {dit}");
     }
 
     // ── Le vivier du verset du jour ──────────────────────────────────────
@@ -1517,6 +1563,46 @@ pub fn build() -> Result<BuildResult, String> {
         ));
     }
 
+    // **Le verdict de l'épreuve des plages à cheval.**
+    //
+    // Pas de plafond ici, et pas d'exemption pour les brouillons non plus —
+    // contrairement à la garde de jointure de `sources`, qui peut se contenter
+    // de ne rien émettre pour une unité douteuse. Un renvoi résolu, lui, est
+    // déjà dans le corps publié quand on s'en aperçoit, et il y est aussi
+    // depuis des unités verrouillées qui pointent vers le brouillon fautif.
+    // Il n'existe pas d'état « on s'abstient » : soit le verset visé est
+    // juste, soit le lecteur atterrit une ligne à côté, avec assurance.
+    if !deductions.discordances.is_empty() {
+        return Err(format!(
+            "la longueur déduite d'un premier chapitre ne correspond plus au témoin :\n\
+             \n\
+             {}\n\
+             \n\
+             `renvois::interne` déduit la longueur du premier chapitre d'une plage à\n\
+             cheval — « d:a — f:b » — depuis le nombre de versets de l'unité :\n\
+             \n\
+                 longueur(d) = compte - b + a - 1\n\
+             \n\
+             Elle ne peut pas s'apercevoir qu'une unité a **réuni** deux versets,\n\
+             puisque c'est de ce compte-là qu'elle part. L'écart ci-dessus dit qu'elle\n\
+             vient de le faire, et tout renvoi visant un verset situé après la réunion\n\
+             pointerait désormais une ligne à côté — sans que rien ne le montre.\n\
+             \n\
+             Deux issues, et une seule est bonne selon le cas :\n\
+             — si le sous-titre annonce une plage que l'unité ne couvre pas, c'est le\n\
+             sous-titre qu'il faut corriger dans le vault ;\n\
+             — si la réunion est voulue (§2.2), c'est `renvois::longueur_du_premier`\n\
+             qui doit apprendre à refuser — rendre `None` plutôt qu'un nombre faux,\n\
+             comme `interne` le fait déjà quand `annonces != compte` sur une plage\n\
+             d'un seul chapitre. Le renvoi mène alors à l'unité sans viser de verset,\n\
+             ce qui est le comportement dégradé prévu.\n\
+             \n\
+             Relever la garde en la faisant taire n'est pas une issue : elle mesure\n\
+             exactement ce que la déduction ne sait pas voir toute seule.",
+            deductions.discordances.join("\n")
+        ));
+    }
+
     Ok(BuildResult {
         stats,
         search_records: search_records.len(),
@@ -1533,6 +1619,8 @@ pub fn build() -> Result<BuildResult, String> {
             .count(),
         chapitres_mesures: densites.len(),
         moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
+        plages_mesurees: deductions.mesurees.len(),
+        plages_non_mesurees: deductions.non_mesurees.len(),
     })
 }
 

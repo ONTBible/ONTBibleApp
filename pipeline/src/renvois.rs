@@ -22,14 +22,12 @@
 //! le site — ce qui marche —, une app à jour reconnaît son propre domaine et
 //! navigue au-dedans.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::schema::{
-    Block, Chapter, ChapterKind, CibleDeLaReference, Footer, Inline, PorteeDeLaReference, Status,
-};
+use crate::schema::{Block, Chapter, CibleDeLaReference, Inline, PorteeDeLaReference};
 
 /// Où mène un renvoi résolu.
 pub struct Cible {
@@ -243,7 +241,7 @@ pub fn resoudre_l_unite(unite: &mut Chapter, index: &Index) {
     }
 }
 
-pub fn resoudre_les_references(blocs: &mut Vec<Block>, index: &Index) {
+pub fn resoudre_les_references(blocs: &mut [Block], index: &Index) {
     for bloc in blocs.iter_mut() {
         // **Exhaustif, sans `_`.** `lier` s'arrête aux quatre blocs de prose
         // et laisse les listes et les tableaux, et c'est resté invisible parce
@@ -439,6 +437,11 @@ fn decouper(texte: &str, index: &Index, origine: &str, sortie: &mut Vec<Inline>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Ici plutôt qu'en tête de module : ces trois-là ne servent qu'à monter un
+    // `Chapter` d'essai. Importés à la racine, ils faisaient rougir
+    // `clippy --all-targets -- -D warnings` — la CI compile la bibliothèque
+    // **sans** `cfg(test)`, et n'y voyait que des imports morts.
+    use crate::schema::{ChapterKind, Footer, Status};
 
     #[test]
     fn une_plage_se_lit_sous_ses_quatre_formes() {
@@ -648,15 +651,13 @@ fn interne(plage: &Plage, compte: u32, chapitre: u32, verset: u32) -> Option<u32
     //
     // Au-delà de deux chapitres, le système est sous-déterminé : deux
     // longueurs inconnues pour une équation. On rend `None`, comme avant.
+    //
+    // **La déduction elle-même vit dans `longueur_du_premier`**, et non ici,
+    // parce qu'elle est la seule chose de cette fonction qu'un contrôle peut
+    // confronter au corpus source. Voir `eprouver_les_deductions`.
     if plage.debut.0 != plage.fin.0 {
-        if plage.fin.0 != plage.debut.0 + 1 || plage.fin.1 == u32::MAX {
-            return None;
-        }
+        let premier = longueur_du_premier(plage, compte)?;
         let debut = plage.debut.1;
-        let premier = compte
-            .checked_sub(plage.fin.1)?
-            .checked_add(debut)?
-            .checked_sub(1)?;
 
         if chapitre == plage.debut.0 {
             // Dans le premier chapitre : l'indice se compte depuis l'ouverture
@@ -696,6 +697,149 @@ fn interne(plage: &Plage, compte: u32, chapitre: u32, verset: u32) -> Option<u32
 
     let indice = verset - debut + 1;
     (indice <= compte).then_some(indice)
+}
+
+/// La longueur **déduite** du premier chapitre d'une plage à cheval.
+///
+/// Une plage `d:a — f:b` avec `f = d+1` contient la fin du chapitre `d` puis
+/// le début du chapitre `f` :
+///
+/// ```text
+///     compte = (longueur(d) - a + 1) + b
+///     donc  longueur(d) = compte - b + a - 1
+/// ```
+///
+/// **C'est une déduction, pas une lecture.** Elle part du compte des versets
+/// de l'unité, et tient donc pour acquis que l'unité porte un verset par
+/// verset biblique. Le jour où une unité à cheval en **réunit** deux — ce que
+/// le §2.2 autorise et que *Bereshit* 2 fait déjà —, la longueur rendue ici
+/// est trop petite d'autant, et `interne` décale tous les renvois qui visent
+/// un verset situé après la réunion.
+///
+/// C'est précisément ce que la fonction d'à côté détecte pour une plage d'un
+/// seul chapitre (`annonces != compte`) et ne peut pas détecter ici : la
+/// grandeur qui trahirait la réunion est justement celle qu'on déduit.
+/// `eprouver_les_deductions` bouche ce trou, depuis l'extérieur.
+///
+/// Rend `None` quand le système n'est pas résoluble : même chapitre des deux
+/// côtés, saut de plus d'un chapitre — deux inconnues pour une équation —, ou
+/// fin ouverte (« 7-8 »), qui ne borne rien.
+fn longueur_du_premier(plage: &Plage, compte: u32) -> Option<u32> {
+    if plage.fin.0 != plage.debut.0 + 1 || plage.fin.1 == u32::MAX {
+        return None;
+    }
+    compte
+        .checked_sub(plage.fin.1)?
+        .checked_add(plage.debut.1)?
+        .checked_sub(1)
+}
+
+// ──────────────────── l'épreuve de la déduction ───────────────────────────
+
+/// Ce que l'épreuve a trouvé, en **trois** états et non deux.
+///
+/// Le troisième — « non mesuré » — est le seul qui demande une explication :
+/// les langues sources sont facultatives (tous les livres n'ont pas de
+/// témoin), et une longueur indisponible n'est pas une faute. Mais elle n'est
+/// pas non plus un succès, et les confondre serait rendre vert faute d'avoir
+/// regardé. On les compte donc séparément, et le build les dit.
+pub struct ConstatDesDeductions {
+    /// Les plages à cheval confrontées au corpus source, et qui tombent juste.
+    pub mesurees: Vec<String>,
+    /// Celles dont aucun témoin n'établit la longueur réelle.
+    ///
+    /// Trois causes, toutes légitimes : le livre n'a pas de témoin ; les
+    /// témoins se contredisent — l'Apocalypse 12 porte 18 versets au SBLGNT
+    /// et 17 au byzantin ; ou le livre ONT réunit deux livres reçus dont les
+    /// chapitres portent les mêmes numéros — `melakhim` couvre 1 et 2 Rois,
+    /// et leurs chapitres 1 ne sont pas le même chapitre.
+    pub non_mesurees: Vec<String>,
+    /// Celles où la déduction et le corpus source ne disent pas la même chose.
+    /// Une seule suffit à faire rougir le build.
+    pub discordances: Vec<String>,
+}
+
+/// **Confronte la longueur déduite à celle que le corpus source porte.**
+///
+/// ## Ce que ça mesure, et ce que ça ne mesure pas
+///
+/// Pour chaque unité dont le sous-titre annonce une plage à cheval sur deux
+/// chapitres, on refait la déduction — *par la même fonction que `interne`*,
+/// jamais par une formule recopiée, sinon le contrôle mesurerait sa propre
+/// copie — et on la compare au dernier verset que le témoin porte pour ce
+/// chapitre-là.
+///
+/// L'égalité `déduite == réelle` équivaut exactement à « l'unité porte autant
+/// de versets que sa plage en annonce ». Elle tombe donc en défaut au moment
+/// précis où l'unité réunit ou sépare un verset — l'angle mort de `interne`.
+///
+/// Elle ne dit rien du **contenu** : deux textes peuvent avoir le même nombre
+/// de versets et ne pas être le même passage.
+///
+/// ## Pourquoi ce contrôle n'est pas redondant avec la garde de jointure
+///
+/// `sources::preparer` refuse déjà une unité dont le compte ne tombe pas sur
+/// sa plage — c'est arithmétiquement la même condition. Mais elle ne refuse
+/// que les unités **verrouillées** : un brouillon qui diverge est écarté de la
+/// couche des sources, et le build continue, « pour ne pas punir l'auteur
+/// d'écrire ».
+///
+/// Ce raisonnement ne se transpose pas ici. L'émission des sources peut se
+/// *retenir* pour une unité : ne rien publier est un état sûr. Un renvoi
+/// résolu, lui, est **déjà dans le corps publié** au moment où l'on s'en
+/// aperçoit — et il y est aussi depuis des unités verrouillées qui pointent
+/// *vers* le brouillon fautif. Il n'y a pas de « ne rien faire » disponible :
+/// soit le verset visé est juste, soit le lecteur atterrit une ligne à côté.
+///
+/// Donc : fatal, brouillon compris. C'est aussi ce qui rend ce contrôle
+/// atteignable — sur une unité verrouillée, `preparer` aurait rendu `Err`
+/// avant même qu'on arrive ici.
+pub fn eprouver_les_deductions(
+    unites: &[Chapter],
+    longueurs: &BTreeMap<(String, u32), u32>,
+) -> ConstatDesDeductions {
+    let mut constat = ConstatDesDeductions {
+        mesurees: Vec::new(),
+        non_mesurees: Vec::new(),
+        discordances: Vec::new(),
+    };
+
+    for u in unites {
+        // Une introduction ne recouvre aucun verset : pas de plage, rien à
+        // éprouver.
+        let Some(reference) = u.subtitle.as_ref().and_then(|s| s.reference.as_deref()) else {
+            continue;
+        };
+        let Some(plage) = lire_plage(reference) else {
+            continue;
+        };
+        // Seules les plages où `interne` déduit vraiment quelque chose. Une
+        // plage d'un seul chapitre se vérifie toute seule, et une plage
+        // indéductible rend déjà `None` — dans les deux cas, il n'y a aucune
+        // affirmation à confronter.
+        let Some(deduite) = longueur_du_premier(&plage, u.verse_count) else {
+            continue;
+        };
+
+        let chapitre = plage.debut.0;
+        let dit = format!("{} — « {reference} », {} versets", u.id, u.verse_count);
+        let Some(&reelle) = longueurs.get(&(u.book_id.clone(), chapitre)) else {
+            constat.non_mesurees.push(dit);
+            continue;
+        };
+        if deduite == reelle {
+            constat.mesurees.push(dit);
+        } else {
+            constat.discordances.push(format!(
+                "{} annonce « {reference} » et porte {} versets : la déduction \
+                 donne {deduite} versets au chapitre {chapitre} de {}, le témoin \
+                 en compte {reelle}",
+                u.id, u.verse_count, u.book_id
+            ));
+        }
+    }
+
+    constat
 }
 
 #[cfg(test)]
@@ -755,5 +899,108 @@ mod tests_du_verset {
     fn trois_chapitres_ou_une_fin_ouverte_ne_se_deduisent_pas() {
         assert_eq!(interne(&plage("1:1 — 3:5"), 80, 1, 4), None);
         assert_eq!(interne(&plage("7-8"), 40, 7, 4), None);
+    }
+}
+
+#[cfg(test)]
+mod essai_de_l_epreuve {
+    use super::*;
+    use crate::schema::{ChapterKind, Status, Subtitle};
+
+    /// Une unité à cheval, réduite à ce que l'épreuve regarde : son livre, sa
+    /// plage annoncée, et le nombre de versets qu'elle porte vraiment.
+    fn unite(id: &str, reference: &str, verse_count: u32) -> Chapter {
+        Chapter {
+            id: id.into(),
+            book_id: "bereshit".into(),
+            kind: ChapterKind::Chapter,
+            n: 1,
+            title: id.into(),
+            title_nodes: vec![],
+            subtitle: Some(Subtitle {
+                french: "Genèse".into(),
+                hebrew: "בְּרֵאשִׁית".into(),
+                reference: Some(reference.into()),
+            }),
+            status: Status::Locked,
+            blocks: vec![],
+            footer: None,
+            verse_count,
+            lemmas: vec![],
+            source: String::new(),
+        }
+    }
+
+    /// Genèse 1 porte 31 versets, Genèse 2 en porte 25 — relevés dans
+    /// `sources/he-wlc/Gen.jsonl`.
+    fn longueurs() -> BTreeMap<(String, u32), u32> {
+        BTreeMap::from([
+            (("bereshit".to_string(), 1), 31),
+            (("bereshit".to_string(), 2), 25),
+        ])
+    }
+
+    /// Le cas d'aujourd'hui : `bereshit-1` annonce `1:1 — 2:3` et porte 34
+    /// versets. La déduction donne 34 − 3 + 1 − 1 = 31, et Genèse 1 en a 31.
+    #[test]
+    fn une_deduction_juste_est_mesuree_et_verte() {
+        let constat =
+            eprouver_les_deductions(&[unite("bereshit-1", "1:1 — 2:3", 34)], &longueurs());
+        assert_eq!(constat.mesurees.len(), 1);
+        assert!(constat.non_mesurees.is_empty());
+        assert!(constat.discordances.is_empty());
+    }
+
+    /// **Le test qui compte, et la raison d'être de tout ce module.**
+    ///
+    /// La même unité, mais deux versets réunis : elle en porte 33 au lieu de
+    /// 34. La déduction rend alors 30 pour Genèse 1, qui en a 31 — et
+    /// `interne` enverrait tout renvoi vers 2:1 sur le trente-et-unième verset
+    /// de l'unité, c'est-à-dire sur Genèse 1:31. Une ligne à côté, en silence.
+    ///
+    /// C'est l'angle mort exact que `interne` sait détecter sur une plage d'un
+    /// seul chapitre et ne peut pas détecter sur une plage à cheval.
+    #[test]
+    fn une_reunion_de_versets_fait_rougir_l_epreuve() {
+        let constat =
+            eprouver_les_deductions(&[unite("bereshit-1", "1:1 — 2:3", 33)], &longueurs());
+        assert!(constat.mesurees.is_empty());
+        assert_eq!(constat.discordances.len(), 1, "{:?}", constat.discordances);
+        assert!(
+            constat.discordances[0].contains("donne 30 versets au chapitre 1"),
+            "le message doit nommer les deux longueurs : {}",
+            constat.discordances[0]
+        );
+    }
+
+    /// **« Non mesuré » n'est ni vert ni rouge.** Les langues sources sont
+    /// facultatives : sans témoin pour ce livre, la longueur réelle n'existe
+    /// nulle part, et l'épreuve doit le dire au lieu de conclure.
+    #[test]
+    fn sans_temoin_la_plage_est_non_mesuree_et_non_verte() {
+        let constat =
+            eprouver_les_deductions(&[unite("bereshit-1", "1:1 — 2:3", 34)], &BTreeMap::new());
+        assert!(constat.mesurees.is_empty(), "surtout pas comptée comme juste");
+        assert!(constat.discordances.is_empty(), "et surtout pas comme fausse");
+        assert_eq!(constat.non_mesurees.len(), 1);
+    }
+
+    /// Ce que l'épreuve laisse passer sans rien dire, et il faut que ça se
+    /// voie : là où `interne` ne déduit rien, il n'y a aucune affirmation à
+    /// confronter. Une plage d'un seul chapitre se vérifie toute seule, une
+    /// fin ouverte et un saut de plus d'un chapitre rendent déjà `None`.
+    #[test]
+    fn une_plage_sans_deduction_n_est_pas_du_ressort_de_l_epreuve() {
+        let constat = eprouver_les_deductions(
+            &[
+                unite("bereshit-2", "2:4-25", 21),
+                unite("bereshit-7", "7-8", 40),
+                unite("ailleurs", "1:1 — 3:5", 80),
+            ],
+            &longueurs(),
+        );
+        assert!(constat.mesurees.is_empty());
+        assert!(constat.non_mesurees.is_empty());
+        assert!(constat.discordances.is_empty());
     }
 }
