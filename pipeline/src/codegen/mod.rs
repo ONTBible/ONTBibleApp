@@ -187,6 +187,8 @@ pub const RACINES: &[&str] = &[
     "OccurrencesFile",
     "SearchFile",
     "DailyFile",
+    "PrononciationFile",
+    "ChuqqotFile",
 ];
 
 /// Réduit le modèle à ce que les racines atteignent, en largeur d'abord.

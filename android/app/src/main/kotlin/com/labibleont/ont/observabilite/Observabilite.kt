@@ -80,12 +80,34 @@ public object Observabilite {
             options.sessionReplay.onErrorSampleRate = 0.0
             options.sessionReplay.sessionSampleRate = 0.0
 
-            // Dernier filet : même expurgé à l'appel, un message peut porter
-            // une valeur qu'on n'avait pas prévue. On repasse dessus ici,
-            // parce que ce point est le seul que rien ne contourne.
+            // ## Le dernier filet, et ce qu'il ne couvrait pas
+            //
+            // Il n'expurgeait que le **message** de l'événement. Pour une
+            // exception, il posait une étiquette et laissait passer la valeur
+            // telle quelle — or c'est là que le contenu voyage :
+            //
+            //     exceptions[0].value =
+            //       "Unexpected JSON token at offset 61 … JSON input:
+            //        {\"highlights\":[{\"note\":\"ce passage m'a bouleversé…\"}]}"
+            //
+            // Mesuré sur la JVM avec nos versions, pas déduit. Une étiquette
+            // « expurge = oui » sur une charge non expurgée est pire que rien :
+            // elle affirme le contraire de ce qui est.
+            //
+            // Les appelants dépouillent déjà à la source — `ErreurSansContenu`.
+            // Ceci reste le filet pour ce qu'on n'a pas prévu, et un filet doit
+            // couvrir **tout** ce qui porte du texte.
             options.setBeforeSend { evenement, _ ->
                 evenement.message?.let { it.formatted = it.formatted?.let(::expurger) }
-                evenement.throwable?.let { evenement.setTag("expurge", "oui") }
+                evenement.exceptions?.forEach { exception ->
+                    exception.value = exception.value?.let(::expurger)
+                }
+                // Les miettes de contexte aussi : elles sont posées par nos
+                // appels et par le SDK, et rien ne garantit ce que les secondes
+                // contiennent.
+                evenement.breadcrumbs?.forEach { miette ->
+                    miette.message = miette.message?.let(::expurger)
+                }
                 evenement
             }
         }

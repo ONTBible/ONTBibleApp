@@ -39,3 +39,36 @@ public object SilentReporter : Reporter {
     override fun report(error: Throwable, context: String) {}
     override fun breadcrumb(message: String) {}
 }
+
+/**
+ * Une erreur dépouillée de son message, pour ce qui a touché des données du
+ * lecteur.
+ *
+ * ## Le défaut qu'elle ferme
+ *
+ * Le message d'une erreur de décodage **porte le fichier**. Mesuré :
+ *
+ *     Unexpected JSON token at offset 61: Trailing comma …
+ *     JSON input: {"highlights":[{"note":"ce passage m'a bouleversé hier soir"},]}
+ *
+ * La note du lecteur, mot pour mot, dans ce que la remontée d'erreurs envoie.
+ * C'est de la donnée de catégorie particulière au sens de l'article 9 — et elle
+ * sortait par le canal même qu'on avait écrit pour la protéger.
+ *
+ * ## Ce qu'on garde, et pourquoi
+ *
+ * Le **type** de l'erreur et sa **pile d'appels** : ils disent où et quoi, sans
+ * rien dire du contenu. Une pile d'appels ne porte que des noms de fonctions et
+ * des numéros de ligne, qui sont à nous.
+ *
+ * Le message, lui, est écrit par la bibliothèque qui a échoué, et rien ne
+ * garantit ce qu'il contient. On ne l'expurge pas — on ne l'emporte pas.
+ * Choisir ce qu'on garde est plus sûr que deviner ce qu'on retire.
+ */
+public class ErreurSansContenu(
+    origine: Throwable,
+) : Exception("${origine::class.simpleName ?: "erreur"} — message retiré") {
+    init {
+        stackTrace = origine.stackTrace
+    }
+}

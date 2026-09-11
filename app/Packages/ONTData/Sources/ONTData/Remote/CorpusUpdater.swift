@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import ONTKit
 
@@ -53,6 +54,14 @@ public actor CorpusUpdater {
                 "quotidien": "daily.json",
                 "glossaire": "glossary.json",
                 "occurrences": "occurrences.json",
+                // **Le nœud s'appelle `recherche`, le fichier `search.json`.**
+                //
+                // Le manifeste est écrit en français comme le reste du corpus ;
+                // le nom du fichier vient du pipeline et date d'avant. Les
+                // confondre ferait chercher un fichier qui n'existe pas, et le
+                // bundle répondrait à sa place — sans que rien ne le dise.
+                "recherche": "search.json",
+                "shemot": "shemot.json",
             ]
             return fichiers.compactMap { cle, entree in
                 noms[cle].map { (local: $0, entree: entree) }
@@ -249,10 +258,29 @@ public actor CorpusUpdater {
         }
 
         if remplaces > 0 {
-            // Après les fichiers, comme le registre et pour la même raison :
-            // une estampille écrite d'avance promettrait un corpus qu'une
-            // coupure aurait laissé à moitié posé.
-            try? publiee.texte.write(to: estampilleDuDisque, atomically: true, encoding: .utf8)
+            // **L'estampille n'est posée que si le manifeste est entier.**
+            //
+            // Un fichier qui échoue n'emporte pas les autres — c'est le choix
+            // assumé juste au-dessus, et sept livres sur huit valent mieux que
+            // rien. Mais l'estampille, elle, ne parle pas d'un fichier : elle
+            // dit « le dossier porte la génération du tant ». L'écrire après un
+            // téléchargement partiel la ferait mentir, et le mensonge durerait.
+            //
+            // Il durerait parce que c'est elle que `purgerSiLeBundleEstPlusNeuf`
+            // compare : une estampille trop neuve empêche la purge, donc le
+            // corpus mêlé survit jusqu'à la prochaine synchronisation complète.
+            //
+            // Ne rien écrire est exact : le dossier est alors traité comme
+            // portant l'ancienne génération, ce qu'il porte en partie. Le
+            // registre, lui, garde ce qui est réellement arrivé — la prochaine
+            // passe ne retélécharge que ce qui manque.
+            //
+            // Relevé par un audit externe, le 8 septembre 2026.
+            let entier = manifeste.tout.allSatisfy { connus[$0.local] == $0.entree.empreinte }
+            if entier {
+                try? publiee.texte.write(
+                    to: estampilleDuDisque, atomically: true, encoding: .utf8)
+            }
             // Écrit **après** les fichiers, et c'est tout le sujet — voir
             // ci-dessous.
             try? enregistrerLesEmpreintes(connus)
@@ -261,6 +289,15 @@ public actor CorpusUpdater {
     }
 
     // MARK: - Le réseau
+
+    /// L'empreinte d'un contenu, dans la forme que le site publie.
+    ///
+    /// `sha256` en hexadécimal minuscule, tronqué à douze signes — voir
+    /// `corpus-publie.py`. Le tronquage vient de là et n'est pas discutable
+    /// d'ici : c'est lui qui nomme les fichiers publiés.
+    static func empreinte(_ octets: Data) -> String {
+        String(SHA256.hash(data: octets).map { String(format: "%02x", $0) }.joined().prefix(12))
+    }
 
     private func manifestePublie() async throws -> Manifest? {
         let url = origine.appendingPathComponent("manifeste.json")
@@ -277,11 +314,33 @@ public actor CorpusUpdater {
         guard (reponse as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        // La taille annoncée fait office de somme de contrôle du pauvre : elle
-        // ne prouve pas l'intégrité, mais elle attrape une réponse tronquée ou
-        // une page d'erreur servie à la place du fichier — ce qui est le cas
-        // réel qu'on veut éviter.
+        // La taille d'abord, **pour le diagnostic seulement**. L'empreinte
+        // ci-dessous la subsume entièrement ; mais quand un serveur rend une
+        // page d'erreur à la place d'un livre, « 1 204 octets au lieu de
+        // 748 391 » dit quoi chercher, là où « empreinte fausse » ne dit rien.
         guard octets.count == entree.octets else { throw URLError(.dataLengthExceedsMaximum) }
+
+        // **Et l'empreinte, qui elle prouve quelque chose.**
+        //
+        // Ce contrôle manquait, et son commentaire l'avouait — la taille était
+        // appelée « somme de contrôle du pauvre ». Elle attrape une réponse
+        // tronquée ; elle ne dit rien d'un fichier abîmé qui garde sa longueur,
+        // ni d'un cache qui sert le mauvais livre sous le bon nom.
+        //
+        // Le manifeste porte l'empreinte **depuis le début** — elle nomme même
+        // le fichier publié, `plan.4814dcb178e2.json`. On l'employait pour
+        // savoir *si* un fichier avait changé, jamais pour savoir *si celui
+        // qu'on vient de recevoir est le bon*. Deux questions, une seule
+        // donnée, et une seule des deux était posée.
+        //
+        // `corpus-publie.py` la calcule ainsi : `sha256(octets)`, hexadécimal,
+        // **tronqué à douze signes**. Le tronquage est leur choix et il tient
+        // ici — quarante-huit bits contre une altération accidentelle, sur un
+        // fichier qui arrive par HTTPS depuis notre propre origine. Ce n'est
+        // pas une frontière de sécurité, c'est une garantie d'intégrité.
+        guard Self.empreinte(octets) == entree.empreinte else {
+            throw URLError(.badServerResponse)
+        }
         return octets
     }
 

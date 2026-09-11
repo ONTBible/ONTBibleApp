@@ -236,6 +236,14 @@ public struct ONTTypography: Sendable {
         .init(font: .custom(body, size: size), color: ONTColors.shem(theme))
     }
 
+    /// Niveau 1 — un **renvoi** vers une autre chuqqah, touchable.
+    ///
+    /// Même graisse que le corps, pour la même raison que le Shem : c'est la
+    /// couleur qui distingue, et le mot doit se lire dans le fil de la phrase.
+    public var renvoi: ONTTextStyle {
+        .init(font: .custom(body, size: size), color: ONTColors.renvoi(theme))
+    }
+
     /// Niveau 1 — une accentuation, qui ne se touche pas.
     ///
     /// Semi-gras **et** coloré : la couleur seule ne suffit pas — un lecteur

@@ -14,6 +14,64 @@ import Foundation
 ///
 /// Les garder distincts, c'est ce qui rend les trois interrupteurs de lecture
 /// gratuits : masquer un niveau, c'est ne pas émettre ses nœuds.
+/// Ce qu'une translittération de niveau 3 ouvre.
+///
+/// **Deux destinations, et elles ne se confondent pas** : une entrée de
+/// glossaire vit dans `glossary.json` et s'ouvre par `ont://term/…`, une fiche
+/// de Shem dans `shemot.json` et par `ont://shem/…`.
+///
+/// Un type plutôt qu'un lemme et une sorte : il n'y a rien à tenir ensemble, le
+/// lemme ne s'écrit pas sans dire où il mène.
+public enum CibleDuNiveauTrois: Hashable, Sendable {
+    case term(lemma: String)
+    case shem(lemma: String)
+}
+
+/// Ce qu'une référence vise à l'intérieur de son chapitre.
+///
+/// **Un type somme, et pas deux valeurs nulles.** « verset absent, dernier
+/// présent » serait une plage sans début : personne ne l'écrit, et c'est
+/// justement pour ça que ça finirait par arriver. Ici l'état illégal n'existe
+/// pas, et le `switch` de la liseuse devient exhaustif.
+///
+/// Défini ici et non repris du schéma engendré : le domaine ne connaît rien du
+/// monde extérieur, et un champ renommé dans le vault ne doit pas se propager
+/// jusqu'à lui.
+/// Où une référence mène, quand le corpus porte le passage.
+///
+/// **Résolue par le pipeline, jamais par la liseuse.** Les unités ONT ne
+/// coïncident pas avec les chapitres reçus : seule la table des plages de tout
+/// le corpus sait que « Genèse 7:11 » tombe dans `bereshit-7`. Cette table
+/// n'existe qu'au pipeline. La reconstruire ici, c'est l'écrire trois fois —
+/// iOS, Android, le site — à partir d'une chaîne d'affichage qui n'a jamais
+/// été un format de données.
+///
+/// Nul est le cas ordinaire et il est honnête : 208 des 915 références du
+/// corpus visent des livres que personne n'a traduits.
+public struct CibleDeLaReference: Hashable, Sendable {
+    /// Le livre qui porte l'unité — `bereshit`.
+    public let livre: String
+    /// L'unité à ouvrir — `bereshit-7`.
+    public let unite: String
+    /// Le verset à désigner en arrivant, **dans la numérotation de l'unité**.
+    public let verset: Int?
+
+    public init(livre: String, unite: String, verset: Int?) {
+        self.livre = livre
+        self.unite = unite
+        self.verset = verset
+    }
+}
+
+public enum PorteeDeLaReference: Hashable, Sendable {
+    /// `Genèse 3` — l'unité entière, pas un verset.
+    case chapitre
+    /// `Genèse 3:24` — un verset.
+    case verset(Int)
+    /// `Genèse 1:11-12` — une plage. La navigation vise son ouverture.
+    case plage(premier: Int, dernier: Int)
+}
+
 public enum Inline: Hashable, Sendable {
     case text(String)
     /// Un intraduisible. `lemma` est la clé qui ouvre sa fiche de lexique.
@@ -34,10 +92,70 @@ public enum Inline: Hashable, Sendable {
     /// trois cents noms ferait promettre une fiche de concept là où il y a un
     /// porteur, et remplirait le Lexique de ce qui n'y a rien à faire.
     case shem(String, lemma: String)
+
+    /// Un renvoi d'une **chuqqah** vers une autre.
+    ///
+    /// ## Pourquoi ce n'est pas un Shem
+    ///
+    /// Un Shem désigne un **porteur** — quelqu'un. Un renvoi désigne un
+    /// **énoncé** — une chuqqah. Les confondre ferait croire au lecteur qu'il
+    /// touche un nom propre, et l'amènerait sur un texte qui n'en est pas un.
+    ///
+    /// ## Une marque à part, décidée en amont
+    ///
+    /// Le pipeline lit `((cible|libellé))`, et non `[[…]]`, parce que ce
+    /// dernier devient un Shem **sans regarder la cible** — délibérément : le
+    /// vault porte des renvois vers des porteurs pas encore écrits, et ce sont
+    /// des marques de travail à faire, pas des erreurs. Distinguer sur la cible
+    /// obligerait à résoudre avant de typer, et un renvoi vers une chuqqah pas
+    /// encore écrite sortirait en Shem.
+    ///
+    /// `cible` est le slug de la chuqqah visée. Elle peut ne pas exister : le
+    /// corpus s'écrit, et un renvoi mort dit **« ce n'est pas encore écrit »**,
+    /// jamais « introuvable ».
+    case renvoi(String, cible: String)
+
+    /// Une référence vers un autre passage — `*Genèse* 4:25`, `Bereshit 9:8`.
+    ///
+    /// **Le nom du livre dit la numérotation**, décision de l'auteur du
+    /// 10 septembre 2026 : `Genèse 9:25` est la numérotation reçue,
+    /// `Bereshit 9:8` le verset ⁸ de l'unité ONT. Ce sont le même verset.
+    ///
+    /// `systeme` porte ce choix, résolu par le pipeline — la liseuse n'a pas à
+    /// le redéduire d'une forme de chaîne.
+    ///
+    /// `portee` est un type somme et non deux valeurs nulles : « Genèse 3 » et
+    /// « Genèse 3:1 » ne se distinguaient sinon que par une convention tacite,
+    /// et une plage sans début restait représentable.
+    ///
+    /// **La cible peut ne pas exister** : la grande majorité des renvois du
+    /// corpus vise des livres pas encore traduits. Le pipeline ne résout pas —
+    /// il détecte. C'est à la liseuse de dire « pas encore écrit », jamais
+    /// « introuvable ».
+    case reference(
+        String,
+        livre: String,
+        systeme: String,
+        chapitre: Int,
+        portee: PorteeDeLaReference,
+        cible: CibleDeLaReference?
+    )
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
     /// hébraïque et direction RTL de l'autre.
-    case translit(String, hebrew: String)
+    ///
+    /// `cible` est la fiche que la translittération ouvre, **quand elle en
+    /// ouvre une**. Le lecteur est sur le mot hébreu, c'est le moment où il
+    /// veut sa fiche ; l'appareil s'arrêtait au corps du texte, à l'endroit
+    /// précis où on le lui demande.
+    ///
+    /// **Nul est le cas ordinaire**, et il est honnête : le pipeline ne résout
+    /// que l'exact — un lemme, une forme déclarée au §2.5, un Shem publié — et
+    /// laisse inerte tout ce qui demanderait de deviner. Une règle
+    /// morphologique qui se trompe ne rend pas le mot inerte : elle le rend
+    /// touchable **vers la mauvaise fiche**, ce que le lecteur ne peut pas
+    /// voir.
+    case translit(String, hebrew: String, cible: CibleDuNiveauTrois?)
     /// Une séquence en écriture hébraïque rencontrée hors d'un `.translit`.
     case hebrew(String)
     case gloss([Inline])
@@ -105,9 +223,17 @@ public extension [Inline] {
             // dans un résumé — au contraire de l'hébreu, qu'on omet.
             case .shem(let value, _):
                 repliage.ajouter(value)
+            // Un renvoi aussi : la phrase le nomme, et le partage d'un verset
+            // ne doit pas laisser un trou là où le lecteur a lu un mot.
+            case .renvoi(let value, _):
+                repliage.ajouter(value)
+            // Une référence aussi — « comme en *Genèse* 4:25 » perd son sens
+            // si le syntagme disparaît d'un extrait ou d'une recherche.
+            case .reference(let value, _, _, _, _, _):
+                repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }
-            case .translit(let translit, let hebrew):
+            case .translit(let translit, let hebrew, _):
                 if level3 { repliage.ajouter("(\(translit) / \(hebrew))") }
             case .gloss(let children):
                 if gloss { children.ecrire(dans: &repliage, gloss: gloss, level3: level3) }

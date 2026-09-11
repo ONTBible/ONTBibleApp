@@ -24,7 +24,7 @@ public final class Router {
     /// associée ne peut pas avoir de brut automatique, et on tient à ce que le
     /// dernier onglet reste une seule chaîne dans les réglages.
     public enum TabID: RawRepresentable, Hashable, Sendable {
-        case qahal, bible, lexicon, you
+        case qahal, bible, lexicon, chuqqot, you
         /// **Où l'on en était** — un onglet du Mac seulement.
         ///
         /// Sur un téléphone, « Reprendre » est une carte en tête de la Bible :
@@ -44,6 +44,7 @@ public final class Router {
             case "qahal": self = .qahal
             case "bible": self = .bible
             case "lexicon": self = .lexicon
+            case "chuqqot": self = .chuqqot
             case "you": self = .you
             default:
                 guard rawValue.hasPrefix("book:") else { return nil }
@@ -57,6 +58,7 @@ public final class Router {
             case .qahal: "qahal"
             case .bible: "bible"
             case .lexicon: "lexicon"
+            case .chuqqot: "chuqqot"
             case .you: "you"
             case .book(let id): "book:\(id)"
             }
@@ -126,6 +128,18 @@ public final class Router {
         }
         if cible == .bible { biblePath.removeAll() }
     }
+
+    /// **Le livre qu'une référence visait, et que le corpus ne porte pas.**
+    ///
+    /// Toutes les références sont touchables — l'auteur l'a arbitré ainsi, et
+    /// l'apparence ne se scinde pas. Celles qui ne mènent nulle part doivent
+    /// donc répondre : 208 des 915 références du corpus visent des livres que
+    /// personne n'a traduits, et un toucher sans réponse se lit comme une
+    /// panne de l'app, pas comme un état de la traduction.
+    ///
+    /// Le nom du livre plutôt qu'un booléen : « Ésaïe n'est pas encore
+    /// traduit » dit ce qui manque, « indisponible » ne dit rien.
+    public var livreIndisponible: String?
 
     /// Le lemme dont la fiche est soulevée par-dessus la lecture.
     public var openedLemma: LemmaSelection?
@@ -256,6 +270,71 @@ public final class Router {
         case "shem":
             guard let lemma = parts.first else { return false }
             openedShem = LemmaSelection(lemma)
+            return true
+
+        case "renvoi":
+            // **Un renvoi empile ; tout le reste remplace.** C'est la seule
+            // différence avec `read`, et elle est entière.
+            //
+            // Le widget, la carte du jour, un lien reçu : ce sont des
+            // *entrées* dans le corpus. Le lecteur n'était nulle part, il
+            // arrive — remplacer la pile est exact, et le bouton de retour le
+            // ramène à la table des matières, qui est bien d'où il vient.
+            //
+            // Un renvoi est une *sortie* depuis une lecture en cours. Le
+            // lecteur était dans une glose de Bereshit 7, à la moitié de
+            // l'unité ; il va voir Bereshit 1, et il veut revenir **là**.
+            // Remplacer la pile le renvoyait à l'index du livre : il perdait
+            // son chapitre et sa hauteur de défilement, et devait les
+            // retrouver à la main. Relevé par l'auteur le 11 septembre 2026.
+            //
+            // Empiler les rend tous les deux : `NavigationStack` garde la vue
+            // parente vivante, donc sa position de défilement avec elle, et le
+            // bouton de retour est celui du système — rien à écrire pour lui.
+            guard let book = parts.first, parts.count >= 2 else { return false }
+            tab = .bible
+            let vise = Destination.chapter(book: book, chapter: parts[1])
+            // **On empile toujours, même vers l'unité que la pile croit
+            // porter déjà.**
+            //
+            // Le premier jet s'en gardait : un renvoi peut viser l'unité qu'on
+            // lit — « voir plus haut au verset 4 » —, et empiler donnerait deux
+            // fois le même écran. Le raisonnement était bon et sa prémisse
+            // fausse : **le sommet de la pile n'est pas ce que le lecteur
+            // voit.** `ChapterSwipe` le dit de lui-même — « il ne touche pas au
+            // chemin de navigation » : feuilleter de la 5 à la 7 laisse la pile
+            // sur la 5 pendant qu'on lit la 7.
+            //
+            // Un renvoi vers *Bereshit 5*, touché depuis la 7 atteinte au
+            // doigt, tombait alors dans la garde, ne poussait rien — et comme
+            // ce renvoi vise un chapitre entier, il n'y avait pas même un
+            // verset à désigner. **Il ne se passait rien du tout.** Relevé par
+            // l'auteur, capture à l'appui : « ici ça navigue pas au bere 5, ça
+            // ne fait rien ».
+            //
+            // Un écran en double se voit et se défait d'un retour ; un silence
+            // se lit comme une panne. Entre les deux, on prend le double.
+            //
+            // La garde reviendra le jour où le routeur saura quelle unité est
+            // **affichée** — ce qu'il ignore aujourd'hui, et ce qu'aucune de ses
+            // propriétés ne dit.
+            //
+            // Une pile vide arrive quand le renvoi est touché hors de la
+            // lecture — dans une fiche du Lexique, par exemple. Le livre doit
+            // alors exister sous l'unité, sinon le retour sort de l'onglet.
+            if biblePath.isEmpty {
+                biblePath = [.book(book)]
+            }
+            biblePath.append(vise)
+            pendingSelection = Self.verses(in: url)
+            pendingVerse = VerseVise(parts[1], pendingSelection.min())
+            return true
+
+        case "indisponible":
+            // Le nom voyage en paramètre : il porte des espaces et des
+            // accents, qu'un segment de chemin rendrait illisibles.
+            livreIndisponible = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "livre" })?.value ?? ""
             return true
 
         case "verse":

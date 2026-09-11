@@ -4,6 +4,9 @@ import com.labibleont.ont.data.schema.Block as DtoBlock
 import com.labibleont.ont.data.schema.Book as DtoBook
 import com.labibleont.ont.data.schema.BookOutline as DtoBookOutline
 import com.labibleont.ont.data.schema.Chapter as DtoChapter
+import com.labibleont.ont.data.schema.CibleDeLaReference as DtoCibleDeLaReference
+import com.labibleont.ont.data.schema.CibleDuNiveauTrois as DtoCible
+import com.labibleont.ont.data.schema.PorteeDeLaReference as DtoPortee
 import com.labibleont.ont.data.schema.ShemEntry as DtoShemEntry
 import com.labibleont.ont.data.schema.ChapterKind as DtoChapterKind
 import com.labibleont.ont.data.schema.CorpusOutline as DtoCorpusOutline
@@ -22,6 +25,8 @@ import com.labibleont.ont.data.schema.Subtitle as DtoSubtitle
 import com.labibleont.ont.data.schema.TermLevel as DtoTermLevel
 import com.labibleont.ont.data.schema.Verse as DtoVerse
 import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.corpus.CibleDeLaReference
+import com.labibleont.ont.kit.corpus.CibleDuNiveauTrois
 import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.corpus.Conteneur
 import com.labibleont.ont.kit.corpus.Book
@@ -33,6 +38,7 @@ import com.labibleont.ont.kit.corpus.Corpus
 import com.labibleont.ont.kit.corpus.Footer
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.corpus.Mode
+import com.labibleont.ont.kit.corpus.PorteeDeLaReference
 import com.labibleont.ont.kit.corpus.Status
 import com.labibleont.ont.kit.corpus.Subtitle
 import com.labibleont.ont.kit.corpus.Verse
@@ -82,7 +88,23 @@ internal fun DtoInline.versDomaine(): Inline = when (this) {
     is DtoInline.Text -> Inline.Text(v)
     is DtoInline.Term -> Inline.Term(v, lemma)
     is DtoInline.Shem -> Inline.Shem(v, lemma)
-    is DtoInline.Translit -> Inline.Translit(translit, hebrew)
+    // Deux nœuds ajoutés par deux branches : `Renvoi` porte une `cible` qui est
+    // une chaîne, `Translit` une `cible` qui est un type somme. Le nom se
+    // ressemble, la forme non — et le `when` exhaustif les tient séparés.
+    is DtoInline.Renvoi -> Inline.Renvoi(v, cible)
+    // Trois noms se ressemblent et ne portent pas la même chose : la `cible`
+    // d'un `Renvoi` est une chaîne, celle d'un `Translit` un type somme, celle
+    // d'une `Reference` un triplet livre/unité/verset. C'est le `when`
+    // exhaustif qui les tient séparés.
+    is DtoInline.Reference -> Inline.Reference(
+        value = v,
+        livre = livre,
+        systeme = systeme,
+        chapitre = chapitre,
+        portee = portee.versDomaine(),
+        cible = cible?.versDomaine(),
+    )
+    is DtoInline.Translit -> Inline.Translit(translit, hebrew, cible?.versDomaine())
     is DtoInline.Heb -> Inline.Hebrew(v)
     is DtoInline.Gloss -> Inline.Gloss(children.versDomaine())
     is DtoInline.Accentuation -> Inline.Accentuation(children.versDomaine())
@@ -256,3 +278,40 @@ internal fun DtoSearchRecord.versDomaine(): SearchRecord = SearchRecord(
 
 internal fun DtoDailyVerse.versDomaine(): DailyVerse =
     DailyVerse(b = b, c = c, n = n, r = r, t = t)
+
+
+/**
+ * La destination du niveau 3, du fichier vers le domaine.
+ *
+ * **Plate, et elle doit le rester** : le domaine ne connaît pas le schéma. Le
+ * `when` est exhaustif, donc une destination ajoutée au pipeline casse la
+ * compilation au lieu de se perdre en silence.
+ */
+private fun DtoCible.versDomaine(): CibleDuNiveauTrois = when (this) {
+    is DtoCible.Term -> CibleDuNiveauTrois.Term(lemma)
+    is DtoCible.Shem -> CibleDuNiveauTrois.Shem(lemma)
+}
+
+/**
+ * Ce qu'une référence vise dans son chapitre, du fichier vers le domaine.
+ *
+ * Le `when` est exhaustif : une portée ajoutée au pipeline — un verset et sa
+ * suite, un livre entier — casse la compilation ici plutôt que de se replier en
+ * silence sur « le chapitre ».
+ */
+private fun DtoPortee.versDomaine(): PorteeDeLaReference = when (this) {
+    DtoPortee.Chapitre -> PorteeDeLaReference.Chapitre
+    is DtoPortee.Verset -> PorteeDeLaReference.Verset(n)
+    is DtoPortee.Plage -> PorteeDeLaReference.Plage(premier = premier, dernier = dernier)
+}
+
+/**
+ * La destination d'une référence, du fichier vers le domaine.
+ *
+ * Elle traverse **plate** : le domaine n'a pas à savoir que `unite` s'appelle
+ * ainsi dans le JSON. Absente quand le livre visé n'est pas traduit — c'est le
+ * cas de 208 des 915 références du corpus, et `null` le dit mieux qu'un
+ * identifiant bien formé vers rien.
+ */
+private fun DtoCibleDeLaReference.versDomaine(): CibleDeLaReference =
+    CibleDeLaReference(livre = livre, unite = unite, verset = verset)

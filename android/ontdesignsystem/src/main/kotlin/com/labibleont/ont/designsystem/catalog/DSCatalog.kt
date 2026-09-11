@@ -43,6 +43,7 @@ import com.labibleont.ont.designsystem.theme.ONTTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.designsystem.typography.ONTTypography
+import com.labibleont.ont.kit.corpus.CibleDuNiveauTrois
 import com.labibleont.ont.kit.corpus.Inline
 import com.labibleont.ont.kit.reader.HighlightColor
 import com.labibleont.ont.kit.reader.ReadingFont
@@ -284,6 +285,8 @@ private fun SectionRendu() {
     val exemple = listOf(
         Inline.Text("Quand "),
         Inline.Term("Elohim", "elohim"),
+        Inline.Text(" "),
+        Inline.Translit("chesed", "חֶסֶד", CibleDuNiveauTrois.Term("chesed")),
         Inline.Text(" "),
         Inline.Translit("elohim", "אֱלֹהִים"),
         Inline.Text(" "),
