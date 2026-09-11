@@ -384,13 +384,7 @@ pub const ARTEFACTS: &[Artefact] = &[
         plancher: None,
         jetons: &["chuqqot.json"],
         lectures: &[
-            (
-                Liseuse::Ios,
-                Lecture::Lacune(
-                    "`ChuqqotTab` affiche « Ils ne sont pas encore écrits » alors que le \
-                     pipeline émet le fichier — l'onglet ne l'ouvre pas",
-                ),
-            ),
+            (Liseuse::Ios, Lecture::Lit),
             (
                 Liseuse::Android,
                 Lecture::Lacune("l'onglet Chuqqot n'a pas encore d'écran (MainActivity)"),
@@ -1138,11 +1132,18 @@ mod tests {
 
     #[test]
     fn rougit_quand_le_tableau_se_perime() {
-        // Quelqu'un écrit le lecteur des chuqqot côté iOS : la lacune n'en est
-        // plus une, et le tableau doit l'apprendre.
+        // Quelqu'un écrit le lecteur des chuqqot côté Android : la lacune n'en
+        // est plus une, et le tableau doit l'apprendre.
+        //
+        // Cette épreuve visait iOS jusqu'au 11 septembre 2026 — jusqu'à ce que
+        // le lecteur iOS existe pour de bon et que sa ligne passe à
+        // `Lecture::Lit`. Le contrôle avait alors rougi en production, ce qui
+        // est exactement ce qu'on lui demande ; mais un tableau à jour ne peut
+        // plus servir de cobaye. Elle vise donc la lacune suivante, et
+        // déménagera de la même façon le jour où Android saura lire.
         let (emis, mut sources) = tout_va_bien();
         sources
-            .get_mut(&Liseuse::Ios)
+            .get_mut(&Liseuse::Android)
             .unwrap()
             .as_mut()
             .unwrap()
@@ -1151,7 +1152,7 @@ mod tests {
         assert!(ecarts.iter().any(|e| matches!(
             e,
             Ecart::TraceInattendue { cible, liseuse, .. }
-                if cible == "chuqqot.json" && *liseuse == Liseuse::Ios
+                if cible == "chuqqot.json" && *liseuse == Liseuse::Android
         )));
     }
 

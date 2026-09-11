@@ -3,11 +3,14 @@ package com.labibleont.ont.data.remote
 import android.content.Context
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.bundle.AssetShemotRepository
 import com.labibleont.ont.data.bundle.versDomaine
 import com.labibleont.ont.data.schema.Book as DtoBook
 import com.labibleont.ont.data.schema.CorpusFile
 import com.labibleont.ont.data.schema.GlossaryFile
+import com.labibleont.ont.data.schema.OccurrencesFile
+import com.labibleont.ont.data.schema.SearchFile
 import com.labibleont.ont.data.schema.ShemotFile
 import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.Corpus
@@ -16,7 +19,9 @@ import com.labibleont.ont.kit.glossary.GlossaryEntry
 import com.labibleont.ont.kit.glossary.Occurrence
 import com.labibleont.ont.kit.ports.CorpusRepository
 import com.labibleont.ont.kit.ports.GlossaryRepository
+import com.labibleont.ont.kit.ports.SearchIndex
 import com.labibleont.ont.kit.ports.ShemotRepository
+import com.labibleont.ont.kit.search.SearchRecord
 import java.io.File
 import kotlinx.serialization.json.Json
 
@@ -86,11 +91,65 @@ public class DiskGlossaryRepository(
         else json.decodeFromString<GlossaryFile>(f.readText()).entries.map { it.versDomaine() }
     }.getOrNull() ?: bundle.entries()
 
-    // Les occurrences restent au bundle tant qu'aucune version téléchargée n'a
-    // été lue : le fichier fait un demi-mégaoctet, et la liste du lexique n'en a
-    // pas besoin.
+    // ## Le demi-mégaoctet était un bon argument, et la paresse le règle
+    //
+    // Ce bloc disait : « les occurrences restent au bundle tant qu'aucune
+    // version téléchargée n'a été lue ». La phrase se contredisait — rien
+    // n'allait jamais en lire une. Le fichier fait 492 Ko et la liste du lexique
+    // n'en a pas besoin : c'est vrai, et c'est pour ça qu'on ne le charge qu'à
+    // la première fiche ouverte, pas pour ça qu'on renonce au corpus à jour.
+    //
+    // iOS lit du disque depuis toujours, paresseusement lui aussi. Après une
+    // mise à jour du corpus, Android servait donc des occurrences périmées
+    // pendant que le lexique, lui, était neuf.
+    private val duDisque: Map<String, kotlin.collections.List<Occurrence>>? by lazy {
+        runCatching {
+            val f = File(dossier, "occurrences.json")
+            if (!f.exists()) null
+            else json.decodeFromString<OccurrencesFile>(f.readText())
+                .byLemma.mapValues { (_, v) -> v.map { it.versDomaine() } }
+        }.getOrNull()
+    }
+
     override fun occurrences(lemma: String): kotlin.collections.List<Occurrence> =
-        bundle.occurrences(lemma)
+        duDisque?.get(lemma) ?: bundle.occurrences(lemma)
+}
+
+/**
+ * L'index de recherche, disque par-dessus bundle.
+ *
+ * ## Il n'existait pas, et rien ne le disait
+ *
+ * `AssetSearchIndex` était branché directement dans `MainActivity`, sans pendant
+ * disque — seul port du corpus dans ce cas. La recherche restait donc sur
+ * l'index embarqué à la compilation, quelle que soit la fraîcheur du reste.
+ *
+ * Le défaut se doublait en amont : `CorpusUpdater` ne déclarait pas
+ * `"recherche"`, donc le fichier n'était même pas téléchargé. Réparer un seul
+ * des deux n'aurait rien donné — d'où les deux dans le même changement.
+ *
+ * Chargement paresseux : `search.json` fait 640 Ko, et l'ouverture de l'app n'en
+ * a pas besoin.
+ */
+public class DiskSearchIndex(
+    private val context: Context,
+    private val dossier: File = CorpusUpdater.dossierParDefaut(context),
+) : SearchIndex {
+
+    private val bundle = AssetSearchIndex(context)
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private val duDisque: kotlin.collections.List<SearchRecord>? by lazy {
+        runCatching {
+            val f = File(dossier, "search.json")
+            if (!f.exists()) null
+            else json.decodeFromString<SearchFile>(f.readText())
+                .records.map { it.versDomaine() }
+        }.getOrNull()
+    }
+
+    override fun records(): kotlin.collections.List<SearchRecord> =
+        duDisque ?: bundle.records()
 }
 
 /** Les fiches des noms propres, disque par-dessus bundle. */

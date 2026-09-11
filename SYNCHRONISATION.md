@@ -4388,6 +4388,113 @@ embarqués sans être lus ?
 tout document neuf du pipeline atterrit chez deux clients qui n'en savent rien
 jusqu'à ce qu'un contrôle le dise.
 
+## 10 septembre 2026 — un contrôle de version que rien ne versionnait
+
+`CorpusUpdater` refuse un corpus dont le manifeste annonce un schéma qu'il ne
+connaît pas, et le décodeur **lève** sur un type de nœud inconnu — voulu, parce
+qu'en omettre un afficherait un texte amputé sans que personne ne s'en aperçoive.
+
+**Ces deux gardes ne gardaient rien.** Le nombre comparé était écrit en dur à
+deux endroits — `2` dans `corpus-publie.py` du site, `2` dans le Swift — et
+==aucun des deux ne dérivait des nœuds émis==.
+
+`Inline::Renvoi` est parti le 8 septembre sans que ce nombre bouge. Une app
+installée accepte alors le corpus — le schéma lui est familier —, échoue à le
+décoder, et `lire()` employant `try?` retombe **silencieusement** sur son
+bundle. Sa mise à jour réseau devient inerte, définitivement, sans que rien ne
+le dise ni au lecteur ni au journal.
+
+`renvois.rs` documentait ce piège trois fichiers plus loin et l'évitait
+délibérément en réemployant `Inline::Link`. Personne ne l'avait relu.
+
+**Vrai à la compilation, faux à l'exécution** : le `switch` exhaustif casse la
+compilation de l'app, mais une app déjà installée ne recompile pas.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — `CONTRAT_DES_NOEUDS` vit dans `schema.rs`, où les nœuds vivent, et
+  sort dans `dist/manifest.json`. Il vaut **4** : 3 pour `Renvoi`, 4 pour
+  `Reference`. Un contrôle sans bras `_` fait cesser de compiler quand un type
+  paraît — et il rougit **en dernier**, au moment où l'on croit avoir fini.
+- **Site** — ==à faire== : `corpus-publie.py` doit **recopier** le `contrat` du
+  manifeste au lieu d'écrire `2`. Tant qu'il ne le fait pas, la chaîne reste
+  muette de bout en bout. Signalé à la session du site.
+- **Vault** — rien à porter.
+
+### La leçon, et elle vaut au-delà du cas
+
+Le premier jet du contrôle listait les variantes dans un **tableau de valeurs**.
+Le compilateur attrapait bien la variante neuve — par les `match` du reste du
+code —, mais **une fois ceux-ci corrigés le tableau restait vrai**, et rien ne
+forçait la montée.
+
+==Un contrôle qui ne rougit qu'en compagnie d'un autre ne contrôle rien tout
+seul.== Vérifié dans les deux formes, pas relu.
+
+## 10 septembre 2026 — trois gardes au mauvais endroit, jamais appelée, jamais exécutée
+
+Trois occurrences de la même forme dans la même nuit, chacune d'un cran plus
+fine que la précédente.
+
+**Au mauvais endroit.** `verifierLeCorpus` d'Android fait rougir sa compilation
+quand un fichier de `dist/` n'a pas de lecteur. Elle ne protégeait qu'Android —
+or c'est le pipeline qui émet. Remontée dans `pipeline/src/emissions.rs`, elle
+couvre les trois liseuses.
+
+**Jamais appelée.** `.github/scripts/epreuves.py`, écrit le 31 août contre un
+faux App Store Connect pour les deux défauts que `py_compile` ne voit pas.
+**Aucun workflow ne le lançait** ; sa propre docstring donnait la commande.
+
+**Jamais exécutée — et ce troisième cas était faux.** J'ai écrit que la garde
+Android ne tournait pas en CI, `verifierLeCorpus` ne dépendant que de
+`copierLesDonnees` quand la CI ne lance que `gradlew test`.
+
+La session Android l'a remesuré : `tests.yml` porte une **seconde** invocation,
+`./gradlew :app:bundleRelease`, ajoutée la veille pour attraper une casse R8 —
+et elle branche `verifierLeCorpus` sur l'intégration par effet de bord. Preuve
+empirique qui tranche sans motif : **`chuqqot.json` a fait rougir cette garde en
+CI**. Une garde qui ne s'exécute jamais ne peut pas rougir.
+
+==Mon erreur n'était pas dans la mesure, elle était dans l'objet mesuré== : j'ai
+lu `tests.yml` du worktree principal, qui était sur `dev`, en raisonnant sur
+`device`. Compté depuis : `dev` porte une occurrence de `gradlew`, `device` en
+porte trois.
+
+C'est la forme la plus bête et la plus fréquente du motif de ces deux jours — un
+instrument exact braqué sur autre chose que la question. Elle m'a eu après que
+j'en ai relevé cinq chez les autres.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — le contrôle des émissions tourne à **chaque construction**, et
+  rougit dans les deux sens : un fichier déclaré lu dont le nom n'apparaît dans
+  aucun source, *et* un fichier déclaré non lu dont le nom apparaît quand même.
+  C'est cette seconde moitié qui empêche la table de pourrir.
+- **Android** — ==garder `verifierLeCorpus`==. Elle voit ce que le pipeline ne
+  voit pas : le contenu réellement copié dans les assets, au moment de la copie.
+  Second rideau, pas doublon. *(J'avais écrit qu'une ligne `chuqqot.json` lui
+  manquait : périmé, elle y est depuis le 10 septembre.)*
+
+  Sa limite reste entière, et c'est la session Android qui la formule le mieux :
+  `connusDuCorpus` **déclare** qu'un lecteur existe, et rien ne vérifie que
+  c'est vrai. Elle a trouvé le second étage en le cherchant — Android
+  **téléchargeait `occurrences.json` et ne l'ouvrait jamais**, et ne
+  téléchargeait pas `search.json` du tout. Les deux moitiés se protégeaient :
+  réparer le téléchargement seul n'aurait rien donné, réparer le lecteur seul
+  non plus.
+- **Site** — la colonne site **n'est pas mesurable en CI** : `ONTBibleWebapp`
+  n'y est jamais récupéré, elle sort « non mesurée », jamais verte. C'est
+  précisément la liseuse du défaut des Shemot — 2 878 liens qui répondaient
+  `200` avec « Fiche introuvable », réparés depuis.
+
+### Dix lacunes relevées au premier passage
+
+Dont `chuqqot.json`, que **les trois** liseuses ignorent alors que le pipeline
+l'écrit depuis le matin même. L'onglet de l'app annonce toujours « ils ne sont
+pas encore écrits ». Une mention n'est pas une lecture, et le contrôle le dit
+dans ses propres limites.
+
+
 ## 11 septembre 2026 — le contrôle lisait ce que le pipeline venait d'écrire *(local)*
 
 Une session voisine a rapporté que `origin/device` cassait déjà `scripts/corpus.sh`,

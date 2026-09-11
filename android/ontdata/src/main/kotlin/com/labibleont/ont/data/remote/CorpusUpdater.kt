@@ -78,6 +78,18 @@ public class CorpusUpdater(
                     "quotidien" to "daily.json",
                     "glossaire" to "glossary.json",
                     "occurrences" to "occurrences.json",
+                    // `recherche` manquait, et le commentaire au-dessus dit
+                    // pourquoi ça ne se voyait pas : un nom du manifeste qu'on
+                    // ne connaît pas est **ignoré**. `search.json` n'était donc
+                    // jamais téléchargé, sans une ligne de journal — la
+                    // recherche restait sur l'index du bundle pendant que le
+                    // reste du corpus se mettait à jour.
+                    //
+                    // Le silence est délibéré et il a sa raison (une version
+                    // future publiera des fichiers que celle-ci ne sait pas
+                    // lire). Ce qu'il ne distingue pas, c'est « pas encore
+                    // connu » de « oublié ».
+                    "recherche" to "search.json",
                     "shemot" to "shemot.json",
                 )
                 return fichiers.mapNotNull { (cle, e) -> noms[cle]?.let { it to e } } +
