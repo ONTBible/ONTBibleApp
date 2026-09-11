@@ -559,7 +559,7 @@ private struct CarteDuMot: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: spacing.s) {
                     ForEach(Array(fiche.definition.enumerated()), id: \.offset) { _, bloc in
-                        ProseDeLaFiche(bloc: bloc)
+                        BlocDeFiche(block: bloc)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -587,49 +587,6 @@ private struct CarteDuMot: View {
 
     /// Isole la séquence hébraïque de son voisinage — voir `hebrewRun`.
     private func isole(_ v: String) -> String { "\u{2068}\(v)\u{2069}" }
-}
-
-/// Un bloc de fiche, rendu sur place.
-///
-/// **Dette assumée.** `BlocDeFiche` fait déjà ce travail, en mieux — mais il
-/// vit dans `LexiconFeature`, et `ReadingFeature` ne dépend d'aucune autre
-/// feature : c'est une contrainte écrite dans `Package.swift`, et elle est
-/// juste. La branche des chuqqot l'a déplacé dans `ONTDesignSystem`, où il
-/// aurait dû être ; ce rendu-ci disparaît le jour où ce déplacement atteint
-/// cette branche.
-private struct ProseDeLaFiche: View {
-    @Environment(\.ontTheme) private var theme
-    let bloc: Block
-
-    var body: some View {
-        switch bloc {
-        case .paragraph(let nodes), .quote(let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                .font(ONTUI.body)
-                .lineSpacing(theme.lineSpacing)
-                .fixedSize(horizontal: false, vertical: true)
-        case .heading(_, let nodes):
-            Text(ONTTextRenderer.compose(nodes, theme: theme))
-                .font(ONTUI.headline)
-                .fixedSize(horizontal: false, vertical: true)
-        case .list(_, let items):
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("·").foregroundStyle(.secondary)
-                        Text(ONTTextRenderer.compose(item, theme: theme))
-                            .font(ONTUI.body)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        // Les tableaux et les filets n'ont pas de place dans une carte de cette
-        // largeur. Les taire est exact : ils ne portent jamais le sens d'un
-        // mot, et les écraser serait pire que les omettre.
-        default:
-            EmptyView()
-        }
-    }
 }
 
 // MARK: - Le flot des mots
