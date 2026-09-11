@@ -64,13 +64,16 @@ extension Inline {
         // l'autre.
         case .renvoi(let v, let cible):
             self = .renvoi(v, cible: cible)
-        case .reference(let v, let livre, let systeme, let chapitre, let portee):
+        case .reference(let v, let livre, let systeme, let chapitre, let portee, let cible):
             self = .reference(
                 v,
                 livre: livre,
                 systeme: systeme,
                 chapitre: chapitre,
-                portee: PorteeDeLaReference(portee)
+                portee: PorteeDeLaReference(portee),
+                cible: cible.map {
+                    CibleDeLaReference(livre: $0.livre, unite: $0.unite, verset: $0.verset)
+                }
             )
         case .translit(let translit, let hebrew, let cible):
             self = .translit(translit, hebrew: hebrew, cible: cible.map(CibleDuNiveauTrois.init))

@@ -39,6 +39,37 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://chuqqah/\(cible)")
     }
 
+    /// **L'adresse d'une référence biblique** — celle qui mène, ou celle qui
+    /// explique pourquoi elle ne mène pas.
+    ///
+    /// Les deux existent, et c'est l'arbitrage de l'auteur : toutes les
+    /// références portent l'ambre et le pointillé, résolues ou non. Scinder
+    /// l'apparence aurait appris au lecteur à lire une marque de plus ; ici il
+    /// touche, et le vide devient une réponse au lieu d'un silence.
+    ///
+    /// La forme résolue réemploie `read`, que le routeur sert déjà au widget :
+    /// elle ouvre l'unité **et désigne** le verset, ce qui n'est pas la même
+    /// chose que l'ouvrir — voir `Router.designer`.
+    public static func referenceURL(cible: CibleDeLaReference?, livre: String) -> URL? {
+        var composants = URLComponents()
+        composants.scheme = termScheme
+        guard let cible else {
+            // Le nom du livre voyage en paramètre et non dans le chemin : il
+            // porte des espaces et des accents — « Shir Hashirim », « Ésaïe ».
+            composants.host = "indisponible"
+            composants.queryItems = [URLQueryItem(name: "livre", value: livre)]
+            return composants.url
+        }
+        // `renvoi` et non `read` : le second ouvre la carte d'actions par-dessus
+        // le passage, ce qui est juste pour le widget et faux pour un détour.
+        composants.host = "renvoi"
+        composants.path = "/\(cible.livre)/\(cible.unite)"
+        if let verset = cible.verset {
+            composants.queryItems = [URLQueryItem(name: "v", value: String(verset))]
+        }
+        return composants.url
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -312,7 +343,7 @@ public enum ONTTextRenderer {
                 piece[MarqueDeTerme.self] = true
                 output += piece
 
-            case .reference(let value, _, _, _, _):
+            case .reference(let value, let livre, _, _, _, let cible):
                 // **L'ambre du renvoi, et le pointillé de la désignation.**
                 //
                 // Arbitré à l'écran, les trois candidats côte à côte dans le
@@ -345,6 +376,7 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.underlineStyle = Text.LineStyle(pattern: .dot)
+                piece.link = referenceURL(cible: cible, livre: livre)
                 piece[MarqueDeTerme.self] = true
                 output += piece
 

@@ -126,6 +126,32 @@ struct RootView: View {
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }
+        // **Une référence qui ne mène nulle part répond quand même.**
+        //
+        // Une alerte et non une feuille : il n'y a rien à consulter, rien à
+        // faire défiler, rien à comparer au texte. Une feuille promettrait un
+        // contenu et n'en aurait pas — c'est exactement l'écueil du texte qui
+        // annonce ce qui manque au lieu de l'implémenter.
+        //
+        // `presenting:` plutôt qu'un booléen doublé d'une chaîne : les deux
+        // valeurs ne peuvent pas se désynchroniser, et le titre lit le livre
+        // qui est réellement présenté.
+        .alert(
+            "Pas encore traduit",
+            isPresented: Binding(
+                get: { router.livreIndisponible != nil },
+                set: { if !$0 { router.livreIndisponible = nil } }
+            ),
+            presenting: router.livreIndisponible
+        ) { _ in
+            Button("Fermer", role: .cancel) {}
+        } message: { livre in
+            Text(
+                livre.isEmpty
+                    ? "Ce passage n'est pas encore disponible dans l'ONT."
+                    : "\(livre) n'est pas encore traduit. Le renvoi est là, le texte viendra."
+            )
+        }
     }
 
     /// Le seul endroit qui connaît `UserNotifications`.

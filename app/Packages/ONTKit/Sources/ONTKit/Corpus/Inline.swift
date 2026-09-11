@@ -37,6 +37,32 @@ public enum CibleDuNiveauTrois: Hashable, Sendable {
 /// Défini ici et non repris du schéma engendré : le domaine ne connaît rien du
 /// monde extérieur, et un champ renommé dans le vault ne doit pas se propager
 /// jusqu'à lui.
+/// Où une référence mène, quand le corpus porte le passage.
+///
+/// **Résolue par le pipeline, jamais par la liseuse.** Les unités ONT ne
+/// coïncident pas avec les chapitres reçus : seule la table des plages de tout
+/// le corpus sait que « Genèse 7:11 » tombe dans `bereshit-7`. Cette table
+/// n'existe qu'au pipeline. La reconstruire ici, c'est l'écrire trois fois —
+/// iOS, Android, le site — à partir d'une chaîne d'affichage qui n'a jamais
+/// été un format de données.
+///
+/// Nul est le cas ordinaire et il est honnête : 208 des 915 références du
+/// corpus visent des livres que personne n'a traduits.
+public struct CibleDeLaReference: Hashable, Sendable {
+    /// Le livre qui porte l'unité — `bereshit`.
+    public let livre: String
+    /// L'unité à ouvrir — `bereshit-7`.
+    public let unite: String
+    /// Le verset à désigner en arrivant, **dans la numérotation de l'unité**.
+    public let verset: Int?
+
+    public init(livre: String, unite: String, verset: Int?) {
+        self.livre = livre
+        self.unite = unite
+        self.verset = verset
+    }
+}
+
 public enum PorteeDeLaReference: Hashable, Sendable {
     /// `Genèse 3` — l'unité entière, pas un verset.
     case chapitre
@@ -111,7 +137,8 @@ public enum Inline: Hashable, Sendable {
         livre: String,
         systeme: String,
         chapitre: Int,
-        portee: PorteeDeLaReference
+        portee: PorteeDeLaReference,
+        cible: CibleDeLaReference?
     )
     /// `(*chasdo* / חַסְדּוֹ)` — les deux parts sont séparées parce qu'elles ne se
     /// composent pas de la même façon : latine italique d'un côté, fonte
@@ -202,7 +229,7 @@ public extension [Inline] {
                 repliage.ajouter(value)
             // Une référence aussi — « comme en *Genèse* 4:25 » perd son sens
             // si le syntagme disparaît d'un extrait ou d'une recherche.
-            case .reference(let value, _, _, _, _):
+            case .reference(let value, _, _, _, _, _):
                 repliage.ajouter(value)
             case .hebrew(let value):
                 if level3 { repliage.ajouter(value) }

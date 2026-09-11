@@ -129,6 +129,18 @@ public final class Router {
         if cible == .bible { biblePath.removeAll() }
     }
 
+    /// **Le livre qu'une référence visait, et que le corpus ne porte pas.**
+    ///
+    /// Toutes les références sont touchables — l'auteur l'a arbitré ainsi, et
+    /// l'apparence ne se scinde pas. Celles qui ne mènent nulle part doivent
+    /// donc répondre : 208 des 915 références du corpus visent des livres que
+    /// personne n'a traduits, et un toucher sans réponse se lit comme une
+    /// panne de l'app, pas comme un état de la traduction.
+    ///
+    /// Le nom du livre plutôt qu'un booléen : « Ésaïe n'est pas encore
+    /// traduit » dit ce qui manque, « indisponible » ne dit rien.
+    public var livreIndisponible: String?
+
     /// Le lemme dont la fiche est soulevée par-dessus la lecture.
     public var openedLemma: LemmaSelection?
     /// Le **Shem** qu'on vient de toucher.
@@ -258,6 +270,36 @@ public final class Router {
         case "shem":
             guard let lemma = parts.first else { return false }
             openedShem = LemmaSelection(lemma)
+            return true
+
+        case "renvoi":
+            // **Viser sans désigner**, et c'est toute la différence avec
+            // `read`.
+            //
+            // `read` sert le widget et la carte du jour : le lecteur a touché
+            // *ce verset-là*, il arrive dessus et la carte d'actions est déjà
+            // ouverte — « Partager » est à un doigt. C'est le bon geste quand
+            // le verset est la destination.
+            //
+            // Un renvoi n'est pas une destination, c'est un détour. Le lecteur
+            // était dans une glose, il va voir le passage cité, il revient. Lui
+            // ouvrir la carte de surlignage par-dessus le texte qu'il vient
+            // chercher, c'est répondre à une question qu'il n'a pas posée — et
+            // c'est ce que faisait la première version, mesuré à l'écran.
+            //
+            // On pose donc `pendingVerse`, qui fait défiler, et **pas**
+            // `pendingSelection`, qui ouvre la carte.
+            guard let book = parts.first, parts.count >= 2 else { return false }
+            tab = .bible
+            biblePath = [.book(book), .chapter(book: book, chapter: parts[1])]
+            pendingVerse = VerseVise(parts[1], Self.firstVerse(in: url))
+            return true
+
+        case "indisponible":
+            // Le nom voyage en paramètre : il porte des espaces et des
+            // accents, qu'un segment de chemin rendrait illisibles.
+            livreIndisponible = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "livre" })?.value ?? ""
             return true
 
         case "verse":
