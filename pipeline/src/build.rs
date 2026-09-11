@@ -1328,12 +1328,35 @@ pub fn build() -> Result<BuildResult, String> {
             .iter()
             .filter_map(|e| e.hebrew.as_deref().map(|h| (e.lemma.as_str(), h))),
     );
+
+    // **La translittération des mots sources se récolte ici, sur le corpus
+    // assemblé**, pour la même raison que la ligne d'au-dessus : c'est ici que
+    // les deux moitiés existent en même temps. Les couples
+    // `(*bereshit* / בְּרֵאשִׁית)` vivent dans les apparats du niveau 3, donc dans
+    // les unités ; les mots à translittérer vivent dans les `.jsonl` du vault,
+    // que `sources::preparer` lira à la ligne suivante.
+    //
+    // `unites_toutes` plutôt que `corpora` : c'est le même contenu — il en est
+    // cloné — mais déjà **filtré sur le publié**, et déjà à plat. Un slot vide
+    // n'a rien à dire sur un mot que le lecteur lit aujourd'hui.
+    //
+    // Et rien n'est inventé : ce qui manque reste absent. Voir
+    // `sources::Translitterations`.
+    let translitterations = crate::sources::translitterations(&unites_toutes);
+    eprintln!(
+        "translittérations récoltées — {} formes hébraïques sûres, {} refusées \
+         parce que le corpus en donne deux",
+        translitterations.retenues(),
+        translitterations.refusees()
+    );
+
     let preparation = crate::sources::preparer(
         &racine,
         &unites_toutes,
         &transmissions,
         &numero_vers_slug,
         &liaison,
+        &translitterations,
     )?;
     if let Some(sources) = &preparation {
         bytes += write_json(&sortie.join("sources/manifeste.json"), &sources.manifeste)

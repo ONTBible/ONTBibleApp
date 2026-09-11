@@ -43,7 +43,7 @@
 //! voudra les lemmes, un fichier frère les portera, et la question se posera
 //! là, isolée.
 
-use crate::schema::{Block, Chapter, CibleDuNiveauTrois};
+use crate::schema::{Block, Chapter, CibleDuNiveauTrois, Inline};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -248,6 +248,28 @@ pub struct MotPublie {
     /// Le code morphologique du témoin.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub morph: Option<String>,
+    /// La translittération de ce mot, **telle que le vault l'a écrite**.
+    ///
+    /// ## Elle n'est pas calculée, et elle ne le sera pas
+    ///
+    /// Translittérer l'hébreu vocalisé est une affaire de règles — shewa mobile
+    /// ou quiescent, daguesh fort ou doux, spirantisation des *begadkefat* — et
+    /// chacune a ses exceptions. Une règle qui se trompe ici ne rend pas le mot
+    /// muet : elle **affiche** une forme fausse, sous le mot, avec l'aplomb
+    /// d'un fait. Le lecteur n'a rien pour la démentir.
+    ///
+    /// Le vault, lui, en a déjà écrit un millier à la main dans ses nœuds
+    /// `translit` du niveau 3. On les **récolte**, on ne les invente pas — voir
+    /// [`Translitterations`].
+    ///
+    /// ## Absente est l'état ordinaire
+    ///
+    /// Deux mots sur trois n'en ont pas, et l'absence doit rester distincte
+    /// d'une chaîne vide : la liseuse ne dessine alors rien sous le mot, au
+    /// lieu de dessiner une ligne vide qui ferait croire à une lacune du
+    /// vault.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translit: Option<String>,
     /// La fiche ONT que ce mot ouvre — absente quand aucune ne lui correspond.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cible: Option<CibleDuNiveauTrois>,
@@ -399,6 +421,190 @@ fn consonnes(s: &str) -> String {
             )
         })
         .collect()
+}
+
+// ───────────────── la translittération, récoltée et jamais inventée ───────
+
+/// **Ce qui donne à un mot source sa translittération** — et refuse quand le
+/// vault n'est pas d'accord avec lui-même.
+///
+/// ## Pourquoi une récolte plutôt qu'un translittérateur
+///
+/// Passer de l'hébreu vocalisé à des lettres latines demande une chaîne de
+/// règles : shewa mobile ou quiescent, daguesh fort ou doux, spirantisation
+/// des *begadkefat*, gutturales qui refusent le redoublement. Elles se codent.
+/// Ce n'est pas la difficulté qui arrête, c'est le **mode d'échec** : une
+/// jointure fausse rend un mot touchable vers la mauvaise fiche, et le lecteur
+/// peut au moins s'en apercevoir en arrivant ; une translittération fausse
+/// **s'affiche sous le mot** et ressemble en tout point à un fait. Rien, dans
+/// sa graphie, ne dit qu'elle a été devinée.
+///
+/// Le vault en a déjà écrit un millier de sa main, dans les apparats du
+/// niveau 3 — `(*bereshit* / בְּרֵאשִׁית)`. Chacun est un couple vérifié par
+/// quelqu'un qui lit l'hébreu. On les relève, et l'on s'arrête là.
+///
+/// ## La garde, et c'est la même qu'ailleurs dans ce module
+///
+/// Une forme hébraïque que le corpus translittère de **deux façons** ne rend
+/// rien. `אֱלֹהִים` est écrit `ʾElohim` là où il nomme, `ʾelohim` là où il
+/// désigne ; `וַיִּקַּח` est `vayiqach` chez l'un, `vayiqqach` chez l'autre.
+/// Choisir l'une des deux — la première rencontrée, la plus fréquente —
+/// reviendrait à trancher une question d'auteur dans une table de hachage, et
+/// à l'afficher comme acquise.
+///
+/// C'est la règle de [`LiaisonDesMots`] : **un seul prétendant, sinon rien.**
+///
+/// ## La cantillation ôtée des deux côtés, les voyelles gardées
+///
+/// La cantillation est une notation musicale : `בָּרָ֣א` et `בָּרָ֥א` sont le même
+/// mot, et le vault n'écrit pas ses apparats avec les te'amim du verset. On
+/// compare donc les formes dévêtues de leurs accents — voir
+/// [`sans_cantillation`].
+///
+/// Les voyelles, **non**. Le squelette `דבר` porte *davar* et *dibber* : c'est
+/// exactement la voyelle qui les sépare, et c'est exactement ce que la
+/// translittération est là pour montrer. L'ôter ici reviendrait à jeter la
+/// réponse pour élargir la question.
+#[derive(Debug, Default)]
+pub struct Translitterations {
+    /// Forme hébraïque sans cantillation → sa translittération, **seulement
+    /// quand le corpus n'en donne qu'une**.
+    par_forme: HashMap<String, String>,
+    /// Combien de formes la garde a refusées.
+    ///
+    /// **Gardé, et dit.** Une garde qui refuse en silence ne se distingue pas
+    /// d'une récolte qui n'a rien trouvé : le jour où le parcours cesserait de
+    /// descendre dans les gloses, la couverture tomberait sans qu'aucun compte
+    /// ne bouge.
+    refusees: usize,
+}
+
+impl Translitterations {
+    /// Récolte des couples `(translit, hébreu)` déjà relevés.
+    ///
+    /// Séparée du parcours du corpus pour une raison d'épreuve : c'est ici
+    /// qu'est la décision — accepter, refuser —, et une épreuve doit pouvoir
+    /// l'atteindre sans monter un corpus entier.
+    pub fn recoltee<'a>(couples: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
+        let mut vues: HashMap<String, Option<String>> = HashMap::new();
+        for (translit, hebreu) in couples {
+            let forme = sans_cantillation(hebreu);
+            let dit = translit.trim().to_string();
+            if forme.is_empty() || dit.is_empty() {
+                continue;
+            }
+            match vues.get(&forme) {
+                // Déjà vue, et la même : rien ne change.
+                Some(Some(deja)) if *deja == dit => {}
+                // Déjà vue, et une autre : la forme ne dit plus rien.
+                Some(_) => {
+                    vues.insert(forme, None);
+                }
+                None => {
+                    vues.insert(forme, Some(dit));
+                }
+            }
+        }
+        let refusees = vues.values().filter(|d| d.is_none()).count();
+        Self {
+            par_forme: vues
+                .into_iter()
+                .filter_map(|(forme, dit)| dit.map(|d| (forme, d)))
+                .collect(),
+            refusees,
+        }
+    }
+
+    /// La translittération de ce mot, si le corpus en donne une et une seule.
+    fn pour(&self, mot: &str) -> Option<String> {
+        self.par_forme.get(&sans_cantillation(mot)).cloned()
+    }
+
+    /// Combien de formes sont retenues — pour le relevé, rien d'autre.
+    pub fn retenues(&self) -> usize {
+        self.par_forme.len()
+    }
+
+    /// Combien la garde en a refusées pour ambiguïté.
+    pub fn refusees(&self) -> usize {
+        self.refusees
+    }
+}
+
+/// Relève les couples `(translit, hébreu)` d'une suite de blocs.
+///
+/// **La descente passe par les gloses**, parce que c'est là que le niveau 3
+/// vit : `(*chesed* / חֶסֶד)` s'écrit le plus souvent dans un commentaire. Un
+/// parcours de surface en manquerait la majorité sans rien dire — il
+/// récolterait simplement moins, et la couverture serait basse sans cause
+/// visible.
+fn couples_des_blocs(blocs: &[Block], dans: &mut Vec<(String, String)>) {
+    for bloc in blocs {
+        match bloc {
+            Block::Heading { nodes, .. } | Block::Para { nodes } | Block::Quote { nodes } => {
+                couples_des_noeuds(nodes, dans)
+            }
+            Block::Verses { verses } => {
+                for v in verses {
+                    couples_des_noeuds(&v.nodes, dans);
+                }
+            }
+            Block::List { items, .. } => {
+                for item in items {
+                    couples_des_noeuds(item, dans);
+                }
+            }
+            Block::Table { headers, rows } => {
+                for cellule in headers.iter().chain(rows.iter().flatten()) {
+                    couples_des_noeuds(cellule, dans);
+                }
+            }
+            Block::Rule => {}
+        }
+    }
+}
+
+fn couples_des_noeuds(noeuds: &[Inline], dans: &mut Vec<(String, String)>) {
+    for noeud in noeuds {
+        match noeud {
+            Inline::Translit {
+                translit, hebrew, ..
+            } => dans.push((translit.clone(), hebrew.clone())),
+            Inline::Gloss { children }
+            | Inline::Em { children }
+            | Inline::Accentuation { children }
+            | Inline::Link { children, .. } => couples_des_noeuds(children, dans),
+            _ => {}
+        }
+    }
+}
+
+/// Récolte la table sur les unités **publiées**.
+///
+/// ## L'unité entière, titre et pied compris
+///
+/// C'est la leçon que `niveau_trois::resoudre_l_unite` a déjà payée : un titre
+/// d'unité et les notes d'un pied de page sont livrés comme le reste, et un
+/// parcours qui s'arrêterait à `blocks` y laisserait des couples au sol. Ici
+/// l'oubli serait muet — moins de mots translittérés, sans qu'aucun compte ne
+/// bouge.
+///
+/// ## Le publié, et non le vault
+///
+/// On récolte sur ce que le lecteur reçoit. Un apparat écrit dans une unité
+/// non publiée ne fait pas autorité sur un mot que le lecteur voit aujourd'hui
+/// — et il pourrait, à lui seul, rendre une forme ambiguë et l'effacer de la
+/// table.
+pub fn translitterations(unites: &[Chapter]) -> Translitterations {
+    let mut couples: Vec<(String, String)> = Vec::new();
+    for unite in unites {
+        couples_des_noeuds(&unite.title_nodes, &mut couples);
+        couples_des_blocs(&unite.blocks, &mut couples);
+        if let Some(pied) = &unite.footer {
+            couples_des_blocs(&pied.notes, &mut couples);
+        }
+    }
+    Translitterations::recoltee(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())))
 }
 
 // ───────────────────────────── la plage biblique ──────────────────────────
@@ -558,6 +764,7 @@ pub fn preparer(
     transmissions: &BTreeMap<u32, (String, String)>,
     numero_vers_slug: &BTreeMap<u32, String>,
     liaison: &LiaisonDesMots,
+    translitterations: &Translitterations,
 ) -> Result<Option<Preparation>, String> {
     let dossier = racine.join(SOURCES);
     let manifeste = dossier.join("MANIFEST.json");
@@ -623,6 +830,7 @@ pub fn preparer(
                             let o = m.oshb.as_ref().expect("filtré juste au-dessus");
                             MotPublie {
                                 cible: liaison.cible(&m.t),
+                                translit: translitterations.pour(&m.t),
                                 t: m.t.clone(),
                                 lem: Some(o.lem.clone()),
                                 morph: Some(o.morph.clone()),
@@ -1025,6 +1233,95 @@ mod tests {
         assert_eq!(liaison.cible("וַיְדַבֵּ֥ר"), None);
         // Un mot qu'aucune fiche ne nomme.
         assert_eq!(liaison.cible("אֵ֥ת"), None);
+    }
+
+    /// **La récolte des translittérations, et son refus.**
+    ///
+    /// Trois cas, et le deuxième est le seul qui coûte : une translittération
+    /// fausse ne rend pas le mot muet, elle s'affiche dessous avec l'aplomb
+    /// d'un fait.
+    #[test]
+    fn une_forme_rend_sa_translitteration_quand_elle_est_seule() {
+        let table = Translitterations::recoltee([
+            // Écrit deux fois, à l'identique : une seule voix, ça passe.
+            ("bereshit", "בְּרֵאשִׁית"),
+            ("bereshit", "בְּרֵאשִׁית"),
+            // Le vault hésite : `ʾElohim` quand il nomme, `ʾelohim` quand il
+            // désigne. Deux voix, donc aucune.
+            ("ʾElohim", "אֱלֹהִים"),
+            ("ʾelohim", "אֱלֹהִים"),
+            // Ce que la voyelle sépare reste séparé : on n'ôte pas le niqqud.
+            ("davar", "דָּבָר"),
+            ("dibber", "דִּבֵּר"),
+        ]);
+
+        // Le couple sûr passe — et la cantillation du témoin ne l'empêche
+        // pas : le vault écrit ses apparats sans les te'amim du verset.
+        assert_eq!(
+            table.pour("בְּרֵאשִׁ֖ית"),
+            Some("bereshit".to_string()),
+            "la cantillation est une notation musicale, jamais un autre mot"
+        );
+        // **Le couple ambigu ne rend rien.** C'est toute la garde.
+        assert_eq!(
+            table.pour("אֱלֹהִ֑ים"),
+            None,
+            "deux translittérations pour une forme : afficher l'une des deux \
+             serait trancher à la place de l'auteur, et sans le dire"
+        );
+        // Les voyelles ne sont pas ôtées : `דבר` ne ramasse pas les deux.
+        assert_eq!(table.pour("דָּבָ֥ר"), Some("davar".to_string()));
+        assert_eq!(
+            table.pour("דִּבֶּ֥ר"),
+            None,
+            "une forme fléchie n'est pas la fiche"
+        );
+        // Un mot dont le corpus ne parle pas.
+        assert_eq!(table.pour("אֵ֥ת"), None);
+
+        // Et les comptes, pour que le relevé du build dise vrai.
+        assert_eq!(table.retenues(), 3, "bereshit, davar, dibber");
+        assert_eq!(table.refusees(), 1, "אֱלֹהִים, et elle seule");
+    }
+
+    /// **Le parcours descend dans les gloses**, et ça se mesure.
+    ///
+    /// `(*chesed* / חֶסֶד)` s'écrit le plus souvent *dans* un commentaire. Un
+    /// parcours de surface récolterait simplement moins, sans rien dire — la
+    /// couverture tomberait, et rien n'en nommerait la cause.
+    #[test]
+    fn la_recolte_descend_dans_la_glose_et_le_pied_de_page() {
+        fn translit(t: &str, h: &str) -> Inline {
+            Inline::Translit {
+                translit: t.into(),
+                hebrew: h.into(),
+                cible: None,
+            }
+        }
+
+        let blocs = vec![
+            Block::Verses {
+                verses: vec![crate::schema::Verse {
+                    n: 1,
+                    nodes: vec![Inline::Gloss {
+                        children: vec![Inline::Em {
+                            children: vec![translit("chesed", "חֶסֶד")],
+                        }],
+                    }],
+                }],
+            },
+            Block::Para {
+                nodes: vec![translit("bereshit", "בְּרֵאשִׁית")],
+            },
+        ];
+
+        let mut couples = Vec::new();
+        couples_des_blocs(&blocs, &mut couples);
+        assert_eq!(couples.len(), 2, "la glose emboîtée compte comme le reste");
+
+        let table =
+            Translitterations::recoltee(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())));
+        assert_eq!(table.pour("חֶ֥סֶד"), Some("chesed".to_string()));
     }
 
     fn verset(n: u32) -> VersetPublie {
