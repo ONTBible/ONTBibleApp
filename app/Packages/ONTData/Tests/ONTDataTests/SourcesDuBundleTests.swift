@@ -151,6 +151,33 @@ struct SourcesDuBundleTests {
         #expect(et.cible == nil)
     }
 
+    /// **La translittération se récolte, et le champ qui la porte se garde ici.**
+    ///
+    /// C'est exactement la dérive que cette suite existe pour attraper. Le DTO
+    /// l'a ignorée : le pipeline l'émettait, `MotPublie.translit` la portait, et
+    /// `ONTSources.Mot` ne la déclarait pas. Rien ne rougissait — la feuille
+    /// affichait les mots sans leur translittération, ce qui se lit exactement
+    /// comme un vault qui n'en aurait pas écrit.
+    ///
+    /// Compté à la main dans `he-wlc/bereshit.json` : sur les sept mots du
+    /// premier verset, `אֱלֹהִ֑ים` seul en porte une. L'absence des six autres
+    /// est mesurée aussi — sans quoi un champ rempli au hasard passerait.
+    @Test("la translittération du vault arrive jusqu'au domaine")
+    func laTranslitteration() throws {
+        let unite = try #require(
+            depot().unite(livre: "bereshit", temoin: "he-wlc", unite: "bereshit-1"))
+        let v = try #require(unite.verset(rang: 0))
+
+        let elohim = try #require(v.mot(rang: 2))
+        #expect(elohim.texte == "אֱלֹהִ֑ים")
+        #expect(elohim.translitteration == "ʾelohim")
+
+        #expect(
+            v.mots.filter { $0.translitteration != nil }.count == 1,
+            "un seul mot translittéré au premier verset — deux sur trois n'en portent pas"
+        )
+    }
+
     /// **Le piège que tout le reste de la couche existe pour éviter.**
     ///
     /// *Bereshit* 7 couvre deux chapitres bibliques : la numérotation repart de

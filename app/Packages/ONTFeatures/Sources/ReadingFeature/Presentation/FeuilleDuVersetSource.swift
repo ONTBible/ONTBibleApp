@@ -723,17 +723,32 @@ private struct FlotLayout: Layout {
 extension FeuilleDuVersetSource {
     /// Ouvre la feuille sur un verset désigné par sa position.
     ///
-    /// **Le chargement se fait ici et non au point d'appel** : la vue de
-    /// lecture n'a pas à savoir d'où viennent les langues sources, et le
-    /// chargeur provisoire sera remplacé sans qu'elle bouge.
-    init(titreDeLUnite: String, position: PositionDeVerset) {
-        let temoins = ChargeurDeSources.temoins(de: position.livre)
+    /// **La traduction se fait ici et non au point d'appel** : la vue de
+    /// lecture n'a pas à savoir ce qu'`ONTKit` appelle un témoin, elle n'a qu'à
+    /// tendre le dépôt que la composition lui a donné.
+    ///
+    /// Le dépôt arrive en paramètre plutôt que par l'environnement — voir
+    /// `FicheDunMotKey`, qui dit pourquoi les deux ne voyagent pas de la même
+    /// façon. Ici, rien n'est chargé qui ne soit déjà en cache : le manifeste
+    /// fait deux kilo-octets, et le fichier du témoin est gardé par le dépôt
+    /// d'une ouverture à l'autre.
+    ///
+    /// `temoinChoisi` reste `.constant` : le sélecteur ne paraît qu'à partir de
+    /// deux témoins, et l'app n'en embarque qu'un. Le jour où le grec arrive,
+    /// c'est ici qu'il faudra un `@State` — le rendre maintenant serait tenir
+    /// un état que rien ne peut encore faire changer.
+    init(titreDeLUnite: String, position: PositionDeVerset, sources: any SourcesRepository) {
+        let temoins = sources.sources(livre: position.livre)
+            .temoinsDisponibles
+            .map(TemoinAffiche.init)
         let premier = temoins.first?.id ?? ""
+        let versets =
+            sources.unite(livre: position.livre, temoin: premier, unite: position.unite)?
+            .versets.map(VersetAffiche.init) ?? []
         self.init(
             titreDeLUnite: titreDeLUnite,
             temoins: temoins,
-            versets: ChargeurDeSources.versets(
-                temoin: premier, livre: position.livre, unite: position.unite),
+            versets: versets,
             temoinChoisi: .constant(premier),
             positionInitiale: position.position
         )

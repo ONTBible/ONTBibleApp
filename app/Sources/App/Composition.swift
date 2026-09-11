@@ -75,6 +75,15 @@ final class Composition {
     /// discret parce que la feuille bouge rarement — une chuqqah validée, elle,
     /// est précisément l'événement qu'on veut voir arriver sans relancer l'app.
     private let chuqqotSurDisque: DiskChuqqotRepository
+    /// Les langues sources, doublées comme le reste — et gardées pour la même
+    /// raison : il faut pouvoir leur dire d'oublier, et leur faire regarder
+    /// l'aperçu du Mac.
+    ///
+    /// Sans ce dernier point, le mode développeur reconstruirait le vault et la
+    /// feuille du verset d'origine continuerait d'afficher l'hébreu du corpus
+    /// publié — un texte juste, à côté d'une traduction qui ne l'est plus. Le
+    /// défaut se lit comme un accord entre les deux.
+    private let sourcesSurDisque: DiskSourcesRepository
 
     var dailyPool: [DailyVerse] { daily.pool() }
 
@@ -138,6 +147,12 @@ final class Composition {
         self.rechercheSurDisque = index
         let chuqqotDuDisque = DiskChuqqotRepository(bundle: source)
         self.chuqqotSurDisque = chuqqotDuDisque
+        // Le même montage que le corpus : le disque recouvre, le bundle porte.
+        // `source` et non `.main`, pour que `-corpus-absent` prive aussi les
+        // langues sources — sinon la feuille répondrait encore sur une app
+        // qu'on éprouve précisément sans corpus.
+        let sources = DiskSourcesRepository(socle: BundleSourcesRepository(bundle: source))
+        self.sourcesSurDisque = sources
         let store = FileReaderStore()
         // Un fichier à part : le profil se supprime avec le compte, les
         // réglages de lecture survivent à une déconnexion.
@@ -147,7 +162,8 @@ final class Composition {
             corpus: corpus,
             highlights: store,
             positions: store,
-            preferences: store
+            preferences: store,
+            sources: sources
         )
         lexicon = LexiconModel(
             glossary: glossary, shemot: shemotSurDisque,
@@ -171,12 +187,13 @@ final class Composition {
             // un silence : on redemande un jeton. Voir `PushDistant`.
             PushDistant.reprendreSiBesoin()
 
-            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, reading, lexicon, chuqqot] in
+            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, sourcesSurDisque, reading, lexicon, chuqqot] in
                 corpusSurDisque.oublier()
                 lexiqueSurDisque.oublier()
                 shemotSurDisque.oublier()
                 rechercheSurDisque.oublier()
                 chuqqotSurDisque.oublier()
+                sourcesSurDisque.oublier()
                 // Le réveil d'arrière-plan n'est pas sur l'acteur principal, et les
                 // modèles y vivent : on repasse par lui pour le dire aux vues.
                 Task { @MainActor in
@@ -194,7 +211,7 @@ final class Composition {
             CorpusRefresh.schedule()
         #endif
 
-        Task { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, reading, lexicon, chuqqot] in
+        Task { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, sourcesSurDisque, reading, lexicon, chuqqot] in
             // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
             //
             // Elle ne bloque **rien** : l'app a déjà tout ce qu'il lui faut,
@@ -214,6 +231,7 @@ final class Composition {
             shemotSurDisque.oublier()
             rechercheSurDisque.oublier()
             chuqqotSurDisque.oublier()
+            sourcesSurDisque.oublier()
 
             // Et sans ces trois lignes, l'oubli ne se voit pas non plus.
             //
@@ -284,6 +302,10 @@ final class Composition {
         let cible = dossier ?? CorpusUpdater.dossierParDefaut()
         corpusSurDisque.regarder(cible)
         lexiqueSurDisque.regarder(cible)
+        // Les langues sources suivent le corpus, sans quoi l'aperçu montrerait
+        // l'hébreu du publié sous une traduction reconstruite — deux textes
+        // justes, un accord faux, et rien à l'écran pour le dire.
+        sourcesSurDisque.regarder(cible)
         reading.corpusChanged()
         lexicon.glossaryChanged()
     }

@@ -63,7 +63,8 @@ struct CorpusVivantTests {
     private func modele(_ corpus: CorpusMouvant) -> ReadingModel {
         ReadingModel(
             corpus: corpus, highlights: Highlights(),
-            positions: Positions(), preferences: Preferences()
+            positions: Positions(), preferences: Preferences(),
+            sources: ReadingModelTests.SourcesMuettes()
         )
     }
 

@@ -101,6 +101,12 @@ public enum ONTSources {
         public let t: String
         public let lem: String?
         public let morph: String?
+        /// La translittération que le vault a écrite pour cette forme.
+        ///
+        /// `skip_serializing_if` côté pipeline — `MotPublie.translit` : la clé
+        /// est simplement **absente** pour deux mots sur trois, ce que
+        /// `decodeIfPresent` du décodeur synthétisé traite déjà.
+        public let translit: String?
         /// La fiche ONT que ce mot ouvre. **Le même type que le niveau 3 du
         /// corpus** — `{"t":"term","lemma":"bara"}` —, et c'est voulu : le
         /// pipeline réemploie `CibleDuNiveauTrois`, donc la liseuse réemploie le
@@ -145,6 +151,7 @@ extension MotSource {
             texte: dto.t,
             lemme: dto.lem,
             morphologie: dto.morph,
+            translitteration: dto.translit,
             cible: dto.cible.map(CibleDuNiveauTrois.init)
         )
     }

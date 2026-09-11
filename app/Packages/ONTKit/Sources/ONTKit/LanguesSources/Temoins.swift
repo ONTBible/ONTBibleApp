@@ -172,7 +172,9 @@ public enum SourcesDuLivre: Hashable, Sendable {
 ///
 /// ## Ce qui est absent, et pourquoi l'absence est un état
 ///
-/// `lemme` et `morphologie` manquent quand le témoin n'étiquette pas. `cible`
+/// `lemme` et `morphologie` manquent quand le témoin n'étiquette pas.
+/// `translitteration` manque quand le vault n'en a écrit aucune pour cette
+/// forme — deux mots sur trois sont dans ce cas. `cible`
 /// manque quand **aucune fiche ONT ne correspond** — et c'est la règle que le
 /// niveau 3 a déjà payée : une jointure qui se trompe ne rend pas le mot inerte,
 /// elle le rend touchable vers la mauvaise fiche, et le lecteur ne peut pas le
@@ -186,6 +188,18 @@ public struct MotSource: Hashable, Sendable, Identifiable {
     public let lemme: String?
     /// Le code morphologique du témoin — « HVqp3ms ».
     public let morphologie: String?
+    /// **La translittération, telle que le vault l'a écrite** — jamais calculée.
+    ///
+    /// Elle est *récoltée* : `pipeline/src/sources.rs` reprend les couples
+    /// `(bereshit / בְּרֵאשִׁית)` que les niveaux 3 du corpus portent déjà, et
+    /// refuse ceux dont une même forme en porte deux différentes. Aucun
+    /// translittérateur n'existe dans ce dépôt, et en écrire un afficherait
+    /// sous les mots des formes fausses avec l'aplomb d'un fait — le lecteur
+    /// n'aurait rien pour les démentir.
+    ///
+    /// **Absente est l'état ordinaire** : deux mots sur trois n'en portent pas.
+    /// C'est l'état du vault, pas un défaut du pont.
+    public let translitteration: String?
     /// La fiche que ce mot ouvre, quand il en ouvre une.
     public let cible: CibleDuNiveauTrois?
 
@@ -194,12 +208,14 @@ public struct MotSource: Hashable, Sendable, Identifiable {
         texte: String,
         lemme: String? = nil,
         morphologie: String? = nil,
+        translitteration: String? = nil,
         cible: CibleDuNiveauTrois? = nil
     ) {
         self.rang = rang
         self.texte = texte
         self.lemme = lemme
         self.morphologie = morphologie
+        self.translitteration = translitteration
         self.cible = cible
     }
 

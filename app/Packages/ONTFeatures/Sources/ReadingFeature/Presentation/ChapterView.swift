@@ -464,8 +464,10 @@ struct ChapterView: View {
         // lignes : lui donner le plein écran au glissement offrirait de la
         // hauteur à ce qui n'en demande pas.
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
-            FeuilleDuVersetSource(titreDeLUnite: chapter.title, position: ou)
-                .ontTheme(from: theme.preferences)
+            FeuilleDuVersetSource(
+                titreDeLUnite: chapter.title, position: ou, sources: model.sources
+            )
+            .ontTheme(from: theme.preferences)
         }
         .ontFeuille(objet: $noteTarget, titre: "Note", paliers: .mesures([.medium])) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
@@ -806,7 +808,8 @@ private struct VerseRow: View {
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
             FeuilleDuVersetSource(
                 titreDeLUnite: chapter.title,
-                position: ou
+                position: ou,
+                sources: model.sources
             )
             .ontTheme(from: theme.preferences)
         }
