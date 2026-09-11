@@ -4594,3 +4594,143 @@ colonne ne pouvait pas porter ce défaut. Le vault n'entre pas dans le relevé.
 Ce qui vaut ailleurs est la leçon, pas le correctif : ==un contrôle qui lit un
 artefact de sa propre construction se croit informé==. Elle est ici, et elle
 attendra d'avoir coûté quelque chose chez un voisin pour y monter au tronc.
+
+---
+## 11 septembre 2026 — deux jointures qu'on croyait être une seule
+
+Le chantier du lexique est parti d'une mesure : *Bereshit* 1-19 porte 6 478 mots
+hébreux, 925 lemmes, et le vault n'avait que 356 fiches. Quatre agents ont été
+lancés sur des lots disjoints pour combler l'écart.
+
+**Les trois quarts des fiches assignées existaient déjà.** Le lotissement avait
+été bâti sur un inventaire qui comparait des noms de fichiers à des lemmes sans
+passer par la fonction de slug du pipeline — or elle retire les demi-anneaux.
+`ʾamar.md` **est** la fiche du lemme `amar`, et l'inventaire ne le savait pas.
+
+Le vrai manque était ailleurs, et il ne se voyait pas : les sections `## Formes`
+ne déclaraient pas ce que le corpus écrit. Vingt-cinq formes attestées n'étaient
+déclarées nulle part, donc vingt-cinq mots restaient **lisibles et inertes** —
+et rien ne le signale, puisque ce n'est pas un lien mort.
+
+### Une fiche sert le corps du texte ; elle ne sert pas le verset hébreu
+
+C'est le fait structurel de la journée, et il a fallu la session iOS pour le
+nommer. Le projet a **deux jointures**, et elles ne lisent pas la même chose :
+
+    corps du texte     slug de la translittération d'un niveau 3   →  toutes les fiches
+    verset hébreu      champ `hebrew` d'une entrée de glossaire    →  133 fiches sur 357
+
+`glossary.json` est bâti sur le §2.5 et le §3 du `CLAUDE.md`, qui ne portent que
+les intraduisibles et les rendus fixés. **224 fiches n'y ont aucune entrée**, donc
+aucun hébreu déclaré, donc rien à joindre. Elles contiennent bien leur hébreu —
+234 sur 239 au relevé — mais dans la prose : deux seulement l'avaient à un endroit
+fixe.
+
+Écrire une fiche ne rend donc pas un mot touchable dans le verset d'origine. Le
+chantier avait été annoncé comme s'il le faisait.
+
+### Décision de l'auteur — la Source vit dans la fiche
+
+Section `## Source`, après les Formes : le numéro de Strong nu, et la forme
+absolue hébraïque.
+
+    ## Source
+
+    559 · אָמַר
+
+Le §3 aurait été l'autre emplacement, et il a été écarté sur la mesure : il est un
+glossaire d'**arbitrages de traduction**, et l'y faire grossir de huit cents
+entrées pour accueillir le vocabulaire ordinaire lui aurait fait changer de nature
+— pour ne couvrir que 133 fiches sur 357.
+
+Ce que le numéro achète est ==un mode d'échec==, non une commodité. Sans lui, la
+liseuse doit deviner quel mot du verset ouvre quelle fiche, en ôtant les voyelles.
+Deux mots peuvent avoir le même squelette, et une devinette fausse ne rend pas le
+mot inerte : elle le rend **touchable vers la mauvaise fiche**.
+
+    un squelette qui se trompe est silencieux
+    un Strong qui se trompe est contredit par le témoin
+
+164 fiches ont reçu leur Source, dérivée et non tapée : les formes que la fiche
+déclare → leur hébreu dans le corpus → le lemme du témoin. Quand les formes ne
+s'accordent pas sur un seul numéro, rien n'est écrit.
+
+### Un instrument qui mesure deux fois la même chose rend des chiffres qui se ressemblent trop
+
+La dérivation s'est trompée d'abord, et son symptôme mérite d'être gardé parce
+qu'il est lisible **avant** de connaître la réponse.
+
+J'indexais le témoin sur la forme vocalisée **et** sur son squelette consonantique
+— donc je récoltais précisément les collisions que le numéro existe pour éviter.
+Le relevé rendait des comptes rigoureusement égaux : 14 contre 14, 5 contre 5,
+2 contre 2. Une égalité parfaite entre deux candidats n'est pas une ambiguïté du
+monde, c'est le signe que **les deux branches ont fait la même requête**.
+
+Repris en vocalisé seul, les comptes égaux sont restés. Ce n'était donc plus
+l'instrument : c'est le témoin lui-même qui donne deux lemmes au même texte selon
+le contexte. שֵׁם est 8034 et 8035.
+
+La leçon n'est pas « vérifier deux fois ». Elle est qu'une **forme de sortie**
+peut trahir un défaut d'instrument avant qu'on ait de quoi contrôler le fond.
+
+### Le témoin faisait déjà la distinction, avec une donnée que le dépôt contenait
+
+73 fiches portent deux numéros ou plus. C'est la liste des mots que notre
+translittération confond et que le témoin sépare, et elle n'avait jamais été
+produite.
+
+    shem     8034 · 8035     le concept / le fils de Noach
+    ʾadam     120 ·  121     l'humanité / le nom propre
+    Hevel    1892 · 1893     « souffle » / le frère
+    Sarai    8269 · 8297     « princes » / l'ʾIshah
+    Charan   2771 a · 2771 b
+
+La dernière ligne est la plus instructive. **Deux jours plus tôt**, l'auteur avait
+séparé à la main `Haran` de `Charan`, après qu'une passe de translittération les
+eut fondus — et le journal du 10 septembre décrit le coût : des gloses verrouillées
+s'étaient mises à **expliquer** une homonymie qu'aucun manuscrit ne connaît.
+
+Le témoin portait la distinction depuis toujours, et personne ne la lui avait
+demandée. La passe fautive avait été bâtie sur une liste blanche de formes
+translittérées ; ==une seule requête sur les lemmes du témoin l'aurait arrêtée==.
+
+### Un artefact engendré n'a pas de date visible dans sa mesure
+
+Le plafond a d'abord été annoncé à **118 fiches**. Le chiffre venait de
+`ONTBibleApp/dist/glossary.json`, daté du **8 septembre à 14h53** — antérieur à la
+passe `ph → f` du même jour, et il portait encore `nephilim`. Le bon chiffre est
+133.
+
+La mesure était juste ; elle ne l'était plus. C'est la **prémisse périmée** que la
+note de concertation décrit, sous une forme qu'elle ne prévoyait pas : non pas une
+branche non rafraîchie, mais un **fichier engendré** dont rien dans la lecture ne
+dit l'âge. Un `git fetch` n'y aurait rien fait.
+
+Le même jour, la session iOS a rencontré la même forme sur un autre terrain : deux
+relevés exacts de `device`, l'un sur la locale en retard de 99 commits, l'autre sur
+le distant. ==Trois fois dans la journée, sur trois terrains sans rapport.==
+
+La parade est étroite et elle se dit : **un chiffre tiré d'un artefact engendré se
+rapporte avec la date de l'artefact**, comme un zéro se rapporte avec son outil et
+sa référence.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleTranslation** — le §2.5 ter porte la règle de la section `## Source`.
+164 fiches l'ont ; 73 attendent un arbitrage de l'auteur, un par un comme
+`Haran` / `Charan` ; 122 n'ont aucun appariement dans le corpus et attendent qu'il
+les emploie. Deux homographes vivants restent ouverts : `yamim` — יַמִּים les mers
+et יָמִים les jours sous une seule graphie — et `min`, dont le risque a été mesuré
+nul aujourd'hui parce que le corpus n'écrit aucun `min` nu.
+
+**ONTBibleApp** — le pipeline ne lit pas `## Source`. Tant qu'il ne l'émet pas,
+les 164 numéros sont écrits et personne ne les reçoit ; il faut un
+`source_declaree` à côté de `formes_declarees` (`reference.rs`), puis deux champs
+sur l'entrée émise. `glossary.json` porte son propre `schema`, indépendant de
+`CONTRAT_DES_NOEUDS`, et deux champs facultatifs ne cassent aucun décodeur. La
+session iOS le prend, dans le même lot que sa jointure par `forms`.
+
+**ONTBibleWebapp** — rien à faire aujourd'hui. Mais le site lit `dist/` comme
+l'app : le jour où `glossary.json` porte une Source, il la recevra sans qu'on l'ait
+prévenu. C'est la même remarque que le 10 septembre sur `prononciation.json`, et
+elle vaut deux jours de suite.
