@@ -24,10 +24,10 @@ use serde::Serialize;
 
 use crate::chapter::{parse_chapter, ChapterSource};
 use crate::chuqqot;
-use crate::inline::{declarer_les_livres, Systeme};
 use crate::config::{display_name, glose, groupe, out, section, vault, REFERENCE, SKELETON, TREES};
 use crate::controles;
 use crate::inline::{collect_terms, plain_text, tidy, PlainOptions};
+use crate::inline::{declarer_les_livres, Systeme};
 use crate::niveau_trois;
 use crate::reference::{read_fiches, read_reference, BookName, Reference};
 use crate::renvois;

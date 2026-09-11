@@ -418,7 +418,6 @@ pub fn parse_chapter(source: &ChapterSource) -> ParsedChapter {
     }
 }
 
-
 // ───────────────────────────────────────────────────────────────────────────
 // L'index des renvois — de la numérotation ONT vers la numérotation reçue
 // ───────────────────────────────────────────────────────────────────────────
@@ -444,7 +443,10 @@ pub enum PlageBiblique {
     /// de séries puisqu'elle repart de ¹ à chaque frontière.
     Chapitres { premier: u32, dernier: u32 },
     /// `1:1 — 2:3` — la plage traverse une frontière de chapitre.
-    Traversee { depuis: (u32, u32), jusqu_a: (u32, u32) },
+    Traversee {
+        depuis: (u32, u32),
+        jusqu_a: (u32, u32),
+    },
 }
 
 /// Pourquoi une unité n'a pas pu être indexée.
@@ -470,8 +472,7 @@ static PLAGE_TRAVERSEE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^(\d+):(\d+)\s*[—–-]\s*(\d+):(\d+)$").unwrap());
 static PLAGE_VERSETS: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^(\d+):(\d+)\s*[—–-]\s*(\d+)$").unwrap());
-static PLAGE_CHAPITRES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(\d+)\s*[—–-]\s*(\d+)$").unwrap());
+static PLAGE_CHAPITRES: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\d+)\s*[—–-]\s*(\d+)$").unwrap());
 static PLAGE_CHAPITRE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\d+)$").unwrap());
 
 fn nombre(c: Option<regex::Match<'_>>) -> Option<u32> {
@@ -771,15 +772,25 @@ mod tests_de_l_index {
         // porte deux `:` et serait happée par elle.
         assert_eq!(
             lire_la_plage("18:1-33"),
-            Some(PlageBiblique::Versets { chapitre: 18, premier: 1, dernier: 33 })
+            Some(PlageBiblique::Versets {
+                chapitre: 18,
+                premier: 1,
+                dernier: 33
+            })
         );
         assert_eq!(
             lire_la_plage("1:1 — 2:3"),
-            Some(PlageBiblique::Traversee { depuis: (1, 1), jusqu_a: (2, 3) })
+            Some(PlageBiblique::Traversee {
+                depuis: (1, 1),
+                jusqu_a: (2, 3)
+            })
         );
         assert_eq!(
             lire_la_plage("7-8"),
-            Some(PlageBiblique::Chapitres { premier: 7, dernier: 8 })
+            Some(PlageBiblique::Chapitres {
+                premier: 7,
+                dernier: 8
+            })
         );
         assert_eq!(lire_la_plage("6"), Some(PlageBiblique::ChapitreEntier(6)));
         assert_eq!(lire_la_plage("n'importe quoi"), None);
@@ -813,7 +824,10 @@ mod tests_de_l_index {
         let versets: Vec<u32> = (1..=21).collect();
         assert_eq!(
             indexer(&plage, &versets),
-            Err(IndexRefuse::CompteDiscordant { attendu: 22, reel: 21 })
+            Err(IndexRefuse::CompteDiscordant {
+                attendu: 22,
+                reel: 21
+            })
         );
     }
 
