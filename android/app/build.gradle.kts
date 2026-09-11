@@ -112,10 +112,26 @@ android {
         // qu'on cherche du côté de l'authentification quand on ne connaît pas
         // la règle.
         //
-        // `versionName` est libre, lui : c'est ce que le lecteur lit, et rien
-        // ne l'oblige à suivre le compteur.
+        // `versionName` ne suit pas le compteur — c'est ce que le lecteur lit,
+        // et il a le droit de rester stable d'un build interne à l'autre.
+        //
+        // Mais il doit **bouger entre deux binaires téléversés**, et ça ne
+        // l'avait pas été : les versions 1 et 2 portent toutes deux « 0.1.0 ».
+        // Or c'est le seul numéro qui sorte jusqu'au testeur — la fiche Play,
+        // les réglages du téléphone et « À propos de cette application »
+        // n'affichent que lui, jamais le `versionCode`.
+        //
+        // Le 10 septembre 2026, une testeuse a signalé un défaut corrigé le
+        // 28 août. Savoir si elle l'avait déjà demandait de savoir laquelle des
+        // deux versions elle avait installée — et rien ne pouvait le dire, ni
+        // chez elle, ni sur son téléphone, ni dans ce dépôt. Seule la Play
+        // Console le savait, parce qu'elle est le seul écran qui montre le
+        // `versionCode`.
+        //
+        // Un numéro que le lecteur voit et qui ne distingue pas deux binaires
+        // ne renseigne personne : il ressemble à une version sans en être une.
         versionCode = numeroDeVersion()
-        versionName = "0.1.0"
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -185,6 +201,58 @@ tasks.register<Sync>("copierLesDonnees") {
     description = "Recopie le corpus produit par le pipeline dans les assets."
     from(donneesDuPipeline)
     into(File(assetsEngendres, "data"))
+
+    // ## Le guide de prononciation n'est pas lu par Android
+    //
+    // `corpus.sh` copie `dist/*.json` — un **glob**, pas une liste. Tout
+    // nouveau document du pipeline entre donc dans les ressources sans que
+    // personne l'ait décidé, et de là dans le paquet de tous les lecteurs.
+    //
+    // C'est ce qui vient d'arriver : `prononciation.json`, seize kilo-octets
+    // qu'iOS lit dans sept fichiers et qu'Android n'ouvre nulle part.
+    // `verifierLeCorpus` l'a arrêté — c'est exactement ce pour quoi il existe.
+    //
+    // On exclut plutôt que de l'inscrire aux connus : inscrire déclare qu'un
+    // lecteur existe, et ce serait faux.
+    //
+    // **C'est un écart de parité, pas une décision** — voir l'issue ouverte le
+    // 8 septembre. Le jour où Android saura le lire, cette ligne disparaît et
+    // le nom rejoint `connusDuCorpus`.
+    exclude("prononciation.json")
+
+    // ## Les chuqqot non plus — et c'est la seconde fois en trois jours
+    //
+    // `chuqqot.json` est arrivé le 10 septembre 2026. iOS en a un onglet entier
+    // — `ChuqqotFeature/Presentation/ChuqqotTab.swift`, six fichiers Swift —,
+    // Android n'a que le mot dans trois commentaires, dont un de `MainActivity`
+    // qui dit lui-même « les chuqqot n'ont pas encore d'écran ».
+    //
+    // Ce n'est plus un accident isolé : deux documents neufs du pipeline en
+    // trois jours, tous deux arrivés jusqu'aux ressources d'Android sans lecteur.
+    // Le glob de `corpus.sh` les fait entrer, et seul `verifierLeCorpus` les
+    // arrête. Le portage de cette garde en amont, décidé par l'auteur, vaut pour
+    // les trois clients à la fois — ici on ne peut que refuser la copie.
+    //
+    // **Écart de parité, pas décision.** Le jour où Android saura les lire,
+    // cette ligne disparaît.
+    exclude("chuqqot.json")
+    // **Les langues sources, même raison et même date qu'au-dessus.**
+    //
+    // `corpus.sh` embarque `sources/he-wlc` depuis le 11 septembre 2026, sur
+    // décision de l'auteur : l'hébreu n'est pas une langue source parmi
+    // d'autres, c'est la langue de presque tout le corpus, et le mettre à la
+    // demande revenait à mettre la fonctionnalité à la demande.
+    //
+    // Ce que le commentaire ci-dessous annonçait est donc arrivé, mot pour
+    // mot : une ligne ajoutée dans un script partagé, pour le bénéfice d'iOS,
+    // et 476 Ko qui atterrissent ici sans qu'aucune décision ait été prise de
+    // ce côté-ci. Android ne sait pas encore lire ce dossier — l'exclure est
+    // exact, l'embarquer serait mentir.
+    //
+    // **Écart de parité, pas décision.** Le jour où Android ouvrira le verset
+    // d'origine, ces deux lignes disparaissent et `sources` rejoint
+    // `connusDuCorpus`.
+    exclude("sources/**")
 }
 
 /**
@@ -239,6 +307,13 @@ val connusDuCorpus = setOf(
     "books", "corpus.json", "daily.json", "glossary.json",
     "manifest.json", "occurrences.json", "report.md", "search.json",
     "shemot.json",
+    // Exclus de la copie plutôt que lus — voir `copierLesDonnees`. Ils figurent
+    // ici pour que la garde ne redise pas ce qui est déjà tranché, et les
+    // commentaires des exclusions portent la raison.
+    "prononciation.json",
+    // Même traitement, même raison — voir `copierLesDonnees`.
+    "chuqqot.json",
+    "sources",
 )
 
 tasks.register("verifierLeCorpus") {

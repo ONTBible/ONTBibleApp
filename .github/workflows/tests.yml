@@ -100,6 +100,29 @@ jobs:
         working-directory: ONTBibleApp
         run: git ls-files -z '*.py' | xargs -0 python3 -m py_compile
 
+      # ## Et maintenant on les *lance*
+      #
+      # `epreuves.py` existait — quatre épreuves écrites le 31 août 2026 contre
+      # un faux App Store Connect, précisément pour les deux défauts que
+      # `py_compile` ne voit pas. **Aucun workflow ne les lançait.** Sa propre
+      # docstring donne la commande, et personne ne la tapait.
+      #
+      # C'est le même défaut, d'un cran au-dessus : l'instrument existait, il
+      # était exact, et il ne répondait à la question de personne. Un contrôle
+      # que rien n'appelle ne mesure rien — il donne seulement le sentiment
+      # d'être couvert.
+      #
+      # Le venv coûte quelques secondes : `asc.py` importe `jwt` et `requests`,
+      # que le runner n'a pas.
+      - name: Les scripts de livraison passent leurs épreuves
+        working-directory: ONTBibleApp
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv-epreuves"
+          "$RUNNER_TEMP/venv-epreuves/bin/pip" install --quiet -r .github/scripts/exigences.txt
+          "$RUNNER_TEMP/venv-epreuves/bin/python" -m unittest discover \
+            -s .github/scripts -p 'epreuves*.py'
+
       # ## Et les scripts shell, deux motifs, pas un de plus
       #
       # `bash -n` les lit, plus deux formes qui ont chacune coûté une livraison
@@ -123,6 +146,24 @@ jobs:
       - name: Les scripts shell ne portent pas les deux pièges connus
         working-directory: ONTBibleApp
         run: ./scripts/eprouver-les-scripts.sh
+
+      # ## Une feuille passe par le système de design, jamais par `.sheet` nu
+      #
+      # Le 8 septembre 2026, la feuille de prononciation s'ouvrait plein écran
+      # et sans poignée pendant que celle de lecture s'ouvrait à mi-hauteur.
+      # L'habillage existait ; il fallait y penser au point d'appel, et une
+      # feuille sur sept y pensait.
+      #
+      # L'habillage est maintenant porté par `ontFeuille`, mais un `.sheet` nu
+      # le contourne toujours. Ce contrôle est ce qui empêche la prochaine
+      # feuille de s'écrire à côté — l'écart ne se voit qu'en ouvrant les deux
+      # à la suite, sur un appareil, en y pensant.
+      #
+      # Comme les deux contrôles au-dessus, il ne connaît qu'une **forme**. Le
+      # fichier le dit lui-même en tête.
+      - name: Les feuilles passent par le système de design
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-les-feuilles.sh
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
@@ -400,3 +441,159 @@ jobs:
           }
           compter resultats "l'iPhone"
           compter resultats-mac "le Mac"
+
+  # ## Android n'était éprouvé nulle part
+  #
+  # Vingt-trois fichiers de test, une centaine et demie de cas, quatre-vingt-dix
+  # fichiers Kotlin — et **aucun ne tournait en intégration**. Le seul workflow
+  # Android construisait un paquet à la livraison, donc bien après le moment où
+  # une régression se répare.
+  #
+  # Ce que le tableau vert des PR disait, c'était l'état d'iOS. Le vert d'Android
+  # n'existait que sur la machine de qui l'avait lancé — et une session qui
+  # rapporte « 139 tests au vert » rapporte alors quelque chose que personne ne
+  # peut recontrôler.
+  #
+  # Trouvé par l'audit externe du 8 septembre (A12).
+  #
+  # ## Pourquoi un job à part, sur Linux
+  #
+  # Les tests d'Android sont des tests JVM : ils n'ont besoin ni de macOS ni de
+  # Xcode. Les greffer au job d'iOS les ferait attendre une compilation Swift
+  # complète pour rien, et les ferait tomber avec elle.
+  #
+  # ## Le corpus doit être là
+  #
+  # Trois épreuves lisent le corpus **réel** — la date du paquet, la collision
+  # des numéros de verset, le corpus vivant. Elles ne se contentent pas d'un
+  # échantillon : c'est tout leur intérêt. Il faut donc le vault et le pipeline,
+  # comme pour iOS.
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: L'app
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: ONTBibleApp
+
+      - name: Le vault
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ONTBible/ONTBibleTranslation
+          path: ONTBibleTranslation
+
+      - name: Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # ## Pourquoi pas `corpus.sh` directement
+      #
+      # Il finit par `xcodegen generate`, absent sur Linux. On rejoue donc ses
+      # trois étapes utiles — et **c'est un couplage** : le jour où il copiera
+      # autre chose, ce bloc restera en arrière sans que rien ne le dise. La
+      # liste est reprise mot pour mot, pour qu'un `diff` les rapproche.
+      #
+      # `engendrer` n'est pas optionnel : il écrit `Schema.kt`, qui n'est pas
+      # committé. Sans lui, rien ne compile.
+      - name: Le corpus et le schéma
+        working-directory: ONTBibleApp
+        env:
+          ONT_VAULT: ${{ github.workspace }}/ONTBibleTranslation
+        run: |
+          set -euo pipefail
+          # ## L'estampille se calcule ici, comme dans `corpus.sh`
+          #
+          # Sans `ONT_GENERE`, `config::genere()` rend une chaîne vide — et il a
+          # raison : une date mal formée serait pire qu'aucune. Le corpus sort
+          # alors sans estampille, et `DateDuPaquetTest` rougit en disant que la
+          # garde anti-rétrogradation ne garde plus rien.
+          #
+          # C'est ce qui est arrivé au premier jet de ce job : mon propre test a
+          # attrapé mon propre oubli, ce qui est exactement ce qu'on lui demande.
+          #
+          # `format-local` et non `format` : le second rendrait l'heure **du
+          # commit** avec un `Z` collé dessus — vingt signes, forme valide, deux
+          # heures de faux. Le recoupement par l'horodatage brut le refuse.
+          ONT_GENERE="$(TZ=UTC git -C "$ONT_VAULT" log -1 \
+            --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd)"
+          EPOCH="$(git -C "$ONT_VAULT" log -1 --format=%ct)"
+          TEMOIN="$(date -u -d "@$EPOCH" +%Y-%m-%dT%H:%M:%SZ)"
+          if [ "$ONT_GENERE" != "$TEMOIN" ]; then
+            echo "::error::l'estampille ne concorde pas — calculée $ONT_GENERE, attendue $TEMOIN"
+            exit 1
+          fi
+          export ONT_GENERE
+          echo "estampille : $ONT_GENERE"
+          cargo run --manifest-path pipeline/Cargo.toml --bin ont-pipeline --release --quiet
+          cargo run --manifest-path pipeline/Cargo.toml --bin engendrer --release --quiet
+          # `rm -rf` d'abord, comme `corpus.sh` : une copie par-dessus
+          # laisserait en place un livre retiré du vault.
+          rm -rf app/Resources/data
+          mkdir -p app/Resources/data
+          cp dist/*.json app/Resources/data/
+          cp -R dist/books app/Resources/data/
+
+      - name: Les tests
+        working-directory: ONTBibleApp/android
+        run: ./gradlew test --stacktrace
+
+      # Le compte, plutôt que le tampon. `BUILD SUCCESSFUL` s'affiche aussi
+      # quand aucune tâche de test n'a tourné — c'est arrivé plusieurs fois en
+      # local, et le rapport est le seul qui ne mente pas.
+      - name: Ce que les tests ont réellement mesuré
+        if: always()
+        working-directory: ONTBibleApp/android
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET, sys
+          t = f = e = 0
+          fichiers = glob.glob('*/build/test-results/**/TEST-*.xml', recursive=True)
+          for p in fichiers:
+              r = ET.parse(p).getroot()
+              t += int(r.get('tests', 0)); f += int(r.get('failures', 0)); e += int(r.get('errors', 0))
+          print(f"{t} tests dans {len(fichiers)} classes — {f} échecs, {e} erreurs")
+          if t == 0:
+              print("::error::aucun test n'a tourné — le vert ne veut rien dire")
+              sys.exit(1)
+          PY
+
+      # ## Le bundle de publication, parce que `test` ne le construit pas
+      #
+      # `./gradlew test` compile en **debug**, où R8 ne tourne pas. Un défaut qui
+      # n'existe qu'en release passe donc au vert ici — jusqu'au jour de la
+      # livraison, où il n'y a plus de marge.
+      #
+      # C'est arrivé le 3 septembre 2026. Le coffre à jetons (#208) a employé
+      # `EncryptedSharedPreferences` pour la première fois ; tink est entré dans
+      # le graphe de R8 avec ses annotations `com.google.errorprone.*`, absentes à
+      # l'exécution par construction ; et le bundle a cessé de se bâtir. **Sept
+      # jours**, sans que rien ne le dise, pendant que des testeurs attendaient
+      # une version. La CI était verte tout du long.
+      #
+      # Une dépendance déclarée mais inutilisée est invisible à R8 : il élague ce
+      # que personne n'atteint. C'est le jour où l'on s'en sert qu'elle amène
+      # toute sa surface avec elle — et ce jour-là n'est pas celui où on l'a
+      # ajoutée.
+      #
+      # Aucun secret n'est requis : sans magasin de clés, `signingConfig` vaut
+      # `null` et le bundle sort **non signé**. On ne le livre pas — on vérifie
+      # qu'il se construit, et c'est R8 qui nous intéresse.
+      - name: Le bundle de publication se construit-il
+        working-directory: ONTBibleApp/android
+        run: |
+          set -euo pipefail
+          ./gradlew :app:bundleRelease --stacktrace
+          # Le compte plutôt que le tampon, comme pour les tests : un `BUILD
+          # SUCCESSFUL` qui ne dépose aucun fichier resterait vert.
+          if [ ! -f app/build/outputs/bundle/release/app-release.aab ]; then
+            echo "::error::build vert, mais aucun bundle déposé"
+            exit 1
+          fi
+          echo "bundle déposé — $(du -h app/build/outputs/bundle/release/app-release.aab | cut -f1)"

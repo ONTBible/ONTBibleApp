@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -118,6 +119,12 @@ struct RacineMac: View {
         })
         // Les liens `ont://` arrivent par `DelegueMac`, et non par
         // `onOpenURL` : celui-ci fait naître une seconde fenêtre.
+        //
+        // **Le renvoi vers un livre absent répond ici aussi.** L'alerte ne
+        // vivait que dans `RootView` : sur le Mac, `livreIndisponible` se
+        // posait et rien ne s'affichait — le clic se lisait comme une panne.
+        // Une définition, deux racines — voir `AlerteDuLivreIndisponible`.
+        .alerteDuLivreIndisponible(router)
         .onAppear { rabattreCeQuiNExistePas() }
         .onChange(of: reading.corpora.count) { rabattreCeQuiNExistePas() }
         .apercuDeFiche(shemot: composition.shemotSurDisque)
@@ -175,6 +182,7 @@ struct RacineMac: View {
             case .you:
                 YouTab(onDailyChange: programmerLeVerset, onParutions: appliquerLesParutions)
             case .lexicon: LexiconTab()
+            case .chuqqot: ChuqqotTab()
             case .book(let id): BookTab(bookId: id)
             }
         }

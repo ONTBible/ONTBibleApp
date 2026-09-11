@@ -24,6 +24,7 @@ let package = Package(
         .library(name: "LexiconFeature", targets: ["LexiconFeature"]),
         .library(name: "SearchFeature", targets: ["SearchFeature"]),
         .library(name: "QahalFeature", targets: ["QahalFeature"]),
+        .library(name: "ChuqqotFeature", targets: ["ChuqqotFeature"]),
         .library(name: "YouFeature", targets: ["YouFeature"]),
     ],
     dependencies: [
@@ -40,6 +41,13 @@ let package = Package(
             .product(name: "ONTDesignSystem", package: "ONTDesignSystem"),
         ]),
         .target(name: "SearchFeature", dependencies: [
+            .product(name: "ONTKit", package: "ONTKit"),
+            .product(name: "ONTDesignSystem", package: "ONTDesignSystem"),
+        ]),
+        // Aucune dépendance de feature : un onglet qui ne sait rien des autres
+        // reste un onglet qu'on peut déplacer, replier ou retirer sans les
+        // toucher. Il en gagnera une le jour où un khuq renverra à un verset.
+        .target(name: "ChuqqotFeature", dependencies: [
             .product(name: "ONTKit", package: "ONTKit"),
             .product(name: "ONTDesignSystem", package: "ONTDesignSystem"),
         ]),

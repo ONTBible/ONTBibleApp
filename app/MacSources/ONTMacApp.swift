@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import LexiconFeature
 import ONTData
 import ONTDesignSystem
@@ -79,6 +80,7 @@ struct ONTMacApp: App {
                 .environment(etat.composition.reading)
                 .environment(etat.composition.lexicon)
                 .environment(etat.composition.search)
+                .environment(etat.composition.chuqqot)
                 .environment(etat.composition.qahal)
                 .environment(etat.composition.you)
                 .environment(etat.composition.account)
@@ -232,6 +234,8 @@ struct ONTMacApp: App {
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Lexique") { etat.composition.router.aller(a: .lexicon) }
                     .keyboardShortcut("4", modifiers: .command)
+                Button("Chuqqot") { etat.composition.router.aller(a: .chuqqot) }
+                    .keyboardShortcut("5", modifiers: .command)
 
                 Divider()
                 // ⌘[ est le retour de Safari, du Finder et de Xcode. On dépile

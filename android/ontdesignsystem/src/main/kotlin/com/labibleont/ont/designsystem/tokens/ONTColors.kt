@@ -91,6 +91,12 @@ public object ONTColors {
      */
     public val burntEarthLight: Color = Color(0xFFBA8C6C)
 
+    /** Sienne brûlée — un **renvoi** entre chuqqot, de jour. Teinte 21°. */
+    public val renvoiJour: Color = Color(0xFF953D0E)
+
+    /** Bronze — le même renvoi, de nuit. Teinte 31°. */
+    public val renvoiNuit: Color = Color(0xFFD08C43)
+
     // ─────────────────────────────────────────────────────────────────────
     // La nuit du site
     // ─────────────────────────────────────────────────────────────────────
@@ -162,6 +168,26 @@ public object ONTColors {
     /** La couleur d'un **Shem**, selon la peau. */
     public fun shem(theme: ReadingTheme): Color =
         if (theme.isDark) burntEarthLight else burntEarth
+
+    /**
+     * La couleur d'un **renvoi** entre chuqqot.
+     *
+     * **La teinte ne traverse pas les fonds**, et c'est le seul rôle dans ce
+     * cas. Sur fond clair il faut être sombre pour tenir le contraste, et c'est
+     * là que vit la terre brûlée des Shemot : deux bruns chauds ne peuvent pas
+     * occuper la même case de clarté. Sur fond sombre il faut être clair, l'or
+     * y est, mais un bronze plus saturé s'en écarte assez.
+     *
+     * Mesuré côté vault : de nuit, 226 valeurs tiennent les quatre écarts ; de
+     * jour, **aucune**. `#953D0E` est la teinte la plus proche du bronze qui
+     * passe sans rien abaisser — dix degrés d'écart.
+     *
+     * Contrastes relevés côté iOS : 6,54 / 7,11 / 6,53 / 6,94. **L'écart aux
+     * Shemot vaut 25 de nuit, exactement au plancher** : si l'une des deux
+     * couches bouge, c'est celle-là qui cassera en premier.
+     */
+    public fun renvoi(theme: ReadingTheme): Color =
+        if (theme.isDark) renvoiNuit else renvoiJour
 
     /**
      * L'encre d'un **titre** — plus vive que celle du corps.

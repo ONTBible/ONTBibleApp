@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import LexiconFeature
 import ONTDesignSystem
 import ONTKit
@@ -57,7 +58,11 @@ struct RootView: View {
         .tabViewSidebarBottomBar {
             LigneDuCompte { compteOuvert = true }
         }
-        .sheet(isPresented: $compteOuvert) {
+        // **Pleine, et c'est écrit.** Un compte se consulte de bout en bout —
+        // sessions, appareils, effacement — et il n'y a rien d'utile derrière
+        // lui à garder en vue. C'est la seule feuille de l'app dans ce cas, et
+        // c'est pour ça que la dérogation se lit au lieu de se deviner.
+        .ontFeuille(presentee: $compteOuvert, titre: "Compte", paliers: .pleine) {
             NavigationStack {
                 YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
             }
@@ -77,6 +82,26 @@ struct RootView: View {
         .ontNavigationChrome()
         // Toucher un intraduisible n'ouvre pas une page : ça soulève une fiche
         // par-dessus la lecture, qu'on referme sans perdre sa place.
+        // **La fiche d'un mot source, posée ici et nulle part ailleurs.**
+        //
+        // `ReadingFeature` ne dépend d'aucune autre feature et ne lit pas les
+        // fichiers du corpus : il reçoit une fonction et ne connaît qu'elle.
+        // C'est la composition qui sait où vivent les fiches, et c'est son
+        // rôle — elle existe pour ça.
+        .environment(\.ontFicheDunMot, { [lexique = composition.lexiqueSurDisque,
+                                          shemot = composition.shemotSurDisque] cible in
+            switch cible {
+            case .term(let lemma):
+                guard let e = (try? lexique.entries())?.first(where: { $0.lemma == lemma })
+                else { return nil }
+                return FicheAffichee(
+                    titre: e.title, hebreu: e.hebrew, definition: e.definition ?? [])
+            case .shem(let lemma):
+                guard let e = (try? shemot.entries())?.first(where: { $0.lemma == lemma })
+                else { return nil }
+                return FicheAffichee(titre: e.title, hebreu: nil, definition: e.definition ?? [])
+            }
+        })
         .environment(\.openURL, OpenURLAction { url in
             router.open(url) ? .handled : .systemAction
         })
@@ -109,7 +134,7 @@ struct RootView: View {
         // Un `#if` et non une intention de `ONTPlateformes` : ce n'est pas la
         // même chose nommée deux fois, c'est un autre geste. Le code doit
         // montrer qu'on a décidé.
-        .sheet(item: $router.openedLemma) { selection in
+        .ontFeuille(objet: $router.openedLemma, titre: "Terme") { selection in
             TermSheet(lemma: selection.id)
                 .ontTheme(from: reading.preferences)
         }
@@ -117,10 +142,17 @@ struct RootView: View {
         // vivent pas dans le même fichier, et une feuille commune devrait
         // deviner lequel des deux on vient de toucher — elle se tromperait pour
         // tout nom dont un concept porte le lemme.
-        .sheet(item: $router.openedShem) { selection in
+        .ontFeuille(objet: $router.openedShem, titre: "Shem") { selection in
             ShemSheet(lemma: selection.id, shemot: composition.shemotSurDisque)
                 .ontTheme(from: reading.preferences)
         }
+        // **Une référence qui ne mène nulle part répond quand même.**
+        //
+        // Le pourquoi de l'alerte — et pourquoi elle n'est plus écrite ici —
+        // vit avec elle, dans `AlerteDuLivreIndisponible.swift` : `RacineMac`
+        // la doit aussi, et une règle écrite dans une seule des deux racines
+        // est une règle qu'un écran finit par ne pas appliquer.
+        .alerteDuLivreIndisponible(router)
     }
 
     /// Le seul endroit qui connaît `UserNotifications`.
@@ -296,6 +328,21 @@ private struct OngletsFixes: TabContent {
         }
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
             LexiconTab()
+        }
+        // **Chuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
+        // Le féminin est délibéré : voir `ChuqqotTab`.
+        //
+        // Entre le Lexique et Vous, délibérément : ce qui se lit reste à
+        // gauche, ce qui vous appartient reste à droite. Le lexique explique
+        // les mots du corpus, les chuqqot en tirent ce qui oblige — les deux
+        // sont de la lecture, et ils se suivent.
+        //
+        // Cinquième onglet sur l'iPhone. La barre en accepte cinq ; au-delà
+        // iOS replierait le surplus derrière « Plus », ce qui enterrerait le
+        // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
+        // qu'on repense la barre entière.
+        Tab("Chuqqot", systemImage: "square.stack.3d.up.fill", value: Router.TabID.chuqqot) {
+            ChuqqotTab()
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
         //

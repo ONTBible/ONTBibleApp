@@ -78,6 +78,8 @@ targets:
       - package: ONTFeatures
         product: LexiconFeature
       - package: ONTFeatures
+        product: ChuqqotFeature
+      - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
         product: QahalFeature
@@ -88,6 +90,27 @@ targets:
       - path: Sources
       - path: Resources
         buildPhase: resources
+        # **Les sources sortent de la phase ordinaire**, et il le faut.
+        #
+        # `buildPhase: resources` **aplatit** l'arborescence : chaque fichier
+        # atterrit à la racine du paquet, sous son seul nom de base. Le corpus
+        # s'en accommode depuis toujours — `books/bereshit.json` devient
+        # `bereshit.json` et le lecteur du bundle le cherche ainsi.
+        #
+        # Les langues sources ont brisé ça le 11 septembre 2026, au premier
+        # build : `sources/he-wlc/bereshit.json` porte **le même nom de base**
+        # que le livre. Xcode refuse — « Multiple commands produce … » — et la
+        # compilation s'arrête pour tout le monde, pas seulement pour qui
+        # ouvre la feuille.
+        #
+        # Une référence de dossier préserve les chemins. C'est aussi une garde
+        # pour la suite : le jour où un témoin grec arrive avec les mêmes noms
+        # de livres, il n'entrera en collision avec rien.
+        excludes:
+          - "data/sources"
+          - "data/sources/**"
+      - path: Resources/data/sources
+        type: folder
     postBuildScripts:
       # Le dSYM est apparié au binaire par UUID : celui d'un autre build ne
       # symbolise rien. Le téléversement doit donc vivre dans le build qui
@@ -149,9 +172,21 @@ targets:
         # numéro que le public verra ; ce qui manque est un **rappel**, pas une
         # automatisation.
         #
+        # **Troisième fois le 8 septembre 2026**, 1.0.5 approuvée. Trois
+        # occurrences en quinze jours : le constat était juste et la phrase
+        # « ce qui manque est un rappel » y est restée écrite sans que
+        # personne ne l'écrive. Un texte qui nomme ce qui manque ne le
+        # fournit pas.
+        #
+        # Le rappel existe maintenant, et il est en amont de la dépense :
+        # `livraison.yml` demande à GitHub si une release porte déjà cette
+        # version — `publier-la-version.yml` en crée une à chaque version qui
+        # atteint `app-store` — et s'arrête avant de compiler plutôt qu'au
+        # téléversement, une archive signée plus tard.
+        #
         # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
         # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -269,7 +304,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
@@ -316,6 +351,8 @@ targets:
       - package: ONTFeatures
         product: LexiconFeature
       - package: ONTFeatures
+        product: ChuqqotFeature
+      - package: ONTFeatures
         product: SearchFeature
       - package: ONTFeatures
         product: QahalFeature
@@ -342,6 +379,21 @@ targets:
       - path: MacSources
       - path: Resources
         buildPhase: resources
+        # **La même exclusion que sur iOS**, et pour la même raison.
+        #
+        # Je ne l'avais posée que sur une des deux cibles. La CI l'a dit tout
+        # de suite — « Multiple commands produce … Contents/Resources/
+        # bereshit.json » —, et elle avait raison de rougir : `sources/he-wlc/
+        # bereshit.json` et `books/bereshit.json` portent le même nom de base,
+        # que la phase de ressources aplatit à la racine.
+        #
+        # Une correction posée à un seul endroit dans un dépôt qui en a deux
+        # n'est pas une correction : c'est une moitié qui ressemble à un tout.
+        excludes:
+          - "data/sources"
+          - "data/sources/**"
+      - path: Resources/data/sources
+        type: folder
     info:
       path: Info-Mac.plist
       properties:
@@ -372,7 +424,7 @@ targets:
         # juste — d'où un défaut visible partout sauf là où on l'avait vérifié.
         CFBundleName: La Bible ONT
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0.5"
+        CFBundleShortVersionString: "1.0.6"
         CFBundleVersion: "1"
         # Le même contrat de lien public que sur iOS.
         ONTWebBaseURL: https://ontbible.com

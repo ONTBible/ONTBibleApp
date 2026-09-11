@@ -87,7 +87,7 @@ struct EstampilleTests {
     func lePublieVieuxNeGagnePas() async throws {
         let m = self.updater(
             embarquee: "2026-08-30T00:14:00Z",
-            publie: #"{"schema":2,"genere":"2026-08-27T09:00:00Z","fichiers":{"glossaire":{"chemin":"g.abc.json","empreinte":"abc","octets":2}},"livres":{}}"#,
+            publie: #"{"schema":2,"genere":"2026-08-27T09:00:00Z","fichiers":{"glossaire":{"chemin":"g.44136fa355b3.json","empreinte":"44136fa355b3","octets":2}},"livres":{}}"#,
             fichier: Data("{}".utf8))
         #expect(try await m.synchroniser() == 0)
     }
@@ -100,7 +100,7 @@ struct EstampilleTests {
     func lIndatableEstRefuse() async throws {
         let m = self.updater(
             embarquee: "2026-08-30T00:14:00Z",
-            publie: #"{"schema":2,"genere":"","fichiers":{"glossaire":{"chemin":"g.abc.json","empreinte":"abc","octets":2}},"livres":{}}"#,
+            publie: #"{"schema":2,"genere":"","fichiers":{"glossaire":{"chemin":"g.44136fa355b3.json","empreinte":"44136fa355b3","octets":2}},"livres":{}}"#,
             fichier: Data("{}".utf8))
         #expect(try await m.synchroniser() == 0)
     }
@@ -108,16 +108,62 @@ struct EstampilleTests {
     /// Symétrique, et il faut y tenir : sans lui, un `return 0` inconditionnel
     /// passerait les deux tests ci-dessus en fanfare. Une garde qui refuse tout
     /// n'est pas une garde, c'est une panne.
+    /// **Le montage porte une vraie empreinte, et il l'a fallu.**
+    ///
+    /// Il déclarait `"empreinte":"abc"` pour un contenu `{}`. L'épreuve passait
+    /// — l'actualiseur ne vérifiait que la taille — et affirmait donc qu'un
+    /// téléchargement réussissait dans une situation qui, en production, aurait
+    /// voulu dire que le serveur avait rendu autre chose que le fichier
+    /// demandé.
+    ///
+    /// Un montage faux qui rend le résultat attendu ne se remarque jamais. Il
+    /// ne s'est vu qu'en posant le contrôle d'empreinte, qui l'a fait rougir.
     @Test("un corpus publié plus récent est bien accepté")
     func leNeufPasse() async throws {
         let m = self.updater(
             embarquee: "2026-08-27T09:00:00Z",
             publie: #"""
                 {"schema":2,"genere":"2026-08-30T00:14:00Z",
-                 "fichiers":{"glossaire":{"chemin":"g.abc.json","empreinte":"abc","octets":2}},
+                 "fichiers":{"glossaire":{"chemin":"g.44136fa355b3.json","empreinte":"44136fa355b3","octets":2}},
                  "livres":{}}
                 """#,
             fichier: Data("{}".utf8))
+        #expect(try await m.synchroniser() == 1)
+    }
+
+    // MARK: - L'empreinte du fichier reçu
+
+    /// **Un fichier qui n'est pas celui qu'on a demandé est refusé.**
+    ///
+    /// Le manifeste annonce l'empreinte de `{}` ; le serveur rend `[]`. Même
+    /// longueur — deux octets —, donc l'ancien contrôle laissait passer : il ne
+    /// comparait que la taille, et son commentaire l'appelait « somme de
+    /// contrôle du pauvre ».
+    ///
+    /// C'est le cas réel qu'il faut fermer : un cache qui sert le mauvais livre
+    /// sous le bon nom, ou un fichier abîmé qui garde sa taille. Le corpus
+    /// resterait alors sur le disque, faux et sans le dire, jusqu'au prochain
+    /// changement de ce livre-là — c'est-à-dire peut-être jamais.
+    @Test("un fichier dont l'empreinte ne correspond pas n'est pas posé")
+    func empreinteQuiNeCorrespondPas() async throws {
+        let m = self.updater(
+            embarquee: "2026-08-27T09:00:00Z",
+            publie: #"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.44136fa355b3.json","empreinte":"44136fa355b3","octets":2}},"livres":{}}"#,
+            // `[]` fait deux octets comme `{}`, et n'a pas la même empreinte.
+            fichier: Data("[]".utf8))
+        // Zéro remplacé : le fichier a été téléchargé, pesé, et **jeté**.
+        #expect(try await m.synchroniser() == 0)
+    }
+
+    /// Et l'inverse, pour que l'épreuve ci-dessus prouve quelque chose : avec la
+    /// bonne empreinte, le même montage pose bien le fichier. Sans ce pendant,
+    /// « zéro remplacé » pourrait venir de n'importe quoi d'autre.
+    @Test("la bonne empreinte, elle, laisse poser le fichier")
+    func empreinteQuiCorrespond() async throws {
+        let m = self.updater(
+            embarquee: "2026-08-27T09:00:00Z",
+            publie: #"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.4f53cda18c2b.json","empreinte":"4f53cda18c2b","octets":2}},"livres":{}}"#,
+            fichier: Data("[]".utf8))
         #expect(try await m.synchroniser() == 1)
     }
 
@@ -206,9 +252,46 @@ struct EstampilleTests {
     func lEmbarqueeIllisibleRefuse() async throws {
         let m = self.updater(
             embarquee: nil,
-            publie: #"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.abc.json","empreinte":"abc","octets":2}},"livres":{}}"#,
+            publie: #"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.44136fa355b3.json","empreinte":"44136fa355b3","octets":2}},"livres":{}}"#,
             fichier: Data("{}".utf8))
         #expect(try await m.synchroniser() == 0)
+    }
+
+    // MARK: - L'estampille ne parle que d'un manifeste entier
+
+    /// **Un téléchargement partiel ne date pas le dossier.**
+    ///
+    /// Le manifeste annonce deux fichiers ; le serveur n'en rend qu'un — le
+    /// second n'a pas la bonne empreinte, donc il est jeté. Un fichier a bien
+    /// été posé, mais le dossier mêle alors deux générations.
+    ///
+    /// L'estampille ne dit pas « ce fichier-ci vient du tant », elle dit « le
+    /// dossier porte la génération du tant ». L'écrire ici la ferait mentir —
+    /// et le mensonge durerait, puisque c'est elle que la purge compare : une
+    /// estampille trop neuve empêche d'écarter le corpus mêlé.
+    ///
+    /// Relevé par un audit externe le 8 septembre 2026.
+    @Test("un manifeste à moitié posé ne laisse pas d'estampille")
+    func manifestePartielNeDatePas() async throws {
+        let dossier = FileManager.default.temporaryDirectory
+            .appendingPathComponent("partiel-\(UUID().uuidString)", isDirectory: true)
+        FauxReseau.reponses = [
+            "manifeste.json": Data(#"{"schema":2,"genere":"2026-08-30T00:14:00Z","fichiers":{"glossaire":{"chemin":"g.4f53cda18c2b.json","empreinte":"4f53cda18c2b","octets":2},"quotidien":{"chemin":"q.deadbeef0000.json","empreinte":"deadbeef0000","octets":2}},"livres":{}}"#.utf8)
+        ]
+        // Le même contenu pour les deux : il satisfait la première empreinte,
+        // jamais la seconde.
+        FauxReseau.parDefaut = Data("[]".utf8)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FauxReseau.self]
+        let m = CorpusUpdater(
+            origine: URL(string: "https://exemple.invalide/corpus/")!,
+            dossier: dossier,
+            session: URLSession(configuration: config),
+            estampilleEmbarquee: CorpusUpdater.Estampille("2026-08-27T09:00:00Z"))
+
+        #expect(try await m.synchroniser() == 1)
+        let estampille = dossier.appendingPathComponent("estampille.txt")
+        #expect(!FileManager.default.fileExists(atPath: estampille.path))
     }
 }
 

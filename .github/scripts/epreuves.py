@@ -27,6 +27,7 @@ import asc
 import beta
 import fiche
 import soumettre
+import version_libre
 
 
 class Reponse:
@@ -267,6 +268,79 @@ class LaFicheDesMagasins(unittest.TestCase):
         self.assertIn("APP_DESKTOP", fiche.FORMATS["MAC_OS"].values())
         self.assertNotIn("APP_DESKTOP", fiche.FORMATS["IOS"].values())
 
+
+
+def version(numero, etat):
+    return {"id": f"v-{numero}", "attributes":
+            {"versionString": numero, "appStoreState": etat}}
+
+
+class LeNumeroPublic(unittest.TestCase):
+    """`version_libre` — ce qui arrête la livraison, et ce qui la laisse passer.
+
+    Trois livraisons sont mortes en quinze jours faute de ce contrôle, et chaque
+    fois après la compilation et la signature de l'archive. Ce qui se mesure ici
+    est le **choix de la branche** : un état trop large bloquerait la correction
+    qu'un rejet appelle, un état trop étroit laisserait repartir la dépense.
+    """
+
+    def test_une_version_approuvee_arrete_tout(self):
+        client = FauxClient({"appStoreVersions": {
+            "data": [version("1.0.5", "READY_FOR_SALE")]}})
+
+        with self.assertRaises(SystemExit) as leve:
+            taire(lambda: version_libre.verifier(client, "app-1", "1.0.5", "IOS"))
+
+        self.assertIn("1.0.5", str(leve.exception))
+        self.assertIn("READY_FOR_SALE", str(leve.exception))
+
+    def test_en_attente_de_mise_en_vente_arrete_aussi(self):
+        """Le cas de l'auteur : Apple a validé, la version n'est pas encore en
+        vente. Le numéro est acquis quand même — c'est précisément l'état où
+        l'approbation « arrive sans prévenir »."""
+        client = FauxClient({"appStoreVersions": {
+            "data": [version("1.0.5", "PENDING_DEVELOPER_RELEASE")]}})
+
+        with self.assertRaises(SystemExit):
+            taire(lambda: version_libre.verifier(client, "app-1", "1.0.5", "IOS"))
+
+    def test_une_version_rejetee_laisse_passer(self):
+        """**Le défaut inverse, et il coûterait plus cher.** Un rejet appelle un
+        build de correction sous le même numéro public. Bloquer là empêcherait
+        exactement le geste qui répare — et c'est ce que ferait un contrôle
+        appuyé sur les releases GitHub, qui existent dès la soumission."""
+        for etat in ("PREPARE_FOR_SUBMISSION", "REJECTED", "DEVELOPER_REJECTED",
+                     "METADATA_REJECTED", "WAITING_FOR_REVIEW", "IN_REVIEW"):
+            with self.subTest(etat=etat):
+                client = FauxClient({"appStoreVersions": {
+                    "data": [version("1.0.6", etat)]}})
+                taire(lambda: version_libre.verifier(client, "app-1", "1.0.6", "IOS"))
+
+    def test_un_numero_inconnu_dApple_laisse_passer(self):
+        client = FauxClient()
+        taire(lambda: version_libre.verifier(client, "app-1", "9.9.9", "IOS"))
+
+    def test_la_plateforme_est_dans_la_requete(self):
+        """Le Mac et l'iOS portent des versions distinctes chez Apple. Sans ce
+        filtre, la livraison macOS s'arrêterait sur une version iOS approuvée —
+        un instrument exact qui répond à une autre question."""
+        client = FauxClient()
+        taire(lambda: version_libre.verifier(client, "app-1", "1.0.6", "MAC_OS"))
+
+        chemin, params = client.demandes[0]
+        self.assertEqual(chemin, "apps/app-1/appStoreVersions")
+        self.assertEqual(params.get("filter[platform]"), "MAC_OS")
+        self.assertEqual(params.get("filter[versionString]"), "1.0.6")
+
+    def test_la_version_se_lit_dans_le_project_yml(self):
+        """La première `CFBundleShortVersionString` du fichier est celle de la
+        cible `ONT` — l'app iOS, la seule qui aille à l'App Store."""
+        racine = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        lue = version_libre.version_du_projet(
+            os.path.join(racine, "app", "project.yml"))
+
+        self.assertRegex(lue, r"^\d+\.\d+\.\d+$")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

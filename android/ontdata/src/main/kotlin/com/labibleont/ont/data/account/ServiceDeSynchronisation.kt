@@ -172,11 +172,9 @@ internal fun MarqueDto.versDomaine(): Highlight = Highlight(
     bookId = bookId,
     chapterId = chapterId,
     verse = verse,
-    // La couleur inconnue retombe sur l'or, et **le disque la réécrira** :
-    // voir `HighlightColor.depuis`. Tant que la synchronisation n'a pas tranché
-    // la question, ce chemin-ci est celui par lequel le rétrécissement
-    // atteindrait le serveur.
+    // La teinte pour afficher, la clé reçue pour la renvoyer intacte.
     color = HighlightColor.depuis(color),
+    cleDOrigine = color.takeIf { c -> HighlightColor.entries.none { it.cle == c } },
     note = note,
     updatedAt = Instant.ofEpochMilli(updatedAt),
     deleted = deleted,
@@ -187,7 +185,7 @@ internal fun Highlight.versDto(): MarqueDto = MarqueDto(
     bookId = bookId,
     chapterId = chapterId,
     verse = verse,
-    color = color.cle,
+    color = cleDOrigine ?: color.cle,
     note = note,
     updatedAt = updatedAt.toEpochMilli(),
     deleted = deleted,

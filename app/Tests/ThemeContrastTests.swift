@@ -42,6 +42,39 @@ struct ThemeContrastTests {
         return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
     }
 
+    /// L'écart perceptuel entre deux couleurs, en CIE Lab — ΔE 76.
+    ///
+    /// **Le contraste ne suffit pas ici.** Deux bruns chauds peuvent tenir le
+    /// même rapport au fond et rester indiscernables l'un de l'autre : le
+    /// contraste mesure la distance à l'arrière-plan, pas la distance entre
+    /// deux marquages. C'est ΔE qui répond à « le lecteur les distingue-t-il
+    /// dans le même paragraphe ».
+    ///
+    /// Formule de 1976 et non CIEDE2000 : le projet a fixé son plancher de 25
+    /// sur cette échelle-là, et changer de règle en gardant le nombre le
+    /// rendrait faux sans que rien ne le dise.
+    private func ecartLab(_ a: Color, _ b: Color) -> Double {
+        func lab(_ c: Color) -> (Double, Double, Double) {
+            let p = composantes(c)
+            func canal(_ v: Double) -> Double {
+                v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+            }
+            let (r, g, bl) = (canal(p.r), canal(p.g), canal(p.b))
+            let x = (0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047
+            let y = 0.2126 * r + 0.7152 * g + 0.0722 * bl
+            let z = (0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883
+            func f(_ t: Double) -> Double {
+                t > 0.008856 ? pow(t, 1.0 / 3.0) : 7.787 * t + 16.0 / 116.0
+            }
+            let (fx, fy, fz) = (f(x), f(y), f(z))
+            return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+        }
+        let (l1, a1, b1) = lab(a)
+        let (l2, a2, b2) = lab(b)
+        return ((l1 - l2) * (l1 - l2) + (a1 - a2) * (a1 - a2) + (b1 - b2) * (b1 - b2))
+            .squareRoot()
+    }
+
     private func composantes(_ couleur: Color) -> (r: Double, g: Double, b: Double, alpha: Double) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         UIColor(couleur).getRed(&r, green: &g, blue: &b, alpha: &a)
@@ -167,6 +200,39 @@ struct ThemeContrastTests {
     func shemOnBackground(_ theme: ReadingTheme) {
         let mesure = contraste(ONTColors.shem(theme), sur: ONTColors.background(theme))
         #expect(mesure >= 4.5, "\(theme.label) : Shem à \(arrondi(mesure)):1, seuil AA 4,5:1")
+    }
+
+    /// **Un renvoi tient les mêmes exigences qu'un Shem**, et un écart de plus.
+    ///
+    /// Les deux vivent dans le même paragraphe : un nom propre et un renvoi vers
+    /// une autre chuqqah. S'ils se ressemblent, le lecteur croit toucher un
+    /// porteur et arrive sur un énoncé.
+    ///
+    /// Les valeurs viennent du vault, qui a mesuré 226 candidats de nuit et
+    /// **aucun** de jour — sur fond clair il faut être sombre pour tenir le
+    /// contraste, et c'est là que vit la terre brûlée. Remesurées ici sur nos
+    /// fonds, elles donnent 6,54 / 7,11 / 6,53 / 6,94.
+    @Test("le renvoi se détache du fond", arguments: ReadingTheme.allCases)
+    func renvoiOnBackground(_ theme: ReadingTheme) {
+        let mesure = contraste(ONTColors.renvoi(theme), sur: ONTColors.background(theme))
+        #expect(mesure >= 6.5, "\(theme.label) : renvoi à \(arrondi(mesure)):1, plancher 6,5:1")
+    }
+
+    /// **Et surtout : il ne se confond pas avec un Shem.**
+    ///
+    /// C'est l'écart qui compte le plus, et le plus serré — 27 le jour, **25 la
+    /// nuit, exactement au plancher**. Si l'une des deux couches bouge, c'est
+    /// celle-là qui cassera en premier, et cette épreuve est ce qui le dira.
+    ///
+    /// Le seuil de 25 vient du §2.10 : en deçà, deux marquages chauds cessent
+    /// de se distinguer dans un même paragraphe. Un bronze qui tombait à 21 a
+    /// été mesuré puis **refusé** pour cette raison.
+    @Test("un renvoi ne se confond pas avec un Shem", arguments: ReadingTheme.allCases)
+    func renvoiDistinctDuShem(_ theme: ReadingTheme) {
+        let ecart = ecartLab(ONTColors.renvoi(theme), ONTColors.shem(theme))
+        #expect(
+            ecart >= 25,
+            "\(theme.label) : renvoi et Shem à ΔE \(arrondi(ecart)), plancher 25")
     }
 
     /// **Et il se range au niveau du bordeaux, pas au minimum d'AA.**

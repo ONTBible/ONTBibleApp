@@ -50,6 +50,19 @@ fn main() {
                 ),
                 None => println!("Densité    aucun chapitre mesuré"),
             }
+            // **L'épreuve des plages à cheval, avec son dénominateur.**
+            //
+            // `renvois::interne` déduit la longueur du premier chapitre d'une
+            // plage « 1:1 — 2:3 » au lieu de la lire, et cette déduction ne
+            // peut pas voir qu'une unité a réuni deux versets. Cette ligne dit
+            // combien de ces déductions ont été confrontées au témoin — et
+            // surtout combien ne l'ont pas été, faute de source : sans ce
+            // second chiffre, un contrôle qui n'a rien regardé rend la même
+            // sortie qu'un contrôle qui a tout vérifié.
+            println!(
+                "Plages     {} à cheval confrontées au témoin, {} non mesurées",
+                r.plages_mesurees, r.plages_non_mesurees
+            );
             println!("Sortie     {} Ko", r.bytes / 1024);
         }
         Err(message) => {

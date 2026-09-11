@@ -101,8 +101,13 @@ fn doc(sortie: &mut String, lignes: &[String], retrait: &str) {
 pub fn emettre(modele: &Modele) -> String {
     let mut sortie = String::new();
 
+    // La marque est celle que `emissions::aspirer` reconnaît pour écarter ce
+    // fichier du source des liseuses : il est engendré, il ne prouve aucune
+    // lecture. Elle vient de `schema.rs` pour qu'il n'en existe qu'un seul
+    // exemplaire.
+    sortie.push_str(crate::schema::MARQUE_ENGENDRE);
     sortie.push_str(
-        "// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.\n\
+        "\n\
          //\n\
          // Source : pipeline/src/schema.rs\n\
          // Producteur : cargo run --bin engendrer\n\
@@ -350,10 +355,26 @@ fn enumeration_etiquetee(sortie: &mut String, e: &Enumeration, etiquette: &str) 
                 .champs
                 .iter()
                 .map(|c| {
+                    // **Un optionnel se lit avec `decodeIfPresent`, et lui
+                    // seul.** Le `Decodable` que Swift synthétise le fait tout
+                    // seul — d'où le commentaire, plus haut, qui dit que les
+                    // optionnels vont bien. Mais une variante d'enum tagué n'a
+                    // pas de synthèse : son décodeur s'écrit toujours, et un
+                    // `decode(T?.self, forKey:)` écrit à la main lève
+                    // `keyNotFound` quand la clé manque au lieu de rendre
+                    // `nil`. Mesuré sur `{"a":"x"}`.
+                    //
+                    // Le champ escamoté est le cas *ordinaire* — la `cible` du
+                    // niveau 3 manque sur 1117 translittérations sur 1748 —,
+                    // donc la faute n'aurait pas raté un nœud : elle aurait
+                    // fait échouer le décodage du corpus entier.
+                    let (verbe, type_) = match &c.type_ {
+                        Type::Optionnel(inner) => ("decodeIfPresent", swift_type(inner)),
+                        autre => ("decode", swift_type(autre)),
+                    };
                     format!(
-                        "                    {}: try container.decode({}.self, forKey: .{})",
+                        "                    {}: try container.{verbe}({type_}.self, forKey: .{})",
                         echapper(&c.cle),
-                        swift_type(&c.type_),
                         echapper(&c.cle)
                     )
                 })
@@ -526,6 +547,38 @@ mod tests {
         let s = rendu("pub struct Book { pub id: String, pub chapters: Vec<Chapter> }");
         assert!(!s.contains("CodingKeys"), "{s}");
         assert!(!s.contains("init(from decoder"), "{s}");
+    }
+
+    #[test]
+    fn un_optionnel_dans_une_variante_se_decode_absent() {
+        // **Le synthétisé et l'écrit à la main ne se comportent pas pareil.**
+        // Le `Decodable` que Swift engendre lit un `Optional` avec
+        // `decodeIfPresent` ; un `try container.decode(T?.self, forKey:)`
+        // écrit à la main lève `keyNotFound` quand la clé manque. Mesuré :
+        // `{"a":"x"}` sur un décodeur écrit ainsi lève, il ne rend pas `nil`.
+        //
+        // Les variantes d'enum passent toujours par le décodeur écrit — il n'y
+        // a pas de synthèse possible pour un enum tagué. Un champ optionnel
+        // dans une variante devait donc s'écrire autrement, et ne le faisait
+        // pas : le premier — la `cible` du niveau 3, absente sur 1117
+        // translittérations — aurait fait échouer le décodage du corpus entier.
+        let s = rendu(
+            r#"
+            #[serde(tag = "t", rename_all = "lowercase")]
+            pub enum I {
+                Translit {
+                    translit: String,
+                    #[serde(default, skip_serializing_if = "Option::is_none")]
+                    cible: Option<String>,
+                },
+            }
+        "#,
+        );
+        assert!(
+            s.contains("decodeIfPresent(String?.self, forKey: .cible)")
+                || s.contains("decodeIfPresent(String.self, forKey: .cible)"),
+            "{s}"
+        );
     }
 
     #[test]

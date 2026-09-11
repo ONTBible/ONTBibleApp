@@ -40,6 +40,14 @@ public struct BookTab: View {
                     }
                 }
         }
-        .ontColumn()
+        // Pleine largeur pendant la lecture, pour la même raison que dans
+        // `BibleTab` : le pli du glissement est le bord de la page, et il ne
+        // part de l'extrémité de l'écran que si la page y arrive.
+        .ontColumn(bornee: !enLecture)
+    }
+
+    private var enLecture: Bool {
+        if case .chapter = path.last { return true }
+        return false
     }
 }

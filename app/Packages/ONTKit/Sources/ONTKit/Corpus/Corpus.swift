@@ -111,6 +111,24 @@ public enum LibelleDUnite {
         french ? "Chapitre \(n)" : "Parashah \(n)"
     }
 
+    /// **Le rang seul, pour la pastille de la barre de lecture.**
+    ///
+    /// « Bereshit · 1 » plutôt que « Bereshit · Parashah 1 ». Le mot entier est
+    /// juste et il coûte cher : il partage la place de tête avec le bouton de
+    /// retour, et ce qu'il occupe ne peut plus servir à autre chose.
+    ///
+    /// Or il y a mieux à y mettre. L'auteur : « pas besoin de mettre parashah
+    /// en entier, mets juste le numéro, comme ça tu peux afficher la plage de
+    /// versets quand ils sont sélectionnés ». Ce que le lecteur a désigné lui
+    /// est plus utile que le nom de la division — qu'il connaît déjà, puisqu'il
+    /// l'a choisi dans ses réglages.
+    ///
+    /// Le mot entier reste partout ailleurs : sommaire, sélecteur de renvoi,
+    /// titre de l'unité. Cette abréviation ne vaut que là où la place manque.
+    public static func rangCourt(_ n: Int) -> String {
+        "\(n)"
+    }
+
     /// Le nom de l'unité, seul — « chapitre » ou « parashah ».
     ///
     /// En minuscules : c'est un nom commun, et il paraît le plus souvent au

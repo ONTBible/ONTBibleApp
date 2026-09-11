@@ -118,22 +118,42 @@ mkdir -p app/Resources/data
 # pipeline se met à produire, sans que personne l'ait décidé. La liste nommée
 # est donc la décision, et non une commodité.
 #
-# **`dist/sources/` n'est pas ici, et c'est délibéré.** Les langues sources —
-# hébreu, grec, guèze, latin — se téléchargent à la demande : plusieurs dizaines
-# de mégaoctets pour un corpus complet, que la plupart des lecteurs ne
-# consulteront jamais. Les embarquer gonflerait le paquet des deux plateformes
-# pour un usage minoritaire, et le contrat arrêté le 7 septembre 2026 dit
-# l'inverse.
+# **`dist/sources/` voyage à moitié, et la moitié est nommée.**
 #
-# L'exclusion était déjà vraie avant cette ligne, par le simple fait que
-# personne ne l'avait ajoutée. Elle est maintenant **écrite** : une absence
-# déduite se comble un jour par mégarde, une absence motivée s'interroge.
+# Le contrat du 7 septembre 2026 les excluait toutes : hébreu, grec, guèze,
+# latin se téléchargeraient à la demande, plusieurs dizaines de mégaoctets pour
+# un corpus complet que la plupart des lecteurs n'ouvriraient jamais.
+#
+# **Amendé par l'auteur le 11 septembre 2026**, et l'amendement tient à une
+# asymétrie que le contrat traitait comme une symétrie : *l'hébreu n'est pas une
+# langue source parmi d'autres*. C'est la langue de la quasi-totalité du corpus
+# ONT — c'est lui qu'on ouvre en touchant un verset, pas le latin. Le mettre à
+# la demande, c'est mettre la fonctionnalité elle-même à la demande.
+#
+# Donc : `he-wlc` embarque, le reste se télécharge. 476 Ko aujourd'hui pour
+# Bereshit, quelques mégaoctets quand les soixante-dix livres seront traduits —
+# le prix d'une langue, pas de quatre.
+#
+# Le manifeste voyage avec, et il le faut : sans lui, la liseuse ne sait ni
+# quels témoins existent, ni comment les nommer à l'écran.
+#
+# L'exclusion était déjà vraie avant d'être écrite, par le simple fait que
+# personne ne l'avait ajoutée. Une absence déduite se comble un jour par
+# mégarde ; une absence motivée s'interroge — et celle-ci vient de l'être.
 #
 # Côté Android, la garde `verifierLeCorpus` refuse ce qui arrive ici sans
 # lecteur. Elle ne surveille pas ce que le pipeline produit — elle surveille ce
 # que ces deux lignes décident de faire traverser.
 cp dist/*.json app/Resources/data/
 cp -R dist/books app/Resources/data/
+# L'hébreu seul — voir plus haut. `-R` sur le dossier nommé, jamais sur
+# `dist/sources/` entier : le jour où un témoin grec arrive, il ne doit pas
+# entrer dans le paquet parce que personne n'a relu cette ligne.
+if [ -d dist/sources/he-wlc ]; then
+  mkdir -p app/Resources/data/sources
+  cp dist/sources/manifeste.json app/Resources/data/sources/
+  cp -R dist/sources/he-wlc app/Resources/data/sources/
+fi
 
 echo "→ le projet Xcode"
 (cd app && xcodegen generate)

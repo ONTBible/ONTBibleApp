@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -32,6 +34,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextLayoutResult
 import com.labibleont.ont.designsystem.text.ONTTextRenderer
 import com.labibleont.ont.designsystem.text.pointille
+import com.labibleont.ont.designsystem.text.plagesDeReference
+import com.labibleont.ont.designsystem.text.pointilleDesReferences
+import com.labibleont.ont.designsystem.text.soulignerLesReferences
 import com.labibleont.ont.designsystem.text.soulignerEnPointille
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
@@ -87,6 +92,21 @@ public fun ChapterScreen(
     onTerme: (String) -> Unit,
     /** Le nom propre touché — voir `Inline.Shem`. */
     onShem: (String) -> Unit = {},
+    /**
+     * Ce qu'on fait d'un renvoi touché — la **cible**, pas le libellé.
+     *
+     * Il était coloré sans être touchable : la teinte promettait un ailleurs
+     * que le doigt n'obtenait pas, et le lecteur croyait avoir mal visé.
+     */
+    onRenvoi: (String) -> Unit = {},
+    /**
+     * La **référence biblique** touchée — le nœud entier, pas sa seule cible.
+     *
+     * Toutes les références répondent, résolues ou non : l'auteur a arbitré que
+     * l'apparence ne se scinde pas, et celle qui ne mène nulle part doit dire
+     * pourquoi. C'est le nom du livre qu'elle porte qui permet de l'écrire.
+     */
+    onReference: (Inline.Reference) -> Unit = {},
     /** Les versets désignés — vide quand le lecteur lit sans rien viser. */
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
@@ -99,6 +119,35 @@ public fun ChapterScreen(
      * lecteur *s'est posé*, pas tout ce qu'il a survolé en chemin.
      */
     onPositionLue: (Int) -> Unit = {},
+    /**
+     * Le verset qu'on vient **rejoindre**, quand on arrive d'ailleurs.
+     *
+     * ## Viser sans désigner
+     *
+     * Ce n'est pas [selection], et l'écart est tout le sujet. Désigner ouvre la
+     * barre d'actions par-dessus le texte — c'est juste quand le verset *est* la
+     * destination, comme depuis le widget. Un renvoi est un **détour** : le
+     * lecteur était dans une glose, il va voir le passage cité, il revient. Lui
+     * ouvrir la barre, c'est répondre à une question qu'il n'a pas posée.
+     *
+     * On fait donc défiler, et rien d'autre. Le constat vient d'iOS, mesuré à
+     * l'écran : `pendingVerse` plutôt que `pendingSelection`.
+     */
+    versetVise: Int? = null,
+    /**
+     * L'état de défilement, **hissé** parce que quelqu'un d'autre en a besoin.
+     *
+     * Suivre un renvoi empile : le retour doit rendre la lecture d'avant, au
+     * bon chapitre **et à la bonne hauteur**. Rien ne restaure ça tout seul ici
+     * — l'app n'a pas de `NavHost` qui garderait la destination parente vivante,
+     * mais une pile à un étage tenue à la main. C'est donc l'appelant qui relève
+     * la hauteur avant de partir et la repose en revenant, et il lui faut cet
+     * état pour le faire.
+     *
+     * Par défaut il est créé ici : les appelants qui n'empilent rien n'ont rien
+     * à savoir.
+     */
+    etatListe: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -114,7 +163,6 @@ public fun ChapterScreen(
     }
 
     val espace = com.labibleont.ont.designsystem.metrics.ontSpacing
-    val etatListe = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // ## Le suivi de lecture
     //
@@ -132,6 +180,25 @@ public fun ChapterScreen(
             }
             suivi.aRetenir(fenetre.first, fenetre.second)?.let(onPositionLue)
         }
+    }
+
+    // ## Rejoindre un verset qu'on n'a pas encore sous les yeux
+    //
+    // Les éléments de la liste sont des **blocs**, pas des versets : on cherche
+    // donc le bloc qui porte le verset, et le `+ 1` saute l'en-tête, qui est
+    // l'élément 0.
+    //
+    // Un verset introuvable ne fait rien — et c'est la bonne réponse. `cible`
+    // est calculée par le pipeline contre la table des plages du corpus ; elle
+    // peut viser un numéro que l'unité ne porte pas si le corpus embarqué est
+    // plus ancien que celui qui l'a produite. Défiler vers le vide serait pire
+    // que de laisser le lecteur en tête d'unité.
+    LaunchedEffect(chapitre.id, versetVise, blocs) {
+        val n = versetVise ?: return@LaunchedEffect
+        val rang = blocs.indexOfFirst { bloc ->
+            bloc is Block.Verses && bloc.verses.any { it.n == n }
+        }
+        if (rang >= 0) etatListe.animateScrollToItem(rang + 1)
     }
 
     LazyColumn(
@@ -165,6 +232,8 @@ public fun ChapterScreen(
                 preferences = preferences,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
                 selection = selection,
                 onVerset = onVerset,
                 marque = marque,
@@ -276,6 +345,21 @@ private fun BlocDeTexte(
     onTerme: (String) -> Unit,
     /** Le nom propre touché — voir `Inline.Shem`. */
     onShem: (String) -> Unit = {},
+    /**
+     * Ce qu'on fait d'un renvoi touché — la **cible**, pas le libellé.
+     *
+     * Il était coloré sans être touchable : la teinte promettait un ailleurs
+     * que le doigt n'obtenait pas, et le lecteur croyait avoir mal visé.
+     */
+    onRenvoi: (String) -> Unit = {},
+    /**
+     * La **référence biblique** touchée — le nœud entier, pas sa seule cible.
+     *
+     * Toutes les références répondent, résolues ou non : l'auteur a arbitré que
+     * l'apparence ne se scinde pas, et celle qui ne mène nulle part doit dire
+     * pourquoi. C'est le nom du livre qu'elle porte qui permet de l'écrire.
+     */
+    onReference: (Inline.Reference) -> Unit = {},
     selection: Set<Int> = emptySet(),
     onVerset: (Int) -> Unit = {},
     marque: (Int) -> HighlightColor? = { null },
@@ -321,6 +405,9 @@ private fun BlocDeTexte(
             // En prose continue, le bloc réuni ne contient qu'un enchaînement :
             // on le compose d'un seul tenant pour que les lignes se lient.
             val pointille2 = ONTColors.accent(theme).copy(alpha = 0.8f)
+            // La teinte de la référence — celle de son propre fragment, pour
+            // que le trait et le mot se lisent comme une seule marque.
+            val ambre = ONTColors.renvoi(theme)
 
             // Quand la liste met ce bloc au rebut, ses versets quittent l'écran
             // sans que rien ne le dise : `onGloballyPositioned` cesse simplement
@@ -387,6 +474,8 @@ private fun BlocDeTexte(
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
                                 onVerset = onVerset,
                                 fond = fondDe(marque(verset.n), theme),
                                 estompe = selection.isNotEmpty() && verset.n !in selection,
@@ -430,9 +519,19 @@ private fun BlocDeTexte(
                             // justement de quitter.
                             .onGloballyPositioned { hautDuTexte = it.positionInRoot().y },
                     )
-                    if (selection.isNotEmpty()) {
+                    // **Deux pointillés, deux teintes, un seul nœud de dessin.**
+                    //
+                    // Celui des références est une propriété du texte : il est
+                    // là tant que le texte est là, en ambre. Celui de la
+                    // désignation est un geste du lecteur, et il va et vient.
+                    // Les tracer dans le même `Canvas` leur épargne à tous deux
+                    // le nœud du `Text` — c'est ce qui a fait tomber le coût
+                    // d'une image de 48 ms à 16 pendant un défilement.
+                    val plagesRef = remember(texte) { texte.plagesDeReference() }
+                    if (selection.isNotEmpty() || plagesRef.isNotEmpty()) {
                         val aSouligner = selection.mapNotNull { plages[it] }
                         androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                            pointilleDesReferences(mise, texte, ambre)
                             pointille(mise, aSouligner, pointille2)
                         }
                     }
@@ -448,6 +547,8 @@ private fun BlocDeTexte(
                         showLevel3 = preferences.showLevel3,
                         onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
                         fond = fondDe(marque(verset.n), theme),
                     )
                     Text(
@@ -464,6 +565,14 @@ private fun BlocDeTexte(
                             // le verset **entier**, l'or des intraduisibles et
                             // l'encre douce des gloses comprises.
                             .alpha(if (estompe) ONTColors.DIMMED_OPACITY else 1f)
+                            // L'ambre d'abord, la désignation ensuite : deux
+                            // `drawBehind` chaînés, chacun sa teinte. Un seul
+                            // appel ne pourrait pas porter les deux couleurs.
+                            .soulignerLesReferences(
+                                layout = mise,
+                                texte = texte,
+                                couleur = ambre,
+                            )
                             .soulignerEnPointille(
                                 layout = mise,
                                 plages = if (designe) {
@@ -486,6 +595,8 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(vertical = 6.dp),
@@ -498,6 +609,8 @@ private fun BlocDeTexte(
                 showLevel3 = preferences.showLevel3,
                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
             ),
             style = ONTProse.francaise.copy(lineHeight = interligne),
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -515,6 +628,8 @@ private fun BlocDeTexte(
                                 showLevel3 = preferences.showLevel3,
                                 onTerme = onTerme,
                 onShem = onShem,
+                onRenvoi = onRenvoi,
+                onReference = onReference,
                             ),
                         )
                     },

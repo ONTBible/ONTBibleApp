@@ -32,7 +32,51 @@ public struct ONTSegments<Valeur: Hashable>: View {
     }
 
     public var body: some View {
-        // ## Le choisi entier, les autres tronqués s'il le faut
+        // ## Ce qui ne tient pas défile, plutôt que de se tronquer
+        //
+        // Le réglage précédent servait le segment **choisi** en entier et
+        // tronquait les autres. Il tenait tant que la troncature laissait de
+        // quoi reconnaître un mot. Au premier cran d'accessibilité — celui où
+        // Gloire lit — « Intraduisibles » prenait toute la largeur et les trois
+        // autres tombaient à « V », « T », « S ». Trois portes devenues
+        // illisibles : ce n'est plus une troncature, c'est une disparition.
+        //
+        // `ViewThatFits` essaie la rangée entière d'abord et bascule sur la
+        // même, qui défile, quand elle ne tient plus. Aucune mesure, aucun
+        // seuil deviné — c'est le principe que ce fichier suivait déjà, appliqué
+        // au cas qu'il ne couvrait pas.
+        //
+        // **Et rien ne change aux tailles ordinaires** : la première branche
+        // l'emporte, avec ses espaces qui se partagent le reste.
+        ViewThatFits(in: .horizontal) {
+            rangee(defilante: false)
+            ScrollView(.horizontal) {
+                rangee(defilante: true)
+            }
+            .scrollIndicators(.hidden)
+            // **Le rail commence à son début.** Sans ancrage, le défilement
+            // s'ouvrait ailleurs et le segment choisi sortait par la gauche :
+            // « Intraduisibles » réduit à un « s » et à un fragment de capsule.
+            // Relevé sur l'iPhone de Gloire, sur la première version de ce
+            // défilement.
+            .defaultScrollAnchor(.leading)
+        }
+        .padding(3)
+        .background {
+            Capsule()
+                .fill(ONTColors.surface(theme.mode))
+                .overlay(Capsule().strokeBorder(ONTColors.separator(theme.mode)))
+        }
+    }
+
+    /// La rangée des segments.
+    ///
+    /// `defilante` dit ce qui change entre les deux branches, et rien d'autre :
+    /// dans un défilement, les `Spacer` s'effondrent à zéro et les segments se
+    /// tasseraient à gauche — on les retire donc, et chacun garde sa marge.
+    @ViewBuilder
+    private func rangee(defilante: Bool) -> some View {
+        // ## Le choisi entier, les autres jamais tronqués
         //
         // Une ligne, toujours — on a essayé d'empiler quand ça ne rentrait
         // plus, et c'était pire : le contrôle changeait de forme sous les
@@ -59,8 +103,10 @@ public struct ONTSegments<Valeur: Hashable>: View {
                         .foregroundStyle(
                             choisi ? ONTColors.onBrand(theme.mode) : ONTColors.inkSoft(theme.mode)
                         )
+                        // **Une ligne, et plus de troncature.** Ce qui ne
+                        // tient pas s'atteint en faisant glisser ; un libellé
+                        // réduit à sa première lettre ne s'atteignait pas.
                         .lineLimit(1)
-                        .truncationMode(.tail)
                         // Une marge de part et d'autre : sans elle, deux
                         // libellés voisins se touchent et se lisent comme un
                         // seul mot.
@@ -82,7 +128,7 @@ public struct ONTSegments<Valeur: Hashable>: View {
                         // Quand la place manque, ces espaces se referment
                         // d'abord, puis les libellés se tronquent — sauf le
                         // choisi, que sa priorité sert le premier.
-                        .fixedSize(horizontal: choisi, vertical: false)
+                        .fixedSize(horizontal: true, vertical: false)
                         .background {
                             if choisi {
                                 Capsule()
@@ -99,16 +145,10 @@ public struct ONTSegments<Valeur: Hashable>: View {
                 .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
                 .buttonStyle(.ontPresse)
 
-                if rang < segments.count - 1 {
+                if rang < segments.count - 1, !defilante {
                     Spacer(minLength: 0)
                 }
             }
-        }
-        .padding(3)
-        .background {
-            Capsule()
-                .fill(ONTColors.surface(theme.mode))
-                .overlay(Capsule().strokeBorder(ONTColors.separator(theme.mode)))
         }
     }
 }

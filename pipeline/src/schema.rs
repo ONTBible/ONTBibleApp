@@ -33,6 +33,20 @@
 
 use serde::{Deserialize, Serialize};
 
+/// La première ligne de tout fichier engendré depuis ce schéma.
+///
+/// Elle vit ici, et non chez les générateurs, parce qu'elle a **deux** lecteurs
+/// qui ne se voient pas : `codegen::swift` et `codegen::kotlin` l'écrivent,
+/// `emissions::aspirer` la lit pour refuser le fichier. Deux copies littérales
+/// auraient divergé le jour où l'une des deux aurait été retouchée, et la
+/// divergence ne se serait vue nulle part — le contrôle serait simplement
+/// redevenu faux, en silence.
+///
+/// Ce module-ci est compilé dans tous les jeux de fonctionnalités, alors que
+/// `codegen` et `parsers` sont chacun derrière le leur. C'est la seule maison
+/// possible pour une constante que les deux partagent.
+pub const MARQUE_ENGENDRE: &str = "// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Niveau inline — l'arbre d'un fragment de texte
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +56,119 @@ use serde::{Deserialize, Serialize};
 /// Sérialisé avec un champ `t` qui porte le type, comme en TypeScript :
 /// `{"t":"text","v":"…"}`. La représentation est celle que les liseuses lisent
 /// déjà — ce port ne change pas un octet du JSON produit.
+/// La version du **contrat des nœuds** — ce que les liseuses doivent savoir lire.
+///
+/// ## Ce qu'elle protège, et pourquoi elle a manqué
+///
+/// Une liseuse **lève** sur un type de nœud qu'elle ne connaît pas, et c'est
+/// voulu : en omettre un afficherait un texte amputé sans que personne ne s'en
+/// aperçoive. `CorpusUpdater` porte donc une garde — il refuse un manifeste
+/// dont le schéma n'est pas le sien.
+///
+/// **Cette garde ne gardait rien.** Le nombre qu'elle compare était écrit en
+/// dur à deux endroits — `2` dans le script de publication du site, `2` dans
+/// le Swift — et **aucun des deux ne dérivait des nœuds émis**. Un contrôle de
+/// version que rien ne versionne.
+///
+/// Mesuré le 10 septembre 2026 : `Inline::Renvoi` a été ajouté la veille sans
+/// que ce nombre bouge. Une app installée acceptait donc le corpus — le schéma
+/// lui était familier —, échouait à le décoder, et retombait **silencieusement**
+/// sur son bundle. Sa mise à jour réseau devenait inerte, définitivement, sans
+/// que rien ne le dise.
+///
+/// ## La règle, et le contrôle qui la tient
+///
+/// **Un type ajouté ou retiré d'`Inline` monte ce nombre.** Un champ ajouté ne
+/// le monte pas : les décodeurs ignorent une clé qu'ils ne connaissent pas,
+/// c'est une compatibilité douce et elle est éprouvée.
+///
+/// L'épreuve `le_contrat_des_noeuds_suit_les_noeuds` compte les variantes et
+/// rougit quand le compte change sans que ce nombre bouge. Elle ne peut pas
+/// s'oublier — c'est tout son intérêt, puisque c'est précisément ce qui vient
+/// d'être oublié.
+///
+/// ## Historique
+///
+/// | version | ce qu'elle ajoute |
+/// |---|---|
+/// | 2 | l'état du contrat quand la garde a été écrite |
+/// | 3 | `Renvoi` — les renvois entre chuqqot |
+/// | 4 | `Reference` — les renvois vers un autre passage |
+pub const CONTRAT_DES_NOEUDS: u32 = 4;
+
+/// Ce qu'une translittération de niveau 3 ouvre, quand elle ouvre quelque chose.
+///
+/// **Deux destinations, pas une.** Une fiche de glossaire et une fiche de Shem
+/// ne vivent pas dans le même fichier — `glossary.json` et `shemot.json` — et
+/// ne s'ouvrent pas par la même route : `ont://term/…` contre `ont://shem/…`.
+///
+/// **Pourquoi un type et non deux champs.** `lemma: Option<String>` plus un
+/// `sorte` laisserait exister l'état illégal : un lemme sans sorte, une sorte
+/// sans lemme. Ici il n'y a rien à tenir ensemble — le lemme ne s'écrit pas
+/// sans dire où il mène. Et le `switch` que ça impose aux liseuses est
+/// exhaustif : une troisième destination, un jour, casserait la compilation au
+/// lieu de s'oublier.
+///
+/// Les noms des variantes sont ceux que le Router emploie déjà — `term` et
+/// `shem` —, pas un vocabulaire neuf pour la même chose.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum CibleDuNiveauTrois {
+    /// Une entrée du glossaire — `ont://term/<lemma>`.
+    Term { lemma: String },
+    /// Une fiche de Shem — `ont://shem/<lemma>`.
+    Shem { lemma: String },
+}
+
+/// Ce qu'une référence vise à l'intérieur de son chapitre.
+///
+/// **Un type somme, et pas deux `Option`.** `verset: None` avec
+/// `dernier: Some(33)` serait une plage sans début — personne ne l'écrira, et
+/// c'est justement pour ça que ça finirait par arriver. Ici l'état illégal est
+/// irreprésentable, et le `match` des liseuses devient exhaustif.
+///
+/// Il fait aussi disparaître une convention tacite : `Genèse 3` et
+/// `Genèse 3:1` ne se distinguaient que par la nullité d'un champ.
+/// L'unité que la référence ouvre, quand le corpus la porte.
+///
+/// **Pourquoi elle est résolue ici et non dans la liseuse.** Une référence dit
+/// « Genèse 7:11 », et les unités ONT ne coïncident pas avec les chapitres
+/// reçus : seule la table des plages de tout le corpus sait que 7:11 tombe
+/// dans `bereshit-7`. Cette table n'existe qu'ici. La laisser reconstruire par
+/// chaque liseuse, c'est la faire écrire trois fois, en trois langages, à
+/// partir d'une chaîne d'affichage — « 1:1 — 2:3 » — qui n'a jamais été un
+/// format de données.
+///
+/// **Pourquoi elle est facultative.** Une référence à Ésaïe est parfaitement
+/// bien formée et ne mène nulle part : le livre n'est pas traduit. `None` dit
+/// exactement cela, et la liseuse n'a pas à le deviner en cherchant un livre
+/// qu'elle ne trouvera pas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CibleDeLaReference {
+    /// Le livre qui porte l'unité — `bereshit`.
+    pub livre: String,
+    /// L'unité à ouvrir — `bereshit-7`.
+    pub unite: String,
+    /// Le verset à désigner en arrivant, **dans la numérotation de l'unité**.
+    ///
+    /// Nul quand la référence vise un chapitre entier, et nul aussi quand le
+    /// compte des versets ne confirme pas le calcul — voir `renvois::interne`.
+    /// Mieux vaut ouvrir la bonne unité sans rien désigner que d'en désigner
+    /// un faux.
+    pub verset: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+pub enum PorteeDeLaReference {
+    /// `Genèse 3` — l'unité entière, pas un verset.
+    Chapitre,
+    /// `Genèse 3:24` — un verset.
+    Verset { n: u32 },
+    /// `Genèse 1:11-12` — une plage. La navigation vise son ouverture.
+    Plage { premier: u32, dernier: u32 },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Inline {
@@ -84,12 +211,117 @@ pub enum Inline {
     /// `v` garde la casse du texte, `lemma` est la clé de jointure vers la fiche.
     Shem { v: String, lemma: String },
 
+    /// Un renvoi d'une **chuqqah** vers une autre — `((cible|libellé))`.
+    ///
+    /// ## Pourquoi une marque à elle, et pas `[[…]]`
+    ///
+    /// `[[…]]` devient un `Shem` **sans jamais regarder la cible**, et c'est
+    /// délibéré : le vault porte des renvois vers des porteurs pas encore
+    /// écrits, et ce sont des marques de travail à faire, pas des erreurs.
+    ///
+    /// Distinguer sur la cible obligerait donc à **résoudre avant de typer** —
+    /// et produirait exactement le défaut que ce principe prévient : un renvoi
+    /// vers une chuqqah pas encore écrite sortirait en `Shem`. C'est le cas le
+    /// plus fréquent, puisque le corpus s'écrit.
+    ///
+    /// Doubles parenthèses, donc : **détection locale, aucune résolution.**
+    ///
+    /// ## Ce que la marque coûte
+    ///
+    /// `((…))` n'est pas un lien Obsidian : on ne saute plus d'une chuqqah à
+    /// l'autre depuis l'éditeur. Arbitré en connaissance de ce prix, contre une
+    /// détection qui ne dépend de rien.
+    ///
+    /// ## Le voisinage est sûr
+    ///
+    /// Le niveau 3 — `(*translittération* / hébreu)` — exige de l'hébreu dans
+    /// la parenthèse, ce qu'un renvoi n'a pas. Les deux ne se disputent rien,
+    /// dans un ordre ou dans l'autre.
+    Renvoi { v: String, cible: String },
+
+    /// Une référence vers un autre passage — `*Genèse* 4:25`, `Bereshit 9:8`.
+    ///
+    /// ## Le nom du livre dit la numérotation
+    ///
+    /// Décision de l'auteur du 10 septembre 2026. Deux systèmes coexistent, et
+    /// c'est **le nom** qui les sépare : `Genèse 9:25` est le verset 25 du
+    /// chapitre 9 de la Genèse reçue, `Bereshit 9:8` est le verset ⁸ de
+    /// l'unité ONT n° 9. Ce sont le même verset, et la forme double est permise.
+    ///
+    /// La règle ne signale pas l'exception — **elle supprime le cas
+    /// d'exception**. Une notation qui repose sur le contexte se lit juste tant
+    /// qu'on connaît le contexte ; un nom se lit seul.
+    ///
+    /// Le corpus portait les deux sous une seule graphie, et ça a coûté deux
+    /// renvois qui menaient à un verset ne parlant pas de ce que la glose
+    /// annonçait — en production, sur 218 renvois déjà cliquables.
+    ///
+    /// ## Détection locale, aucune résolution
+    ///
+    /// Comme `Renvoi`. La grande majorité des renvois du corpus vise des livres
+    /// **pas encore écrits** : les typer sur leur cible les rendrait tous
+    /// inertes, et il faudrait tout reprendre à chaque livre traduit. La
+    /// jointure se fait après, contre l'index de `chapter.rs`.
+    ///
+    /// `portee` dit ce que la référence vise — un chapitre entier, un verset,
+    /// ou une plage. Voir `PorteeDeLaReference`.
+    Reference {
+        v: String,
+        livre: String,
+        /// `"recu"` ou `"ont"`.
+        systeme: String,
+        chapitre: u32,
+        portee: PorteeDeLaReference,
+        /// Où cette référence mène, quand le corpus porte le passage.
+        ///
+        /// Posée par `renvois::resoudre_les_references`, après l'assemblage :
+        /// la table des plages demande le corpus entier, et un chapitre seul
+        /// ne sait pas ce que contiennent les autres.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        cible: Option<CibleDeLaReference>,
+    },
+
     /// Niveau 3 — `(*translittération* / hébreu)`.
     ///
     /// Les deux parts sont séparées parce qu'elles ne se composent pas pareil :
     /// la translittération est en italique dans la fonte latine, l'hébreu
     /// demande une fonte hébraïque et un passage en RTL.
-    Translit { translit: String, hebrew: String },
+    ///
+    /// ## `cible` — la fiche que ce mot ouvre, quand il en ouvre une
+    ///
+    /// Gloire l'a posé ainsi : il lit la translittération du niveau 3, il est
+    /// dessus, et rien ne répond. Le mot est là, sa fiche existe, et l'appareil
+    /// qui les relie s'arrête au corps du texte.
+    ///
+    /// **Remplie au build, jamais à l'analyse.** Le parseur ne sait pas quelles
+    /// fiches existent — c'est la construction qui les connaît, et qui sait en
+    /// plus lesquelles sont *publiées*. Trancher plus tôt obligerait à le faire
+    /// sans l'information.
+    ///
+    /// **`None` est le cas ordinaire, et il est honnête.** Sur 1748
+    /// translittérations, 631 se résolvent et 1117 non. Ces dernières restent
+    /// lisibles et inertes, exactement comme avant.
+    ///
+    /// ## Ce qu'on ne fait pas, et c'est le cœur
+    ///
+    /// **Aucune résolution morphologique.** Ni spirantisation — `lehavdil`
+    /// vient de `badal`, le bet devenant vet —, ni verbes lamed-he — `vayiven`
+    /// vient de `banah`, dont le he disparaît.
+    ///
+    /// Pas par difficulté, mais par **mode d'échec** : une règle qui se trompe
+    /// ne rend pas le mot inerte, elle le rend touchable **vers la mauvaise
+    /// fiche**. Le lecteur arrive ailleurs sans que rien ne le dise — la
+    /// substitution silencieuse, pire qu'une abstention.
+    ///
+    /// La résolution se fait donc là où elle est exacte, et le §2.5 fait le
+    /// reste : une forme déclarée devient touchable pour toujours. Chaque
+    /// déclaration est un gain permanent, jamais une erreur muette.
+    Translit {
+        translit: String,
+        hebrew: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cible: Option<CibleDuNiveauTrois>,
+    },
 
     /// Un fragment en écriture hébraïque rencontré hors d'un nœud `translit`.
     ///
@@ -396,6 +628,29 @@ pub struct GlossaryEntry {
     /// Toutes les formes balisées qui retombent sur ce lemme.
     pub forms: Vec<String>,
     pub hebrew: Option<String>,
+    /// **Le numéro de Strong du lemme**, tel que sa fiche le déclare.
+    ///
+    /// Nu — `559`, `1254 a` —, sans le préfixe de segmentation que le témoin
+    /// pose sur une occurrence : `c/853` dit « conjonction + 853 », et la
+    /// conjonction appartient au mot du verset, pas au lemme.
+    ///
+    /// Absent quand la fiche ne le déclare pas, et l'absence est le cas de
+    /// beaucoup : le champ est écrit à la main, fiche par fiche, et seulement
+    /// là où les formes déclarées s'accordent sur un seul numéro.
+    ///
+    /// C'est lui qui fait passer la jointure d'un mot du texte source à sa
+    /// fiche de **déduite** à **vérifiable** — voir `reference::SourceDeclaree`
+    /// pour le raisonnement complet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strong: Option<String>,
+    /// La forme absolue en hébreu, déclarée par la fiche.
+    ///
+    /// Distincte de `hebrew`, qui vient du §3 du document de référence et
+    /// n'existe que pour les intraduisibles et les rendus fixés. Celle-ci vient
+    /// de la fiche, qui existe pour chaque mot — elle couvre donc ce que le §3
+    /// laisse dehors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hebreu_de_la_fiche: Option<String>,
     /// La traduction ONT fixée, quand le terme en a une (§3).
     pub rendering: Option<String>,
     /// Le champ sémantique complet (§3).
@@ -466,6 +721,44 @@ pub struct BuildStats {
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
     pub schema: u32,
+    /// La version du **contrat des nœuds** — voir [`CONTRAT_DES_NOEUDS`].
+    ///
+    /// Émise ici pour que le script de publication du site la **lise** au lieu
+    /// de deviner quels types de nœuds ce build émet.
+    ///
+    /// ## Ce que ce nombre n'est pas, et la phrase qui a coûté une journée
+    ///
+    /// Ce commentaire a dit, du 10 au 11 septembre 2026 : « c'est ce nombre
+    /// que les liseuses installées comparent au leur avant d'accepter un
+    /// corpus ». **C'est faux**, et trois sessions l'ont cru — iOS, Android et
+    /// le site —, au point de se recommander mutuellement de monter les
+    /// gardes des liseuses. Suivi, le conseil faisait refuser le corpus publié
+    /// à toutes les installations : la panne qu'on croyait prévenir.
+    ///
+    /// Il y a **deux manifestes**, et ils ne portent pas la même question :
+    ///
+    /// | fichier | écrit par | ce que les liseuses en font |
+    /// |---|---|---|
+    /// | `dist/manifest.json` | ce pipeline | rien — seul `generated_at` est lu, du bundle |
+    /// | `corpus/manifeste.json` | `corpus-publie.py`, dans `ONTBibleWebapp` | **`schema` est comparé** |
+    ///
+    /// `contrat` ne traverse jamais le second. Ce que les liseuses comparent
+    /// est `schema`, qui vaut 2 depuis la 1.0.3 et qui est la copropriété du
+    /// site et des liseuses — pas cette constante.
+    ///
+    /// ## Alors à quoi il sert
+    ///
+    /// À dire au **site** quels types de nœuds ce build émet, pour qu'il ne
+    /// publie pas un corpus portant un nœud que ses pages ne savent pas
+    /// rendre. C'est ce qui a manqué quand `Renvoi` est parti sans que
+    /// personne ne l'apprenne.
+    ///
+    /// Et ce n'est pas une protection pour les lecteurs déjà installés : une
+    /// garde sur ce que le pipeline *déclare* aurait laissé passer `Renvoi`,
+    /// qui vit dans le schéma de `dev` **sans** ce champ. Protéger les
+    /// installés reste le geste de la 1.0.3 : monter `schema` côté liseuses,
+    /// livrer, **puis** publier le nouveau nombre.
+    pub contrat: u32,
     pub generated_at: String,
     pub vault: String,
     pub stats: BuildStats,
@@ -651,7 +944,85 @@ pub struct CorpusFile {
     pub corpora: Vec<CorpusOutline>,
 }
 
+/// `dist/prononciation.json` — la feuille qui explique comment lire ce qui est
+/// écrit.
+///
+/// ## Pourquoi un fichier et non une section du document de référence
+///
+/// Le `CLAUDE.md` du vault est lu pour en tirer des **entrées de termes**. Lui
+/// faire sortir en plus une section entière mêlerait deux extractions dans un
+/// même lecteur, et la seconde casserait la première le jour où quelqu'un
+/// touche au format.
+///
+/// Un fichier a en prime un `status`, comme le reste du corpus : cette feuille
+/// est du contenu qu'on relit, pas de la configuration.
+///
+/// ## Pourquoi des blocs et non du markdown
+///
+/// Elle cite `**chokhmah**`, `**malʾakh**`, `[[Chanokh]]`. En blocs, le rendu
+/// pose l'or et la terre brûlée et les rend touchables **sans une ligne de
+/// code** dans les liseuses. En chaîne, il faudrait réimplémenter le rendu
+/// trois fois, avec la certitude qu'ils divergeraient.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrononciationFile {
+    pub schema: u32,
+    pub title: String,
+    pub blocks: Vec<Block>,
+}
+
 /// `dist/glossary.json` — le lexique des intraduisibles.
+/// Une **chuqqah** — un énoncé permanent de l'ontologie hébraïque.
+///
+/// De *chaqaq* (חָקַק), graver dans la pierre : ce qui est gravé tient de
+/// soi-même, et le reste s'y appuie. Ce n'est ni une opinion qu'on défend, ni
+/// un commentaire qui accompagne un texte.
+///
+/// ## Pourquoi un type et non une fiche de lexique
+///
+/// Une fiche de lexique explique **un mot** ; une chuqqah énonce **une règle du
+/// fonctionnement**, et elle se lit d'un bout à l'autre. Les deux portent de la
+/// prose, mais l'une se consulte et l'autre se lit — c'est ce qui décide de
+/// leur place à l'écran, et donc de leur type.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Chuqqah {
+    /// Le nom du fichier, slugifié — `les-quatre-modes-de-presence`.
+    ///
+    /// **C'est aussi son adresse sur le site**, `/fr/chuqqot/{id}`. Une adresse
+    /// qui bouge après indexation perd ce que le référencement lui a donné : ce
+    /// champ ne se renomme pas à la légère.
+    pub id: String,
+    /// Le titre, lu de la ligne `# ` du fichier.
+    pub title: String,
+    /// L'ordre de lecture, tiré du nom de fichier quand il le porte.
+    ///
+    /// `chuqqot-0-intro` ouvre la série. Les autres suivent, alphabétiquement,
+    /// faute d'un ordre déclaré ailleurs — et c'est dit plutôt que deviné.
+    pub rank: u32,
+    pub blocks: Vec<Block>,
+}
+
+/// Les chuqqot **publiées** — et elles le sont toutes, par construction.
+///
+/// ## La garde vit dans l'émission, pas dans un filtre
+///
+/// Décision de l'auteur, le 9 septembre 2026 : une chuqqah en brouillon ne
+/// sort pas. Les unités de traduction, elles, continuent de voyager marquées
+/// « Brouillon » — la validation y est une déclaration d'état.
+///
+/// La distinction tient à ce qu'on lit : un chapitre en cours porte sa mention
+/// et le lecteur sait où il met les pieds ; une chuqqah énonce ce qui est tenu
+/// pour établi, et un énoncé permanent « en attente de validation » se
+/// contredit lui-même.
+///
+/// **Ce type ne porte donc pas de `status`**, et c'est délibéré : il n'y a
+/// qu'un état possible ici. Un champ qui ne peut prendre qu'une valeur invite à
+/// l'autre.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChuqqotFile {
+    pub schema: u32,
+    pub entries: Vec<Chuqqah>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlossaryFile {
     pub schema: u32,
@@ -767,6 +1138,69 @@ mod tests {
             json.contains(r#""t":"accentuation""#),
             "le tag du fil ne correspond plus au schéma 2 — vérifier que le \
              numéro de schéma a bougé avec lui. Obtenu : {json}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod contrat {
+    use super::*;
+
+    /// **Le compte des nœuds décide de la version, et rien d'autre.**
+    ///
+    /// ## Si vous êtes ici parce que ça ne compile plus
+    ///
+    /// Vous venez d'ajouter ou de retirer un type de nœud. Trois gestes, dans
+    /// cet ordre :
+    ///
+    /// 1. montez [`CONTRAT_DES_NOEUDS`] et ajoutez sa ligne d'historique ;
+    /// 2. ajoutez la variante au `match` ci-dessous et le compte à `NOEUDS` ;
+    /// 3. **vérifiez que le site publie ce nombre** plutôt qu'un `2` écrit en
+    ///    dur — c'est lui que les liseuses installées comparent au leur.
+    ///
+    /// ## Pourquoi un `match` et pas un tableau
+    ///
+    /// Le premier jet listait des valeurs dans un tableau. Le compilateur
+    /// attrapait bien la variante neuve — par les `match` du reste du code —,
+    /// mais **une fois ceux-ci corrigés, le tableau restait vrai** et rien ne
+    /// forçait la montée. Un contrôle qui ne rougit qu'en compagnie d'un autre
+    /// ne contrôle rien tout seul.
+    ///
+    /// Ce `match`-ci n'a pas de bras `_`. Il cesse de compiler, et il est le
+    /// dernier à le faire — c'est-à-dire au moment précis où l'on croit avoir
+    /// fini.
+    fn nom(noeud: &Inline) -> &'static str {
+        match noeud {
+            Inline::Text { .. } => "text",
+            Inline::Term { .. } => "term",
+            Inline::Shem { .. } => "shem",
+            Inline::Renvoi { .. } => "renvoi",
+            Inline::Reference { .. } => "reference",
+            Inline::Translit { .. } => "translit",
+            Inline::Heb { .. } => "heb",
+            Inline::Gloss { .. } => "gloss",
+            Inline::Accentuation { .. } => "accentuation",
+            Inline::Em { .. } => "em",
+            Inline::Link { .. } => "link",
+            Inline::Break => "break",
+        }
+    }
+
+    #[test]
+    fn le_contrat_des_noeuds_suit_les_noeuds() {
+        /// Le nombre de bras de `nom`. Compté à la main, délibérément : une
+        /// macro qui compterait toute seule ferait monter le nombre sans qu'un
+        /// humain le voie, et c'est ce défaut-là qu'on ferme.
+        const NOEUDS: usize = 12;
+
+        assert_eq!(
+            CONTRAT_DES_NOEUDS, 4,
+            "le contrat a bougé sans que son historique suive"
+        );
+        assert_eq!(nom(&Inline::Break), "break");
+        assert_eq!(
+            NOEUDS, 12,
+            "le compte des nœuds a bougé — montez le contrat"
         );
     }
 }

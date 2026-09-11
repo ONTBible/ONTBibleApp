@@ -86,6 +86,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 // annotations qui révèlent des convictions religieuses
                 // (RGPD, article 9) — la télémétrie n'a pas à les voir.
                 send_default_pii: false,
+                // Et ce que le SDK ne filtre pas de lui-même meurt ici :
+                // en-tête maison du secret, query strings d'URL (C02,
+                // audit du 8 septembre 2026). Voir `observabilite`.
+                before_send: Some(Arc::new(ont_backend::observabilite::expurger)),
                 ..Default::default()
             },
         ))

@@ -36,6 +36,20 @@ import ONTKit
 
 // MARK: - Le texte
 
+extension CibleDuNiveauTrois {
+    /// **La traduction est plate et doit le rester.** Le domaine ne connaît pas
+    /// `ONTSchema` ; c'est ici, et seulement ici, que la forme du fichier
+    /// devient une forme du domaine. Le `switch` est exhaustif : une
+    /// destination ajoutée au pipeline casse la compilation de l'app au lieu de
+    /// se perdre en silence.
+    init(_ dto: ONTSchema.CibleDuNiveauTrois) {
+        switch dto {
+        case .term(let lemma): self = .term(lemma: lemma)
+        case .shem(let lemma): self = .shem(lemma: lemma)
+        }
+    }
+}
+
 extension Inline {
     init(_ dto: ONTSchema.Inline) {
         switch dto {
@@ -45,8 +59,24 @@ extension Inline {
             self = .term(v, lemma: lemma)
         case .shem(let v, let lemma):
             self = .shem(v, lemma: lemma)
-        case .translit(let translit, let hebrew):
-            self = .translit(translit, hebrew: hebrew)
+        // `renvoi` vient de #255, `translit` porte sa cible depuis ici : les
+        // deux nœuds ont été ajoutés par deux branches, aucun ne remplace
+        // l'autre.
+        case .renvoi(let v, let cible):
+            self = .renvoi(v, cible: cible)
+        case .reference(let v, let livre, let systeme, let chapitre, let portee, let cible):
+            self = .reference(
+                v,
+                livre: livre,
+                systeme: systeme,
+                chapitre: chapitre,
+                portee: PorteeDeLaReference(portee),
+                cible: cible.map {
+                    CibleDeLaReference(livre: $0.livre, unite: $0.unite, verset: $0.verset)
+                }
+            )
+        case .translit(let translit, let hebrew, let cible):
+            self = .translit(translit, hebrew: hebrew, cible: cible.map(CibleDuNiveauTrois.init))
         case .heb(let v):
             self = .hebrew(v)
         case .gloss(let children):
@@ -311,5 +341,48 @@ extension ShemEntry {
             title: dto.title,
             definition: dto.definition.map(Block.init)
         )
+    }
+}
+
+// MARK: - Les chuqqot
+
+extension Chuqqah {
+    /// **La traduction est plate, et le renommage se fait ici.**
+    ///
+    /// Le fichier écrit `title` et `rank` ; le domaine dit `titre` et `rang`.
+    /// L'écart n'est pas une coquetterie : c'est précisément ce que cette
+    /// couche existe pour absorber. Aligner le domaine sur l'anglais du JSON
+    /// reviendrait à laisser un format de fichier nommer l'ONT — la dépendance
+    /// repartirait dans le mauvais sens, et un `rename` posé dans le pipeline
+    /// traverserait jusqu'au cœur de l'app.
+    ///
+    /// `rank` est un `u32` en Rust, rendu `Int` par le codegen. On ne le
+    /// contraint pas davantage ici : un rang négatif ne peut pas arriver du
+    /// pipeline, et s'en protéger par un type maison ferait porter à l'app une
+    /// garantie qui est déjà tenue à la source.
+    init(_ dto: ONTSchema.Chuqqah) {
+        self.init(
+            id: dto.id,
+            titre: dto.title,
+            rang: dto.rank,
+            blocs: dto.blocks.map(Block.init)
+        )
+    }
+}
+
+extension PorteeDeLaReference {
+    /// Traduit la portée du schéma vers celle du domaine.
+    ///
+    /// Le `switch` est exhaustif des deux côtés : une portée ajoutée au
+    /// pipeline **casse la compilation ici**, et c'est le signal voulu.
+    init(_ portee: ONTSchema.PorteeDeLaReference) {
+        switch portee {
+        case .chapitre:
+            self = .chapitre
+        case .verset(let n):
+            self = .verset(n)
+        case .plage(let premier, let dernier):
+            self = .plage(premier: premier, dernier: dernier)
+        }
     }
 }

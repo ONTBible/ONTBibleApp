@@ -14,7 +14,7 @@ struct FicheEtNiveauTroisTests {
     private var noeuds: [Inline] {
         [
             .text("La racine "),
-            .translit("chanakh", hebrew: "חָנַךְ"),
+            .translit("chanakh", hebrew: "חָנַךְ", cible: nil),
             .text(" dit l'inauguration."),
         ]
     }
