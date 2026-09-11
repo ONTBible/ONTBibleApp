@@ -1,5 +1,6 @@
 import Foundation
 import ONTKit
+import SwiftUI
 
 /// **Un chargeur provisoire, et il le dit.**
 ///
@@ -52,6 +53,7 @@ enum ChargeurDeSources {
         let t: String
         let lem: String?
         let morph: String?
+        let translit: String?
         let cible: Cible?
     }
 
@@ -129,6 +131,7 @@ enum ChargeurDeSources {
                         forme: m.t,
                         strong: m.lem,
                         morphologie: m.morph,
+                        translitteration: m.translit,
                         fiche: m.cible.flatMap { c in
                             switch c.t {
                             case "term": .term(lemma: c.lemma)
@@ -157,5 +160,45 @@ public struct PositionDeVerset: Identifiable, Hashable, Sendable {
         self.livre = livre
         self.unite = unite
         self.position = position
+    }
+}
+
+// MARK: - Les fiches, pour les rendre dans la carte
+
+/// Ce qu'une fiche ONT donne à lire, sans quitter le verset.
+public struct FicheAffichee: Hashable, Sendable {
+    /// La translittération — « bara », « ʾelohim ».
+    public let titre: String
+    public let hebreu: String?
+    /// Ce que l'ONT en dit, tel que le corpus le porte.
+    public let definition: [Block]
+
+    public init(titre: String, hebreu: String?, definition: [Block]) {
+        self.titre = titre
+        self.hebreu = hebreu
+        self.definition = definition
+    }
+}
+
+/// **Comment la feuille obtient une fiche, sans savoir d'où elle vient.**
+///
+/// `ReadingFeature` ne dépend d'aucune autre feature — c'est écrit dans
+/// `Package.swift` : « un onglet qui ne sait rien des autres reste un onglet
+/// qu'on peut déplacer, replier ou retirer ». Et il ne lit pas non plus les
+/// fichiers du corpus : le lexique a ses dépôts, et les court-circuiter
+/// reviendrait à ouvrir un second chemin vers la même donnée.
+///
+/// La composition pose donc la fonction, et la lecture ne connaît qu'elle.
+public struct FicheDunMotKey: EnvironmentKey {
+    public static let defaultValue: @Sendable (CibleDuNiveauTrois) -> FicheAffichee? = { _ in
+        nil
+    }
+}
+
+extension EnvironmentValues {
+    /// La fiche d'un mot source, posée par la composition.
+    public var ontFicheDunMot: @Sendable (CibleDuNiveauTrois) -> FicheAffichee? {
+        get { self[FicheDunMotKey.self] }
+        set { self[FicheDunMotKey.self] = newValue }
     }
 }

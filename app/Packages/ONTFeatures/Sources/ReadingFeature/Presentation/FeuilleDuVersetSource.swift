@@ -21,6 +21,18 @@ public struct MotAffiche: Identifiable, Hashable, Sendable {
     public let strong: String?
     /// Le code morphologique du témoin — « HVqp3ms ».
     public let morphologie: String?
+    /// **La translittération, quand le vault l'a écrite quelque part.**
+    ///
+    /// Récoltée, jamais inventée : il n'existe aucun translittérateur dans ce
+    /// dépôt, et en écrire un produirait des formes que l'auteur — qui lit
+    /// l'hébreu ancien — verrait fausses immédiatement. Le pipeline prend donc
+    /// les couples que les niveaux 3 du corpus portent déjà,
+    /// `(bereshit / בְּרֵאשִׁית)`, et refuse ceux dont une même forme en porte
+    /// deux différentes.
+    ///
+    /// Absente pour les deux tiers des mots aujourd'hui. C'est l'état du
+    /// vault, pas un défaut du pont.
+    public let translitteration: String?
     /// La fiche ONT que ce mot ouvre, quand il en ouvre une.
     public let fiche: CibleDuNiveauTrois?
 
@@ -29,12 +41,14 @@ public struct MotAffiche: Identifiable, Hashable, Sendable {
         forme: String,
         strong: String? = nil,
         morphologie: String? = nil,
+        translitteration: String? = nil,
         fiche: CibleDuNiveauTrois? = nil
     ) {
         self.id = id
         self.forme = forme
         self.strong = strong
         self.morphologie = morphologie
+        self.translitteration = translitteration
         self.fiche = fiche
     }
 }
@@ -114,9 +128,17 @@ public struct FeuilleDuVersetSource: View {
     let temoins: [TemoinAffiche]
     let versets: [VersetAffiche]
 
+    @Environment(\.ontFicheDunMot) private var ficheDunMot
+
     @Binding var temoinChoisi: String
     @State private var position: Int
     @State private var mot: Int = 0
+    /// **Vrai quand la fiche a pris toute la feuille.**
+    ///
+    /// Un seul état pour les deux dispositions : le verset se replie, la fiche
+    /// s'étend, et l'animation n'a rien à orchestrer — c'est la même vue qui
+    /// change de place.
+    @State private var agrandie = false
 
     public init(
         titreDeLUnite: String,
@@ -141,8 +163,10 @@ public struct FeuilleDuVersetSource: View {
             entete
             Divider().overlay(theme.separator)
             if let verset {
-                corpsDuVerset(verset)
-                Divider().overlay(theme.separator)
+                if !agrandie {
+                    corpsDuVerset(verset)
+                    Divider().overlay(theme.separator)
+                }
                 cartesDesMots(verset)
             } else {
                 indisponible
@@ -198,19 +222,44 @@ public struct FeuilleDuVersetSource: View {
             // trois cents points entre lui et sa pagination. Le défilement ne
             // sert qu'aux versets longs — il ne doit pas se payer sur les
             // courts.
+            // **Le verset prend ce qu'il lui faut, et la fiche prend le
+            // reste.**
+            //
+            // Le premier jet lui donnait 260 points fixes, et le contenu s'y
+            // centrait : un verset de sept mots laissait deux bandes vides
+            // au-dessus et au-dessous pendant que la carte de définition, en
+            // bas, était à l'étroit. L'auteur, capture à l'appui : « le verset
+            // a pas besoin d'autant de place, donne plus de place à la fiche…
+            // et dans le pire des cas on scroll ».
+            //
+            // `maxHeight` sans `fixedSize` : la zone ne réclame plus rien, elle
+            // se contente de ce que son contenu occupe, et le plafond ne sert
+            // qu'aux versets longs — qui défilent alors, ce qui est le bon prix.
             ScrollView(.vertical) {
                 motsEnFlot(v)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+                    // **De l'air autour du verset, et pas une hauteur fixe.**
+                    //
+                    // La correction précédente avait supprimé les 260 points
+                    // fixes — et avec eux, tout l'espace : le dernier mot
+                    // venait toucher « Verset précédent ». L'auteur : « mets
+                    // juste un petit peu plus d'espace, là tu l'as totalement
+                    // supprimé. »
+                    //
+                    // Une marge appartient au contenu ; une hauteur appartient
+                    // au conteneur. La première suit le verset qu'il soit long
+                    // ou court, la seconde imposait la même bande à tous.
+                    .padding(.vertical, spacing.l)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxHeight: 260)
+            .frame(maxHeight: 240, alignment: .top)
 
             pagination
         }
         .padding(.horizontal, spacing.page)
         .padding(.bottom, spacing.m)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
         .contentShape(.rect)
         .gesture(glissementDesVersets)
     }
@@ -327,7 +376,46 @@ extension FeuilleDuVersetSource {
     /// Les deux sens sont liés : toucher un mot en haut fait défiler les cartes,
     /// et faire défiler les cartes désigne le mot en haut. Un seul état — `mot`
     /// — tient les deux, sinon ils divergent au premier geste rapide.
+    @ViewBuilder
     fileprivate func cartesDesMots(_ v: VersetAffiche) -> some View {
+        if agrandie {
+            // **Agrandie, il n'y a plus de carrousel.**
+            //
+            // Le premier jet gardait la zone défilante et faisait passer la
+            // carte à toute la largeur. Elle débordait par la droite :
+            // `containerRelativeFrame` mesure le conteneur **avant** sa marge
+            // latérale, et l'icône de repli tombait hors de l'écran.
+            //
+            // On pouvait soustraire la marge. Ce serait traiter le symptôme :
+            // agrandir veut dire « je lis celle-ci », et un carrousel d'un seul
+            // élément n'est plus un carrousel. La vue suit l'intention.
+            if let m = v.mots.first(where: { $0.id == mot }) ?? v.mots.first {
+                CarteDuMot(
+                    mot: m,
+                    actif: true,
+                    fiche: m.fiche.flatMap(ficheDunMot),
+                    agrandie: $agrandie
+                )
+                .padding(.horizontal, spacing.page)
+                .padding(.vertical, spacing.m)
+                .transition(.opacity)
+            }
+        } else {
+            carrouselDesMots(v)
+        }
+    }
+
+    /// Les définitions, une carte par mot, feuilletées à l'horizontale.
+    ///
+    /// **La carte voisine dépasse volontairement**, et c'est la seule chose qui
+    /// dit qu'il y en a une. Un carrousel qui remplit exactement la largeur ne
+    /// s'annonce pas : le lecteur ne glisse que s'il devine qu'il y a quelque
+    /// chose à atteindre.
+    ///
+    /// Les deux sens sont liés : toucher un mot en haut fait défiler les cartes,
+    /// et faire défiler les cartes désigne le mot en haut. Un seul état — `mot`
+    /// — tient les deux, sinon ils divergent au premier geste rapide.
+    private func carrouselDesMots(_ v: VersetAffiche) -> some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 // **`HStack` et non `LazyHStack`.** Un verset porte une
@@ -336,9 +424,22 @@ extension FeuilleDuVersetSource {
                 // défilement — ce qui rend tout banc d'essai aveugle.
                 HStack(spacing: spacing.m) {
                     ForEach(v.mots) { m in
-                        CarteDuMot(mot: m, actif: m.id == mot) {
-                            ouvrir(m)
-                        }
+                        CarteDuMot(
+                            mot: m,
+                            actif: m.id == mot,
+                            fiche: m.fiche.flatMap(ficheDunMot),
+                            agrandie: $agrandie
+                        )
+                        // **Trois quarts en repos, toute la largeur agrandie.**
+                        //
+                        // Le quart laissé libre n'est pas une marge : c'est la
+                        // carte voisine qui dépasse, et c'est la seule chose
+                        // qui dit qu'il y en a une. Un carrousel qui remplit
+                        // exactement la largeur ne s'annonce pas.
+                        //
+                        // Agrandie, cette promesse n'a plus lieu d'être — on
+                        // ne feuillette plus, on lit. L'auteur : « tu peux
+                        // aussi choper la place que prend l'autre fiche ».
                         .containerRelativeFrame(.horizontal, count: 4, span: 3, spacing: spacing.m)
                         .id(m.id)
                     }
@@ -355,6 +456,23 @@ extension FeuilleDuVersetSource {
             .onChange(of: mot) { _, n in
                 withAnimation(.snappy(duration: 0.22)) { proxy.scrollTo(n, anchor: .leading) }
             }
+            // **Une identité par verset, et c'est ce qui manquait.**
+            //
+            // Les cartes sont identifiées par l'index du mot — 0, 1, 2… — et
+            // cet espace d'identités est **le même d'un verset à l'autre**. En
+            // changeant de verset, SwiftUI ne voyait donc pas une liste neuve :
+            // il gardait le décalage de défilement, qui retombait au milieu
+            // d'un verset de longueur différente.
+            //
+            // Relevé par l'auteur : « le swipe par mot, lorsqu'il swipe de
+            // verset, semble ne pas toujours démarrer au début ou à la fin ;
+            // il y a des fois où ça arrive en plein milieu. »
+            //
+            // `.id` sur le conteneur le force à repartir de zéro. Le `mot` que
+            // `changerDeVerset` a posé — premier ou dernier selon le sens —
+            // devient alors la position réelle, et non une intention que le
+            // défilement contredit.
+            .id(v.id)
             // **Pousser au-delà du dernier mot change de verset.**
             //
             // Demandé par l'auteur, et c'est le bon réflexe : un carrousel
@@ -382,6 +500,7 @@ extension FeuilleDuVersetSource {
                 }
             )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.vertical, spacing.m)
     }
 
@@ -402,37 +521,25 @@ extension FeuilleDuVersetSource {
     }
 }
 
-/// Une carte de définition.
+/// Une carte : le mot, sa morphologie, et **ce que l'ONT en dit**.
 private struct CarteDuMot: View {
     @Environment(\.ontTheme) private var theme
     private let spacing = ONTSpacing()
 
     let mot: MotAffiche
     let actif: Bool
-    let ouvrir: () -> Void
+    let fiche: FicheAffichee?
+    @Binding var agrandie: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.s) {
-            Text(isole(mot.forme))
-                .font(theme.type.hebrew.font)
-                .foregroundStyle(theme.ink)
-                .environment(\.layoutDirection, .rightToLeft)
-
-            if let morphologie = mot.morphologie {
-                Text(morphologie)
-                    .font(ONTUI.caption)
-                    .foregroundStyle(.secondary)
-                    .monospaced()
-            }
-
+            entete
             Rectangle()
                 .fill(actif ? theme.accent : theme.separator)
                 .frame(width: 44, height: 2)
-
             contenu
-
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(spacing.m)
         .background(theme.surface, in: RoundedRectangle(cornerRadius: ONTRadius.card))
         .overlay {
@@ -445,35 +552,130 @@ private struct CarteDuMot: View {
         .opacity(actif ? 1 : 0.55)
     }
 
-    @ViewBuilder private var contenu: some View {
-        if mot.fiche != nil {
-            Button(action: ouvrir) {
-                Label("Ouvrir la fiche", systemImage: "chevron.right")
-                    .font(ONTUI.callout)
-                    .labelStyle(.titleAndIcon)
+    private var entete: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isole(mot.forme))
+                    .font(theme.type.hebrew.font)
+                    .foregroundStyle(theme.ink)
+                    .environment(\.layoutDirection, .rightToLeft)
+                if let titre = fiche?.titre ?? mot.translitteration {
+                    Text(titre)
+                        .font(ONTUI.callout)
+                        .foregroundStyle(theme.accent)
+                }
+                if let morphologie = mot.morphologie {
+                    Text(morphologie)
+                        .font(ONTUI.caption)
+                        .foregroundStyle(.secondary)
+                        .monospaced()
+                }
+            }
+            Spacer(minLength: spacing.s)
+            // **Le bouton d'agrandissement.** Il n'y a rien à orchestrer : le
+            // verset se replie, la carte s'étend, et `withAnimation` interpole
+            // la même vue d'une place à l'autre.
+            Button {
+                withAnimation(.snappy(duration: 0.32)) { agrandie.toggle() }
+            } label: {
+                Image(
+                    systemName: agrandie
+                        ? "arrow.down.right.and.arrow.up.left"
+                        : "arrow.up.left.and.arrow.down.right"
+                )
+                .font(ONTUI.callout.weight(.semibold))
+                .foregroundStyle(theme.accent)
+                .padding(spacing.xs)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(theme.accent)
+            .accessibilityLabel(agrandie ? "Réduire la fiche" : "Agrandir la fiche")
+        }
+    }
+
+    @ViewBuilder private var contenu: some View {
+        if let fiche, !fiche.definition.isEmpty {
+            // **Le texte de la fiche est ici, pas derrière un bouton.**
+            //
+            // Le premier jet offrait « Ouvrir la fiche », qui soulevait une
+            // seconde feuille par-dessus celle-ci. L'auteur : « je veux que le
+            // texte soit directement dedans, même pour les intras ». La feuille
+            // existe pour comprendre un mot sans quitter son verset, et un
+            // second étage reconduisait ce qu'elle venait supprimer.
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: spacing.s) {
+                    ForEach(Array(fiche.definition.enumerated()), id: \.offset) { _, bloc in
+                        ProseDeLaFiche(bloc: bloc)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        } else if mot.fiche != nil {
+            Text("Cette fiche n'a pas encore de définition.")
+                .font(ONTUI.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         } else {
-            // **Le message plutôt que le vide**, arbitré par l'auteur. Il dit
-            // l'état du lexique au lieu de laisser croire à une panne — et il
-            // le dira pour 92 % des mots le premier jour, ce qui est
-            // exactement l'information.
+            // **Le message plutôt que le vide**, arbitré par l'auteur : il dit
+            // l'état du lexique au lieu de laisser croire à une panne.
             Text("Ce mot n'a pas encore de fiche ONT.")
                 .font(ONTUI.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-
-        if let strong = mot.strong {
-            Text("Strong \(strong)")
-                .font(ONTUI.caption)
-                .foregroundStyle(.tertiary)
+            if let strong = mot.strong {
+                Text("Strong \(strong)")
+                    .font(ONTUI.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
     /// Isole la séquence hébraïque de son voisinage — voir `hebrewRun`.
     private func isole(_ v: String) -> String { "\u{2068}\(v)\u{2069}" }
+}
+
+/// Un bloc de fiche, rendu sur place.
+///
+/// **Dette assumée.** `BlocDeFiche` fait déjà ce travail, en mieux — mais il
+/// vit dans `LexiconFeature`, et `ReadingFeature` ne dépend d'aucune autre
+/// feature : c'est une contrainte écrite dans `Package.swift`, et elle est
+/// juste. La branche des chuqqot l'a déplacé dans `ONTDesignSystem`, où il
+/// aurait dû être ; ce rendu-ci disparaît le jour où ce déplacement atteint
+/// cette branche.
+private struct ProseDeLaFiche: View {
+    @Environment(\.ontTheme) private var theme
+    let bloc: Block
+
+    var body: some View {
+        switch bloc {
+        case .paragraph(let nodes), .quote(let nodes):
+            Text(ONTTextRenderer.compose(nodes, theme: theme))
+                .font(ONTUI.body)
+                .lineSpacing(theme.lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+        case .heading(_, let nodes):
+            Text(ONTTextRenderer.compose(nodes, theme: theme))
+                .font(ONTUI.headline)
+                .fixedSize(horizontal: false, vertical: true)
+        case .list(_, let items):
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("·").foregroundStyle(.secondary)
+                        Text(ONTTextRenderer.compose(item, theme: theme))
+                            .font(ONTUI.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        // Les tableaux et les filets n'ont pas de place dans une carte de cette
+        // largeur. Les taire est exact : ils ne portent jamais le sens d'un
+        // mot, et les écraser serait pire que les omettre.
+        default:
+            EmptyView()
+        }
+    }
 }
 
 // MARK: - Le flot des mots
@@ -495,8 +697,23 @@ private struct FlotDeMots: View {
     var body: some View {
         FlotLayout(espace: spacing.xs, interligne: spacing.s) {
             ForEach(mots) { m in
-                Text("\u{2068}\(m.forme)\u{2069}")
-                    .font(theme.type.hebrew.font)
+                VStack(spacing: 1) {
+                    Text("\u{2068}\(m.forme)\u{2069}")
+                        .font(theme.type.hebrew.font)
+                    // **La translittération sous le mot**, demandée par
+                    // l'auteur. Plus petite et plus pâle : elle aide à
+                    // prononcer, elle ne concurrence pas le texte.
+                    //
+                    // Rien quand on ne sait pas — pas un tiret, pas une
+                    // parenthèse vide. Une ligne absente se lit comme une
+                    // absence ; un signe de remplacement se lit comme une
+                    // donnée.
+                    if let t = m.translitteration {
+                        Text(t)
+                            .font(ONTUI.caption)
+                            .opacity(0.75)
+                    }
+                }
                     .foregroundStyle(
                         m.id == choisi
                             ? theme.background

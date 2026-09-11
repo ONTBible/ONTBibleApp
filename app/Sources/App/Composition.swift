@@ -49,7 +49,7 @@ final class Composition {
 
     /// Les lecteurs de disque, gardés pour qu'on puisse leur dire d'oublier.
     private let corpusSurDisque: DiskCorpusRepository
-    private let lexiqueSurDisque: DiskGlossaryRepository
+    let lexiqueSurDisque: DiskGlossaryRepository
     /// Les fiches des noms propres.
     ///
     /// **Du disque quand il en porte, du bundle sinon** — comme le glossaire.

@@ -105,11 +105,23 @@ struct ChapterView: View {
     private var pastille: String {
         guard chapter.n > 0 else { return chapter.title }
         let livre = model.outline(chapter.bookId)?.title ?? chapter.bookId
-        return LibelleDUnite.situe(
-            livre: livre,
-            rang: chapter.n,
-            french: model.preferences.french
-        )
+        let situe = "\(livre) · \(LibelleDUnite.rangCourt(chapter.n))"
+        // **Ce que le lecteur a désigné passe devant le nom de la division.**
+        //
+        // La pastille disait « Bereshit · Parashah 1 » — juste, et deux fois
+        // plus long que nécessaire pour une information que le lecteur a
+        // lui-même réglée. La place gagnée porte la plage sélectionnée, qui,
+        // elle, change à chaque geste.
+        //
+        // `VerseRange.label` et non un second formatage : « 1-3, 7 » s'écrit
+        // déjà quelque part, et deux règles de mise en forme pour une même
+        // chose finissent toujours par diverger.
+        guard !selection.isEmpty else { return situe }
+        // **Sans « v. ».** Le séparateur dit déjà qu'on descend d'un cran —
+        // livre, puis unité, puis verset —, et la pastille se lit de gauche à
+        // droite comme une adresse. Deux caractères et une espace de moins,
+        // dans le seul endroit de l'app où la place est comptée.
+        return "\(situe) · \(VerseRange.label(selection))"
     }
 
     var body: some View {
@@ -305,7 +317,8 @@ struct ChapterView: View {
                     chapter: chapter,
                     selection: $selection,
                     noteTarget: $noteTarget,
-                    autoShare: $autoShare
+                    autoShare: $autoShare,
+                    sourceDemandee: $sourceDemandee
                 )
                     // Bornée pour la même raison que la page : la liseuse prend
                     // toute la largeur de l'iPad depuis le pli, et sans cette
@@ -830,6 +843,28 @@ private struct VerseActionBar: View {
     @Binding var noteTarget: VerseSelection?
     /// Vrai quand l'ouverture vient de la pastille du widget.
     @Binding var autoShare: Bool
+    /// Le verset dont on demande la source — tenu par le chapitre.
+    @Binding var sourceDemandee: PositionDeVerset?
+
+    /// **La position d'un verset, depuis son numéro affiché.**
+    ///
+    /// La carte ne connaît qu'un numéro — c'est ce que la sélection porte. La
+    /// feuille, elle, veut une position, parce qu'une parashah qui couvre deux
+    /// chapitres bibliques fait repartir la numérotation à ¹ et porte alors
+    /// deux versets « 1 ».
+    ///
+    /// **On prend le premier des deux**, faute de mieux : la sélection d'un
+    /// verset ne dit pas lequel des homonymes. C'est l'écart assumé de ce
+    /// chemin-ci, et il ne concerne qu'une poignée d'unités — l'appui long,
+    /// lui, sait exactement où le doigt s'est posé.
+    private func positionDuVerset(_ n: Int) -> PositionDeVerset? {
+        let tous = chapter.blocks.flatMap { bloc -> [Verse] in
+            if case .verses(let versets) = bloc { return versets }
+            return []
+        }
+        guard let i = tous.firstIndex(where: { $0.n == n }) else { return nil }
+        return PositionDeVerset(livre: chapter.bookId, unite: chapter.id, position: i)
+    }
 
     /// Ce qui part dans la feuille de partage. Rempli à l'appui, pas avant :
     /// rendre une image de 1080 × 1080 à chaque verset touché serait du
@@ -1017,6 +1052,27 @@ private struct VerseActionBar: View {
             if selection.count == 1, let only = selection.first {
                 ActionTile(title: "Noter", icon: "square.and.pencil") {
                     noteTarget = VerseSelection(only)
+                }
+                .frame(maxWidth: .infinity)
+
+                // **Le chemin sûr vers le verset d'origine.**
+                //
+                // L'appui long existe et c'est le geste que l'auteur voulait,
+                // mais il se dispute le doigt avec deux interactions que le
+                // système attache au texte : la sélection, et l'aperçu d'un
+                // lien. Sur l'appareil, le résultat dépend de ce qu'on touche —
+                // un mot doré ne répond pas comme une espace.
+                //
+                // Cette tuile ne dépend de rien : le verset est **déjà**
+                // désigné quand elle paraît, et c'est là que l'auteur l'avait
+                // cherchée en premier — « à la sélection d'un verset la feature
+                // prévue apparaît pas ».
+                //
+                // Deux chemins pour un geste, et c'est le patron d'iOS : un qui
+                // s'apprend, un qui va vite.
+                ActionTile(title: "Origine", icon: "character.book.closed") {
+                    sourceDemandee = positionDuVerset(only)
+                    selection.removeAll()
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -1389,19 +1445,6 @@ private struct FlowingVerses: View {
         // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
         // ici : on lit la hauteur du doigt et on la convertit avec la même
         // répartition que le repérage du défilement.
-        // **La sélection de texte du système cède l'appui long.**
-        //
-        // Constaté sur l'appareil de l'auteur, capture à l'appui : l'appui long
-        // sur la prose déclenchait la sélection d'iOS — le pavé gris sur tout
-        // le bloc — au lieu d'ouvrir le verset d'origine. Le banc ne pouvait
-        // pas le montrer : un toucher synthétisé n'appelle pas l'interaction de
-        // texte, seul un vrai doigt le fait.
-        //
-        // On ne perd rien : la prose continue n'offrait pas « Copier » par ce
-        // chemin. Le lecteur qui veut copier désigne son verset et passe par la
-        // carte d'actions, qui le fait mieux — elle sait ce qu'est un verset,
-        // là où une sélection de texte ne connaît que des caractères.
-        .textSelection(.disabled)
         .ontAppuiLong { ou in
             guard let v = versetA(ou.y) else { return }
             sourceDemandee = positionDansLUnite(de: v)

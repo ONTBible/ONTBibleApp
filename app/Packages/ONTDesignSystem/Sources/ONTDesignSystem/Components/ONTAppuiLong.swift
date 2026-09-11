@@ -69,26 +69,15 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
         // reconnu : attendre le relèvement ferait patienter le lecteur, doigt
         // posé, sans rien lui dire.
         guard recognizer.state == .began else { return }
-        let ou = context.converter.localLocation
-        // **Un tour de boucle avant d'agir, et c'est la clé de tout.**
+        // **On agit tout de suite, dans le rappel.**
         //
-        // Mesuré le 11 septembre 2026, sur l'appareil : poser un état depuis ce
-        // rappel ne présentait aucune feuille. Aucune erreur, aucun journal —
-        // le silence. Trois corrections plausibles ont échoué avant qu'une
-        // sonde ne tranche : ajouter *n'importe quel autre* changement d'état
-        // dans le même rappel faisait soudain apparaître la feuille.
-        //
-        // Ce n'était donc pas le geste, ni la position, ni la profondeur de la
-        // vue : c'est que ce rappel arrive **pendant** le traitement du toucher
-        // par UIKit, hors du cycle de rendu de SwiftUI. La modification est
-        // enregistrée et rien ne la relève ; le second changement ne corrigeait
-        // rien, il réveillait le cycle.
-        //
-        // `Task { @MainActor }` rend la main à la boucle d'exécution, et
-        // SwiftUI voit l'état changer dans un cycle à lui. Le point d'appel n'a
-        // rien à savoir de tout ça — c'est exactement ce qu'un pont doit
-        // absorber.
-        Task { @MainActor in action(ou) }
+        // Le premier jet reportait d'un tour de boucle — `Task { @MainActor }`
+        // — au motif que ce rappel arrive hors du cycle de rendu de SwiftUI.
+        // Mesuré sur l'appareil : le report **empêche** la feuille de s'ouvrir,
+        // là où l'appel immédiat la laisse passer. L'explication était
+        // plausible et fausse, et c'est la mesure qui l'a dit.
+        action(context.converter.localLocation)
+
     }
 }
 

@@ -82,6 +82,26 @@ struct RootView: View {
         .ontNavigationChrome()
         // Toucher un intraduisible n'ouvre pas une page : ça soulève une fiche
         // par-dessus la lecture, qu'on referme sans perdre sa place.
+        // **La fiche d'un mot source, posée ici et nulle part ailleurs.**
+        //
+        // `ReadingFeature` ne dépend d'aucune autre feature et ne lit pas les
+        // fichiers du corpus : il reçoit une fonction et ne connaît qu'elle.
+        // C'est la composition qui sait où vivent les fiches, et c'est son
+        // rôle — elle existe pour ça.
+        .environment(\.ontFicheDunMot, { [lexique = composition.lexiqueSurDisque,
+                                          shemot = composition.shemotSurDisque] cible in
+            switch cible {
+            case .term(let lemma):
+                guard let e = (try? lexique.entries())?.first(where: { $0.lemma == lemma })
+                else { return nil }
+                return FicheAffichee(
+                    titre: e.title, hebreu: e.hebrew, definition: e.definition ?? [])
+            case .shem(let lemma):
+                guard let e = (try? shemot.entries())?.first(where: { $0.lemma == lemma })
+                else { return nil }
+                return FicheAffichee(titre: e.title, hebreu: nil, definition: e.definition ?? [])
+            }
+        })
         .environment(\.openURL, OpenURLAction { url in
             router.open(url) ? .handled : .systemAction
         })
