@@ -435,6 +435,10 @@ private fun Racine(
     // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
     // fermant.
     var shem: String? by rememberSaveable { mutableStateOf(null) }
+    // Le verset qu'un renvoi biblique vient rejoindre. **Pas une sélection** :
+    // on fait défiler, on n'ouvre pas la barre d'actions — voir
+    // `ChapterScreen.versetVise`.
+    var versetVise: Int? by rememberSaveable { mutableStateOf(null) }
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
 
@@ -858,6 +862,7 @@ private fun Racine(
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
+                            versetVise = versetVise,
                             selection = lecture.selection,
                             onVerset = { n ->
                                 // Désigner un verset ouvre le mode sélection,
@@ -914,6 +919,50 @@ private fun Racine(
                                     messages.showSnackbar(
                                         "« $cible » est une chuqqah qui n'est pas encore lisible ici.",
                                     )
+                                }
+                            },
+                            // ## Une référence répond toujours, résolue ou non
+                            //
+                            // L'auteur l'a arbitré à l'écran : toutes portent
+                            // l'ambre et le pointillé, et l'apparence ne se
+                            // scinde pas. Scinder aurait appris au lecteur à
+                            // lire une marque de plus ; ici il touche, et le
+                            // vide devient une réponse au lieu d'un silence.
+                            //
+                            // 208 des 915 références du corpus visent des
+                            // livres que personne n'a traduits. Un toucher sans
+                            // réponse s'y lit comme une panne de l'app, pas
+                            // comme un état de la traduction.
+                            onReference = { reference ->
+                                val cible = reference.cible
+                                if (cible == null) {
+                                    // Le **nom du livre**, jamais un « ce
+                                    // passage » générique : « Ésaïe n'est pas
+                                    // encore traduit » dit ce qui manque et où
+                                    // en est le projet. « Indisponible » ne dit
+                                    // rien et se lit comme une panne.
+                                    //
+                                    // Un `Snackbar` là où iOS pose une alerte :
+                                    // il n'y a rien à consulter, rien à faire
+                                    // défiler, et c'est déjà la réponse que le
+                                    // renvoi de chuqqah donne dix lignes plus
+                                    // haut. Une boîte modale demanderait un
+                                    // geste pour refermer ce qui n'a rien à
+                                    // offrir.
+                                    portee.launch {
+                                        messages.showSnackbar(
+                                            "${reference.livre} n'est pas encore traduit. " +
+                                                "Le renvoi est là, le texte viendra.",
+                                        )
+                                    }
+                                } else {
+                                    // La sélection est remise à zéro par
+                                    // `ouvrir` ; on vise après, et le visé fait
+                                    // défiler sans désigner.
+                                    onglet = Onglet.BIBLE
+                                    lecture.ouvrir(cible.livre, cible.unite)
+                                    versetVise = cible.verset
+                                    ecran = Ecran.Lecture
                                 }
                             },
                             onTerme = { lemme ->
