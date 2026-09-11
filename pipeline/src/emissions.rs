@@ -116,6 +116,14 @@ impl Liseuse {
 
     /// Les extensions du source à fouiller.
     ///
+    /// L'extension est comparée **en entier**, par `Path::extension` — un
+    /// `chemin.contains(".kt")` laisserait entrer les `.kts`, et c'est
+    /// précisément ce que le paragraphe suivant refuse.
+    ///
+    /// Le filtre ne suffit pourtant pas à lui seul : un fichier peut porter la
+    /// bonne extension et n'être quand même pas un lecteur, parce que c'est le
+    /// pipeline qui l'a écrit. `aspirer` s'en charge, par la marque d'en-tête.
+    ///
     /// **Android ne donne que `.kt`, jamais `.kts`.** Les fichiers Gradle sont
     /// de la configuration de build, pas des lecteurs : `build.gradle.kts`
     /// porte `connusDuCorpus`, qui nomme tous les fichiers du corpus, et
@@ -849,6 +857,41 @@ fn aspirer(chemin: &Path, extensions: &[&str], dans: &mut String) {
         if let Some(ext) = chemin.extension().and_then(|e| e.to_str()) {
             if extensions.contains(&ext) {
                 if let Ok(t) = std::fs::read_to_string(chemin) {
+                    // ## Un fichier engendré par le pipeline n'est pas un lecteur
+                    //
+                    // `Schema.swift` et `Schema.kt` portent la bonne extension
+                    // et vivent au milieu du source de la liseuse, mais c'est
+                    // **le pipeline** qui les écrit, depuis `schema.rs`, et
+                    // leurs commentaires de documentation nomment les fichiers
+                    // de `dist/` qu'ils décrivent. Les aspirer revient à
+                    // demander au contrôle s'il connaît ses propres écrits.
+                    //
+                    // Les deux conséquences n'ont pas la même gravité, et la
+                    // pire est la muette :
+                    //
+                    // - un faux rouge — `prononciation.json` est en
+                    //   `Ignore` pour Android, et `Schema.kt` le nomme : le
+                    //   tableau se fait accuser d'avoir tort alors qu'il a
+                    //   raison ;
+                    // - **un faux vert** — `Schema.swift` nomme sept des neuf
+                    //   jetons du tableau. Chaque `Lit` d'iOS serait satisfait
+                    //   par lui seul, donc satisfait même le jour où le vrai
+                    //   lecteur disparaît. Un contrôle qui ne peut plus rougir
+                    //   ne mesure plus rien.
+                    //
+                    // Le défaut était en plus **intermittent**, ce qui l'a
+                    // laissé passer : ces fichiers sont engendrés *après* ce
+                    // relevé, et ne sont pas committés. Sur un arbre neuf —
+                    // donc dans les deux jobs de la CI — ils n'existent pas
+                    // encore, et le premier passage est vert. C'est le second
+                    // `corpus.sh` qui rougissait, en local seulement.
+                    //
+                    // On reconnaît la marque plutôt qu'une liste de noms : un
+                    // fichier engendré demain sera écarté sans que personne
+                    // n'ait à y penser.
+                    if t.starts_with(crate::schema::MARQUE_ENGENDRE) {
+                        return;
+                    }
                     dans.push_str(&t);
                     dans.push('\n');
                 }
@@ -1178,5 +1221,101 @@ mod tests {
         let (emis, sources) = tout_va_bien();
         let lignes = lignes_du_rapport(&rapprocher(&emis, &sources)).join("\n");
         assert!(lignes.contains("Aucun écart bloquant"));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Ce qui compte comme source d'une liseuse
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Un dossier jetable, sans dépendance de développement.
+    ///
+    /// `tempfile` ferait le travail, mais la caisse n'a aucune
+    /// `dev-dependencies` aujourd'hui et le site la compile en
+    /// `--no-default-features` : une dépendance de plus pour trois tests se
+    /// paierait chez lui aussi.
+    fn dossier_jetable(nom: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let chemin = std::env::temp_dir().join(format!("ont-aspirer-{nom}-{unique}"));
+        std::fs::create_dir_all(&chemin).expect("créer le dossier jetable");
+        chemin
+    }
+
+    /// Ce qu'`aspirer` retient d'un unique fichier posé dans un dossier neuf.
+    fn aspire(nom_du_test: &str, nom_du_fichier: &str, contenu: &str) -> String {
+        let dossier = dossier_jetable(nom_du_test);
+        std::fs::write(dossier.join(nom_du_fichier), contenu).expect("écrire le fichier");
+        let mut vu = String::new();
+        aspirer(&dossier, Liseuse::Android.extensions(), &mut vu);
+        let _ = std::fs::remove_dir_all(&dossier);
+        vu
+    }
+
+    /// L'en-tête exact des fichiers engendrés, tel que `codegen` l'écrit.
+    ///
+    /// Reconstitué depuis la constante partagée, et non recopié : un test qui
+    /// recopierait la marque continuerait de passer le jour où elle change,
+    /// alors même que le code réel aurait cessé de la reconnaître.
+    fn schema_engendre(jeton: &str) -> String {
+        format!(
+            "{}\n//\n// Source : pipeline/src/schema.rs\n//\n/** `dist/{jeton}` — la feuille. */\n",
+            crate::schema::MARQUE_ENGENDRE
+        )
+    }
+
+    #[test]
+    fn un_schema_engendre_ne_prouve_aucune_lecture() {
+        // Le défaut réel du 11 septembre 2026 : `Schema.kt` est engendré par le
+        // pipeline **après** ce relevé, n'est pas committé, et son commentaire
+        // de documentation nomme `dist/prononciation.json`. Au deuxième
+        // `corpus.sh` d'affilée il était là, et le tableau — qui dit avec
+        // raison qu'Android ignore ce fichier — se faisait accuser d'avoir
+        // tort.
+        //
+        // Ce test rougit sur le code d'avant : sans la reconnaissance de la
+        // marque, le jeton se retrouve dans le source d'Android.
+        let vu = aspire("engendre", "Schema.kt", &schema_engendre("prononciation.json"));
+        assert!(
+            !vu.contains("prononciation.json"),
+            "un fichier engendré par le pipeline ne doit pas compter comme source : {vu}"
+        );
+    }
+
+    #[test]
+    fn un_vrai_lecteur_kotlin_compte_toujours() {
+        // L'autre moitié de la paire : sans la marque, le même contenu est du
+        // source écrit à la main, et il prouve bien que le dépôt connaît le
+        // fichier. Sans ce test, écarter *tous* les `.kt` passerait aussi.
+        let vu = aspire(
+            "lecteur",
+            "PrononciationStore.kt",
+            "package com.labibleont.ont\n// lit dist/prononciation.json\n",
+        );
+        assert!(
+            vu.contains("prononciation.json"),
+            "un lecteur écrit à la main doit compter : {vu}"
+        );
+    }
+
+    #[test]
+    fn un_gradle_kts_n_est_pas_du_source_kotlin() {
+        // `android/app/build.gradle.kts` porte `exclude("prononciation.json")`
+        // — il nomme précisément ce qu'Android **ne** lit **pas**. Le compter
+        // rendrait le contrôle vert là où la vérité est l'inverse.
+        //
+        // Le filtre compare l'extension entière ; un `chemin.contains(".kt")`
+        // laisserait passer `.kts`. Le test fige la différence, qui ne se voit
+        // pas à la relecture.
+        let vu = aspire(
+            "gradle",
+            "build.gradle.kts",
+            "android { exclude(\"prononciation.json\") }\n",
+        );
+        assert!(
+            !vu.contains("prononciation.json"),
+            "la configuration de build n'est pas un lecteur : {vu}"
+        );
     }
 }

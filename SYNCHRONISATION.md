@@ -4387,3 +4387,103 @@ embarqués sans être lus ?
 **ONTBibleTranslation** — rien à changer. Mais le vault est la source du glob :
 tout document neuf du pipeline atterrit chez deux clients qui n'en savent rien
 jusqu'à ce qu'un contrôle le dise.
+
+## 11 septembre 2026 — le contrôle lisait ce que le pipeline venait d'écrire *(local)*
+
+Une session voisine a rapporté que `origin/device` cassait déjà `scripts/corpus.sh`,
+et a nommé le coupable : `android/app/build.gradle.kts` porte
+`exclude("prononciation.json")`, et le contrôle des émissions compterait cette
+**exclusion** comme une **mention** — donc comme la preuve qu'Android lit le
+fichier. La cause était fausse. Le symptôme ne l'était pas.
+
+### Ce que `.kts` ne fait pas
+
+`Liseuse::extensions()` rend `["kt"]` pour Android, et `aspirer` compare
+l'extension **entière**, par `Path::extension`. `build.gradle.kts` a pour
+extension `kts`, qui n'est pas `kt` : il n'entre jamais. Un
+`chemin.contains(".kt")` l'aurait laissé passer, et c'est bien le piège que le
+module documentait — mais il l'avait évité. La mesure le confirme : sur un
+worktree neuf de `25c219f`, `build.gradle.kts` présent avec ses deux lignes,
+`corpus.sh` rend **0** et le rapport dit « Aucun écart bloquant ».
+
+### Ce qui cassait vraiment
+
+Le second `corpus.sh`. Pas le premier.
+
+`Schema.swift` et `Schema.kt` ne sont pas committés : le pipeline les engendre
+depuis `schema.rs`, à l'étape qui suit le relevé des émissions. Sur un arbre
+neuf ils n'existent pas encore, et le contrôle ne les voit pas. Au passage
+suivant ils sont là — avec la bonne extension, au milieu du source de la
+liseuse, et leurs commentaires de documentation nomment les fichiers de `dist/`
+qu'ils décrivent.
+
+    run 1   Schema.kt absent    → exit 0, aucun écart
+    run 2   Schema.kt présent   → exit 1, `prononciation.json` × Android
+
+Le tableau dit, avec raison, qu'Android **ignore** `prononciation.json`. Le
+contrôle trouvait le jeton dans un fichier que le pipeline avait écrit lui-même,
+et accusait le tableau d'avoir tort.
+
+C'est pour cela que la CI restait verte, et qu'elle l'est : ses deux jobs
+partent d'un checkout neuf et lancent le relevé **avant** `engendrer`. Le
+dernier passage sur `device` est au vert. Le défaut n'était visible que sur une
+machine de travail, au deuxième geste — la forme d'intermittence qui se range en
+« c'était sûrement autre chose ».
+
+### Le faux rouge n'était pas le pire
+
+`Schema.swift` nomme **sept des neuf jetons** du tableau. Chaque
+`Lecture::Lit` d'iOS pouvait donc être satisfait par le schéma engendré seul —
+c'est-à-dire satisfait *aussi* le jour où le vrai lecteur disparaît. Un faux
+rouge se voit et fâche ; ==un contrôle qui ne peut plus rougir ne mesure plus
+rien, et ne fâche personne==.
+
+### Le correctif
+
+`aspirer` refuse tout fichier dont la première ligne est la marque
+`// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.` La marque est hissée
+en `schema::MARQUE_ENGENDRE`, seul exemplaire, écrite par `codegen::swift` et
+`codegen::kotlin`, lue par `emissions::aspirer` — le compilateur tient les trois
+ensemble, et un fichier engendré demain sera écarté sans que personne n'y pense.
+Les octets émis sont inchangés, vérifiés par `diff`.
+
+La règle générale, qui manquait à côté de celle sur la configuration :
+
+    la configuration de build n'est pas un lecteur
+    un fichier engendré par le pipeline non plus
+
+### L'épreuve, retournée contre le code d'avant
+
+Trois tests, dont une paire discriminante. Garde retirée, mesurée test par test
+et **nommée** — un filtre `cargo test aspirer` ne correspondait à aucun nom et
+rendait « ok. 0 passed », ce qui est exactement le défaut qu'on chassait, une
+couche plus haut :
+
+    un_schema_engendre_ne_prouve_aucune_lecture   sans la garde → FAILED
+    un_vrai_lecteur_kotlin_compte_toujours        sans la garde → ok
+    un_gradle_kts_n_est_pas_du_source_kotlin      sans la garde → ok
+
+Le premier rougit sur le code fautif ; les deux autres interdisent de sur-exclure
+— écarter *tous* les `.kt` passerait le premier test et casserait le contrôle.
+Le troisième fige la comparaison d'extension entière, que la relecture ne
+distingue pas d'un `contains`.
+
+Un piège de mesure au passage : restaurer le fichier par `mv` lui a rendu un
+mtime plus ancien que le dernier build, et `cargo` a réutilisé l'objet périmé —
+la suite rougissait sur un code déjà corrigé. **Un `touch` avant de conclure**,
+comme pour toute vérification qui remet un fichier en place.
+
+### Pourquoi cette entrée est locale
+
+Rien ne traverse, et il faut le dire plutôt que de le laisser supposer. Le
+tableau des émissions n'a pas bougé d'une ligne, aucun nom JSON ne change,
+`dist/` sort octet pour octet identique — `diff` le vérifie sur `Schema.swift`
+et `Schema.kt`. Ce qui a changé est ce que le contrôle accepte comme **preuve**,
+et ce contrôle vit dans le pipeline, chez nous.
+
+Le site est mesuré par ses `.rs`, dont aucun n'est engendré par le pipeline : sa
+colonne ne pouvait pas porter ce défaut. Le vault n'entre pas dans le relevé.
+
+Ce qui vaut ailleurs est la leçon, pas le correctif : ==un contrôle qui lit un
+artefact de sa propre construction se croit informé==. Elle est ici, et elle
+attendra d'avoir coûté quelque chose chez un voisin pour y monter au tronc.

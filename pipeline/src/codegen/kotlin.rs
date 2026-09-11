@@ -222,8 +222,13 @@ pub fn emettre(modele: &Modele) -> String {
 
     let mut sortie = String::new();
 
+    // La marque est celle que `emissions::aspirer` reconnaît pour écarter ce
+    // fichier du source des liseuses : il est engendré, il ne prouve aucune
+    // lecture. Elle vient de `schema.rs` pour qu'il n'en existe qu'un seul
+    // exemplaire.
+    sortie.push_str(crate::schema::MARQUE_ENGENDRE);
     sortie.push_str(
-        "// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.\n\
+        "\n\
          //\n\
          // Source : pipeline/src/schema.rs\n\
          // Producteur : cargo run --bin engendrer\n\
