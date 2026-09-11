@@ -443,16 +443,46 @@ fn consonnes(s: &str) -> String {
 /// niveau 3 — `(*bereshit* / בְּרֵאשִׁית)`. Chacun est un couple vérifié par
 /// quelqu'un qui lit l'hébreu. On les relève, et l'on s'arrête là.
 ///
-/// ## La garde, et c'est la même qu'ailleurs dans ce module
+/// ## Deux épreuves, dans cet ordre, et la première porte le sens
 ///
-/// Une forme hébraïque que le corpus translittère de **deux façons** ne rend
-/// rien. `אֱלֹהִים` est écrit `ʾElohim` là où il nomme, `ʾelohim` là où il
-/// désigne ; `וַיִּקַּח` est `vayiqach` chez l'un, `vayiqqach` chez l'autre.
-/// Choisir l'une des deux — la première rencontrée, la plus fréquente —
-/// reviendrait à trancher une question d'auteur dans une table de hachage, et
-/// à l'afficher comme acquise.
+/// 1. **Le verset.** Les couples du niveau 3 de l'unité et de la **position**
+///    où le mot se trouve. C'est l'exact.
+/// 2. **Le corpus entier**, pour les mots qu'aucun apparat de leur propre
+///    verset ne glose. Une forme que le corpus translittère de deux façons
+///    n'en reçoit alors aucune — c'est la règle de [`LiaisonDesMots`] : **un
+///    seul prétendant, sinon rien.**
 ///
-/// C'est la règle de [`LiaisonDesMots`] : **un seul prétendant, sinon rien.**
+/// ## Pourquoi le verset d'abord, et pourquoi ce n'est pas un raffinement
+///
+/// La première version de ce type n'avait que la seconde épreuve. Elle refusait
+/// `אֱלֹהִים` — écrit `ʾElohim` à un endroit, `ʾelohim` à un autre — et le
+/// relevé disait « désaccord de casse ». L'auteur a répondu, le 11 septembre
+/// 2026, que ce n'en était pas un :
+///
+/// > « On garde les deux, et on utilise `ʾElohim` quand c'est pour parler de
+/// > YHWH, et `ʾelohim` quand c'est pour parler des autres `ʾeloah`/`ʾelohim`
+/// > autres que le seul et le vrai YHWH. »
+///
+/// La distinction n'est donc pas typographique, elle est **sémantique** : la
+/// même forme hébraïque se translittère selon **qui elle désigne dans ce
+/// verset-là**. Une table qui va de la forme à la translittération ne peut pas
+/// la porter — elle a jeté le référent avant même d'arriver à la garde.
+///
+/// La garde n'avait pas tort : elle refusait pour la bonne raison. C'est la
+/// **clé** qui était trop grossière, et replier la casse aurait effacé la
+/// distinction au lieu de la servir — en la faisant passer pour du bruit.
+///
+/// Le vault a déjà tranché, occurrence par occurrence, dans le verset même.
+/// Il n'y a rien à arbitrer ici : seulement à ne plus perdre l'information en
+/// aplatissant.
+///
+/// ## Le verset se désigne par sa **position**, jamais par son numéro
+///
+/// Même clé que [`attacher`], et pour la même raison : quand une **parashah**
+/// couvre deux chapitres bibliques, la numérotation repart de ¹ (§2.2) et
+/// *Bereshit* 7 porte deux versets « 1 ». Une table indexée par numéro
+/// donnerait à l'un la translittération de l'autre — sur cette unité-là
+/// seulement, et sans rien dire.
 ///
 /// ## La cantillation ôtée des deux côtés, les voyelles gardées
 ///
@@ -477,6 +507,88 @@ pub struct Translitterations {
     /// descendre dans les gloses, la couverture tomberait sans qu'aucun compte
     /// ne bouge.
     refusees: usize,
+    /// Unité → position du verset → ses propres couples.
+    ///
+    /// La table qui porte la décision de l'auteur. Consultée **avant**
+    /// `par_forme`, et c'est tout l'objet de la reprise du 11 septembre 2026.
+    par_verset: HashMap<String, BTreeMap<usize, HashMap<String, String>>>,
+}
+
+/// Ce que la jointure a donné, mot à mot — et surtout ce qu'elle aurait donné
+/// sans le verset.
+///
+/// ## `discordants` est le seul chiffre qui prouve quelque chose
+///
+/// Les trois premiers disent la couverture, qui se serait mesurée aussi bien
+/// avant la reprise. Le quatrième compte les mots que les deux méthodes
+/// translittèrent **différemment** : c'est exactement la distinction que
+/// l'aplatissement perdait. À zéro, la reprise n'aurait rien changé en
+/// pratique, et il faudrait le dire plutôt que de croire avoir corrigé
+/// quelque chose.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BilanDesTranslitterations {
+    /// Mots translittérés par le niveau 3 de leur **propre verset**.
+    pub par_le_verset: u32,
+    /// Mots que seul le corpus entier a su translittérer.
+    pub par_le_corpus: u32,
+    /// Mots dont le verset et le corpus ne disent **pas la même chose**. Le
+    /// verset l'emporte ; ce compte dit ce que la table plate se trompait de
+    /// donner.
+    pub discordants: u32,
+    /// Mots que le corpus **refusait** — deux translittérations hors contexte —
+    /// et que leur propre verset tranche.
+    ///
+    /// C'est le cas d'`אֱלֹהִים`, et c'est la raison d'être de la reprise :
+    /// l'ancienne table ne les contournait pas, elle les effaçait.
+    pub recuperes: u32,
+    /// Mots laissés sans translittération.
+    pub sans: u32,
+}
+
+impl BilanDesTranslitterations {
+    pub fn couverts(&self) -> u32 {
+        self.par_le_verset + self.par_le_corpus
+    }
+
+    pub fn total(&self) -> u32 {
+        self.couverts() + self.sans
+    }
+}
+
+/// La règle « un seul prétendant, sinon rien », appliquée à une liste.
+///
+/// Sert aux deux étages — le corpus entier et un verset seul —, et c'est
+/// voulu : deux écritures de la même garde finiraient par diverger, et rien ne
+/// dirait laquelle croire.
+fn table_sure<'a>(
+    couples: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> (HashMap<String, String>, usize) {
+    let mut vues: HashMap<String, Option<String>> = HashMap::new();
+    for (translit, hebreu) in couples {
+        let forme = sans_cantillation(hebreu);
+        let dit = translit.trim().to_string();
+        if forme.is_empty() || dit.is_empty() {
+            continue;
+        }
+        match vues.get(&forme) {
+            // Déjà vue, et la même : rien ne change.
+            Some(Some(deja)) if *deja == dit => {}
+            // Déjà vue, et une autre : la forme ne dit plus rien.
+            Some(_) => {
+                vues.insert(forme, None);
+            }
+            None => {
+                vues.insert(forme, Some(dit));
+            }
+        }
+    }
+    let refusees = vues.values().filter(|d| d.is_none()).count();
+    (
+        vues.into_iter()
+            .filter_map(|(forme, dit)| dit.map(|d| (forme, d)))
+            .collect(),
+        refusees,
+    )
 }
 
 impl Translitterations {
@@ -486,38 +598,87 @@ impl Translitterations {
     /// qu'est la décision — accepter, refuser —, et une épreuve doit pouvoir
     /// l'atteindre sans monter un corpus entier.
     pub fn recoltee<'a>(couples: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
-        let mut vues: HashMap<String, Option<String>> = HashMap::new();
-        for (translit, hebreu) in couples {
-            let forme = sans_cantillation(hebreu);
-            let dit = translit.trim().to_string();
-            if forme.is_empty() || dit.is_empty() {
-                continue;
-            }
-            match vues.get(&forme) {
-                // Déjà vue, et la même : rien ne change.
-                Some(Some(deja)) if *deja == dit => {}
-                // Déjà vue, et une autre : la forme ne dit plus rien.
-                Some(_) => {
-                    vues.insert(forme, None);
-                }
-                None => {
-                    vues.insert(forme, Some(dit));
-                }
-            }
-        }
-        let refusees = vues.values().filter(|d| d.is_none()).count();
+        let (par_forme, refusees) = table_sure(couples);
         Self {
-            par_forme: vues
-                .into_iter()
-                .filter_map(|(forme, dit)| dit.map(|d| (forme, d)))
-                .collect(),
+            par_forme,
             refusees,
+            par_verset: HashMap::new(),
         }
+    }
+
+    /// Range les couples d'**un** verset, désigné par son unité et sa position.
+    ///
+    /// La même garde qu'au corpus, et elle ne sert presque jamais ici : il
+    /// faudrait qu'un seul verset translittère deux fois la même forme de deux
+    /// façons. Si ça arrive, le verset se tait et le corpus répond — c'est-à-
+    /// dire qu'il se tait aussi, puisqu'il a vu les deux.
+    pub fn ajouter_le_verset(
+        &mut self,
+        unite: &str,
+        position: usize,
+        couples: &[(String, String)],
+    ) {
+        let (table, _) = table_sure(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())));
+        if table.is_empty() {
+            return;
+        }
+        self.par_verset
+            .entry(unite.to_string())
+            .or_default()
+            .insert(position, table);
+    }
+
+    /// Ce que le niveau 3 de **ce verset-là** dit de ce mot.
+    fn dans_le_verset(&self, unite: &str, position: usize, mot: &str) -> Option<String> {
+        self.par_verset
+            .get(unite)?
+            .get(&position)?
+            .get(&sans_cantillation(mot))
+            .cloned()
     }
 
     /// La translittération de ce mot, si le corpus en donne une et une seule.
     fn pour(&self, mot: &str) -> Option<String> {
         self.par_forme.get(&sans_cantillation(mot)).cloned()
+    }
+
+    /// **La jointure telle qu'elle est publiée** — le verset, puis le corpus.
+    ///
+    /// Rend aussi ce qu'il faut pour le bilan : le verset l'emporte, et l'on
+    /// sait dire quand il contredit le corpus.
+    fn a_l_occurrence(
+        &self,
+        unite: &str,
+        position: usize,
+        mot: &str,
+        bilan: &mut BilanDesTranslitterations,
+    ) -> Option<String> {
+        let du_corpus = self.pour(mot);
+        match self.dans_le_verset(unite, position, mot) {
+            Some(du_verset) => {
+                match du_corpus.as_deref() {
+                    // Le corpus disait autre chose : la table plate donnait le
+                    // mauvais mot, et rien ne l'aurait montré.
+                    Some(autre) if autre != du_verset => bilan.discordants += 1,
+                    Some(_) => {}
+                    // Le corpus se taisait, faute d'avoir su choisir. Le verset,
+                    // lui, sait — parce que l'auteur y a déjà tranché.
+                    None => bilan.recuperes += 1,
+                }
+                bilan.par_le_verset += 1;
+                Some(du_verset)
+            }
+            None => match du_corpus {
+                Some(d) => {
+                    bilan.par_le_corpus += 1;
+                    Some(d)
+                }
+                None => {
+                    bilan.sans += 1;
+                    None
+                }
+            },
+        }
     }
 
     /// Combien de formes sont retenues — pour le relevé, rien d'autre.
@@ -596,6 +757,7 @@ fn couples_des_noeuds(noeuds: &[Inline], dans: &mut Vec<(String, String)>) {
 /// — et il pourrait, à lui seul, rendre une forme ambiguë et l'effacer de la
 /// table.
 pub fn translitterations(unites: &[Chapter]) -> Translitterations {
+    // ── Le corpus entier, d'abord ────────────────────────────────────────
     let mut couples: Vec<(String, String)> = Vec::new();
     for unite in unites {
         couples_des_noeuds(&unite.title_nodes, &mut couples);
@@ -604,7 +766,34 @@ pub fn translitterations(unites: &[Chapter]) -> Translitterations {
             couples_des_blocs(&pied.notes, &mut couples);
         }
     }
-    Translitterations::recoltee(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())))
+    let mut table =
+        Translitterations::recoltee(couples.iter().map(|(t, h)| (t.as_str(), h.as_str())));
+
+    // ── Puis chaque verset, à sa position ────────────────────────────────
+    //
+    // **La position se compte exactement comme `preparer` la comptera** : les
+    // `Block::Verses` à plat, dans l'ordre, et rien d'autre — elle court donc
+    // *à travers* les paragraphes, et ne repart pas avec eux. Deux façons de
+    // numéroter les mêmes versets finiraient par diverger d'un cran, et un
+    // décalage d'un cran produit un fichier bien formé que rien ne distingue
+    // d'un fichier juste.
+    for unite in unites {
+        let mut position = 0usize;
+        for bloc in &unite.blocks {
+            let Block::Verses { verses } = bloc else {
+                continue;
+            };
+            for v in verses {
+                let mut du_verset = Vec::new();
+                couples_des_noeuds(&v.nodes, &mut du_verset);
+                if !du_verset.is_empty() {
+                    table.ajouter_le_verset(&unite.id, position, &du_verset);
+                }
+                position += 1;
+            }
+        }
+    }
+    table
 }
 
 // ───────────────────────────── la plage biblique ──────────────────────────
@@ -717,6 +906,9 @@ pub struct Preparation {
     /// comme telle — jamais comme un succès. Un contrôle qui rend vert faute
     /// d'avoir regardé est pire qu'un contrôle absent.
     pub longueurs_de_chapitre: BTreeMap<(String, u32), u32>,
+    /// Ce que la jointure des translittérations a donné — voir
+    /// [`BilanDesTranslitterations`].
+    pub translitterations: BilanDesTranslitterations,
 }
 
 /// Accroche les divergences d'éditions aux positions d'une unité.
@@ -793,6 +985,8 @@ pub fn preparer(
     // Voir `Preparation::longueurs_de_chapitre` pour les deux façons dont ça
     // arrive, et pour ce que l'absence signifie en aval.
     let mut longueurs: BTreeMap<(String, u32), Option<u32>> = BTreeMap::new();
+    // Ce que la jointure des translittérations aura donné, pour le relevé.
+    let mut bilan = BilanDesTranslitterations::default();
 
     for (cle, t) in &vault.sources {
         temoins.insert(
@@ -830,7 +1024,13 @@ pub fn preparer(
                             let o = m.oshb.as_ref().expect("filtré juste au-dessus");
                             MotPublie {
                                 cible: liaison.cible(&m.t),
-                                translit: translitterations.pour(&m.t),
+                                // **Pas ici.** À cette ligne on lit un `.jsonl`
+                                // classé par référence biblique : on ne sait pas
+                                // encore dans quelle unité ni à quelle position
+                                // ce verset tombera, et c'est précisément ce qui
+                                // décide de la translittération. Elle est posée
+                                // plus bas, quand la jointure est faite.
+                                translit: None,
                                 t: m.t.clone(),
                                 lem: Some(o.lem.clone()),
                                 morph: Some(o.morph.clone()),
@@ -975,10 +1175,21 @@ pub fn preparer(
                             cle, cle_ref.0, cle_ref.1, u.id
                         ));
                     };
+                    // ── La translittération, à l'occurrence ──────────────
+                    //
+                    // `i` est la position dans l'unité, la même clé que
+                    // `attacher` : le niveau 3 de **ce verset-là** répond
+                    // d'abord, le corpus entier ensuite. Voir
+                    // `Translitterations`.
+                    let mut mots = mots_par_ref.get(cle_ref).cloned().unwrap_or_default();
+                    for mot in &mut mots {
+                        mot.translit =
+                            translitterations.a_l_occurrence(&u.id, i, &mot.t, &mut bilan);
+                    }
                     sortie.push(VersetPublie {
                         n: numeros.get(i).copied().unwrap_or((i + 1) as u32),
                         t: texte.clone(),
-                        mots: mots_par_ref.get(cle_ref).cloned().unwrap_or_default(),
+                        mots,
                     });
                 }
                 plages.insert(u.id.clone(), plage);
@@ -1114,6 +1325,7 @@ pub fn preparer(
             .into_iter()
             .filter_map(|(cle, n)| n.map(|n| (cle, n)))
             .collect(),
+        translitterations: bilan,
     }))
 }
 
@@ -1282,6 +1494,158 @@ mod tests {
         // Et les comptes, pour que le relevé du build dise vrai.
         assert_eq!(table.retenues(), 3, "bereshit, davar, dibber");
         assert_eq!(table.refusees(), 1, "אֱלֹהִים, et elle seule");
+    }
+
+    /// **La distinction que l'aplatissement perdait.**
+    ///
+    /// `אֱלֹהִים` est `ʾElohim` quand il désigne YHWH et `ʾelohim` quand il
+    /// désigne les autres. Hors contexte, la forme ne dit donc rien — et c'est
+    /// juste. Dans son verset, elle dit ce que l'auteur y a écrit.
+    #[test]
+    fn une_forme_recoit_la_translitteration_de_son_propre_verset() {
+        let mut table = Translitterations::recoltee([
+            ("ʾElohim", "אֱלֹהִים"),
+            ("ʾelohim", "אֱלֹהִים"),
+            ("bara", "בָּרָא"),
+        ]);
+        // Hors contexte, la garde tient : la forme porte deux translittérations.
+        assert_eq!(table.pour("אֱלֹהִ֑ים"), None);
+
+        let couple = |t: &str, h: &str| vec![(t.to_string(), h.to_string())];
+        table.ajouter_le_verset("bereshit-1", 0, &couple("ʾElohim", "אֱלֹהִים"));
+        table.ajouter_le_verset("bereshit-1", 30, &couple("ʾelohim", "אֱלֹהִים"));
+
+        let mut bilan = BilanDesTranslitterations::default();
+        // **Le même mot, deux versets, deux translittérations** — et aucune
+        // des deux n'a été devinée.
+        assert_eq!(
+            table.a_l_occurrence("bereshit-1", 0, "אֱלֹהִ֑ים", &mut bilan),
+            Some("ʾElohim".to_string()),
+            "au verset où l'auteur parle de YHWH"
+        );
+        assert_eq!(
+            table.a_l_occurrence("bereshit-1", 30, "אֱלֹהִ֖ים", &mut bilan),
+            Some("ʾelohim".to_string()),
+            "au verset où il parle des autres"
+        );
+        // Un mot qu'aucun apparat de son verset ne glose retombe sur le corpus.
+        assert_eq!(
+            table.a_l_occurrence("bereshit-1", 5, "בְּרֹ֤א", &mut bilan),
+            None,
+            "le corpus ne connaît que la forme exacte, pas le squelette"
+        );
+        assert_eq!(
+            table.a_l_occurrence("bereshit-1", 5, "בָּרָ֣א", &mut bilan),
+            Some("bara".to_string())
+        );
+        // Et là où aucun verset ne tranche, l'ambiguïté vaut toujours silence.
+        assert_eq!(
+            table.a_l_occurrence("bereshit-1", 5, "אֱלֹהִ֑ים", &mut bilan),
+            None,
+            "hors d'un verset qui le dise, choisir serait trancher"
+        );
+
+        assert_eq!(bilan.par_le_verset, 2);
+        assert_eq!(bilan.par_le_corpus, 1);
+        assert_eq!(bilan.recuperes, 2, "deux mots que la table plate effaçait");
+        assert_eq!(bilan.sans, 2);
+    }
+
+    /// **Le verset l'emporte, et le désaccord se compte.**
+    ///
+    /// Sans ce compte, une reprise qui ne changerait rien en pratique
+    /// ressemblerait trait pour trait à une reprise qui corrige.
+    #[test]
+    fn le_verset_l_emporte_sur_le_corpus_et_le_desaccord_se_dit() {
+        let mut table = Translitterations::recoltee([("vayiqach", "וַיִּקַּח")]);
+        table.ajouter_le_verset(
+            "bereshit-3",
+            2,
+            &[("vayiqqach".to_string(), "וַיִּקַּח".to_string())],
+        );
+
+        let mut bilan = BilanDesTranslitterations::default();
+        assert_eq!(
+            table.a_l_occurrence("bereshit-3", 2, "וַיִּקַּ֥ח", &mut bilan),
+            Some("vayiqqach".to_string()),
+            "ce que dit le verset, non ce que dit la moyenne du corpus"
+        );
+        assert_eq!(bilan.discordants, 1);
+        // Ailleurs, le corpus reste la réponse.
+        assert_eq!(
+            table.a_l_occurrence("bereshit-3", 9, "וַיִּקַּ֖ח", &mut bilan),
+            Some("vayiqach".to_string())
+        );
+        assert_eq!(bilan.discordants, 1, "un désaccord, pas deux");
+        assert_eq!(bilan.par_le_corpus, 1);
+    }
+
+    /// **La position, et non le numéro affiché.**
+    ///
+    /// Une unité qui couvre deux chapitres bibliques porte deux versets « 1 »
+    /// (§2.2). Une table indexée par numéro donnerait au second la
+    /// translittération du premier — sur cette unité-là seulement, et sans
+    /// rien dire. C'est le défaut qui passe tous les essais sauf celui-ci.
+    #[test]
+    fn deux_versets_numero_un_recoivent_chacun_le_sien() {
+        fn translit(t: &str, h: &str) -> Inline {
+            Inline::Translit {
+                translit: t.into(),
+                hebrew: h.into(),
+                cible: None,
+            }
+        }
+        fn v(n: u32, noeud: Inline) -> crate::schema::Verse {
+            crate::schema::Verse {
+                n,
+                nodes: vec![noeud],
+            }
+        }
+
+        let unite = Chapter {
+            id: "bereshit-7".into(),
+            book_id: "bereshit".into(),
+            kind: crate::schema::ChapterKind::Chapter,
+            n: 7,
+            title: "Bereshit 7".into(),
+            title_nodes: Vec::new(),
+            subtitle: None,
+            status: crate::schema::Status::Brouillon,
+            // Deux paragraphes : la position court **à travers** les blocs.
+            blocks: vec![
+                Block::Verses {
+                    verses: vec![
+                        v(1, translit("ʾElohim", "אֱלֹהִים")),
+                        v(2, translit("bara", "בָּרָא")),
+                    ],
+                },
+                Block::Verses {
+                    // Gn 8 s'ouvre : la numérotation repart à ¹.
+                    verses: vec![v(1, translit("ʾelohim", "אֱלֹהִים"))],
+                },
+            ],
+            footer: None,
+            verse_count: 3,
+            lemmas: Vec::new(),
+            source: String::new(),
+        };
+
+        let table = translitterations(std::slice::from_ref(&unite));
+        let mut bilan = BilanDesTranslitterations::default();
+        assert_eq!(
+            table.a_l_occurrence("bereshit-7", 0, "אֱלֹהִ֑ים", &mut bilan),
+            Some("ʾElohim".to_string()),
+            "position 0 — le premier verset « 1 »"
+        );
+        assert_eq!(
+            table.a_l_occurrence("bereshit-7", 2, "אֱלֹהִ֖ים", &mut bilan),
+            Some("ʾelohim".to_string()),
+            "position 2 — le second verset « 1 », dans le bloc suivant"
+        );
+        assert_eq!(
+            bilan.recuperes, 2,
+            "les deux seraient muets sans leur verset"
+        );
     }
 
     /// **Le parcours descend dans les gloses**, et ça se mesure.

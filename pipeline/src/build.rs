@@ -1343,12 +1343,6 @@ pub fn build() -> Result<BuildResult, String> {
     // Et rien n'est inventé : ce qui manque reste absent. Voir
     // `sources::Translitterations`.
     let translitterations = crate::sources::translitterations(&unites_toutes);
-    eprintln!(
-        "translittérations récoltées — {} formes hébraïques sûres, {} refusées \
-         parce que le corpus en donne deux",
-        translitterations.retenues(),
-        translitterations.refusees()
-    );
 
     let preparation = crate::sources::preparer(
         &racine,
@@ -1373,6 +1367,32 @@ pub fn build() -> Result<BuildResult, String> {
         for dit in &sources.releves {
             eprintln!("numérotation — {dit}");
         }
+        // **Le bilan des translittérations, dit et non supposé.**
+        //
+        // `discordants` est celui qui prouve quelque chose : il compte les mots
+        // que le verset et le corpus translittèrent différemment — exactement
+        // ce que la table plate perdait. À zéro, la jointure à l'occurrence
+        // n'aurait rien changé en pratique, et mieux vaudrait le savoir que
+        // croire avoir corrigé quelque chose.
+        let bilan = &sources.translitterations;
+        eprintln!(
+            "translittérations — {} formes sûres au corpus, {} refusées hors contexte ; \
+             {} mots sur {} ({:.1} %) : {} par leur propre verset, {} par le corpus, \
+             dont {} que le corpus refusait et {} qu'il donnait autres",
+            translitterations.retenues(),
+            translitterations.refusees(),
+            bilan.couverts(),
+            bilan.total(),
+            if bilan.total() == 0 {
+                0.0
+            } else {
+                f64::from(bilan.couverts()) * 100.0 / f64::from(bilan.total())
+            },
+            bilan.par_le_verset,
+            bilan.par_le_corpus,
+            bilan.recuperes,
+            bilan.discordants,
+        );
     }
 
     // ── L'épreuve des plages à cheval ────────────────────────────────────
