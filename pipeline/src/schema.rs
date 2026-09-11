@@ -628,6 +628,29 @@ pub struct GlossaryEntry {
     /// Toutes les formes balisées qui retombent sur ce lemme.
     pub forms: Vec<String>,
     pub hebrew: Option<String>,
+    /// **Le numéro de Strong du lemme**, tel que sa fiche le déclare.
+    ///
+    /// Nu — `559`, `1254 a` —, sans le préfixe de segmentation que le témoin
+    /// pose sur une occurrence : `c/853` dit « conjonction + 853 », et la
+    /// conjonction appartient au mot du verset, pas au lemme.
+    ///
+    /// Absent quand la fiche ne le déclare pas, et l'absence est le cas de
+    /// beaucoup : le champ est écrit à la main, fiche par fiche, et seulement
+    /// là où les formes déclarées s'accordent sur un seul numéro.
+    ///
+    /// C'est lui qui fait passer la jointure d'un mot du texte source à sa
+    /// fiche de **déduite** à **vérifiable** — voir `reference::SourceDeclaree`
+    /// pour le raisonnement complet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strong: Option<String>,
+    /// La forme absolue en hébreu, déclarée par la fiche.
+    ///
+    /// Distincte de `hebrew`, qui vient du §3 du document de référence et
+    /// n'existe que pour les intraduisibles et les rendus fixés. Celle-ci vient
+    /// de la fiche, qui existe pour chaque mot — elle couvre donc ce que le §3
+    /// laisse dehors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hebreu_de_la_fiche: Option<String>,
     /// La traduction ONT fixée, quand le terme en a une (§3).
     pub rendering: Option<String>,
     /// Le champ sémantique complet (§3).
