@@ -69,7 +69,7 @@ import com.labibleont.ont.data.remote.CorpusUpdater
 import com.labibleont.ont.data.remote.DiskCorpusRepository
 import com.labibleont.ont.data.remote.DiskGlossaryRepository
 import com.labibleont.ont.data.remote.DiskShemotRepository
-import com.labibleont.ont.data.bundle.AssetSearchIndex
+import com.labibleont.ont.data.remote.DiskSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
 import com.labibleont.ont.designsystem.surfaces.ontScreen
@@ -277,7 +277,7 @@ public class MainActivity : ComponentActivity() {
         val corpus = DiskCorpusRepository(applicationContext)
         val glossaire = DiskGlossaryRepository(applicationContext)
         val shemot = DiskShemotRepository(applicationContext)
-        val index = AssetSearchIndex(applicationContext)
+        val index = DiskSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val rapporteur = SentryReporter()
         val lecteur = FileReaderStore(applicationContext, rapporteur)
