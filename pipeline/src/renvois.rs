@@ -624,9 +624,55 @@ mod essai_de_reconnaissance {
 /// viser de verset : mieux vaut arriver au bon endroit sans précision que
 /// pointer une ligne à côté avec assurance.
 fn interne(plage: &Plage, compte: u32, chapitre: u32, verset: u32) -> Option<u32> {
-    // Une plage qui enjambe deux chapitres demanderait de connaître la
-    // longueur du premier. On ne la devine pas.
+    // **Une plage qui enjambe deux chapitres se déduit, elle ne se devine
+    // pas.**
+    //
+    // Le premier jet rendait `None` dès que la plage changeait de chapitre, au
+    // motif qu'il aurait fallu connaître la longueur du premier. La garde
+    // était juste dans son raisonnement et bien trop large dans sa portée :
+    // `bereshit-1` couvre `1:1 — 2:3`, et **tous** les renvois vers elle
+    // perdaient leur verset — 437 des 707 cibles résolues du corpus arrivaient
+    // sans rien à désigner. Relevé par l'auteur, l'app en main : « j'ai tapé
+    // sur Genèse 1:27, ça m'a ramené au Bereshit 1 sans selected le verset ».
+    //
+    // Or la longueur du premier chapitre **est** déterminée par ce que l'unité
+    // porte déjà. Une plage `d:a — f:b` sur deux chapitres adjacents contient
+    // la fin du premier et le début du second :
+    //
+    //     compte = (longueur(d) - a + 1) + b
+    //     donc  longueur(d) = compte - b + a - 1
+    //
+    // Pour `bereshit-1` : 34 − 3 + 1 − 1 = **31**, la longueur de Genèse 1.
+    // Rien n'est deviné — c'est une soustraction sur des nombres que l'index
+    // tient déjà.
+    //
+    // Au-delà de deux chapitres, le système est sous-déterminé : deux
+    // longueurs inconnues pour une équation. On rend `None`, comme avant.
     if plage.debut.0 != plage.fin.0 {
+        if plage.fin.0 != plage.debut.0 + 1 || plage.fin.1 == u32::MAX {
+            return None;
+        }
+        let debut = plage.debut.1;
+        let premier = compte
+            .checked_sub(plage.fin.1)?
+            .checked_add(debut)?
+            .checked_sub(1)?;
+
+        if chapitre == plage.debut.0 {
+            // Dans le premier chapitre : l'indice se compte depuis l'ouverture
+            // de la plage, et le verset doit exister dans ce chapitre-là.
+            if verset < debut || verset > premier {
+                return None;
+            }
+            return Some(verset - debut + 1);
+        }
+        if chapitre == plage.fin.0 {
+            // Dans le second : on a d'abord traversé la fin du premier.
+            if verset < 1 || verset > plage.fin.1 {
+                return None;
+            }
+            return Some(premier - debut + 1 + verset);
+        }
         return None;
     }
     if chapitre != plage.debut.0 {
@@ -676,10 +722,38 @@ mod tests_du_verset {
         assert_eq!(interne(&plage("2:4-25"), 21, 2, 10), None);
     }
 
-    /// Une plage qui enjambe deux chapitres demanderait la longueur du
-    /// premier. On ne la devine pas.
+    /// **Une plage à cheval sur deux chapitres se déduit.**
+    ///
+    /// Ce test disait l'inverse — `None` — et il avait raison pour la raison
+    /// qu'il donnait : il faut la longueur du premier chapitre. Il se trompait
+    /// en concluant qu'elle est indevinable. Elle se déduit de ce que l'unité
+    /// porte déjà : `bereshit-1` annonce `1:1 — 2:3` et compte 34 versets,
+    /// donc Genèse 1 en a 34 − 3 + 1 − 1 = **31**. C'est exact, et vérifié
+    /// contre la source hébraïque.
+    ///
+    /// L'ancienne règle coûtait **145 renvois** : tous ceux qui visent
+    /// `bereshit-1` arrivaient sans rien à désigner.
     #[test]
-    fn un_verset_ne_se_situe_pas_a_cheval_sur_deux_chapitres() {
-        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 4), None);
+    fn un_verset_se_situe_a_cheval_sur_deux_chapitres() {
+        // Dans le premier chapitre : l'indice est le rang depuis l'ouverture.
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 4), Some(4));
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 27), Some(27));
+        // Le dernier verset du premier chapitre.
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 31), Some(31));
+        // Au-delà, il n'est pas dans l'unité.
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 1, 32), None);
+        // Dans le second : on a d'abord traversé la fin du premier.
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 2, 1), Some(32));
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 2, 3), Some(34));
+        assert_eq!(interne(&plage("1:1 — 2:3"), 34, 2, 4), None);
+    }
+
+    /// Au-delà de deux chapitres, le système est sous-déterminé : deux
+    /// longueurs inconnues pour une équation. Et une plage ouverte — « 7-8 »,
+    /// qui ne borne pas sa fin — ne donne pas non plus de quoi la résoudre.
+    #[test]
+    fn trois_chapitres_ou_une_fin_ouverte_ne_se_deduisent_pas() {
+        assert_eq!(interne(&plage("1:1 — 3:5"), 80, 1, 4), None);
+        assert_eq!(interne(&plage("7-8"), 40, 7, 4), None);
     }
 }
