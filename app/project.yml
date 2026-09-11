@@ -90,6 +90,27 @@ targets:
       - path: Sources
       - path: Resources
         buildPhase: resources
+        # **Les sources sortent de la phase ordinaire**, et il le faut.
+        #
+        # `buildPhase: resources` **aplatit** l'arborescence : chaque fichier
+        # atterrit à la racine du paquet, sous son seul nom de base. Le corpus
+        # s'en accommode depuis toujours — `books/bereshit.json` devient
+        # `bereshit.json` et le lecteur du bundle le cherche ainsi.
+        #
+        # Les langues sources ont brisé ça le 11 septembre 2026, au premier
+        # build : `sources/he-wlc/bereshit.json` porte **le même nom de base**
+        # que le livre. Xcode refuse — « Multiple commands produce … » — et la
+        # compilation s'arrête pour tout le monde, pas seulement pour qui
+        # ouvre la feuille.
+        #
+        # Une référence de dossier préserve les chemins. C'est aussi une garde
+        # pour la suite : le jour où un témoin grec arrive avec les mêmes noms
+        # de livres, il n'entrera en collision avec rien.
+        excludes:
+          - "data/sources"
+          - "data/sources/**"
+      - path: Resources/data/sources
+        type: folder
     postBuildScripts:
       # Le dSYM est apparié au binaire par UUID : celui d'un autre build ne
       # symbolise rien. Le téléversement doit donc vivre dans le build qui
