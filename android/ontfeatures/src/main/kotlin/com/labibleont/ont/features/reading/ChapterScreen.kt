@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -132,6 +134,20 @@ public fun ChapterScreen(
      * l'écran : `pendingVerse` plutôt que `pendingSelection`.
      */
     versetVise: Int? = null,
+    /**
+     * L'état de défilement, **hissé** parce que quelqu'un d'autre en a besoin.
+     *
+     * Suivre un renvoi empile : le retour doit rendre la lecture d'avant, au
+     * bon chapitre **et à la bonne hauteur**. Rien ne restaure ça tout seul ici
+     * — l'app n'a pas de `NavHost` qui garderait la destination parente vivante,
+     * mais une pile à un étage tenue à la main. C'est donc l'appelant qui relève
+     * la hauteur avant de partir et la repose en revenant, et il lui faut cet
+     * état pour le faire.
+     *
+     * Par défaut il est créé ici : les appelants qui n'empilent rien n'ont rien
+     * à savoir.
+     */
+    etatListe: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -147,7 +163,6 @@ public fun ChapterScreen(
     }
 
     val espace = com.labibleont.ont.designsystem.metrics.ontSpacing
-    val etatListe = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // ## Le suivi de lecture
     //
