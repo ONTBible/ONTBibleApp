@@ -103,13 +103,36 @@ extension View {
                 return AnyView(gesture(ONTAppuiLong(duree: duree, action: action)))
             }
         #endif
-        // Le repli ne connaît pas la position : il rend le centre, faute de
-        // mieux. Mieux vaut désigner le verset du milieu que ne rien ouvrir.
-        return AnyView(
-            simultaneousGesture(
+        return AnyView(modifier(AppuiLongAvecCurseur(duree: duree, action: action)))
+    }
+}
+
+/// **Le repli, avec la position que la plateforme sait donner.**
+///
+/// `LongPressGesture` ne rend pas de position — le premier repli rendait
+/// `.zero`, et son commentaire disait « le centre ». Deux fois faux : `.zero`
+/// est l'origine, et en prose continue `versetA(0)` désignait donc **le
+/// premier verset du bloc**, où que l'appui tombe. Un clic maintenu au verset
+/// 28 ouvrait la source du verset 1, sans un mot.
+///
+/// Or le Mac connaît la position mieux qu'UIKit : **le curseur est suivi en
+/// continu** — c'est déjà le mécanisme du survol des termes. On la mémorise au
+/// passage et on la rend à l'appui. Sur un iPad d'avant iOS 18, le pointeur
+/// nourrit le même survol ; au doigt il n'y a pas de survol, et l'on retombe
+/// sur `.zero` — l'état d'avant, pas pire que lui.
+private struct AppuiLongAvecCurseur: ViewModifier {
+    let duree: TimeInterval
+    let action: (CGPoint) -> Void
+    @State private var curseur: CGPoint = .zero
+
+    func body(content: Content) -> some View {
+        content
+            .onContinuousHover(coordinateSpace: .local) { phase in
+                if case .active(let point) = phase { curseur = point }
+            }
+            .simultaneousGesture(
                 LongPressGesture(minimumDuration: duree, maximumDistance: 60)
-                    .onEnded { _ in action(.zero) }
+                    .onEnded { _ in action(curseur) }
             )
-        )
     }
 }
