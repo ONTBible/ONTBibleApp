@@ -4731,3 +4731,114 @@ l'unité qu'on lit déjà), et poser le livre sous l'unité quand la pile est vi
 - **ONTBibleTranslation** — rien à porter. Les 208 références inertes visent des
   livres non traduits ; elles se résoudront d'elles-mêmes à mesure que le vault
   avance, sans que personne n'ait à y toucher.
+
+---
+
+## 11 septembre 2026, l'après-midi — le simulateur est un appareil sans main
+
+L'auteur : « c'est bizarre, le long press fonctionne sur le sim mais pas sur mon
+iPhone ». **Quatre causes empilées, et aucune ne suffisait seule.** Trois
+corrections plausibles ont été posées avant qu'une sonde d'une ligne ne tranche.
+
+### Les quatre silences
+
+**Le geste n'existait pas en prose continue.** Il était posé sur `VerseRow`, la
+branche des versets séparés. L'auteur lit en prose ; l'appareil de mesure, non.
+==Les deux appareils ne rendaient pas la même vue== — et la comparaison qui
+fondait tout le raisonnement ne comparait donc rien.
+
+**La feuille était présentée depuis une vue trop imbriquée.** Une feuille
+attachée sous une pile paresseuse est ignorée **sans un mot** : pas d'erreur,
+pas de ligne de journal, rien. Elle est désormais tenue au niveau du chapitre,
+et les deux modes de lecture y poussent leur demande.
+
+**L'état posé depuis un rappel UIKit ne réveillait pas SwiftUI.** Le rappel
+arrive pendant le traitement du toucher, hors du cycle de rendu : la
+modification était bien enregistrée, et rien ne la relevait.
+
+**La sélection de texte du système gagnait le geste.** Relevée sur une **capture
+de l'auteur**, le pavé gris couvrant tout le bloc. Un toucher synthétisé
+n'appelle pas l'interaction de texte : ==aucun banc ne pouvait la montrer==.
+
+### Pourquoi le simulateur passait, et l'appareil non
+
+`LongPressGesture` abandonne dès que le doigt s'écarte de `maximumDistance`, qui
+vaut **10 points** par défaut. Le simulateur est piloté par un pointeur qui ne
+bouge pas : le geste y part toujours. Un doigt tremble.
+
+Le SDK nomme lui-même la différence — `GestureInputKinds` distingue
+`directTouch` de `pointer`. ==Le simulateur n'est pas un appareil plus petit,
+c'est un appareil sans main== : il a l'écran, le système et la mémoire, il n'a
+pas la main. Et les gestes sont précisément ce qu'il ne sait pas éprouver.
+
+Le remède n'élargit pas la tolérance — ce qui laisserait le geste concurrent de
+la zone défilante, et l'un des deux perdrait. `UIGestureRecognizerRepresentable`
+fait entrer un vrai `UILongPressGestureRecognizer` dans l'arbitrage d'UIKit, qui
+sait de naissance cohabiter avec un `UIScrollView`. On ne départage plus deux
+gestes, on laisse le système le faire.
+
+### Une hypothèse n'est pas un diagnostic, même quand elle est vraie
+
+Les trois premières corrections ont été annoncées comme des causes **trouvées**.
+C'étaient des causes **possibles** — et chacune était vraie, ce qui est plus
+coûteux qu'une erreur franche : une fois réparée, le symptôme ne bouge pas, et
+le raisonnement qui l'a produite sort intact.
+
+La sonde qui a tranché ne demandait qu'une chose — ==« est-ce que le geste
+part ? »== — et elle n'avait pas été posée. Séparer « ça ne part pas » de « ça
+part et rien ne suit » coûtait une ligne, et faisait tomber deux hypothèses d'un
+coup.
+
+Le correctif du troisième silence s'est retourné à son tour, et c'est la mesure
+sur l'appareil qui l'a dit : reporter d'un tour de boucle — `Task { @MainActor }`
+— **empêche** la feuille de s'ouvrir, là où l'appel immédiat dans le rappel la
+laisse passer. L'explication était plausible et fausse. Elle est écrite dans
+`ONTAppuiLong`, au-dessus de la ligne qu'elle justifie, et non ici.
+
+### La même forme, quatre fois dans la journée — et trois sont déjà écrites
+
+Un instrument exact braqué sur autre chose que la question. Les trois autres
+occurrences sont au journal, chacune à sa place, et il ne s'agit pas de les
+redire :
+
+- le contrôle d'inventaire du pipeline trouvait ses preuves dans `Schema.swift`
+  et `Schema.kt`, **que le pipeline venait d'écrire lui-même** à l'étape
+  suivante — vert au premier passage, rouge au second. Entrée « le contrôle
+  lisait ce que le pipeline venait d'écrire » ;
+- `device` en local avait **99 commits de retard**, et deux sessions ont compté
+  `CONTRAT_DES_NOEUDS` sur deux objets différents — 0 d'un côté, 4 de l'autre,
+  les deux mesures exactes. Entrée « la détection avait quadruplé, la navigation
+  était tombée à zéro » ;
+- un plafond de « 118 fiches » relevé sur un `dist/glossary.json` daté du
+  **8 septembre**, antérieur à une passe de renommage : il portait encore
+  `nephilim`. Le bon chiffre est 133. Entrée « deux jointures qu'on croyait être
+  une seule ».
+
+Ce qu'aucune ne dit seule, et qui ne se voit qu'en les mettant côte à côte : une
+branche en retard se rattrape par `git fetch` et se lit par `origin/<branche>`,
+mais ==un artefact engendré n'a pas de date visible dans sa mesure==. Le
+simulateur est de la même famille sans être un artefact : il rend fidèlement un
+état du monde qui n'est pas celui qu'on interroge.
+
+    un banc sans main ne mesure pas un geste
+    un artefact engendré ne porte pas sa date
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — `ONTAppuiLong` vit dans `ONTDesignSystem`, et son extension
+  `ontAppuiLong` est **hors** du `#if canImport(UIKit)` : enfermée dedans, elle
+  disparaissait pour macOS, et la liseuse du Mac cessait de compiler sur un
+  geste qu'elle n'emploie même pas. Là où le pont n'existe pas, on retombe sur
+  le geste de SwiftUI, qui ne connaît pas la position et rend le centre — mieux
+  vaut désigner le verset du milieu que n'ouvrir rien. **Android porte les mêmes
+  deux modes de lecture** : un geste posé sur une seule des deux branches y
+  produira le même silence, et cela se vérifie sur un appareil, pas sur
+  l'émulateur.
+- **ONTBibleWebapp** — rien à porter, et la raison vaut d'être écrite plutôt que
+  supposée : le site n'a pas d'appui long, et sa sélection de texte est celle du
+  navigateur. Ce qui lui revient est la leçon, pas le correctif — un navigateur
+  sans tête est lui aussi un appareil sans main.
+- **ONTBibleTranslation** — rien à porter. La feuille ouvre le verset hébreu et
+  se joint au vault par ce que les fiches déclarent ; ce contrat est celui de
+  l'entrée « deux jointures qu'on croyait être une seule », et il n'a pas bougé
+  cet après-midi.
