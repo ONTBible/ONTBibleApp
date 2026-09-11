@@ -163,9 +163,18 @@ public struct FeuilleDuVersetSource: View {
             entete
             Divider().overlay(theme.separator)
             if let verset {
+                // **Le verset et son filet partent ensemble.**
+                //
+                // Séparés, le filet n'avait aucune transition et disparaissait
+                // d'un coup pendant que le verset glissait — l'aller et le
+                // retour n'avaient donc pas le même mouvement. Un seul groupe,
+                // une seule transition, et les deux sens se ressemblent.
                 if !agrandie {
-                    corpsDuVerset(verset)
-                    Divider().overlay(theme.separator)
+                    VStack(spacing: 0) {
+                        corpsDuVerset(verset)
+                        Divider().overlay(theme.separator)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 cartesDesMots(verset)
             } else {
@@ -280,7 +289,7 @@ public struct FeuilleDuVersetSource: View {
             // Une animation courte : le lecteur suit son doigt du haut vers le
             // bas, et une transition lente lui ferait perdre le lien entre le
             // mot qu'il touche et la carte qui répond.
-            withAnimation(.snappy(duration: 0.22)) { mot = index }
+            withAnimation(ONTMouvement.ressortVif) { mot = index }
         }
         .environment(\.layoutDirection, .rightToLeft)
     }
@@ -341,7 +350,7 @@ public struct FeuilleDuVersetSource: View {
     private func changerDeVerset(_ pas: Int, parDerriere: Bool = false) {
         let vise = position + pas
         guard versets.indices.contains(vise) else { return }
-        withAnimation(.snappy(duration: 0.26)) {
+        withAnimation(ONTMouvement.arrivee) {
             position = vise
             // **Le mot ne se conserve jamais d'un verset à l'autre** : garder
             // l'index désignerait un mot sans rapport, au hasard de deux
@@ -376,35 +385,6 @@ extension FeuilleDuVersetSource {
     /// Les deux sens sont liés : toucher un mot en haut fait défiler les cartes,
     /// et faire défiler les cartes désigne le mot en haut. Un seul état — `mot`
     /// — tient les deux, sinon ils divergent au premier geste rapide.
-    @ViewBuilder
-    fileprivate func cartesDesMots(_ v: VersetAffiche) -> some View {
-        if agrandie {
-            // **Agrandie, il n'y a plus de carrousel.**
-            //
-            // Le premier jet gardait la zone défilante et faisait passer la
-            // carte à toute la largeur. Elle débordait par la droite :
-            // `containerRelativeFrame` mesure le conteneur **avant** sa marge
-            // latérale, et l'icône de repli tombait hors de l'écran.
-            //
-            // On pouvait soustraire la marge. Ce serait traiter le symptôme :
-            // agrandir veut dire « je lis celle-ci », et un carrousel d'un seul
-            // élément n'est plus un carrousel. La vue suit l'intention.
-            if let m = v.mots.first(where: { $0.id == mot }) ?? v.mots.first {
-                CarteDuMot(
-                    mot: m,
-                    actif: true,
-                    fiche: m.fiche.flatMap(ficheDunMot),
-                    agrandie: $agrandie
-                )
-                .padding(.horizontal, spacing.page)
-                .padding(.vertical, spacing.m)
-                .transition(.opacity)
-            }
-        } else {
-            carrouselDesMots(v)
-        }
-    }
-
     /// Les définitions, une carte par mot, feuilletées à l'horizontale.
     ///
     /// **La carte voisine dépasse volontairement**, et c'est la seule chose qui
@@ -415,93 +395,67 @@ extension FeuilleDuVersetSource {
     /// Les deux sens sont liés : toucher un mot en haut fait défiler les cartes,
     /// et faire défiler les cartes désigne le mot en haut. Un seul état — `mot`
     /// — tient les deux, sinon ils divergent au premier geste rapide.
-    private func carrouselDesMots(_ v: VersetAffiche) -> some View {
+    ///
+    /// ## Une seule zone défilante, agrandie ou non
+    ///
+    /// Le premier jet échangeait deux vues : un carrousel en petit, une carte
+    /// seule en grand. Agrandir **détruisait** donc le carrousel, et revenir le
+    /// reconstruisait à l'offset zéro — la carte arrivait de la droite au lieu
+    /// de se redimensionner sur place, et le mot choisi se perdait en chemin.
+    ///
+    /// Deux symptômes, une cause : *ce que SwiftUI croit être la même chose*.
+    /// La zone reste donc la même, et seule la largeur des cartes change. Il
+    /// n'y a plus de transition à orchestrer — un cadre s'anime tout seul.
+    ///
+    /// La marge est sur la **zone** et non sur son contenu : c'est elle que
+    /// `containerRelativeFrame` mesure, et une carte pleine largeur débordait
+    /// de la marge quand celle-ci était au-dedans.
+    fileprivate func cartesDesMots(_ v: VersetAffiche) -> some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                // **`HStack` et non `LazyHStack`.** Un verset porte une
-                // vingtaine de mots, jamais mille : la paresse n'achète rien
-                // et coûte une vue qui ne se rend pas hors d'un vrai
-                // défilement — ce qui rend tout banc d'essai aveugle.
                 HStack(spacing: spacing.m) {
                     ForEach(v.mots) { m in
                         CarteDuMot(
                             mot: m,
-                            actif: m.id == mot,
+                            actif: agrandie ? m.id == mot : true,
                             fiche: m.fiche.flatMap(ficheDunMot),
                             agrandie: $agrandie
                         )
-                        // **Trois quarts en repos, toute la largeur agrandie.**
-                        //
-                        // Le quart laissé libre n'est pas une marge : c'est la
-                        // carte voisine qui dépasse, et c'est la seule chose
-                        // qui dit qu'il y en a une. Un carrousel qui remplit
-                        // exactement la largeur ne s'annonce pas.
-                        //
-                        // Agrandie, cette promesse n'a plus lieu d'être — on
-                        // ne feuillette plus, on lit. L'auteur : « tu peux
-                        // aussi choper la place que prend l'autre fiche ».
-                        .containerRelativeFrame(.horizontal, count: 4, span: 3, spacing: spacing.m)
+                        .containerRelativeFrame(
+                            .horizontal,
+                            count: agrandie ? 1 : 4,
+                            span: agrandie ? 1 : 3,
+                            spacing: spacing.m
+                        )
                         .id(m.id)
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.horizontal, spacing.page)
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollIndicators(.hidden)
-            .scrollPosition(id: Binding(
-                get: { Optional(mot) },
-                set: { if let n = $0 { mot = n } }
-            ))
-            .onChange(of: mot) { _, n in
-                withAnimation(.snappy(duration: 0.22)) { proxy.scrollTo(n, anchor: .leading) }
-            }
-            // **Une identité par verset, et c'est ce qui manquait.**
-            //
-            // Les cartes sont identifiées par l'index du mot — 0, 1, 2… — et
-            // cet espace d'identités est **le même d'un verset à l'autre**. En
-            // changeant de verset, SwiftUI ne voyait donc pas une liste neuve :
-            // il gardait le décalage de défilement, qui retombait au milieu
-            // d'un verset de longueur différente.
-            //
-            // Relevé par l'auteur : « le swipe par mot, lorsqu'il swipe de
-            // verset, semble ne pas toujours démarrer au début ou à la fin ;
-            // il y a des fois où ça arrive en plein milieu. »
-            //
-            // `.id` sur le conteneur le force à repartir de zéro. Le `mot` que
-            // `changerDeVerset` a posé — premier ou dernier selon le sens —
-            // devient alors la position réelle, et non une intention que le
-            // défilement contredit.
-            .id(v.id)
-            // **Pousser au-delà du dernier mot change de verset.**
-            //
-            // Demandé par l'auteur, et c'est le bon réflexe : un carrousel
-            // qu'on pousse et qui bute sans rien faire se lit comme une fin de
-            // course, alors que le texte, lui, continue. Les deux axes cessent
-            // d'être deux : on parcourt un verset, puis le suivant, du même
-            // geste.
-            //
-            // `simultaneousGesture` plutôt qu'un `gesture` : le défilement du
-            // carrousel garde la main, et l'on ne lit la course qu'à la fin,
-            // quand elle n'a plus rien à déplacer.
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 30).onEnded { valeur in
-                    guard abs(valeur.translation.width) > abs(valeur.translation.height) else {
-                        return
-                    }
-                    let dernier = max(v.mots.count - 1, 0)
-                    // Vers la gauche : on avance dans les cartes. Sorti par la
-                    // fin, on entre au premier mot du verset suivant.
-                    if valeur.translation.width < 0, mot >= dernier {
-                        changerDeVerset(+1)
-                    } else if valeur.translation.width > 0, mot <= 0 {
-                        changerDeVerset(-1, parDerriere: true)
-                    }
-                }
+            // Agrandie, on lit : le glissement horizontal n'a plus rien à
+            // atteindre, et il volerait le geste de défilement du texte.
+            .scrollDisabled(agrandie)
+            .scrollPosition(
+                id: Binding(
+                    get: { Optional(mot) },
+                    set: { if let n = $0 { mot = n } }
+                )
             )
+            .onChange(of: mot) { _, n in
+                withAnimation(ONTMouvement.ressortVif) { proxy.scrollTo(n, anchor: .leading) }
+            }
+            // Le changement de largeur déplace la carte choisie : on la
+            // remet sous l'œil dans le même mouvement.
+            .onChange(of: agrandie) { _, _ in
+                withAnimation(ONTMouvement.arrivee) { proxy.scrollTo(mot, anchor: .leading) }
+            }
+            .id(v.id)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, spacing.page)
         .padding(.vertical, spacing.m)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     /// Ouvre la fiche ONT du mot, quand il en a une.
@@ -576,7 +530,7 @@ private struct CarteDuMot: View {
             // verset se replie, la carte s'étend, et `withAnimation` interpole
             // la même vue d'une place à l'autre.
             Button {
-                withAnimation(.snappy(duration: 0.32)) { agrandie.toggle() }
+                withAnimation(ONTMouvement.arrivee) { agrandie.toggle() }
             } label: {
                 Image(
                     systemName: agrandie
