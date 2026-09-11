@@ -27,9 +27,7 @@ use std::collections::HashMap;
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::schema::{
-    Block, Chapter, ChapterKind, CibleDeLaReference, Footer, Inline, PorteeDeLaReference, Status,
-};
+use crate::schema::{Block, Chapter, CibleDeLaReference, Inline, PorteeDeLaReference};
 
 /// Où mène un renvoi résolu.
 pub struct Cible {
@@ -243,7 +241,7 @@ pub fn resoudre_l_unite(unite: &mut Chapter, index: &Index) {
     }
 }
 
-pub fn resoudre_les_references(blocs: &mut Vec<Block>, index: &Index) {
+pub fn resoudre_les_references(blocs: &mut [Block], index: &Index) {
     for bloc in blocs.iter_mut() {
         // **Exhaustif, sans `_`.** `lier` s'arrête aux quatre blocs de prose
         // et laisse les listes et les tableaux, et c'est resté invisible parce
@@ -287,7 +285,14 @@ fn resoudre_inline(noeuds: &mut [Inline], index: &Index) {
         // Exhaustif ici aussi, et pour la même raison : une variante à enfants
         // qui s'ajoute doit rougir, pas se taire.
         match noeud {
-            Inline::Reference { livre, systeme, chapitre, portee, cible, .. } => {
+            Inline::Reference {
+                livre,
+                systeme,
+                chapitre,
+                portee,
+                cible,
+                ..
+            } => {
                 *cible = viser(index, livre, systeme, *chapitre, portee);
             }
             Inline::Gloss { children }
@@ -330,7 +335,11 @@ fn viser(
         }
         // Le verset est **déjà** dans la numérotation de l'unité — le système
         // ONT ne connaît pas d'autre compte. Rien à traduire.
-        return Some(CibleDeLaReference { livre: id.clone(), unite, verset });
+        return Some(CibleDeLaReference {
+            livre: id.clone(),
+            unite,
+            verset,
+        });
     }
 
     let vise = index.resoudre(livre, chapitre, verset)?;
@@ -439,6 +448,11 @@ fn decouper(texte: &str, index: &Index, origine: &str, sortie: &mut Vec<Inline>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Ici plutôt qu'en tête de module : ces trois-là ne servent qu'à monter un
+    // `Chapter` d'essai. Importés à la racine, ils faisaient rougir
+    // `clippy --all-targets -- -D warnings` — la CI compile la bibliothèque
+    // **sans** `cfg(test)`, et n'y voyait que des imports morts.
+    use crate::schema::{ChapterKind, Footer, Status};
 
     #[test]
     fn une_plage_se_lit_sous_ses_quatre_formes() {
@@ -484,7 +498,11 @@ mod tests {
             plages: HashMap::from([(
                 "bereshit".to_string(),
                 vec![
-                    ("bereshit-1".to_string(), lire_plage("1:1 — 2:3").unwrap(), 34),
+                    (
+                        "bereshit-1".to_string(),
+                        lire_plage("1:1 — 2:3").unwrap(),
+                        34,
+                    ),
                     ("bereshit-2".to_string(), lire_plage("2:4-25").unwrap(), 22),
                 ],
             )]),
@@ -524,11 +542,21 @@ mod tests {
             kind: ChapterKind::Chapter,
             n: 1,
             title: "Bereshit 1".into(),
-            title_nodes: vec![reference("Genèse", "recu", 1, PorteeDeLaReference::Verset { n: 4 })],
+            title_nodes: vec![reference(
+                "Genèse",
+                "recu",
+                1,
+                PorteeDeLaReference::Verset { n: 4 },
+            )],
             subtitle: None,
             status: Status::Locked,
             blocks: vec![Block::Para {
-                nodes: vec![reference("Genèse", "recu", 1, PorteeDeLaReference::Verset { n: 4 })],
+                nodes: vec![reference(
+                    "Genèse",
+                    "recu",
+                    1,
+                    PorteeDeLaReference::Verset { n: 4 },
+                )],
             }],
             footer: Some(Footer {
                 version: None,
@@ -551,15 +579,29 @@ mod tests {
         resoudre_l_unite(&mut unite, &index);
 
         let titre = cible(&unite.title_nodes[0]);
-        assert_eq!(titre.as_ref().map(|c| c.unite.as_str()), Some("bereshit-1"), "le titre");
+        assert_eq!(
+            titre.as_ref().map(|c| c.unite.as_str()),
+            Some("bereshit-1"),
+            "le titre"
+        );
 
-        let Block::Para { nodes } = &unite.blocks[0] else { panic!("pas un para") };
-        assert_eq!(cible(&nodes[0]).map(|c| c.unite), Some("bereshit-1".into()), "le corps");
+        let Block::Para { nodes } = &unite.blocks[0] else {
+            panic!("pas un para")
+        };
+        assert_eq!(
+            cible(&nodes[0]).map(|c| c.unite),
+            Some("bereshit-1".into()),
+            "le corps"
+        );
 
         let Some(Block::List { items, .. }) = unite.footer.as_ref().map(|f| &f.notes[0]) else {
             panic!("pas une liste")
         };
-        assert_eq!(cible(&items[0][0]).map(|c| c.unite), Some("bereshit-1".into()), "la note");
+        assert_eq!(
+            cible(&items[0][0]).map(|c| c.unite),
+            Some("bereshit-1".into()),
+            "la note"
+        );
     }
 
     /// **Le système ONT ne se résout pas par les plages, et le confondre est
@@ -586,7 +628,14 @@ mod tests {
         assert!(viser(&index, "Ésaïe", "recu", 40, &PorteeDeLaReference::Chapitre).is_none());
         // Bien formé, mais l'unité n'existe pas : « Bereshit 41 » sur un
         // corpus qui s'arrête à la deuxième unité.
-        assert!(viser(&index, "Bereshit", "ont", 41, &PorteeDeLaReference::Chapitre).is_none());
+        assert!(viser(
+            &index,
+            "Bereshit",
+            "ont",
+            41,
+            &PorteeDeLaReference::Chapitre
+        )
+        .is_none());
     }
 }
 

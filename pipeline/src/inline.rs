@@ -34,13 +34,12 @@
 //! en ASCII, donc leurs positions tombent toujours sur une frontière de
 //! caractère. Le contenu entre marqueurs, lui, n'est jamais découpé au milieu.
 
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
-use crate::schema::{
-    PorteeDeLaReference,Inline, TermLevel};
+use crate::schema::{Inline, PorteeDeLaReference, TermLevel};
 
 /// L'écriture hébraïque, par sa propriété Unicode.
 ///
@@ -1328,7 +1327,8 @@ mod tests_de_la_reference {
         // AVANT les chiffres : le cas 5 de la grammaire produirait un `Em`
         // puis un texte nu, et la référence serait coupée en deux. La branche
         // doit donc passer avant lui, et consommer le syntagme entier.
-        let r = detecter_une_reference("*Genèse* 4:25 — et Qayin", &livres()).expect("une référence");
+        let r =
+            detecter_une_reference("*Genèse* 4:25 — et Qayin", &livres()).expect("une référence");
         assert_eq!(r.texte, "*Genèse* 4:25");
         assert_eq!(r.largeur, "*Genèse* 4:25".len());
     }
@@ -1376,9 +1376,20 @@ mod tests_de_la_reference {
         declarer_les_livres(livres());
         let noeuds = parse_inline("comme en *Genèse* 4:25 — et Qayin");
         let reference = noeuds.iter().find_map(|n| match n {
-            Inline::Reference { v, livre, systeme, chapitre, portee, .. } => {
-                Some((v.clone(), livre.clone(), systeme.clone(), *chapitre, portee.clone()))
-            }
+            Inline::Reference {
+                v,
+                livre,
+                systeme,
+                chapitre,
+                portee,
+                ..
+            } => Some((
+                v.clone(),
+                livre.clone(),
+                systeme.clone(),
+                *chapitre,
+                portee.clone(),
+            )),
             _ => None,
         });
         assert_eq!(
