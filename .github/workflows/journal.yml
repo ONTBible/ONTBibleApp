@@ -1,0 +1,132 @@
+# Ce dépôt ne tient pas le journal — il en reçoit une copie.
+#
+# ## Où il vit
+#
+# `SYNCHRONISATION.md` a une seule source : `ONTBible/ONTBibleTranslation`.
+# **Une entrée s'écrit là-bas**, jamais ici. Ce workflow va la chercher et
+# ouvre une PR pour mettre la copie à jour.
+#
+# ## Pourquoi une copie et pas un lien
+#
+# Pour que le dépôt reste lisible seul — sur GitHub, dans un clone frais, sur
+# une autre machine. Le journal se lit là où l'on travaille.
+#
+# ## Pourquoi elle ne s'édite pas ici
+#
+# Trois copies tenues à la main **divergent toujours**. La consigne de porter
+# chaque entrée chez les voisins était écrite en tête du fichier, claire, et
+# appliquée quatre fois sur cinq — ce qui a produit trois fichiers dont aucun
+# ne faisait autorité, et une racine avec quinze jours de retard.
+#
+# Et une réconciliation ne converge pas : au 11 septembre 2026, deux blocs
+# étaient déjà dans un **ordre différent** sans qu'aucune entrée ne manque.
+# Deux fichiers peuvent porter le même texte et ne pas être identiques.
+#
+# C'est le principe de `Schema.swift` et `Schema.kt`, engendrés depuis
+# `schema.rs` : ce que personne n'édite ne peut pas diverger.
+#
+# ## Ce qui reste à ce dépôt
+#
+# `SYNCHRONISATION-locale.md` — ses entrées à lui, écrites à la main, que ce
+# workflow ne touche jamais.
+
+name: Journal
+
+on:
+  # Déclenché par le vault quand son journal change. Et manuellement, pour
+  # rattraper une propagation manquée sans avoir à toucher au fichier source.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  recopier:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Aller chercher le journal à sa source
+        run: |
+          set -euo pipefail
+          SOURCE=https://raw.githubusercontent.com/ONTBible/ONTBibleTranslation/main/SYNCHRONISATION.md
+
+          # `--fail` est ce qui rend cette étape honnête : sans lui, une 404
+          # produit une page d'erreur HTML que `curl` écrit dans le fichier
+          # sans broncher, et la PR proposerait de remplacer le journal par du
+          # HTML. Le mode d'échec le plus coûteux est celui qui ressemble à un
+          # succès.
+          curl --fail --silent --show-error --location "$SOURCE" -o corps.md
+
+          # Une garde de vraisemblance, parce que `--fail` ne couvre pas tout :
+          # un fichier vide ou tronqué passerait. Le journal n'est jamais court.
+          lignes=$(wc -l < corps.md)
+          if [ "$lignes" -lt 100 ]; then
+            echo "::error::Le journal récupéré fait $lignes lignes. Trop court pour être lui."
+            exit 1
+          fi
+          echo "Récupéré : $lignes lignes."
+
+      - name: Reconstruire la copie
+        run: |
+          set -euo pipefail
+          {
+            echo "<!--"
+            echo "  COPIE ENGENDRÉE — NE PAS ÉDITER DANS CE DÉPÔT."
+            echo ""
+            echo "  La source est ONTBible/ONTBibleTranslation, fichier"
+            echo "  SYNCHRONISATION.md. Une entrée qui concerne les trois dépôts"
+            echo "  s'écrit là-bas ; le workflow Journal la rapporte ici."
+            echo ""
+            echo "  Ce qui n'appartient qu'à ce dépôt va dans"
+            echo "  SYNCHRONISATION-locale.md, que rien ne propage."
+            echo "-->"
+            echo ""
+            cat corps.md
+          } > SYNCHRONISATION.md
+          rm corps.md
+
+      - name: Ouvrir une PR si la copie a changé
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- SYNCHRONISATION.md; then
+            echo "La copie est déjà à jour. Rien à faire."
+            exit 0
+          fi
+
+          branche="journal-$(date +%Y%m%d-%H%M%S)"
+          git config user.name "Journal"
+          git config user.email "journal@ontbible.invalid"
+          git switch -c "$branche"
+          git add SYNCHRONISATION.md
+
+          # Les corps multi-lignes passent par des fichiers : écrits en clair
+          # dans le YAML, leurs lignes vides referment le bloc littéral, et
+          # l'erreur se lit comme une faute de syntaxe très loin de sa cause.
+          {
+            echo "Rapporter le journal depuis le vault"
+            echo
+            echo "La source est ONTBible/ONTBibleTranslation. Cette copie est"
+            echo "engendree : elle ne s'edite pas ici, et son en-tete le dit."
+            echo
+            echo "Ouvert par le workflow Journal."
+          } > .message
+          git commit -F .message
+          rm .message
+          git push origin "$branche"
+
+          {
+            echo "Le journal a change a sa source. Cette PR met la copie a jour."
+            echo
+            echo "**Ne pas editer SYNCHRONISATION.md dans ce depot** — une entree"
+            echo "s'ecrit dans ONTBibleTranslation, et revient ici toute seule."
+            echo
+            echo "Ce qui n'appartient qu'a ce depot va dans SYNCHRONISATION-locale.md."
+          } > .corps
+          gh pr create --title "Rapporter le journal depuis le vault" \
+                       --body-file .corps --base main --head "$branche"
+          rm .corps
