@@ -159,22 +159,47 @@ struct SourcesDuBundleTests {
     /// affichait les mots sans leur translittération, ce qui se lit exactement
     /// comme un vault qui n'en aurait pas écrit.
     ///
-    /// Compté à la main dans `he-wlc/bereshit.json` : sur les sept mots du
-    /// premier verset, `אֱלֹהִ֑ים` seul en porte une. L'absence des six autres
-    /// est mesurée aussi — sans quoi un champ rempli au hasard passerait.
+    /// ## Ce qu'elle mesure, et ce qu'elle se garde de mesurer
+    ///
+    /// Les autres épreuves de cette suite citent des valeurs exactes, et elles
+    /// le peuvent : l'hébreu du WLC, les crédits, les numéros de Strong ne
+    /// bougent pas. **La translittération, si.** Elle est *récoltée* dans les
+    /// niveaux 3 du vault, donc elle suit le vault — et le vault de la CI est
+    /// `main`, quand celui d'une machine de développement est la branche du
+    /// jour. Mesuré le 11 septembre 2026, sur le même verset : `elohim` en CI,
+    /// `ʾelohim` en local, un mot translittéré d'un côté et deux de l'autre.
+    ///
+    /// Une valeur épinglée aurait donc rougi pour la seule raison qui ne nous
+    /// intéresse pas — le vault a avancé — et l'on aurait fini par la
+    /// débrancher. On mesure le **contrat** : le champ traverse le DTO, et
+    /// l'absence reste un état ordinaire.
+    ///
+    /// Elle rougit toujours sur ce qui compte. Le champ retiré du DTO : le
+    /// `#require` tombe, et le compte passe à zéro. Un translittérateur écrit
+    /// un jour de faiblesse, qui remplirait tous les mots : le compte atteint
+    /// leur nombre, et la borne haute le dit.
     @Test("la translittération du vault arrive jusqu'au domaine")
     func laTranslitteration() throws {
         let unite = try #require(
             depot().unite(livre: "bereshit", temoin: "he-wlc", unite: "bereshit-1"))
         let v = try #require(unite.verset(rang: 0))
 
+        // `אֱלֹהִ֑ים`, lui, ne bouge pas : c'est le texte du témoin.
         let elohim = try #require(v.mot(rang: 2))
         #expect(elohim.texte == "אֱלֹהִ֑ים")
-        #expect(elohim.translitteration == "ʾelohim")
+        let translit = try #require(
+            elohim.translitteration,
+            "le mot le mieux glosé du corpus doit porter sa translittération"
+        )
+        // L'aleph initial s'écrit avec sa demi-apostrophe ou sans, selon l'état
+        // du vault. Le radical, lui, tient.
+        #expect(translit.hasSuffix("elohim"))
 
+        let portees = v.mots.filter { $0.translitteration != nil }.count
+        #expect(portees > 0, "au moins une traverse — sinon le champ ne traverse pas")
         #expect(
-            v.mots.filter { $0.translitteration != nil }.count == 1,
-            "un seul mot translittéré au premier verset — deux sur trois n'en portent pas"
+            portees < v.mots.count,
+            "et pas toutes : l'absence est l'état ordinaire, deux mots sur trois n'en portent pas"
         )
     }
 
