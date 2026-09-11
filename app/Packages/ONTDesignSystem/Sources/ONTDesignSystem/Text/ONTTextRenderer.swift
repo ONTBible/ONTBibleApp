@@ -60,9 +60,20 @@ public enum ONTTextRenderer {
             composants.queryItems = [URLQueryItem(name: "livre", value: livre)]
             return composants.url
         }
-        // `renvoi` et non `read` : le second ouvre la carte d'actions par-dessus
-        // le passage, ce qui est juste pour le widget et faux pour un détour.
-        composants.host = "renvoi"
+        // **`read`, qui désigne** — et non un hôte qui se contenterait de viser.
+        //
+        // J'avais tranché l'inverse, et à tort. Le raisonnement se tenait : un
+        // renvoi est un détour, le lecteur revient, lui ouvrir la carte de
+        // surlignage par-dessus le passage répond à une question qu'il n'a pas
+        // posée. L'auteur a arbitré le 11 septembre 2026, l'écran sous les
+        // yeux : « quand je navigue vers le verset je veux qu'il soit
+        // selected ».
+        //
+        // Ce qu'il voit et que le raisonnement manquait : arriver dans une
+        // unité de trente versets sans que rien ne marque celui qu'on venait
+        // chercher, c'est arriver nulle part. La désignation n'est pas le
+        // préambule d'un partage, c'est la réponse à « lequel ».
+        composants.host = "read"
         composants.path = "/\(cible.livre)/\(cible.unite)"
         if let verset = cible.verset {
             composants.queryItems = [URLQueryItem(name: "v", value: String(verset))]

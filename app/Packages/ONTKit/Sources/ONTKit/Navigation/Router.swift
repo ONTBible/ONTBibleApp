@@ -272,29 +272,6 @@ public final class Router {
             openedShem = LemmaSelection(lemma)
             return true
 
-        case "renvoi":
-            // **Viser sans désigner**, et c'est toute la différence avec
-            // `read`.
-            //
-            // `read` sert le widget et la carte du jour : le lecteur a touché
-            // *ce verset-là*, il arrive dessus et la carte d'actions est déjà
-            // ouverte — « Partager » est à un doigt. C'est le bon geste quand
-            // le verset est la destination.
-            //
-            // Un renvoi n'est pas une destination, c'est un détour. Le lecteur
-            // était dans une glose, il va voir le passage cité, il revient. Lui
-            // ouvrir la carte de surlignage par-dessus le texte qu'il vient
-            // chercher, c'est répondre à une question qu'il n'a pas posée — et
-            // c'est ce que faisait la première version, mesuré à l'écran.
-            //
-            // On pose donc `pendingVerse`, qui fait défiler, et **pas**
-            // `pendingSelection`, qui ouvre la carte.
-            guard let book = parts.first, parts.count >= 2 else { return false }
-            tab = .bible
-            biblePath = [.book(book), .chapter(book: book, chapter: parts[1])]
-            pendingVerse = VerseVise(parts[1], Self.firstVerse(in: url))
-            return true
-
         case "indisponible":
             // Le nom voyage en paramètre : il porte des espaces et des
             // accents, qu'un segment de chemin rendrait illisibles.
