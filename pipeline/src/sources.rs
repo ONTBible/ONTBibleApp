@@ -278,6 +278,29 @@ pub struct MotPublie {
 /// `קדש` est *qadash* et *qodesh*, `ראה` est *roeh* et *raah*. Une voyelle les
 /// sépare, et le squelette l'a perdue.
 ///
+/// ## Une quatrième ambiguïté, et elle n'est pas encore arrivée
+///
+/// La session des langues sources l'a relevée le 11 septembre 2026 : `אֵת`
+/// (Strong 853, la particule d'accusatif) et `אֶת` (854, la préposition
+/// « avec ») **partagent leur squelette**. Une voyelle les sépare.
+///
+/// Aujourd'hui aucune fiche ne porte ce squelette, donc rien n'est mal lié.
+/// Mais `אֵת` est **le mot le plus fréquent du corpus sans fiche** — 328
+/// occurrences sur Genèse 1-19 —, et c'est celui que tout le monde désigne
+/// comme le plus rentable à écrire. Le jour où il en aura une, les 15
+/// occurrences de `אֶת` ouvriront la sienne, et personne ne le verra.
+///
+/// **Ce qui a été essayé et écarté** : refuser tout squelette que le témoin
+/// voit porter plusieurs numéros de Strong. Mesuré, ça retire 187 jointures
+/// sur 478 — et à tort, parce que `אדם` porte 120 (l'humain) et 121 (Adam)
+/// qui sont légitimement la même fiche. Une garde qui refuse un tiers du juste
+/// pour attraper quinze fautes n'est pas une garde, c'est un renoncement.
+///
+/// Le vrai remède est ailleurs et il est simple : **que la fiche porte son
+/// propre numéro de Strong**, écrit dans le vault à côté de son hébreu. La
+/// jointure devient alors exacte et vérifiable, au lieu d'être déduite. C'est
+/// une question de convention de vault, posée à son auteur.
+///
 /// **Ces trois-là ne mènent nulle part.** C'est la règle que le niveau 3 a déjà
 /// payée : une jointure qui se trompe ne rend pas le mot inerte, elle le rend
 /// touchable **vers la mauvaise fiche** — et le lecteur ne peut pas le voir. Un
