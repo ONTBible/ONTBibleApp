@@ -35,7 +35,19 @@ struct ChapterView: View {
     private static let log = Logger(subsystem: "com.labibleont.ONT", category: "lecture")
 
     @State private var blocVise: Int?
-        @State private var noteTarget: VerseSelection?
+    @State private var noteTarget: VerseSelection?
+    /// **Le verset dont on a demandé la source, tenu ici et nulle part
+    /// ailleurs.**
+    ///
+    /// La première version présentait la feuille depuis la ligne du verset,
+    /// puis depuis le bloc de prose. Ni l'une ni l'autre ne s'ouvrait sur
+    /// l'appareil : une feuille attachée à une vue profondément imbriquée dans
+    /// une pile paresseuse est ignorée en silence — pas d'erreur, pas de
+    /// journal, rien.
+    ///
+    /// Une seule présentation, au niveau du chapitre, et les deux modes de
+    /// lecture y poussent leur demande.
+    @State private var sourceDemandee: PositionDeVerset?
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -93,11 +105,23 @@ struct ChapterView: View {
     private var pastille: String {
         guard chapter.n > 0 else { return chapter.title }
         let livre = model.outline(chapter.bookId)?.title ?? chapter.bookId
-        return LibelleDUnite.situe(
-            livre: livre,
-            rang: chapter.n,
-            french: model.preferences.french
-        )
+        let situe = "\(livre) · \(LibelleDUnite.rangCourt(chapter.n))"
+        // **Ce que le lecteur a désigné passe devant le nom de la division.**
+        //
+        // La pastille disait « Bereshit · Parashah 1 » — juste, et deux fois
+        // plus long que nécessaire pour une information que le lecteur a
+        // lui-même réglée. La place gagnée porte la plage sélectionnée, qui,
+        // elle, change à chaque geste.
+        //
+        // `VerseRange.label` et non un second formatage : « 1-3, 7 » s'écrit
+        // déjà quelque part, et deux règles de mise en forme pour une même
+        // chose finissent toujours par diverger.
+        guard !selection.isEmpty else { return situe }
+        // **Sans « v. ».** Le séparateur dit déjà qu'on descend d'un cran —
+        // livre, puis unité, puis verset —, et la pastille se lit de gauche à
+        // droite comme une adresse. Deux caractères et une espace de moins,
+        // dans le seul endroit de l'app où la place est comptée.
+        return "\(situe) · \(VerseRange.label(selection))"
     }
 
     var body: some View {
@@ -154,7 +178,8 @@ struct ChapterView: View {
                                 block: block,
                                 chapter: chapter,
                                 noteTarget: $noteTarget,
-                                selection: $selection
+                                selection: $selection,
+                                sourceDemandee: $sourceDemandee
                             )
                         }
 
@@ -292,7 +317,8 @@ struct ChapterView: View {
                     chapter: chapter,
                     selection: $selection,
                     noteTarget: $noteTarget,
-                    autoShare: $autoShare
+                    autoShare: $autoShare,
+                    sourceDemandee: $sourceDemandee
                 )
                     // Bornée pour la même raison que la page : la liseuse prend
                     // toute la largeur de l'iPad depuis le pli, et sans cette
@@ -437,6 +463,10 @@ struct ChapterView: View {
         // **Une dérogation, et elle s'écrit ici.** Une note tient en trois
         // lignes : lui donner le plein écran au glissement offrirait de la
         // hauteur à ce qui n'en demande pas.
+        .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
+            FeuilleDuVersetSource(titreDeLUnite: chapter.title, position: ou)
+                .ontTheme(from: theme.preferences)
+        }
         .ontFeuille(objet: $noteTarget, titre: "Note", paliers: .mesures([.medium])) { selection in
             NoteEditor(chapter: chapter, verse: selection.id)
                 .ontTheme(from: model.preferences)
@@ -665,12 +695,32 @@ private struct VerseRow: View {
     @Binding var noteTarget: VerseSelection?
     @Binding var selection: Set<Int>
 
+    /// Le verset dont on a demandé la source — sa **position** dans l'unité,
+    /// jamais son numéro affiché. Tenu par le chapitre, voir son commentaire.
+    @Binding var sourceDemandee: PositionDeVerset?
+
 
     private var highlight: Highlight? {
         model.highlight(chapterId: chapter.id, verse: verse.n)
     }
 
     private var selected: Bool { selection.contains(verse.n) }
+
+    /// La position d'un verset dans son unité, tous blocs confondus.
+    ///
+    /// **Pas son numéro.** Une parashah qui couvre deux chapitres bibliques
+    /// fait repartir la numérotation à ¹ au second : *Bereshit* 7 porte deux
+    /// versets « 1 ». Chercher par numéro attraperait le premier des deux,
+    /// silencieusement. C'est le piège que `sources.rs` documente pour
+    /// l'apparat critique, et il vaut ici mot pour mot.
+    private func position(de v: Verse, dans unite: Chapter) -> PositionDeVerset? {
+        let tous = unite.blocks.flatMap { bloc -> [Verse] in
+            if case .verses(let versets) = bloc { return versets }
+            return []
+        }
+        guard let i = tous.firstIndex(of: v) else { return nil }
+        return PositionDeVerset(livre: unite.bookId, unite: unite.id, position: i)
+    }
 
     /// Estompé quand une sélection existe ailleurs. C'est le procédé de Bible
     /// Strong : on ne marque pas le verset désigné, on efface le reste.
@@ -732,6 +782,34 @@ private struct VerseRow: View {
                 selection.insert(verse.n)
             }
         }
+        // **L'appui long ouvre le verset d'origine.**
+        //
+        // Un geste qui n'existait pas dans la lecture, donc qui n'en déplace
+        // aucun : le toucher désigne, l'appui long montre la source. Demandé
+        // ainsi par l'auteur.
+        // **Simultané, et non exclusif.** Le corps du verset porte des liens —
+        // intraduisibles, Shemot, renvois —, et un `onLongPressGesture` posé
+        // sur la boîte perd la course contre le geste que le système attache
+        // déjà à un lien. Le lecteur appuie longuement sur un mot doré et rien
+        // n'arrive, ce qui se lit comme une panne.
+        //
+        // `simultaneousGesture` laisse les deux vivre : le lien garde son
+        // toucher, et l'appui long ouvre la source où qu'il tombe dans le
+        // verset.
+        // **Le pont vers `UILongPressGestureRecognizer`** — voir
+        // `ONTAppuiLong`. Un `LongPressGesture` de SwiftUI passait au
+        // simulateur et jamais sur l'appareil : il abandonne dès que le doigt
+        // s'écarte de dix points, et un pointeur ne bouge pas.
+        .ontAppuiLong { _ in
+            sourceDemandee = position(de: verse, dans: chapter)
+        }
+        .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
+            FeuilleDuVersetSource(
+                titreDeLUnite: chapter.title,
+                position: ou
+            )
+            .ontTheme(from: theme.preferences)
+        }
         .id(VerseAnchor(n: verse.n))
         // La **visibilité**, pas l'apparition. Depuis que la pile n'est plus
         // paresseuse, toutes les lignes apparaissent d'un coup au chargement :
@@ -765,6 +843,28 @@ private struct VerseActionBar: View {
     @Binding var noteTarget: VerseSelection?
     /// Vrai quand l'ouverture vient de la pastille du widget.
     @Binding var autoShare: Bool
+    /// Le verset dont on demande la source — tenu par le chapitre.
+    @Binding var sourceDemandee: PositionDeVerset?
+
+    /// **La position d'un verset, depuis son numéro affiché.**
+    ///
+    /// La carte ne connaît qu'un numéro — c'est ce que la sélection porte. La
+    /// feuille, elle, veut une position, parce qu'une parashah qui couvre deux
+    /// chapitres bibliques fait repartir la numérotation à ¹ et porte alors
+    /// deux versets « 1 ».
+    ///
+    /// **On prend le premier des deux**, faute de mieux : la sélection d'un
+    /// verset ne dit pas lequel des homonymes. C'est l'écart assumé de ce
+    /// chemin-ci, et il ne concerne qu'une poignée d'unités — l'appui long,
+    /// lui, sait exactement où le doigt s'est posé.
+    private func positionDuVerset(_ n: Int) -> PositionDeVerset? {
+        let tous = chapter.blocks.flatMap { bloc -> [Verse] in
+            if case .verses(let versets) = bloc { return versets }
+            return []
+        }
+        guard let i = tous.firstIndex(where: { $0.n == n }) else { return nil }
+        return PositionDeVerset(livre: chapter.bookId, unite: chapter.id, position: i)
+    }
 
     /// Ce qui part dans la feuille de partage. Rempli à l'appui, pas avant :
     /// rendre une image de 1080 × 1080 à chaque verset touché serait du
@@ -952,6 +1052,27 @@ private struct VerseActionBar: View {
             if selection.count == 1, let only = selection.first {
                 ActionTile(title: "Noter", icon: "square.and.pencil") {
                     noteTarget = VerseSelection(only)
+                }
+                .frame(maxWidth: .infinity)
+
+                // **Le chemin sûr vers le verset d'origine.**
+                //
+                // L'appui long existe et c'est le geste que l'auteur voulait,
+                // mais il se dispute le doigt avec deux interactions que le
+                // système attache au texte : la sélection, et l'aperçu d'un
+                // lien. Sur l'appareil, le résultat dépend de ce qu'on touche —
+                // un mot doré ne répond pas comme une espace.
+                //
+                // Cette tuile ne dépend de rien : le verset est **déjà**
+                // désigné quand elle paraît, et c'est là que l'auteur l'avait
+                // cherchée en premier — « à la sélection d'un verset la feature
+                // prévue apparaît pas ».
+                //
+                // Deux chemins pour un geste, et c'est le patron d'iOS : un qui
+                // s'apprend, un qui va vite.
+                ActionTile(title: "Origine", icon: "character.book.closed") {
+                    sourceDemandee = positionDuVerset(only)
+                    selection.removeAll()
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -1203,6 +1324,44 @@ private struct FlowingVerses: View {
     let chapter: Chapter
     @Binding var selection: Set<Int>
 
+    @Binding var sourceDemandee: PositionDeVerset?
+    /// La hauteur mesurée du bloc — nécessaire pour convertir un appui en
+    /// verset.
+    @State private var hauteurDuBloc: CGFloat = 0
+
+    /// **Quel verset se trouve à cette hauteur.**
+    ///
+    /// La prose continue n'a pas de vue par verset : tout coule dans un seul
+    /// paragraphe. On réemploie donc `parts`, la répartition au prorata des
+    /// signes que le repérage du défilement emploie déjà — c'est ce qu'on a de
+    /// plus proche de la hauteur réelle sans demander sa mise en page au
+    /// moteur de texte.
+    ///
+    /// Approximatif, et assumé : un verset dense en gloses occupe plus de
+    /// place que sa part de signes ne le dit. L'écart se paie d'un verset
+    /// voisin, jamais d'un silence — et le lecteur corrige d'un glissement,
+    /// puisque la feuille change de verset au doigt.
+    /// La position d'un verset dans son unité — voir la note de `VerseRow`.
+    private func positionDansLUnite(de v: Verse) -> PositionDeVerset? {
+        let tous = chapter.blocks.flatMap { bloc -> [Verse] in
+            if case .verses(let versets) = bloc { return versets }
+            return []
+        }
+        guard let i = tous.firstIndex(of: v) else { return nil }
+        return PositionDeVerset(livre: chapter.bookId, unite: chapter.id, position: i)
+    }
+
+    private func versetA(_ y: CGFloat) -> Verse? {
+        guard hauteurDuBloc > 0 else { return verses.first }
+        var haut: CGFloat = 0
+        for part in parts {
+            let bas = haut + hauteurDuBloc * part.part
+            if y < bas { return verses.first { $0.n == part.verset } }
+            haut = bas
+        }
+        return verses.last
+    }
+
     /// La part de la sélection qui tombe dans ce bloc.
     private var selectionLocale: Set<Int> {
         selection.isEmpty ? [] : selection.intersection(verses.map(\.n))
@@ -1283,6 +1442,16 @@ private struct FlowingVerses: View {
         // de la sélection, ce corps n'est plus réévalué pour un appui — et la
         // mise en page du bloc a donc lieu une seule fois, à son apparition.
         .equatable()
+        // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
+        // ici : on lit la hauteur du doigt et on la convertit avec la même
+        // répartition que le repérage du défilement.
+        .ontAppuiLong { ou in
+            guard let v = versetA(ou.y) else { return }
+            sourceDemandee = positionDansLUnite(de: v)
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+            hauteurDuBloc = $0
+        }
         // La sélection vit ici, dans le moteur de dessin. Il change à chaque
         // appui, et c'est voulu : SwiftUI **redessine** sans remettre en page.
         //
@@ -1446,6 +1615,8 @@ private struct BlockView: View {
     let chapter: Chapter
     @Binding var noteTarget: VerseSelection?
     @Binding var selection: Set<Int>
+    /// Passe jusqu'aux versets — voir le commentaire du chapitre.
+    @Binding var sourceDemandee: PositionDeVerset?
 
     /// Titres, paragraphes et listes reculent avec le reste : un intertitre
     /// resté noir au milieu d'une page estompée attirerait l'œil plus que la
@@ -1478,7 +1649,10 @@ private struct BlockView: View {
 
         case .verses(let verses):
             if theme.preferences.continuous {
-                FlowingVerses(verses: verses, chapter: chapter, selection: $selection)
+                FlowingVerses(
+                    verses: verses, chapter: chapter, selection: $selection,
+                    sourceDemandee: $sourceDemandee
+                )
             } else {
                 VStack(alignment: .leading, spacing: theme.verseSpacing) {
                     ForEach(verses) { verse in
@@ -1486,7 +1660,8 @@ private struct BlockView: View {
                             verse: verse,
                             chapter: chapter,
                             noteTarget: $noteTarget,
-                            selection: $selection
+                            selection: $selection,
+                            sourceDemandee: $sourceDemandee
                         )
                     }
                 }
