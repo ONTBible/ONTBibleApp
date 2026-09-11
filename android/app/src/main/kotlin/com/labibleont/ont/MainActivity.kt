@@ -69,7 +69,7 @@ import com.labibleont.ont.data.remote.CorpusUpdater
 import com.labibleont.ont.data.remote.DiskCorpusRepository
 import com.labibleont.ont.data.remote.DiskGlossaryRepository
 import com.labibleont.ont.data.remote.DiskShemotRepository
-import com.labibleont.ont.data.bundle.AssetSearchIndex
+import com.labibleont.ont.data.remote.DiskSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
 import com.labibleont.ont.designsystem.catalog.DSCatalog
 import com.labibleont.ont.designsystem.surfaces.ontScreen
@@ -115,6 +115,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.collectAsState
 import com.labibleont.ont.kit.reader.LienProfond
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -160,6 +162,34 @@ private val OngletSaver: Saver<Onglet, Any> = Saver(
  * des routes, de sérialiser des arguments et de tenir un état que trois
  * booléens décrivent déjà. On le prendra quand il y aura de quoi le remplir.
  */
+/**
+ * Une lecture qu'on a quittée par un renvoi, et où le retour doit ramener.
+ *
+ * ## Pourquoi une pile à part, et pas `Ecran`
+ *
+ * `Ecran` dit **quel** écran, jamais *où l'on en était dedans*. Or les deux
+ * gestes qui mènent à une unité ne sont pas le même :
+ *
+ * | geste | ce qu'il fait |
+ * |---|---|
+ * | widget, carte du jour, lien reçu | **remplace** — on *entre* dans le corpus |
+ * | renvoi touché dans une glose | **empile** — on *sort* d'une lecture en cours |
+ *
+ * Le second doit rendre la lecture d'avant en entier : le bon livre, la bonne
+ * unité, les versets qui étaient désignés, **et la hauteur de défilement**.
+ * iOS obtient les deux derniers gratuitement — `NavigationStack` garde la vue
+ * parente vivante. Ici il n'y a pas de graphe de navigation, seulement une pile
+ * à un étage : ce qui n'est pas relevé avant de partir est perdu.
+ */
+private data class RetourDeLecture(
+    val livreId: String,
+    val uniteId: String,
+    val versets: Set<Int>,
+    /** Le premier élément visible, et de combien il dépasse par le haut. */
+    val rang: Int,
+    val decalage: Int,
+)
+
 private sealed interface Ecran {
     data object Onglets : Ecran
     data object Lecture : Ecran
@@ -277,7 +307,7 @@ public class MainActivity : ComponentActivity() {
         val corpus = DiskCorpusRepository(applicationContext)
         val glossaire = DiskGlossaryRepository(applicationContext)
         val shemot = DiskShemotRepository(applicationContext)
-        val index = AssetSearchIndex(applicationContext)
+        val index = DiskSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
         val rapporteur = SentryReporter()
         val lecteur = FileReaderStore(applicationContext, rapporteur)
@@ -435,6 +465,25 @@ private fun Racine(
     // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
     // fermant.
     var shem: String? by rememberSaveable { mutableStateOf(null) }
+    // Le verset qu'un renvoi vient rejoindre — il fait **défiler**. La
+    // désignation, elle, passe par `lecture.basculer` : l'auteur a arbitré que
+    // le verset visé soit sélectionné comme s'il l'avait touché du doigt.
+    // Arriver dans une unité de trente versets sans que rien ne marque celui
+    // qu'on venait chercher, c'est arriver nulle part.
+    var versetVise: Int? by remember { mutableStateOf(null) }
+
+    // ## La pile des renvois suivis
+    //
+    // `remember` et non `rememberSaveable` : elle ne survit pas à la mort du
+    // processus, et c'est assumé. Restaurer une pile de retour dont l'écran
+    // d'arrivée a été reconstruit ailleurs donnerait un retour vers un état qui
+    // n'existe plus — et un retour **faux** est pire qu'un retour perdu, c'est
+    // la règle qu'`EcranSaver` écrit déjà pour `Ecran`.
+    val retoursDeRenvoi = remember { mutableStateListOf<RetourDeLecture>() }
+
+    // Hissé hors de `ChapterScreen` : c'est d'ici qu'on relève la hauteur avant
+    // de suivre un renvoi, et d'ici qu'on la repose en revenant.
+    val etatDeLecture = rememberLazyListState()
     var reglagesOuverts by rememberSaveable { mutableStateOf(false) }
     val messages = remember { SnackbarHostState() }
 
@@ -570,8 +619,45 @@ private fun Racine(
     // Le retour défait une chose à la fois, de la plus fine à la plus large :
     // la sélection, puis l'écran. Fermer le chapitre alors qu'on venait de
     // désigner un verset serait une perte, pas un retour.
-    BackHandler(enabled = ecran != Ecran.Onglets || lecture.selection.isNotEmpty()) {
+    //
+    // ## Sauf quand on est arrivé par un renvoi, et alors il dépile d'abord
+    //
+    // Le renvoi désigne son verset en arrivant — l'auteur l'a arbitré. Cette
+    // sélection-là n'est **pas** un geste du lecteur : elle est venue avec le
+    // saut. Défaire d'abord ce qu'il n'a pas fait lui coûterait deux retours
+    // pour rendre une lecture qu'il n'a quittée qu'une fois, et le premier
+    // n'aurait aucun effet visible autre que d'éteindre le repère qu'il venait
+    // d'obtenir.
+    //
+    // Dépiler restaure la lecture **entière** : l'unité, ses versets désignés,
+    // et la hauteur où l'œil s'était arrêté.
+    BackHandler(
+        enabled = ecran != Ecran.Onglets ||
+            lecture.selection.isNotEmpty() ||
+            retoursDeRenvoi.isNotEmpty(),
+    ) {
         when {
+            ecran is Ecran.Lecture && retoursDeRenvoi.isNotEmpty() -> {
+                val retour = retoursDeRenvoi.removeAt(retoursDeRenvoi.lastIndex)
+                lecture.ouvrir(retour.livreId, retour.uniteId)
+                versetVise = null
+                portee.launch {
+                    val arrivee = withTimeoutOrNull(5_000) {
+                        snapshotFlow { lecture.chapitre }
+                            .filterNotNull()
+                            .first { it.id == retour.uniteId }
+                    }
+                    if (arrivee != null) {
+                        lecture.deselectionner()
+                        retour.versets.forEach { lecture.basculer(it) }
+                        // La hauteur se repose **sans animation** : on ne
+                        // rejoue pas le trajet, on rend la page telle qu'elle
+                        // était. Un défilement animé donnerait à croire qu'on
+                        // avance encore.
+                        etatDeLecture.scrollToItem(retour.rang, retour.decalage)
+                    }
+                }
+            }
             lecture.selection.isNotEmpty() -> lecture.deselectionner()
             ecran is Ecran.Selecteur -> ecran = Ecran.Lecture
             else -> ecran = Ecran.Onglets
@@ -858,6 +944,8 @@ private fun Racine(
                         ChapterScreen(
                             chapitre = chapitre,
                             preferences = preferences,
+                            versetVise = versetVise,
+                            etatListe = etatDeLecture,
                             selection = lecture.selection,
                             onVerset = { n ->
                                 // Désigner un verset ouvre le mode sélection,
@@ -914,6 +1002,103 @@ private fun Racine(
                                     messages.showSnackbar(
                                         "« $cible » est une chuqqah qui n'est pas encore lisible ici.",
                                     )
+                                }
+                            },
+                            // ## Une référence répond toujours, résolue ou non
+                            //
+                            // L'auteur l'a arbitré à l'écran : toutes portent
+                            // l'ambre et le pointillé, et l'apparence ne se
+                            // scinde pas. Scinder aurait appris au lecteur à
+                            // lire une marque de plus ; ici il touche, et le
+                            // vide devient une réponse au lieu d'un silence.
+                            //
+                            // 208 des 915 références du corpus visent des
+                            // livres que personne n'a traduits. Un toucher sans
+                            // réponse s'y lit comme une panne de l'app, pas
+                            // comme un état de la traduction.
+                            onReference = { reference ->
+                                val cible = reference.cible
+                                if (cible == null) {
+                                    // Le **nom du livre**, jamais un « ce
+                                    // passage » générique : « Ésaïe n'est pas
+                                    // encore traduit » dit ce qui manque et où
+                                    // en est le projet. « Indisponible » ne dit
+                                    // rien et se lit comme une panne.
+                                    //
+                                    // Un `Snackbar` là où iOS pose une alerte :
+                                    // il n'y a rien à consulter, rien à faire
+                                    // défiler, et c'est déjà la réponse que le
+                                    // renvoi de chuqqah donne dix lignes plus
+                                    // haut. Une boîte modale demanderait un
+                                    // geste pour refermer ce qui n'a rien à
+                                    // offrir.
+                                    portee.launch {
+                                        messages.showSnackbar(
+                                            "${reference.livre} n'est pas encore traduit. " +
+                                                "Le renvoi est là, le texte viendra.",
+                                        )
+                                    }
+                                } else {
+                                    val depart = lecture.chapitre
+                                    // **Ne pas empiler sur soi-même.** Un
+                                    // renvoi vise parfois l'unité qu'on lit
+                                    // déjà — « voir plus haut au verset 4 » —,
+                                    // et le retour ramènerait alors à l'endroit
+                                    // d'où l'on n'est jamais parti.
+                                    if (depart != null && depart.id != cible.unite) {
+                                        retoursDeRenvoi.add(
+                                            RetourDeLecture(
+                                                livreId = depart.bookId,
+                                                uniteId = depart.id,
+                                                versets = lecture.selection,
+                                                rang = etatDeLecture.firstVisibleItemIndex,
+                                                decalage =
+                                                    etatDeLecture.firstVisibleItemScrollOffset,
+                                            ),
+                                        )
+                                    }
+                                    onglet = Onglet.BIBLE
+                                    ecran = Ecran.Lecture
+                                    lecture.ouvrir(cible.livre, cible.unite)
+                                    portee.launch {
+                                        // `ouvrir` charge dans une coroutine :
+                                        // désigner tout de suite désignerait
+                                        // dans l'unité d'avant. On attend celle
+                                        // qu'on a demandée — avec une borne de
+                                        // temps, faute de quoi un identifiant
+                                        // inconnu suspendrait la coroutine pour
+                                        // toujours.
+                                        val arrivee = withTimeoutOrNull(5_000) {
+                                            snapshotFlow { lecture.chapitre }
+                                                .filterNotNull()
+                                                .first { it.id == cible.unite }
+                                        }
+                                        // ## Le verset demandé est borné à ceux qui existent
+                                        //
+                                        // `cible` est calculée par le pipeline
+                                        // contre la table des plages du corpus.
+                                        // Elle peut viser un numéro que l'unité
+                                        // ne porte pas si le corpus embarqué est
+                                        // plus ancien que celui qui l'a produite
+                                        // — et la position de lecture retenue
+                                        // s'en trouverait empoisonnée. La leçon
+                                        // vient des liens profonds, vingt lignes
+                                        // plus haut ; elle vaut mot pour mot ici.
+                                        val n = cible.verset
+                                        val existe =
+                                            arrivee?.verses.orEmpty().any { it.n == n }
+                                        lecture.deselectionner()
+                                        if (n != null && existe) {
+                                            // La sélection **ordinaire**, celle
+                                            // qu'un doigt obtient : l'auteur l'a
+                                            // arbitré, et ce qu'elle ouvre chez
+                                            // nous s'ouvre avec elle.
+                                            lecture.basculer(n)
+                                            versetVise = n
+                                        } else {
+                                            versetVise = null
+                                        }
+                                    }
                                 }
                             },
                             onTerme = { lemme ->

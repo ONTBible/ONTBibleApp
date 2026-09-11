@@ -39,6 +39,58 @@ public enum ONTTextRenderer {
         URL(string: "\(termScheme)://chuqqah/\(cible)")
     }
 
+    /// **L'adresse d'une référence biblique** — celle qui mène, ou celle qui
+    /// explique pourquoi elle ne mène pas.
+    ///
+    /// Les deux existent, et c'est l'arbitrage de l'auteur : toutes les
+    /// références portent l'ambre et le pointillé, résolues ou non. Scinder
+    /// l'apparence aurait appris au lecteur à lire une marque de plus ; ici il
+    /// touche, et le vide devient une réponse au lieu d'un silence.
+    ///
+    /// La forme résolue réemploie `read`, que le routeur sert déjà au widget :
+    /// elle ouvre l'unité **et désigne** le verset, ce qui n'est pas la même
+    /// chose que l'ouvrir — voir `Router.designer`.
+    public static func referenceURL(cible: CibleDeLaReference?, livre: String) -> URL? {
+        var composants = URLComponents()
+        composants.scheme = termScheme
+        guard let cible else {
+            // Le nom du livre voyage en paramètre et non dans le chemin : il
+            // porte des espaces et des accents — « Shir Hashirim », « Ésaïe ».
+            composants.host = "indisponible"
+            composants.queryItems = [URLQueryItem(name: "livre", value: livre)]
+            return composants.url
+        }
+        // **`renvoi`, qui désigne ET empile** — et non `read`, qui remplace.
+        //
+        // Deux arbitrages de l'auteur, le 11 septembre 2026, l'écran sous les
+        // yeux, et j'avais tranché à l'envers les deux fois.
+        //
+        // *« Quand je navigue vers le verset je veux qu'il soit selected. »*
+        // J'avais choisi de viser sans désigner, au motif qu'un renvoi est un
+        // détour et que la carte de surlignage répond à une question qu'on n'a
+        // pas posée. Ce que le raisonnement manquait : arriver dans une unité
+        // de trente versets sans que rien ne marque celui qu'on venait
+        // chercher, c'est arriver nulle part. La désignation n'est pas le
+        // préambule d'un partage, c'est la réponse à « lequel ».
+        //
+        // *« Le bouton de retour doit me ramener au bon chapitre et au bon
+        // niveau de scroll. »* `read` **remplace** la pile de navigation, ce
+        // qui est exact pour le widget — on entre dans le corpus, on n'en
+        // venait pas. Un renvoi est l'inverse : une sortie depuis une lecture
+        // en cours. Remplacer la pile faisait perdre au lecteur son chapitre
+        // et sa hauteur de défilement, et le renvoyait à l'index du livre.
+        //
+        // Les deux fois, le raisonnement était cohérent et regardait la
+        // mauvaise chose : ce que le geste *est*, au lieu de ce que le lecteur
+        // a sous les yeux en le faisant.
+        composants.host = "renvoi"
+        composants.path = "/\(cible.livre)/\(cible.unite)"
+        if let verset = cible.verset {
+            composants.queryItems = [URLQueryItem(name: "v", value: String(verset))]
+        }
+        return composants.url
+    }
+
     /// L'adresse qui désigne un verset — employée seulement en lecture continue.
     public static func verseURL(_ n: Int) -> URL? {
         URL(string: "\(termScheme)://verse/\(n)")
@@ -309,6 +361,43 @@ public enum ONTTextRenderer {
                 if inGloss { style.font = type.gloss.font }
                 var piece = run(value, style)
                 piece.link = renvoiURL(cible)
+                piece[MarqueDeTerme.self] = true
+                output += piece
+
+            case .reference(let value, let livre, _, _, _, let cible):
+                // **L'ambre du renvoi, et le pointillé de la désignation.**
+                //
+                // Arbitré à l'écran, les trois candidats côte à côte dans le
+                // vrai thème et la vraie fonte.
+                //
+                // *L'ambre seule* confondait la référence avec le renvoi de
+                // chuqqah, et le volume décidait : 1 182 références contre
+                // aucun renvoi publié aujourd'hui — l'ambre serait devenue la
+                // couleur de la référence, et le renvoi aurait été noyé dans
+                // sa propre teinte en arrivant.
+                //
+                // *Le pointillé seul*, à l'encre du corps, passait sous les
+                // jambages du « B » et du « 4 » et se lisait comme un défaut
+                // de rendu. Et sans couleur, rien ne disait qu'il répond.
+                //
+                // *Une cinquième teinte* a été écartée par mesure, pas par
+                // goût : il aurait fallu la tenir à ΔE 25 des quatre autres,
+                // et l'auteur lit à moins d'un dixième d'acuité. Les petites
+                // capitales aussi — les tables OpenType des vingt fontes du
+                // projet disent que Newsreader et Jost n'ont pas de `smcp`, et
+                // le lecteur choisit sa fonte : une distinction qui dépend de
+                // son réglage n'est pas une distinction.
+                //
+                // Reste que les deux marques disent chacune une moitié :
+                // l'ambre, « ceci mène ailleurs dans le corpus » ; le
+                // pointillé, « et c'est une désignation de verset ». Ce second
+                // signe existait déjà — c'est celui que le lecteur trace en
+                // désignant un verset pour le partager. Même sens, autre agent.
+                var style = type.renvoi
+                if inGloss { style.font = type.gloss.font }
+                var piece = run(value, style)
+                piece.underlineStyle = Text.LineStyle(pattern: .dot)
+                piece.link = referenceURL(cible: cible, livre: livre)
                 piece[MarqueDeTerme.self] = true
                 output += piece
 

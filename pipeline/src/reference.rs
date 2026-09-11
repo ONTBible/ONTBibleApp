@@ -304,6 +304,12 @@ pub struct BookName {
     pub translit: String,
     /// Le titre en écriture hébraïque.
     pub hebrew: String,
+    /// Le nom français — **le pont de navigation** vers la Bible que le lecteur
+    /// connaît (§2.6), et depuis le 10 septembre 2026 ce qui **dit la
+    /// numérotation** : `Genèse 9:25` est la numérotation reçue, `Bereshit 9:8`
+    /// l'unité ONT. Les trois formes de répertoire le portent en première
+    /// cellule — mesuré, non supposé.
+    pub french: String,
 }
 
 /// Associe à chaque identifiant de livre son nom canonique.
@@ -326,6 +332,8 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
         let Some(hebrew_cell) = cells.iter().find(|c| has_hebrew(c)) else {
             continue;
         };
+        // Les trois formes de répertoire mènent par le nom français.
+        let french = cells.first().map(|c| cell_text(c)).unwrap_or_default();
 
         for cell in &cells {
             if cell == hebrew_cell {
@@ -337,6 +345,7 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
                 couvrantes.entry(id.clone()).or_insert_with(|| BookName {
                     translit: translit.clone(),
                     hebrew: cell_text(hebrew_cell),
+                    french: french.clone(),
                 });
             }
             if !id.is_empty() && known_ids.contains(&id) && !names.contains_key(&id) {
@@ -345,6 +354,7 @@ fn read_book_names(section: &Section, known_ids: &HashSet<String>) -> HashMap<St
                     BookName {
                         translit,
                         hebrew: cell_text(hebrew_cell),
+                        french: french.clone(),
                     },
                 );
                 break;
@@ -410,6 +420,11 @@ fn numeroter(
             BookName {
                 translit: format!("{} {rang}", commun.translit),
                 hebrew: format!("{} {ordinal}", commun.hebrew),
+                // Le français est hérité **tel quel**. L'entrée commune porte
+                // « 1-2 Corinthiens » : en tirer « 1 Corinthiens » serait une
+                // déduction sur une forme que le vault n'écrit pas, et la
+                // détection s'appuierait alors sur un nom inventé.
+                french: commun.french.clone(),
             },
         );
     }
@@ -465,6 +480,21 @@ pub struct Reference {
 /// **Le niveau 1 reste écarté, lui, et pour une raison.** C'est le titre de la
 /// fiche, c'est-à-dire le lemme, que la liseuse affiche déjà en tête. Le garder
 /// ferait lire le mot deux fois de suite.
+/// La prose d'un document du vault, découpée en blocs.
+///
+/// Partagée entre les fiches de `lexique/` et les chuqqot : elles emploient le
+/// même vocabulaire — titres, `**intraduisibles**`, `==accentuations==`,
+/// niveau 3. Leur écrire deux analyseurs donnerait deux grammaires pour une
+/// seule langue, et elles divergeraient à la première correction.
+pub fn blocs_de_prose(texte: &str) -> Vec<Block> {
+    texte
+        .split("\n\n")
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .filter_map(bloc_de_fiche)
+        .collect()
+}
+
 fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
     let para = || {
         Some(Block::Para {
@@ -528,6 +558,62 @@ pub struct Fiche {
     /// ailleurs — une règle qui se trompe et envoie vers la mauvaise fiche —
     /// ne s'ouvre pas ici, puisqu'il n'y a pas de règle.
     pub formes: Vec<String>,
+    /// **Le numéro de Strong du lemme, et sa forme absolue**, §2.5 ter.
+    ///
+    /// ```text
+    /// ## Source
+    ///
+    /// 559 · אָמַר
+    /// ```
+    ///
+    /// ## Pourquoi dans la fiche et non au §3
+    ///
+    /// Arbitré par l'auteur le 11 septembre 2026, sur une mesure de la session
+    /// du vault : au §3 le champ n'aurait couvert que **133 fiches sur 357**,
+    /// parce que le §3 est un glossaire d'arbitrages de traduction et non un
+    /// lexique — les deux tiers des fiches n'y ont aucune entrée. La fiche,
+    /// elle, existe pour chaque mot.
+    ///
+    /// ## Ce que ce numéro achète
+    ///
+    /// La jointure d'un mot du texte source à sa fiche se fait aujourd'hui par
+    /// la **forme hébraïque** : vocalisée d'abord, squelette consonantique
+    /// ensuite. Le squelette ramasse les formes fléchies et confond ce qu'une
+    /// voyelle sépare — `אֵת` la particule d'accusatif et `אֶת` la préposition
+    /// « avec » ont le même.
+    ///
+    /// L'argument qui a emporté la décision est de la session du vault, et il
+    /// vaut mieux que celui du coût :
+    ///
+    /// > un squelette qui se trompe est **silencieux**, un Strong qui se
+    /// > trompe est **contredit par le témoin**.
+    ///
+    /// Le témoin WLC porte ce numéro pour chaque mot. Une jointure par Strong
+    /// cesse donc d'être déduite et devient vérifiable.
+    ///
+    /// ## Un fait qui a décidé du reste
+    ///
+    /// En dérivant ces numéros, le vault a trouvé que **`Charan` porte
+    /// `2771 a` et `2771 b`** — deux jours après que l'auteur eut séparé
+    /// `Haran` de `Charan` à la main, après qu'une passe les eut fondus. Le
+    /// témoin faisait déjà la distinction, avec une donnée que le dépôt
+    /// contenait depuis toujours.
+    pub source: Option<SourceDeclaree>,
+}
+
+/// Ce que la section `## Source` d'une fiche déclare.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceDeclaree {
+    /// Le numéro de Strong, **nu** — `559`, `1254 a`.
+    ///
+    /// Sans le préfixe de segmentation du témoin : `c/853` appartient à
+    /// l'occurrence, pas au lemme. La lettre, elle, reste — `1254 a` et
+    /// `1254 b` sont deux mots.
+    pub strong: String,
+    /// La forme absolue en hébreu — celle du dictionnaire.
+    ///
+    /// Les formes fléchies sont déjà dans `## Formes` ; celle-ci est le lemme.
+    pub hebreu: String,
 }
 
 /// Les formes déclarées d'une fiche, lues de sa section `## Formes`.
@@ -541,6 +627,46 @@ pub struct Fiche {
 /// la normalisation dans un lecteur neuf, ce serait rouvrir le défaut des
 /// demi-anneaux savants par la porte d'à côté — `vayaʿas` et `vayaas` ne se
 /// rejoindraient plus.
+/// La source déclarée d'une fiche, lue de sa section `## Source`.
+///
+/// Même forme et même emplacement que `formes_declarees` : jusqu'au `##`
+/// suivant, et pas plus loin.
+///
+/// **Rend `None` dès que la ligne n'a pas la forme attendue**, et c'est
+/// délibéré : un numéro mal lu vaut moins que pas de numéro. Une jointure qui
+/// s'appuie sur lui doit pouvoir croire qu'il est exact — c'est toute la
+/// raison de l'avoir écrit.
+fn source_declaree(texte: &str) -> Option<SourceDeclaree> {
+    let mut dedans = false;
+    for ligne in texte.lines() {
+        let t = ligne.trim();
+        if let Some(titre) = t.strip_prefix("## ") {
+            dedans = titre.trim().eq_ignore_ascii_case("source");
+            continue;
+        }
+        if !dedans || t.is_empty() {
+            continue;
+        }
+        // Le point médian, celui que l'auteur emploie partout.
+        let (strong, hebreu) = t.split_once('·')?;
+        let strong = strong.trim();
+        let hebreu = hebreu.trim();
+        // Le numéro commence par un chiffre — sinon on lit autre chose que ce
+        // qu'on croit, et mieux vaut se taire.
+        if strong.is_empty()
+            || hebreu.is_empty()
+            || !strong.starts_with(|c: char| c.is_ascii_digit())
+        {
+            return None;
+        }
+        return Some(SourceDeclaree {
+            strong: strong.to_string(),
+            hebreu: hebreu.to_string(),
+        });
+    }
+    None
+}
+
 fn formes_declarees(texte: &str) -> Vec<String> {
     let mut dedans = false;
     let mut formes = Vec::new();
@@ -588,20 +714,17 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         let lemme = slugify(&nom);
-        let blocs: Vec<Block> = texte
-            .split("\n\n")
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .filter_map(bloc_de_fiche)
-            .collect();
+        let blocs: Vec<Block> = blocs_de_prose(&texte);
         if !blocs.is_empty() {
             let formes = formes_declarees(&texte);
+            let source = source_declaree(&texte);
             fiches.insert(
                 lemme,
                 Fiche {
                     titre: nom,
                     blocs,
                     formes,
+                    source,
                 },
             );
         }
@@ -662,6 +785,10 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
                 tagged: true,
                 forms: formes,
                 hebrew: term.hebrew.clone(),
+                // Posés plus tard, quand les fiches recouvrent les entrées :
+                // ils viennent de la fiche, pas du document de référence.
+                strong: None,
+                hebreu_de_la_fiche: None,
                 rendering: None,
                 definition: None,
                 tagging_note: as_blocks(&term.note),
@@ -706,6 +833,8 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
                     .chain(term.variantes.iter().cloned())
                     .collect(),
                 hebrew: term.hebrew.clone(),
+                strong: None,
+                hebreu_de_la_fiche: None,
                 rendering: term.rendering.clone(),
                 definition: as_blocks(&term.definition),
                 tagging_note: None,

@@ -418,6 +418,197 @@ pub fn parse_chapter(source: &ChapterSource) -> ParsedChapter {
     }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// L'index des renvois — de la numérotation ONT vers la numérotation reçue
+// ───────────────────────────────────────────────────────────────────────────
+
+/// La plage biblique qu'un sous-titre déclare, une fois lue.
+///
+/// Le sous-titre est la **seule trace** de la numérotation d'origine, celle de
+/// l'ONT repartant de ¹ à chaque **parashah** (§2.2). Le vault n'écrit que ces
+/// quatre formes — relevées sur les 22 unités qui en portent une, non supposées.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlageBiblique {
+    /// `6` — le chapitre entier. Sa longueur n'est pas déclarée : ce sont les
+    /// versets de l'unité qui la donnent.
+    ChapitreEntier(u32),
+    /// `18:1-33` — une plage de versets dans un seul chapitre. C'est la seule
+    /// forme qui déclare son propre compte, donc la seule qui se contrôle.
+    Versets {
+        chapitre: u32,
+        premier: u32,
+        dernier: u32,
+    },
+    /// `7-8` — des chapitres entiers, que la numérotation ONT sépare en autant
+    /// de séries puisqu'elle repart de ¹ à chaque frontière.
+    Chapitres { premier: u32, dernier: u32 },
+    /// `1:1 — 2:3` — la plage traverse une frontière de chapitre.
+    Traversee {
+        depuis: (u32, u32),
+        jusqu_a: (u32, u32),
+    },
+}
+
+/// Pourquoi une unité n'a pas pu être indexée.
+///
+/// Elle **refuse** au lieu de deviner, et c'est tout l'objet du type. Une
+/// correspondance fausse ne rend pas le renvoi inerte : elle l'envoie **au
+/// mauvais verset**, et le lecteur arrive ailleurs sans que rien ne le lui
+/// dise. Un renvoi cassé se voit ; un renvoi qui ment, jamais.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexRefuse {
+    /// Le sous-titre porte une forme qu'on ne sait pas lire.
+    PlageIllisible(String),
+    /// La plage annonce un nombre de versets, l'unité en porte un autre.
+    /// C'est la somme de contrôle, et elle attrape les trous du corpus.
+    CompteDiscordant { attendu: u32, reel: u32 },
+    /// La plage annonce N chapitres, la numérotation n'y montre pas N séries.
+    SeriesDiscordantes { chapitres: u32, series: usize },
+    /// L'unité ne porte aucun verset numéroté — une introduction, ou de la prose.
+    AucunVerset,
+}
+
+static PLAGE_TRAVERSEE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(\d+):(\d+)\s*[—–-]\s*(\d+):(\d+)$").unwrap());
+static PLAGE_VERSETS: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(\d+):(\d+)\s*[—–-]\s*(\d+)$").unwrap());
+static PLAGE_CHAPITRES: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\d+)\s*[—–-]\s*(\d+)$").unwrap());
+static PLAGE_CHAPITRE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\d+)$").unwrap());
+
+fn nombre(c: Option<regex::Match<'_>>) -> Option<u32> {
+    c?.as_str().parse().ok()
+}
+
+/// Lit le renvoi brut du sous-titre — `"18:1-33"` — en plage structurée.
+///
+/// L'ordre des essais compte : la traversée porte deux `:` et serait happée par
+/// la forme à un seul chapitre, qui n'en attend qu'un.
+pub fn lire_la_plage(reference: &str) -> Option<PlageBiblique> {
+    let r = reference.trim();
+    if let Some(c) = PLAGE_TRAVERSEE.captures(r) {
+        return Some(PlageBiblique::Traversee {
+            depuis: (nombre(c.get(1))?, nombre(c.get(2))?),
+            jusqu_a: (nombre(c.get(3))?, nombre(c.get(4))?),
+        });
+    }
+    if let Some(c) = PLAGE_VERSETS.captures(r) {
+        return Some(PlageBiblique::Versets {
+            chapitre: nombre(c.get(1))?,
+            premier: nombre(c.get(2))?,
+            dernier: nombre(c.get(3))?,
+        });
+    }
+    if let Some(c) = PLAGE_CHAPITRES.captures(r) {
+        return Some(PlageBiblique::Chapitres {
+            premier: nombre(c.get(1))?,
+            dernier: nombre(c.get(2))?,
+        });
+    }
+    if let Some(c) = PLAGE_CHAPITRE.captures(r) {
+        return Some(PlageBiblique::ChapitreEntier(nombre(c.get(1))?));
+    }
+    None
+}
+
+/// Découpe la suite des numéros ONT en séries — une série se rompt quand le
+/// numéro cesse de croître, c'est-à-dire à chaque redémarrage du §2.2.
+fn series(versets: &[u32]) -> Vec<&[u32]> {
+    let mut coupes = vec![0usize];
+    for i in 1..versets.len() {
+        if versets[i] <= versets[i - 1] {
+            coupes.push(i);
+        }
+    }
+    coupes.push(versets.len());
+    coupes.windows(2).map(|w| &versets[w[0]..w[1]]).collect()
+}
+
+/// Donne, pour chaque verset de l'unité, sa coordonnée dans la numérotation
+/// reçue — `(chapitre, verset)`.
+///
+/// N'a besoin d'aucune Bible : la plage et la structure des versets suffisent,
+/// et c'est délibéré. Un pipeline qui devrait embarquer un texte source pour
+/// résoudre un renvoi dépendrait d'une donnée que le vault ne contrôle pas.
+pub fn indexer(plage: &PlageBiblique, versets: &[u32]) -> Result<Vec<(u32, u32)>, IndexRefuse> {
+    if versets.is_empty() {
+        return Err(IndexRefuse::AucunVerset);
+    }
+    match plage {
+        // Le chapitre entier : la longueur n'est pas déclarée, donc rien à
+        // contrôler. Les numéros ONT sont ceux du chapitre.
+        PlageBiblique::ChapitreEntier(c) => Ok(versets.iter().map(|v| (*c, *v)).collect()),
+
+        // La seule forme qui déclare son compte — donc la seule qui se contrôle.
+        PlageBiblique::Versets {
+            chapitre,
+            premier,
+            dernier,
+        } => {
+            let attendu = dernier.saturating_sub(*premier) + 1;
+            let reel = versets.len() as u32;
+            if attendu != reel {
+                return Err(IndexRefuse::CompteDiscordant { attendu, reel });
+            }
+            Ok(versets
+                .iter()
+                .map(|v| (*chapitre, premier + v - 1))
+                .collect())
+        }
+
+        // Des chapitres entiers : c'est la numérotation ONT qui dit où ils se
+        // séparent, puisqu'elle repart de ¹ (§2.2).
+        PlageBiblique::Chapitres { premier, dernier } => {
+            let attendus = dernier.saturating_sub(*premier) + 1;
+            let series = series(versets);
+            if series.len() != attendus as usize {
+                return Err(IndexRefuse::SeriesDiscordantes {
+                    chapitres: attendus,
+                    series: series.len(),
+                });
+            }
+            Ok(series
+                .iter()
+                .enumerate()
+                .flat_map(|(k, serie)| serie.iter().map(move |v| (premier + k as u32, *v)))
+                .collect())
+        }
+
+        // La traversée. Le vault la traite de deux façons — `bereshit-7` repart
+        // de ¹, `bereshit-1` continue —, et les deux se lisent : deux séries
+        // donnent les deux chapitres, une seule se coupe par la queue, dont la
+        // plage déclare la longueur.
+        PlageBiblique::Traversee { depuis, jusqu_a } => {
+            let (c1, v1) = *depuis;
+            let (c2, v2) = *jusqu_a;
+            let series = series(versets);
+            if series.len() == 2 {
+                let mut out: Vec<(u32, u32)> = series[0].iter().map(|v| (c1, v1 + v - 1)).collect();
+                out.extend(series[1].iter().map(|v| (c2, *v)));
+                return Ok(out);
+            }
+            let total = versets.len() as u32;
+            if total <= v2 {
+                return Err(IndexRefuse::CompteDiscordant {
+                    attendu: v2 + 1,
+                    reel: total,
+                });
+            }
+            let tete = total - v2;
+            Ok(versets
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    if (i as u32) < tete {
+                        (c1, v1 + v - 1)
+                    } else {
+                        (c2, *v - tete)
+                    }
+                })
+                .collect())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -566,5 +757,113 @@ mod tests_du_paratexte {
             "un déséquilibre du corps a été perdu : {:?}",
             parsed.issues
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_de_l_index {
+    use super::*;
+
+    #[test]
+    fn les_quatre_formes_du_vault_se_lisent() {
+        //
+        // Les quatre seules formes relevées sur les 22 unités qui portent un
+        // renvoi. La traversée doit passer AVANT la plage à un chapitre : elle
+        // porte deux `:` et serait happée par elle.
+        assert_eq!(
+            lire_la_plage("18:1-33"),
+            Some(PlageBiblique::Versets {
+                chapitre: 18,
+                premier: 1,
+                dernier: 33
+            })
+        );
+        assert_eq!(
+            lire_la_plage("1:1 — 2:3"),
+            Some(PlageBiblique::Traversee {
+                depuis: (1, 1),
+                jusqu_a: (2, 3)
+            })
+        );
+        assert_eq!(
+            lire_la_plage("7-8"),
+            Some(PlageBiblique::Chapitres {
+                premier: 7,
+                dernier: 8
+            })
+        );
+        assert_eq!(lire_la_plage("6"), Some(PlageBiblique::ChapitreEntier(6)));
+        assert_eq!(lire_la_plage("n'importe quoi"), None);
+    }
+
+    #[test]
+    fn le_verset_huit_de_l_unite_neuf_est_l_arur_sur_kenaan() {
+        //
+        // LE témoin. C'est ce verset qui a produit les deux seules références
+        // fautives du corpus : une glose annonçait l'*arur* sur Kenaʿan et
+        // renvoyait à « Bereshit 9:8 », que la lecture biblique menait à
+        // l'ouverture de la **berith**. L'unité 9 couvre Gn 9:18-29, donc son
+        // verset ⁸ est Gn 9:25 — et Gn 9:25 est bien l'*arur*.
+        let plage = lire_la_plage("9:18-29").expect("une plage");
+        let versets: Vec<u32> = (1..=12).collect();
+        let index = indexer(&plage, &versets).expect("un index");
+        assert_eq!(index[7], (9, 25));
+        assert_eq!(index[0], (9, 18));
+        assert_eq!(index[11], (9, 29));
+    }
+
+    #[test]
+    fn le_compte_qui_ne_tombe_pas_refuse_au_lieu_de_deviner() {
+        //
+        // `bereshit-2` annonce Gn 2:4-25, soit 22 versets, et n'en porte que
+        // 21 — un trou que le pipeline signale déjà par un autre chemin.
+        // L'index ne comble pas : il refuse. Deviner ici décalerait tous les
+        // versets suivants d'un rang, et le lecteur arriverait à côté sans que
+        // rien ne le lui dise.
+        let plage = lire_la_plage("2:4-25").expect("une plage");
+        let versets: Vec<u32> = (1..=21).collect();
+        assert_eq!(
+            indexer(&plage, &versets),
+            Err(IndexRefuse::CompteDiscordant {
+                attendu: 22,
+                reel: 21
+            })
+        );
+    }
+
+    #[test]
+    fn deux_chapitres_se_separent_par_le_redemarrage_de_la_numerotation() {
+        //
+        // `bereshit-7` couvre Gn 7-8 et repart de ¹ à la frontière (§2.2) :
+        // 24 versets puis 22. C'est la numérotation qui dit où couper — aucune
+        // Bible n'est nécessaire.
+        let plage = lire_la_plage("7-8").expect("une plage");
+        let mut versets: Vec<u32> = (1..=24).collect();
+        versets.extend(1..=22u32);
+        let index = indexer(&plage, &versets).expect("un index");
+        assert_eq!(index[0], (7, 1));
+        assert_eq!(index[23], (7, 24));
+        assert_eq!(index[24], (8, 1));
+        assert_eq!(index[45], (8, 22));
+    }
+
+    #[test]
+    fn une_traversee_continue_se_coupe_par_sa_queue() {
+        //
+        // `bereshit-1` couvre Gn 1:1 — 2:3 et NE repart PAS de ¹ : une seule
+        // série de 34. Il s'écarte du §2.2, et l'index le lit quand même — la
+        // plage déclare la longueur de la queue, donc la tête s'en déduit.
+        let plage = lire_la_plage("1:1 — 2:3").expect("une plage");
+        let versets: Vec<u32> = (1..=34).collect();
+        let index = indexer(&plage, &versets).expect("un index");
+        assert_eq!(index[30], (1, 31));
+        assert_eq!(index[31], (2, 1));
+        assert_eq!(index[33], (2, 3));
+    }
+
+    #[test]
+    fn une_unite_sans_verset_refuse() {
+        let plage = lire_la_plage("6").expect("une plage");
+        assert_eq!(indexer(&plage, &[]), Err(IndexRefuse::AucunVerset));
     }
 }

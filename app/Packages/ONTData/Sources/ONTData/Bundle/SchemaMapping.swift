@@ -64,6 +64,17 @@ extension Inline {
         // l'autre.
         case .renvoi(let v, let cible):
             self = .renvoi(v, cible: cible)
+        case .reference(let v, let livre, let systeme, let chapitre, let portee, let cible):
+            self = .reference(
+                v,
+                livre: livre,
+                systeme: systeme,
+                chapitre: chapitre,
+                portee: PorteeDeLaReference(portee),
+                cible: cible.map {
+                    CibleDeLaReference(livre: $0.livre, unite: $0.unite, verset: $0.verset)
+                }
+            )
         case .translit(let translit, let hebrew, let cible):
             self = .translit(translit, hebrew: hebrew, cible: cible.map(CibleDuNiveauTrois.init))
         case .heb(let v):
@@ -330,5 +341,48 @@ extension ShemEntry {
             title: dto.title,
             definition: dto.definition.map(Block.init)
         )
+    }
+}
+
+// MARK: - Les chuqqot
+
+extension Chuqqah {
+    /// **La traduction est plate, et le renommage se fait ici.**
+    ///
+    /// Le fichier écrit `title` et `rank` ; le domaine dit `titre` et `rang`.
+    /// L'écart n'est pas une coquetterie : c'est précisément ce que cette
+    /// couche existe pour absorber. Aligner le domaine sur l'anglais du JSON
+    /// reviendrait à laisser un format de fichier nommer l'ONT — la dépendance
+    /// repartirait dans le mauvais sens, et un `rename` posé dans le pipeline
+    /// traverserait jusqu'au cœur de l'app.
+    ///
+    /// `rank` est un `u32` en Rust, rendu `Int` par le codegen. On ne le
+    /// contraint pas davantage ici : un rang négatif ne peut pas arriver du
+    /// pipeline, et s'en protéger par un type maison ferait porter à l'app une
+    /// garantie qui est déjà tenue à la source.
+    init(_ dto: ONTSchema.Chuqqah) {
+        self.init(
+            id: dto.id,
+            titre: dto.title,
+            rang: dto.rank,
+            blocs: dto.blocks.map(Block.init)
+        )
+    }
+}
+
+extension PorteeDeLaReference {
+    /// Traduit la portée du schéma vers celle du domaine.
+    ///
+    /// Le `switch` est exhaustif des deux côtés : une portée ajoutée au
+    /// pipeline **casse la compilation ici**, et c'est le signal voulu.
+    init(_ portee: ONTSchema.PorteeDeLaReference) {
+        switch portee {
+        case .chapitre:
+            self = .chapitre
+        case .verset(let n):
+            self = .verset(n)
+        case .plage(let premier, let dernier):
+            self = .plage(premier: premier, dernier: dernier)
+        }
     }
 }

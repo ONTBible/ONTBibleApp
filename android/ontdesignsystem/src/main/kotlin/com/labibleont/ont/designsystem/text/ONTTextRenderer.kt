@@ -54,6 +54,16 @@ public object ONTTextRenderer {
      */
     public const val TAG_RENVOI: String = "ont:renvoi"
 
+    /**
+     * La **référence biblique** — « *Genèse* 9:27 », « *Bereshit* 17 ».
+     *
+     * L'étiquette ne sert pas qu'à l'accessibilité : c'est par elle que la
+     * couche de dessin retrouve les plages à souligner en pointillé, puisque
+     * Compose n'a pas de soulignement à motif par fragment. Voir
+     * [plagesDeReference].
+     */
+    public const val TAG_REFERENCE: String = "ont:reference"
+
     /** L'étiquette portée par le lien d'un verset, en lecture continue. */
     public const val TAG_VERSET: String = "ont:verse"
 
@@ -71,9 +81,22 @@ public object ONTTextRenderer {
         onTerme: ((String) -> Unit)? = null,
         onShem: ((String) -> Unit)? = null,
         onRenvoi: ((String) -> Unit)? = null,
+        /**
+         * Ce qu'on fait d'une référence touchée.
+         *
+         * Elle reçoit le **nœud entier**, et non sa cible : une référence sans
+         * cible doit répondre elle aussi — l'auteur a arbitré que l'apparence
+         * ne se scinde pas —, et c'est le nom du livre qu'elle porte qui
+         * permet de dire *pourquoi* elle ne mène nulle part. Passer la seule
+         * cible aurait rendu ce message impossible à écrire.
+         */
+        onReference: ((Inline.Reference) -> Unit)? = null,
     ): AnnotatedString = buildAnnotatedString {
         val prepares = nodes.prepared(showGloss = showGloss, showLevel3 = showLevel3)
-        ajouter(prepares, typo, inGloss = false, onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi)
+        ajouter(
+            prepares, typo, inGloss = false,
+            onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi, onReference = onReference,
+        )
     }
 
     /**
@@ -91,6 +114,8 @@ public object ONTTextRenderer {
         onTerme: ((String) -> Unit)? = null,
         onShem: ((String) -> Unit)? = null,
         onRenvoi: ((String) -> Unit)? = null,
+        /** Voir [compose] — le nœud entier, pas sa seule cible. */
+        onReference: ((Inline.Reference) -> Unit)? = null,
         onVerset: ((Int) -> Unit)? = null,
         /** Le fond du surlignage posé par le lecteur, s'il y en a un. */
         fond: androidx.compose.ui.graphics.Color? = null,
@@ -114,7 +139,12 @@ public object ONTTextRenderer {
     ): AnnotatedString = buildAnnotatedString {
         val corps = buildAnnotatedString {
             append(numeroDeVerset(verse.n, typo))
-            append(compose(verse.nodes, typo, showGloss, showLevel3, onTerme, onShem, onRenvoi))
+            append(
+                compose(
+                    verse.nodes, typo, showGloss, showLevel3,
+                    onTerme, onShem, onRenvoi, onReference,
+                ),
+            )
         }
 
         // ## L'estompage se calcule, il ne s'applique pas
@@ -231,6 +261,7 @@ public object ONTTextRenderer {
         onTerme: ((String) -> Unit)?,
         onShem: ((String) -> Unit)?,
         onRenvoi: ((String) -> Unit)?,
+        onReference: ((Inline.Reference) -> Unit)?,
         /**
          * La teinte d'une accentuation englobante, s'il y en a une.
          *
@@ -374,6 +405,67 @@ public object ONTTextRenderer {
                     }
                 }
 
+                is Inline.Reference -> {
+                    // **L'ambre du renvoi, et le pointillé de la désignation.**
+                    //
+                    // Arbitré à l'écran par l'auteur, les trois candidats côte
+                    // à côte dans le vrai thème et la vraie fonte : « ambre
+                    // plus pointillé c'est bien ».
+                    //
+                    // *L'ambre seule* confondait la référence avec le renvoi de
+                    // chuqqah. *Le pointillé seul*, à l'encre du corps, passait
+                    // sous les jambages du « B » et du « 4 » et se lisait comme
+                    // un défaut de rendu. Les deux marques disent chacune une
+                    // moitié : l'ambre, « ceci mène ailleurs dans le corpus » ;
+                    // le pointillé, « et c'est une désignation de verset ».
+                    //
+                    // ## Le pointillé n'est pas posé ici, et il ne peut pas l'être
+                    //
+                    // iOS écrit `piece.underlineStyle = .init(pattern: .dot)`
+                    // et n'a plus rien à faire. Compose n'a que
+                    // `TextDecoration.Underline` — plein, sans motif —, et un
+                    // trait plein serait **une autre marque** : il pèse autant
+                    // qu'un surlignage là où le pointillé désigne sans marquer.
+                    //
+                    // C'est le même manque que `Soulignement.kt` a déjà résolu
+                    // pour la désignation d'un verset : le motif se **dessine**,
+                    // à partir de la mise en page du texte, donc après la
+                    // composition. L'étiquette du lien porte l'information
+                    // jusque-là — voir [plagesDeReference].
+                    val style = if (inGloss) {
+                        typo.renvoi.copy(fontSize = typo.gloss.fontSize)
+                    } else {
+                        typo.renvoi
+                    }
+                    if (onReference == null) {
+                        withStyle(style) { append(node.value) }
+                    } else {
+                        // **Toujours un lien, résolue ou non.** L'apparence ne
+                        // se scinde pas — l'auteur l'a arbitré —, et poser la
+                        // couleur sans la destination serait la marque d'un
+                        // geste qui n'existe pas. Les références qui ne mènent
+                        // nulle part répondent par un message qui nomme le
+                        // livre : un toucher sans réponse se lit comme une
+                        // panne de l'app, pas comme un état de la traduction.
+                        withLink(
+                            LinkAnnotation.Clickable(
+                                // L'étiquette dit **où l'on va**, ou qu'on ne
+                                // va nulle part. C'est aussi ce que la couche
+                                // de dessin filtre pour tracer le pointillé.
+                                tag = "$TAG_REFERENCE/${node.cible?.unite ?: "?"}",
+                                // Sans soulignement plein : le pointillé, tracé
+                                // par-dessous, est la marque voulue.
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(textDecoration = TextDecoration.None),
+                                ),
+                                linkInteractionListener = { onReference(node) },
+                            ),
+                        ) {
+                            withStyle(style) { append(node.value) }
+                        }
+                    }
+                }
+
                 is Inline.Hebrew ->
                     hebreu(node.value, if (inGloss) typo.hebrewSmall else typo.hebrew)
 
@@ -432,7 +524,11 @@ public object ONTTextRenderer {
 
                 is Inline.Gloss -> {
                     withStyle(typo.apparatus) { append("[") }
-                    ajouter(node.children, typo, inGloss = true, onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi, accentuation = accentuation)
+                    ajouter(
+                        node.children, typo, inGloss = true,
+                        onTerme = onTerme, onShem = onShem, onRenvoi = onRenvoi,
+                        onReference = onReference, accentuation = accentuation,
+                    )
                     withStyle(typo.apparatus) { append("]") }
                 }
 
@@ -451,17 +547,19 @@ public object ONTTextRenderer {
                         onTerme,
                         onShem,
                         onRenvoi,
+                        onReference,
                         accentuation = ONTColors.accentuation(typo.theme),
                     )
 
                 is Inline.Emphasis ->
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                        ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, accentuation)
+                        ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, onReference, accentuation)
                     }
 
                 // Le lien du vault ne mène nulle part dans la liseuse : on en
                 // garde le texte, pas la cible.
-                is Inline.Link -> ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, accentuation)
+                is Inline.Link ->
+                    ajouter(node.children, typo, inGloss, onTerme, onShem, onRenvoi, onReference, accentuation)
 
                 Inline.LineBreak -> append("\n")
             }

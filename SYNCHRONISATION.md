@@ -4086,3 +4086,899 @@ d'exceptions vieillit, un nom tient.
   L'arbitrage revient à la session Android — le rappel traverse ses signatures.
 - **Site** — rien à porter. Il n'a pas de feuilles modales : ses fiches sont des
   pages. La conclusion est constatée, pas supposée.
+
+## 9 septembre 2026 — l'apparat critique rejoint le verset, et la position est la clé
+
+L'apparat du SBLGNT est importé depuis le 8 septembre — 6 934 entrées, 27
+livres — mais il dormait dans le vault. Il est maintenant **joint aux versets**
+et émis : `sources/<témoin>/<livre>-editions.json`. PR #240, fusionnée dans
+`device`.
+
+**Ce qu'est un apparat, en une phrase**, parce que le mot ne se devine pas :
+c'est la note où un éditeur dit *« ici, les éditions ne portent pas le même
+texte »* — WH lit ceci, NA28 cela, RP autre chose. Il ne compare pas des
+manuscrits mais **des éditeurs qui les ont dépouillés**.
+
+**Douze sigles, pas six.** Le premier relevé en avait déclaré six, choisis sur
+un échantillon. Les six autres — `NA27`, `WHmarg`, `WHapp`, `Tregmarg`, `NIV`,
+`Holmes`, `TR`, `Greeven` — laissaient ==39 variantes muettes et 10 leçons
+polluées== : le sigle non reconnu restait collé au grec, et la liseuse aurait
+affiché « ἐγένετο Holmes » comme s'il s'agissait du texte. Corrigé en mesurant
+==tous== les jetons latins du corpus, jamais en échantillonnant.
+
+**Le point de grammaire qui aurait tout cassé en silence** : le `;` grec est un
+==point d'interrogation==. Découper les variantes dessus aurait coupé en deux
+chaque leçon contenant une question. Le découpage ne se fait donc qu'après un
+sigle, jamais sur le signe seul.
+
+### La clé de jointure est la position, jamais le numéro affiché
+
+C'est le piège de cette PR, et il vaut pour tout ce qui s'adosse aux versets
+d'une unité.
+
+Le §2.2 fait repartir la numérotation à ¹ quand un nouveau chapitre biblique
+commence **au milieu** d'une **parashah**. Une unité qui couvre *Bereshit* 7-8
+porte donc ==deux versets numérotés ¹==. Indexer par `n` ferait tomber l'apparat
+du second sur le premier, ==sans que rien ne le dise== : le numéro existe, le
+verset existe, le lien est faux.
+
+`DivergencePubliee` porte donc `i` — la position dans le tableau — comme clé, et
+`n` seulement pour que la liseuse vérifie qu'elle n'a pas glissé. L'épreuve
+`deux_versets_numero_un_ne_se_confondent_pas` a été validée en lui injectant le
+défaut exact ; elle échoue en `left: (0, 1)` / `right: (2, 1)`.
+
+### Ce que ça change pour chaque dépôt
+
+- **App / iOS et Android** — ==rien aujourd'hui, tout demain==. Le fichier
+  n'est émis que là où des éditeurs divergent, donc uniquement sur le grec de la
+  *Berit Hadashah* — dont aucun livre n'est écrit. Le manifeste porte
+  `editions` en champ ==optionnel==, à côté de `temoins` et jamais dedans : les
+  deux répondent à des questions différentes — « que porte ce témoin ici » et
+  « où les éditeurs se sont-ils séparés » —, et les mêler ferait passer un
+  désaccord d'éditeur pour un témoin textuel. Un consommateur qui parcourt le
+  manifeste ne casse pas ; celui qui devinerait les chemins, si.
+- **Site** — même chose, et pour la même raison. Il lit `dist/` à la
+  compilation : un fichier de plus, optionnel, découvert par le manifeste.
+- **Vault** — rien. La conclusion est constatée, pas supposée : le vault ne
+  porte que les `.jsonl` de `sources/`, que cette PR lit sans les modifier.
+
+### Correction au compte de l'addendum d'hier soir — quatorze fiches, pas sept
+
+L'addendum « `## Formes`, et l'endroit où l'on déclare » nomme sept fiches de
+`lexique/` sans entrée de glossaire, dont les formes restent inertes. Le compte
+vient de `liens_morts`, qui mesure ce qui est ==publié==. Mesuré du côté du
+==gain possible==, il y en a **quatorze**, et elles retiennent **67
+occurrences** :
+
+    7  halakh      5  zakhar      4  neqevah
+    7  toledot     5  mut         4  yada
+    6  erev        4  gan         4  tevah
+    6  boqer       4  meorot      3  chen
+    6  zera                       2  sim
+
+Les deux comptes sont justes ; ils ne mesurent pas la même chose, et c'est le
+second qui sert à décider par où commencer.
+
+Vérification indépendante du gain annoncé, sur le pipeline de `device` (6ea75f6)
+et l'arbre du vault à `3f67c09` : ==1 223 → 1 090 occurrences inertes==, soit
+**−133**. Le chiffre tient. La prévision faite à la main en donnait 201, qui se
+décompose exactement — 134 dont le lemme a une entrée, 67 dont il n'en a pas.
+
+**Et une prémisse à ne pas hériter** : ces 34 fiches sont sur
+`ecrire-la-premiere-khuqqah`, ==pas sur `main`==, qui est 21 commits derrière.
+Un build de CI qui n'en montre aucun gain ne voudra pas dire que le lecteur est
+cassé — c'est pourquoi ses épreuves partent d'une fixture et non de `lexique/`.
+
+### Remesure après les quinze entrées du §3 — et une régression qu'elle a trouvée
+
+Les quatorze fiches ont reçu leur entrée le jour même, plus `akhal`. Le remède
+n'était pas le §2.5 mais **le §3** : y déclarer `gan`, `erev` ou `boqer` en
+aurait fait des ==intraduisibles== et leur aurait retiré leur rendu français,
+quand le §3 produit un lemme pour les termes ==traduits==.
+
+Remesuré sur le pipeline de `device`, vault à `6ba7cd3` :
+
+    inertes    1 090 → 992        (−98, prévision 1023 — mieux que prévu)
+    glossaire    120 → 136 entrées
+    fiches sans entrée   17 → 2
+
+Les deux qui restent sont `eliyahu` et `gavriel`, et ==aucune entrée de
+glossaire ne les sauvera== : ce sont des **Shemot**, qui passent par `[[Nom]]`.
+Leur remède est un lien dans le corpus, pas un lemme. Le rapport les range
+pourtant sous « Fiches sans entrée de glossaire », ce qui envoie chercher le
+mauvais remède — à distinguer côté pipeline.
+
+**Et la remesure a trouvé ce qu'elle ne cherchait pas** : ==8 marqueurs
+déséquilibrés==, tous dans `brouillons/…/bereshit-1.md`, là où le compteur était
+à zéro deux commits plus tôt. Ce n'est ==pas== le faux positif du §13.2 : mesuré
+par ==paragraphe==, l'unité réelle du balisage, il en reste ==8 sur 58==.
+
+La cause est une glose qui ==enjambe un blanc de paragraphe== — `*[` s'ouvre au
+verset ¹, court sur deux paragraphes intermédiaires, et `]*` ne se referme que
+trois paragraphes plus loin. Le pipeline analyse le balisage ==par paragraphe== :
+le lecteur verrait donc les marqueurs bruts à l'écran.
+
+Le motif mérite d'être retenu : **un contrôle vert ne dit rien d'un contrôle
+qu'on n'a pas relu.** Le compteur d'anomalies est imprimé à chaque build, à côté
+de celui qu'on regardait ; il était passé de 0 à 8 sans que le travail en cours
+ait rien à voir avec lui.
+
+**Réparée le jour même**, et le zéro n'est pas ce qu'elle a rapporté de plus.
+Cinq blancs de paragraphe résorbés, `bereshit-1` revient à zéro marqueur. Mais :
+
+    total des niveaux 3    2 075 → 2 089    (+14)
+    résolus                1 065 → 1 074    (+9)
+    inertes                1 010 → 1 015    (+5)
+
+**Un `*[` non refermé emporte la suite de son paragraphe.** Les
+translittérations qui s'y trouvaient n'étaient pas inertes — elles
+==n'existaient pas== pour le pipeline. La réparation ne nettoie donc pas
+seulement l'affichage : elle rend au corpus quatorze niveaux 3, dont neuf déjà
+touchables.
+
+==Le compte d'inertes monte, et ce n'est pas une régression.== 992 → 997 : qui
+lit ce chiffre sans le total conclura l'inverse de ce qui s'est passé. Les deux
+lignes ne se séparent pas.
+
+**Le contrôle qui manquait existe** — `scripts/verifier-le-balisage.py` dans le
+vault, qui mesure gras, accentuations **et gloses**, par paragraphe. Son
+écriture a coûté quatre tentatives, et c'est la partie qui sert :
+
+    comptage naïf          15 signalés   (8 réels, 7 faux positifs)
+    délimiteurs resserrés  101
+    liens neutralisés       90
+    balayage atomique        0           ← juste
+
+Un lien de **Shem** voisine les mêmes caractères qu'une glose et produit des
+faux positifs ==dans les deux sens== — `*[[Enosh]]` est une italique ouvrant sur
+un lien, `*[[[Amrafel]] …]*` une vraie glose ouvrant sur un lien. Il faut
+balayer en sautant chaque lien comme un bloc atomique.
+
+==Un instrument plus fin n'est pas un instrument plus juste== : les deux
+versions intermédiaires étaient six fois pires que le comptage naïf. C'est le
+§13.2 vu de l'autre côté — là, un relevé bien formé mesurait autre chose que la
+question ; ici, un raffinement bien intentionné s'éloigne de la réponse. Le même
+geste sauve dans les deux cas : **éprouver sur un cas dont on connaît la
+réponse**.
+
+**Croisement des deux instruments**, parce qu'un accord entre outils
+indépendants vaut mieux que deux relevés du même :
+
+    état cassé (6ba7cd3)    le script  8    le pipeline  8
+    état réparé (8d80853)   le script  0    le pipeline  0
+
+Et pas seulement le nombre — ==les mêmes huit paragraphes==. L'un balaie du
+Markdown en sautant les liens ; l'autre lit ce que l'analyseur Rust a produit,
+où les liens sont déjà des nœuds et ne peuvent plus tromper. Les trois
+tentatives ratées du script reconstruisaient à la main ce que l'analyseur savait
+déjà faire.
+
+## 10 septembre 2026 — sept jours sans paquet livrable, sous une CI verte
+
+L'app Android n'était plus empaquetable pour Play depuis le 3 septembre.
+`:app:minifyReleaseWithR8` échouait net :
+
+    Missing class com.google.errorprone.annotations.CanIgnoreReturnValue
+    (referenced from: com.google.crypto.tink.KeysetManager … et 52 autres)
+
+Personne ne l'a su, parce que **personne ne construisait de bundle** et que la CI
+n'en construisait pas non plus.
+
+### Une dépendance inutilisée est invisible, et le jour où l'on s'en sert n'est pas celui où on l'a ajoutée
+
+`security-crypto` — donc tink — est déclaré depuis le portage du 24 août. Le
+bundle du 2 septembre se construisait pourtant sans peine, et sa carte proguard
+dit pourquoi : **zéro** occurrence de `com.google.crypto.tink`. R8 élague ce que
+personne n'atteint ; la bibliothèque n'entrait pas dans le graphe, donc ses
+annotations manquantes ne regardaient personne.
+
+Le 3 septembre, le coffre à jetons a employé `EncryptedSharedPreferences` pour la
+première fois. La carte du bundle d'aujourd'hui en compte **13 979**.
+
+    2 septembre    tink dans la carte :      0     bundle : construit
+    10 septembre   tink dans la carte : 13 979     bundle : construit, après correctif
+
+Deux relevés, deux artefacts distincts, le même instrument — c'est ce croisement
+qui date le basculement à la journée.
+
+### Le contrôle ne pouvait pas rougir
+
+La CI lance `./gradlew test`, qui compile en **debug**, où R8 ne tourne pas. Elle
+est restée verte sept jours — ==y compris sur une PR ouverte le matin même du
+diagnostic==, dont le contrôle `Android` est passé en 4 min 9 s pendant que le
+bundle ne se construisait pas.
+
+Ce n'est pas la variante « un contrôle qui s'exécute sans exiger » du 9 septembre.
+C'est un cran plus bas : **un contrôle qui ne mesure pas la chose**. Il exigeait,
+il rougissait, il était branché — et il regardait ailleurs.
+
+Et le détail qui pique : `proguard-rules.pro` portait **déjà deux fois** la phrase
+« rien ne le montre en debug, où R8 ne tourne pas », écrite pour
+`kotlinx.serialization`, puis pour Room. Troisième occurrence.
+
+> ==Une leçon écrite trois fois et jamais outillée n'est pas une leçon.==
+
+Le job `Android` construit donc désormais `:app:bundleRelease`. Sans magasin de
+clés, `signingConfig` vaut `null` et le bundle sort non signé : aucun secret n'est
+requis pour vérifier que R8 passe. Et l'étape **compte le fichier déposé** plutôt
+que le tampon `BUILD SUCCESSFUL`, comme l'étape des tests le faisait déjà.
+
+### La garde neuve a rougi à son premier tour, sur autre chose
+
+`verifierLeCorpus` a arrêté `chuqqot.json` : un document que le pipeline produit
+depuis le 10 septembre, dont iOS a un onglet entier, et qu'Android n'ouvre nulle
+part. Exclu de la copie, inscrit aux connus avec sa raison, écart consigné.
+
+C'est le **second en trois jours** après `prononciation.json`. `corpus.sh` copie
+`dist/*.json` par **glob**, pas par liste : tout ce que le pipeline produit entre
+dans les ressources, et seul `verifierLeCorpus` l'arrête — côté Android
+uniquement.
+
+C'est ce qui motive le portage de cette garde en amont, décidé par l'auteur. Un
+contrôle qui ne vit que chez un client ne protège que lui, et ce n'est pas là que
+la fuite commence. La version amont devra ==regarder les comptes, pas la
+présence== : un fichier vide et un fichier absent ne se distinguent pas, et l'un
+des deux est une panne.
+
+### Un numéro que le lecteur voit et qui ne distingue rien
+
+`versionName` était resté à `0.1.0` depuis le 24 août, pour les deux binaires
+téléversés. C'est le **seul** numéro qui sorte jusqu'au testeur — la fiche Play,
+les réglages du téléphone, « À propos de cette application » n'affichent que lui.
+
+Une testeuse a signalé un défaut corrigé le 28 août ; savoir si elle l'avait déjà
+exigeait de savoir laquelle des deux versions elle avait, et rien ne pouvait le
+dire. Seule la Play Console le savait, parce qu'elle affiche le `versionCode`.
+
+La doctrine ne change pas — elle vient d'iOS, où `CFBundleVersion` est daté et
+`CFBundleShortVersionString` s'écrit à la main, geste de dépôt délibéré. C'est ce
+geste qui n'avait jamais été fait : iOS en est à `1.0.6`.
+
+### Nommer, ramasser, compter — un partage de terrain, pas une hiérarchie
+
+La journée a mis trois mécanismes côte à côte sur le même problème, et la
+comparaison est plus utile qu'aucun des trois pris seul.
+
+Le site **ne peut pas** avoir le défaut d'Android. Chaque fichier de `dist/` y
+est nommé un par un, et `include_str!` **exige un chemin littéral** : ce qui
+n'est pas nommé n'entre pas dans le binaire. Il n'y a pas d'équivalent du
+`dist/*.json` d'Android. Le défaut ne se rattrape pas, il ne naît pas.
+
+    site       chaque fichier nommé, `include_str!` littéral
+               → la classe de défaut est supprimée
+    Android    `dist/*.json` par glob, puis `verifierLeCorpus` refuse les inconnus
+               → la classe de défaut existe, un contrôle l'attrape
+
+**Mais la supériorité de nommer a un périmètre**, et la session du site l'a posé
+elle-même avant que la formule ne circule sans lui : ==nommer ne s'applique que
+là où l'ensemble est fini et connu à la compilation==. Ses cinq fichiers, oui.
+`dist/books/`, non — elle le parcourt par `read_dir`, et il le faut : soixante-dix
+livres viendront, et c'est le vault qui les nomme.
+
+D'où la règle en trois termes, qui n'est pas un classement :
+
+    nommer     quand l'ensemble est fini et connu à la compilation
+    ramasser   quand il ne l'est pas — et alors un contrôle est obligatoire
+    compter    dans les deux cas, toujours
+
+Le troisième terme ne se déduit pas des deux autres. Un fichier vide et un
+fichier absent ne se distinguent pas, et l'un des deux est une panne : le vault
+a vu une table passer de 67 entrées à 0 sous une construction verte, et le site
+a vu des fiches vides répondre `200` du poids exact d'un lemme inventé.
+
+Et une quatrième exigence, que la garde d'Android **ne remplit pas** : `connusDuCorpus`
+vérifie qu'un fichier est **connu**, pas qu'il est **utilisé**. `prononciation.json`
+y figure depuis le 8 septembre et Android ne le lit toujours pas. ==Inscrire un nom
+y déclare un lecteur, et rien ne vérifie que la déclaration est vraie== — la garde a
+laissé exister le trou qu'elle devait fermer.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `-dontwarn com.google.errorprone.annotations.**` dans
+`proguard-rules.pro` ; le job `Android` construit `:app:bundleRelease` (environ
+3 à 4 minutes de plus sur chaque PR) ; `chuqqot.json` exclu de la copie ;
+`versionName` à `0.1.1`.
+
+**ONTBibleWebapp** — le site lit `dist/` lui aussi, et rien n'y vérifie qu'un
+document neuf a un lecteur. Deux sont arrivés en trois jours. La question à se
+poser : `prononciation.json` et `chuqqot.json` sont-ils servis, ignorés, ou
+embarqués sans être lus ?
+
+**ONTBibleTranslation** — rien à changer. Mais le vault est la source du glob :
+tout document neuf du pipeline atterrit chez deux clients qui n'en savent rien
+jusqu'à ce qu'un contrôle le dise.
+
+## 10 septembre 2026 — un contrôle de version que rien ne versionnait
+
+`CorpusUpdater` refuse un corpus dont le manifeste annonce un schéma qu'il ne
+connaît pas, et le décodeur **lève** sur un type de nœud inconnu — voulu, parce
+qu'en omettre un afficherait un texte amputé sans que personne ne s'en aperçoive.
+
+**Ces deux gardes ne gardaient rien.** Le nombre comparé était écrit en dur à
+deux endroits — `2` dans `corpus-publie.py` du site, `2` dans le Swift — et
+==aucun des deux ne dérivait des nœuds émis==.
+
+`Inline::Renvoi` est parti le 8 septembre sans que ce nombre bouge. Une app
+installée accepte alors le corpus — le schéma lui est familier —, échoue à le
+décoder, et `lire()` employant `try?` retombe **silencieusement** sur son
+bundle. Sa mise à jour réseau devient inerte, définitivement, sans que rien ne
+le dise ni au lecteur ni au journal.
+
+`renvois.rs` documentait ce piège trois fichiers plus loin et l'évitait
+délibérément en réemployant `Inline::Link`. Personne ne l'avait relu.
+
+**Vrai à la compilation, faux à l'exécution** : le `switch` exhaustif casse la
+compilation de l'app, mais une app déjà installée ne recompile pas.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — `CONTRAT_DES_NOEUDS` vit dans `schema.rs`, où les nœuds vivent, et
+  sort dans `dist/manifest.json`. Il vaut **4** : 3 pour `Renvoi`, 4 pour
+  `Reference`. Un contrôle sans bras `_` fait cesser de compiler quand un type
+  paraît — et il rougit **en dernier**, au moment où l'on croit avoir fini.
+- **Site** — ==à faire== : `corpus-publie.py` doit **recopier** le `contrat` du
+  manifeste au lieu d'écrire `2`. Tant qu'il ne le fait pas, la chaîne reste
+  muette de bout en bout. Signalé à la session du site.
+- **Vault** — rien à porter.
+
+### La leçon, et elle vaut au-delà du cas
+
+Le premier jet du contrôle listait les variantes dans un **tableau de valeurs**.
+Le compilateur attrapait bien la variante neuve — par les `match` du reste du
+code —, mais **une fois ceux-ci corrigés le tableau restait vrai**, et rien ne
+forçait la montée.
+
+==Un contrôle qui ne rougit qu'en compagnie d'un autre ne contrôle rien tout
+seul.== Vérifié dans les deux formes, pas relu.
+
+## 10 septembre 2026 — trois gardes au mauvais endroit, jamais appelée, jamais exécutée
+
+Trois occurrences de la même forme dans la même nuit, chacune d'un cran plus
+fine que la précédente.
+
+**Au mauvais endroit.** `verifierLeCorpus` d'Android fait rougir sa compilation
+quand un fichier de `dist/` n'a pas de lecteur. Elle ne protégeait qu'Android —
+or c'est le pipeline qui émet. Remontée dans `pipeline/src/emissions.rs`, elle
+couvre les trois liseuses.
+
+**Jamais appelée.** `.github/scripts/epreuves.py`, écrit le 31 août contre un
+faux App Store Connect pour les deux défauts que `py_compile` ne voit pas.
+**Aucun workflow ne le lançait** ; sa propre docstring donnait la commande.
+
+**Jamais exécutée — et ce troisième cas était faux.** J'ai écrit que la garde
+Android ne tournait pas en CI, `verifierLeCorpus` ne dépendant que de
+`copierLesDonnees` quand la CI ne lance que `gradlew test`.
+
+La session Android l'a remesuré : `tests.yml` porte une **seconde** invocation,
+`./gradlew :app:bundleRelease`, ajoutée la veille pour attraper une casse R8 —
+et elle branche `verifierLeCorpus` sur l'intégration par effet de bord. Preuve
+empirique qui tranche sans motif : **`chuqqot.json` a fait rougir cette garde en
+CI**. Une garde qui ne s'exécute jamais ne peut pas rougir.
+
+==Mon erreur n'était pas dans la mesure, elle était dans l'objet mesuré== : j'ai
+lu `tests.yml` du worktree principal, qui était sur `dev`, en raisonnant sur
+`device`. Compté depuis : `dev` porte une occurrence de `gradlew`, `device` en
+porte trois.
+
+C'est la forme la plus bête et la plus fréquente du motif de ces deux jours — un
+instrument exact braqué sur autre chose que la question. Elle m'a eu après que
+j'en ai relevé cinq chez les autres.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — le contrôle des émissions tourne à **chaque construction**, et
+  rougit dans les deux sens : un fichier déclaré lu dont le nom n'apparaît dans
+  aucun source, *et* un fichier déclaré non lu dont le nom apparaît quand même.
+  C'est cette seconde moitié qui empêche la table de pourrir.
+- **Android** — ==garder `verifierLeCorpus`==. Elle voit ce que le pipeline ne
+  voit pas : le contenu réellement copié dans les assets, au moment de la copie.
+  Second rideau, pas doublon. *(J'avais écrit qu'une ligne `chuqqot.json` lui
+  manquait : périmé, elle y est depuis le 10 septembre.)*
+
+  Sa limite reste entière, et c'est la session Android qui la formule le mieux :
+  `connusDuCorpus` **déclare** qu'un lecteur existe, et rien ne vérifie que
+  c'est vrai. Elle a trouvé le second étage en le cherchant — Android
+  **téléchargeait `occurrences.json` et ne l'ouvrait jamais**, et ne
+  téléchargeait pas `search.json` du tout. Les deux moitiés se protégeaient :
+  réparer le téléchargement seul n'aurait rien donné, réparer le lecteur seul
+  non plus.
+- **Site** — la colonne site **n'est pas mesurable en CI** : `ONTBibleWebapp`
+  n'y est jamais récupéré, elle sort « non mesurée », jamais verte. C'est
+  précisément la liseuse du défaut des Shemot — 2 878 liens qui répondaient
+  `200` avec « Fiche introuvable », réparés depuis.
+
+### Dix lacunes relevées au premier passage
+
+Dont `chuqqot.json`, que **les trois** liseuses ignorent alors que le pipeline
+l'écrit depuis le matin même. L'onglet de l'app annonce toujours « ils ne sont
+pas encore écrits ». Une mention n'est pas une lecture, et le contrôle le dit
+dans ses propres limites.
+
+
+## 11 septembre 2026 — le contrôle lisait ce que le pipeline venait d'écrire *(local)*
+
+Une session voisine a rapporté que `origin/device` cassait déjà `scripts/corpus.sh`,
+et a nommé le coupable : `android/app/build.gradle.kts` porte
+`exclude("prononciation.json")`, et le contrôle des émissions compterait cette
+**exclusion** comme une **mention** — donc comme la preuve qu'Android lit le
+fichier. La cause était fausse. Le symptôme ne l'était pas.
+
+### Ce que `.kts` ne fait pas
+
+`Liseuse::extensions()` rend `["kt"]` pour Android, et `aspirer` compare
+l'extension **entière**, par `Path::extension`. `build.gradle.kts` a pour
+extension `kts`, qui n'est pas `kt` : il n'entre jamais. Un
+`chemin.contains(".kt")` l'aurait laissé passer, et c'est bien le piège que le
+module documentait — mais il l'avait évité. La mesure le confirme : sur un
+worktree neuf de `25c219f`, `build.gradle.kts` présent avec ses deux lignes,
+`corpus.sh` rend **0** et le rapport dit « Aucun écart bloquant ».
+
+### Ce qui cassait vraiment
+
+Le second `corpus.sh`. Pas le premier.
+
+`Schema.swift` et `Schema.kt` ne sont pas committés : le pipeline les engendre
+depuis `schema.rs`, à l'étape qui suit le relevé des émissions. Sur un arbre
+neuf ils n'existent pas encore, et le contrôle ne les voit pas. Au passage
+suivant ils sont là — avec la bonne extension, au milieu du source de la
+liseuse, et leurs commentaires de documentation nomment les fichiers de `dist/`
+qu'ils décrivent.
+
+    run 1   Schema.kt absent    → exit 0, aucun écart
+    run 2   Schema.kt présent   → exit 1, `prononciation.json` × Android
+
+Le tableau dit, avec raison, qu'Android **ignore** `prononciation.json`. Le
+contrôle trouvait le jeton dans un fichier que le pipeline avait écrit lui-même,
+et accusait le tableau d'avoir tort.
+
+C'est pour cela que la CI restait verte, et qu'elle l'est : ses deux jobs
+partent d'un checkout neuf et lancent le relevé **avant** `engendrer`. Le
+dernier passage sur `device` est au vert. Le défaut n'était visible que sur une
+machine de travail, au deuxième geste — la forme d'intermittence qui se range en
+« c'était sûrement autre chose ».
+
+### Le faux rouge n'était pas le pire
+
+`Schema.swift` nomme **sept des neuf jetons** du tableau. Chaque
+`Lecture::Lit` d'iOS pouvait donc être satisfait par le schéma engendré seul —
+c'est-à-dire satisfait *aussi* le jour où le vrai lecteur disparaît. Un faux
+rouge se voit et fâche ; ==un contrôle qui ne peut plus rougir ne mesure plus
+rien, et ne fâche personne==.
+
+### Le correctif
+
+`aspirer` refuse tout fichier dont la première ligne est la marque
+`// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.` La marque est hissée
+en `schema::MARQUE_ENGENDRE`, seul exemplaire, écrite par `codegen::swift` et
+`codegen::kotlin`, lue par `emissions::aspirer` — le compilateur tient les trois
+ensemble, et un fichier engendré demain sera écarté sans que personne n'y pense.
+Les octets émis sont inchangés, vérifiés par `diff`.
+
+La règle générale, qui manquait à côté de celle sur la configuration :
+
+    la configuration de build n'est pas un lecteur
+    un fichier engendré par le pipeline non plus
+
+### L'épreuve, retournée contre le code d'avant
+
+Trois tests, dont une paire discriminante. Garde retirée, mesurée test par test
+et **nommée** — un filtre `cargo test aspirer` ne correspondait à aucun nom et
+rendait « ok. 0 passed », ce qui est exactement le défaut qu'on chassait, une
+couche plus haut :
+
+    un_schema_engendre_ne_prouve_aucune_lecture   sans la garde → FAILED
+    un_vrai_lecteur_kotlin_compte_toujours        sans la garde → ok
+    un_gradle_kts_n_est_pas_du_source_kotlin      sans la garde → ok
+
+Le premier rougit sur le code fautif ; les deux autres interdisent de sur-exclure
+— écarter *tous* les `.kt` passerait le premier test et casserait le contrôle.
+Le troisième fige la comparaison d'extension entière, que la relecture ne
+distingue pas d'un `contains`.
+
+Un piège de mesure au passage : restaurer le fichier par `mv` lui a rendu un
+mtime plus ancien que le dernier build, et `cargo` a réutilisé l'objet périmé —
+la suite rougissait sur un code déjà corrigé. **Un `touch` avant de conclure**,
+comme pour toute vérification qui remet un fichier en place.
+
+### Pourquoi cette entrée est locale
+
+Rien ne traverse, et il faut le dire plutôt que de le laisser supposer. Le
+tableau des émissions n'a pas bougé d'une ligne, aucun nom JSON ne change,
+`dist/` sort octet pour octet identique — `diff` le vérifie sur `Schema.swift`
+et `Schema.kt`. Ce qui a changé est ce que le contrôle accepte comme **preuve**,
+et ce contrôle vit dans le pipeline, chez nous.
+
+Le site est mesuré par ses `.rs`, dont aucun n'est engendré par le pipeline : sa
+colonne ne pouvait pas porter ce défaut. Le vault n'entre pas dans le relevé.
+
+Ce qui vaut ailleurs est la leçon, pas le correctif : ==un contrôle qui lit un
+artefact de sa propre construction se croit informé==. Elle est ici, et elle
+attendra d'avoir coûté quelque chose chez un voisin pour y monter au tronc.
+
+---
+
+## 11 septembre 2026 — la détection avait quadruplé, la navigation était tombée à zéro
+
+L'auteur ouvre l'app et dit trois choses : pas de pointillé, la fonctionnalité
+annoncée n'apparaît pas, et « les ref de verset ne sont vraisemblablement pas
+cliquables ». Les trois étaient vraies, pour trois raisons différentes, et
+aucune n'était celle qu'on aurait devinée.
+
+### Le renvoi biblique, vu par deux mécanismes qui s'ignorent
+
+`renvois.rs` résout depuis toujours les renvois écrits en clair — « Bereshit
+1:4 » — et les rend navigables. Il ne crée **pas** de nœud nouveau, et son
+en-tête dit pourquoi : un tag inconnu fait lever les liseuses installées. Il
+réemploie donc `Inline::Link` avec une adresse absolue vers `ontbible.com`.
+Sur `dev`, ==221 renvois cliquables==.
+
+La branche `indexer-les-renvois-bibliques` introduit `Inline::Reference`, qui
+porte le livre, le système de numérotation, le chapitre et la portée. Bien plus
+riche : ==915 détectés==. Et ==0 résolu==.
+
+La cause est mécanique et invisible. `renvois::lier` ne découpe que du **texte
+nu**. Depuis que `parse_inline` reconnaît la référence à la lecture, il n'y a
+plus de texte nu à découper quand `lier` passe — le nœud existe déjà. Le
+mécanisme ancien n'a pas été débranché : il a été rendu sans objet.
+
+**Un nœud qui dit mieux ce qu'une chose *est* peut supprimer ce qu'elle
+*faisait*.** Rien ne rougit : les deux modules compilent, leurs tests passent,
+et le corpus sort avec quatre fois plus d'information et plus aucun lien. Le
+défaut n'existe qu'entre les deux, et aucun des deux ne le voit.
+
+### Trois conteneurs, et un seul était visité
+
+La jointure posée, il restait ==80 références non résolues à tort== — vers
+Bereshit 1, qui existe depuis le premier jour. Elles vivaient dans les blocs
+`list` et `table`, dans les **notes de pied** et dans les **nœuds de titre**.
+
+`lier` ne visitait que `blocks`, et ne l'a jamais fait autrement. Le trou avait
+l'âge du module. Il ne se voit pas parce qu'==une référence non résolue
+ressemble exactement à du texte==.
+
+Les deux `match` sont désormais exhaustifs, sans `_` : un bloc ou un nœud qui
+s'ajoute cesse de compiler au lieu de s'oublier. ==707 sur 915==, et zéro à
+tort — les 208 restantes visent des livres que personne n'a traduits, et
+`None` le dit plutôt qu'un identifiant bien formé vers rien.
+
+### Le nombre que personne ne comparait
+
+Trois sessions — iOS, Android, le site — ont tenu pendant une journée que
+`CONTRAT_DES_NOEUDS` (3) et `CorpusUpdater.schema` (2) étaient en désaccord, et
+se sont recommandé mutuellement de monter les gardes des liseuses. **Suivi, le
+conseil faisait refuser le corpus publié à toutes les installations.**
+
+Il y a **deux manifestes** :
+
+| fichier | écrit par | ce que les liseuses en font |
+|---|---|---|
+| `dist/manifest.json` | le pipeline | rien — seul `generatedAt` est lu, du bundle |
+| `corpus/manifeste.json` | `corpus-publie.py`, dans `ONTBibleWebapp` | ==`schema` est comparé== |
+
+`contrat` ne traverse jamais le second. La semence était une phrase dans le
+commentaire du champ, côté pipeline : « c'est ce nombre que les liseuses
+installées comparent au leur ». Fausse, et recopiée de session en session.
+
+Ce qui l'a tranché est une ligne de `CorpusUpdater.swift` — « 2 depuis 1.0.3,
+où l'accentuation a changé de nom sur le fil ». ==Le nombre était nommé, daté
+et justifié depuis le début. Trois sessions ont raisonné sur ce qu'il devait
+valoir sans aller lire ce qu'il valait.==
+
+Et l'objection qui a clos le sujet vient du site : une garde sur le `contrat`
+garderait ce que le pipeline **déclare**, pas ce qu'il **émet**. Elle aurait
+laissé passer `Renvoi`, qui vit dans le schéma de `dev` sans ce champ. Le site
+garde donc sur le contenu — il parcourt les nœuds réellement émis et refuse un
+type hors liste. Protéger les installés reste le geste de la 1.0.3 : monter
+`schema` côté liseuses, livrer, **puis** publier.
+
+### `device` ne nomme pas une seule chose
+
+La session Android relève `CONTRAT_DES_NOEUDS` : **0 occurrence**, avec témoin
+positif au même instrument. La session iOS relève : **4 occurrences**, dont la
+constante à 3. Les deux mesures sont exactes.
+
+    git log --oneline -1 device          →  a29d7ec
+    git log --oneline -1 origin/device   →  25c219f
+    git rev-list --count device..origin/device  →  99
+
+==La branche locale `device` avait 99 commits de retard.== `git show
+device:<fichier>` rend alors un fichier vieux de trois jours sans le moindre
+avertissement.
+
+**Sur un arbre que sept sessions partagent, une référence locale n'est à jour
+que si quelqu'un l'a tirée.** Interroger l'état partagé se fait par
+`origin/<branche>`, et `git fetch` avant de conclure. C'est la même forme que
+tout le reste de la journée : un instrument exact appliqué à autre chose que ce
+qu'on croit mesurer.
+
+### Deux arbitrages qui ont corrigé un raisonnement cohérent
+
+L'auteur, l'écran sous les yeux, a renversé deux décisions prises ici. Les deux
+raisonnements se tenaient et regardaient la mauvaise chose — ==ce que le geste
+*est*, au lieu de ce que le lecteur a sous les yeux en le faisant==.
+
+**« Je veux qu'il soit selected. »** On avait choisi de viser sans désigner : un
+renvoi est un détour, et la carte d'actions répond à une question qu'on n'a pas
+posée. Mais arriver dans une unité de trente versets sans que rien ne marque
+celui qu'on venait chercher, c'est arriver nulle part. La désignation n'est pas
+le préambule d'un partage, c'est la réponse à « lequel ».
+
+**« Le retour doit me ramener au bon chapitre et au bon niveau de scroll. »**
+Le routeur **remplaçait** la pile pour tout lien. C'est exact quand on *entre*
+dans le corpus — widget, carte du jour, lien reçu : le lecteur n'en venait pas.
+Un renvoi est l'inverse, une *sortie* depuis une lecture en cours.
+
+| geste | la pile |
+|---|---|
+| widget, carte du jour, lien reçu | **remplace** — le retour mène au sommaire |
+| renvoi touché dans une glose | **empile** — le retour rend la lecture |
+
+Deux pièges rencontrés : ne pas empiler sur soi-même (un renvoi peut viser
+l'unité qu'on lit déjà), et poser le livre sous l'unité quand la pile est vide
+(le renvoi peut être touché depuis une fiche du lexique).
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — `Inline::Reference` porte `cible: Option<CibleDeLaReference>`
+  (`livre`, `unite`, `verset`), omise quand le livre n'est pas traduit. Les
+  trois liseuses doivent la lire. Android l'a portée dans la même journée, et
+  sans `NavHost` : sa pile est tenue à la main, et rien n'y survit tout seul —
+  `remember` et non `rememberSaveable`, parce qu'==un retour faux après mort du
+  processus est pire qu'un retour perdu==.
+- **ONTBibleWebapp** — `reference` **et** `renvoi` doivent entrer dans la liste
+  des types connus **avec leur rendu**, sinon la garde de publication refuse.
+  C'est le comportement voulu.
+- **ONTBibleTranslation** — rien à porter. Les 208 références inertes visent des
+  livres non traduits ; elles se résoudront d'elles-mêmes à mesure que le vault
+  avance, sans que personne n'ait à y toucher.
+
+---
+
+## 11 septembre 2026, l'après-midi — le simulateur est un appareil sans main
+
+L'auteur : « c'est bizarre, le long press fonctionne sur le sim mais pas sur mon
+iPhone ». **Quatre causes empilées, et aucune ne suffisait seule.** Trois
+corrections plausibles ont été posées avant qu'une sonde d'une ligne ne tranche.
+
+### Les quatre silences
+
+**Le geste n'existait pas en prose continue.** Il était posé sur `VerseRow`, la
+branche des versets séparés. L'auteur lit en prose ; l'appareil de mesure, non.
+==Les deux appareils ne rendaient pas la même vue== — et la comparaison qui
+fondait tout le raisonnement ne comparait donc rien.
+
+**La feuille était présentée depuis une vue trop imbriquée.** Une feuille
+attachée sous une pile paresseuse est ignorée **sans un mot** : pas d'erreur,
+pas de ligne de journal, rien. Elle est désormais tenue au niveau du chapitre,
+et les deux modes de lecture y poussent leur demande.
+
+**L'état posé depuis un rappel UIKit ne réveillait pas SwiftUI.** Le rappel
+arrive pendant le traitement du toucher, hors du cycle de rendu : la
+modification était bien enregistrée, et rien ne la relevait.
+
+**La sélection de texte du système gagnait le geste.** Relevée sur une **capture
+de l'auteur**, le pavé gris couvrant tout le bloc. Un toucher synthétisé
+n'appelle pas l'interaction de texte : ==aucun banc ne pouvait la montrer==.
+
+### Pourquoi le simulateur passait, et l'appareil non
+
+`LongPressGesture` abandonne dès que le doigt s'écarte de `maximumDistance`, qui
+vaut **10 points** par défaut. Le simulateur est piloté par un pointeur qui ne
+bouge pas : le geste y part toujours. Un doigt tremble.
+
+Le SDK nomme lui-même la différence — `GestureInputKinds` distingue
+`directTouch` de `pointer`. ==Le simulateur n'est pas un appareil plus petit,
+c'est un appareil sans main== : il a l'écran, le système et la mémoire, il n'a
+pas la main. Et les gestes sont précisément ce qu'il ne sait pas éprouver.
+
+Le remède n'élargit pas la tolérance — ce qui laisserait le geste concurrent de
+la zone défilante, et l'un des deux perdrait. `UIGestureRecognizerRepresentable`
+fait entrer un vrai `UILongPressGestureRecognizer` dans l'arbitrage d'UIKit, qui
+sait de naissance cohabiter avec un `UIScrollView`. On ne départage plus deux
+gestes, on laisse le système le faire.
+
+### Une hypothèse n'est pas un diagnostic, même quand elle est vraie
+
+Les trois premières corrections ont été annoncées comme des causes **trouvées**.
+C'étaient des causes **possibles** — et chacune était vraie, ce qui est plus
+coûteux qu'une erreur franche : une fois réparée, le symptôme ne bouge pas, et
+le raisonnement qui l'a produite sort intact.
+
+La sonde qui a tranché ne demandait qu'une chose — ==« est-ce que le geste
+part ? »== — et elle n'avait pas été posée. Séparer « ça ne part pas » de « ça
+part et rien ne suit » coûtait une ligne, et faisait tomber deux hypothèses d'un
+coup.
+
+Le correctif du troisième silence s'est retourné à son tour, et c'est la mesure
+sur l'appareil qui l'a dit : reporter d'un tour de boucle — `Task { @MainActor }`
+— **empêche** la feuille de s'ouvrir, là où l'appel immédiat dans le rappel la
+laisse passer. L'explication était plausible et fausse. Elle est écrite dans
+`ONTAppuiLong`, au-dessus de la ligne qu'elle justifie, et non ici.
+
+### La même forme, quatre fois dans la journée — et trois sont déjà écrites
+
+Un instrument exact braqué sur autre chose que la question. Les trois autres
+occurrences sont au journal, chacune à sa place, et il ne s'agit pas de les
+redire :
+
+- le contrôle d'inventaire du pipeline trouvait ses preuves dans `Schema.swift`
+  et `Schema.kt`, **que le pipeline venait d'écrire lui-même** à l'étape
+  suivante — vert au premier passage, rouge au second. Entrée « le contrôle
+  lisait ce que le pipeline venait d'écrire » ;
+- `device` en local avait **99 commits de retard**, et deux sessions ont compté
+  `CONTRAT_DES_NOEUDS` sur deux objets différents — 0 d'un côté, 4 de l'autre,
+  les deux mesures exactes. Entrée « la détection avait quadruplé, la navigation
+  était tombée à zéro » ;
+- un plafond de « 118 fiches » relevé sur un `dist/glossary.json` daté du
+  **8 septembre**, antérieur à une passe de renommage : il portait encore
+  `nephilim`. Le bon chiffre est 133. Entrée « deux jointures qu'on croyait être
+  une seule ».
+
+Ce qu'aucune ne dit seule, et qui ne se voit qu'en les mettant côte à côte : une
+branche en retard se rattrape par `git fetch` et se lit par `origin/<branche>`,
+mais ==un artefact engendré n'a pas de date visible dans sa mesure==. Le
+simulateur est de la même famille sans être un artefact : il rend fidèlement un
+état du monde qui n'est pas celui qu'on interroge.
+
+    un banc sans main ne mesure pas un geste
+    un artefact engendré ne porte pas sa date
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — `ONTAppuiLong` vit dans `ONTDesignSystem`, et son extension
+  `ontAppuiLong` est **hors** du `#if canImport(UIKit)` : enfermée dedans, elle
+  disparaissait pour macOS, et la liseuse du Mac cessait de compiler sur un
+  geste qu'elle n'emploie même pas. Là où le pont n'existe pas, on retombe sur
+  le geste de SwiftUI, qui ne connaît pas la position et rend le centre — mieux
+  vaut désigner le verset du milieu que n'ouvrir rien. **Android porte les mêmes
+  deux modes de lecture** : un geste posé sur une seule des deux branches y
+  produira le même silence, et cela se vérifie sur un appareil, pas sur
+  l'émulateur.
+- **ONTBibleWebapp** — rien à porter, et la raison vaut d'être écrite plutôt que
+  supposée : le site n'a pas d'appui long, et sa sélection de texte est celle du
+  navigateur. Ce qui lui revient est la leçon, pas le correctif — un navigateur
+  sans tête est lui aussi un appareil sans main.
+- **ONTBibleTranslation** — rien à porter. La feuille ouvre le verset hébreu et
+  se joint au vault par ce que les fiches déclarent ; ce contrat est celui de
+  l'entrée « deux jointures qu'on croyait être une seule », et il n'a pas bougé
+  cet après-midi.
+
+---
+## 11 septembre 2026 — deux jointures qu'on croyait être une seule
+
+Le chantier du lexique est parti d'une mesure : *Bereshit* 1-19 porte 6 478 mots
+hébreux, 925 lemmes, et le vault n'avait que 356 fiches. Quatre agents ont été
+lancés sur des lots disjoints pour combler l'écart.
+
+**Les trois quarts des fiches assignées existaient déjà.** Le lotissement avait
+été bâti sur un inventaire qui comparait des noms de fichiers à des lemmes sans
+passer par la fonction de slug du pipeline — or elle retire les demi-anneaux.
+`ʾamar.md` **est** la fiche du lemme `amar`, et l'inventaire ne le savait pas.
+
+Le vrai manque était ailleurs, et il ne se voyait pas : les sections `## Formes`
+ne déclaraient pas ce que le corpus écrit. Vingt-cinq formes attestées n'étaient
+déclarées nulle part, donc vingt-cinq mots restaient **lisibles et inertes** —
+et rien ne le signale, puisque ce n'est pas un lien mort.
+
+### Une fiche sert le corps du texte ; elle ne sert pas le verset hébreu
+
+C'est le fait structurel de la journée, et il a fallu la session iOS pour le
+nommer. Le projet a **deux jointures**, et elles ne lisent pas la même chose :
+
+    corps du texte     slug de la translittération d'un niveau 3   →  toutes les fiches
+    verset hébreu      champ `hebrew` d'une entrée de glossaire    →  133 fiches sur 357
+
+`glossary.json` est bâti sur le §2.5 et le §3 du `CLAUDE.md`, qui ne portent que
+les intraduisibles et les rendus fixés. **224 fiches n'y ont aucune entrée**, donc
+aucun hébreu déclaré, donc rien à joindre. Elles contiennent bien leur hébreu —
+234 sur 239 au relevé — mais dans la prose : deux seulement l'avaient à un endroit
+fixe.
+
+Écrire une fiche ne rend donc pas un mot touchable dans le verset d'origine. Le
+chantier avait été annoncé comme s'il le faisait.
+
+### Décision de l'auteur — la Source vit dans la fiche
+
+Section `## Source`, après les Formes : le numéro de Strong nu, et la forme
+absolue hébraïque.
+
+    ## Source
+
+    559 · אָמַר
+
+Le §3 aurait été l'autre emplacement, et il a été écarté sur la mesure : il est un
+glossaire d'**arbitrages de traduction**, et l'y faire grossir de huit cents
+entrées pour accueillir le vocabulaire ordinaire lui aurait fait changer de nature
+— pour ne couvrir que 133 fiches sur 357.
+
+Ce que le numéro achète est ==un mode d'échec==, non une commodité. Sans lui, la
+liseuse doit deviner quel mot du verset ouvre quelle fiche, en ôtant les voyelles.
+Deux mots peuvent avoir le même squelette, et une devinette fausse ne rend pas le
+mot inerte : elle le rend **touchable vers la mauvaise fiche**.
+
+    un squelette qui se trompe est silencieux
+    un Strong qui se trompe est contredit par le témoin
+
+164 fiches ont reçu leur Source, dérivée et non tapée : les formes que la fiche
+déclare → leur hébreu dans le corpus → le lemme du témoin. Quand les formes ne
+s'accordent pas sur un seul numéro, rien n'est écrit.
+
+### Un instrument qui mesure deux fois la même chose rend des chiffres qui se ressemblent trop
+
+La dérivation s'est trompée d'abord, et son symptôme mérite d'être gardé parce
+qu'il est lisible **avant** de connaître la réponse.
+
+J'indexais le témoin sur la forme vocalisée **et** sur son squelette consonantique
+— donc je récoltais précisément les collisions que le numéro existe pour éviter.
+Le relevé rendait des comptes rigoureusement égaux : 14 contre 14, 5 contre 5,
+2 contre 2. Une égalité parfaite entre deux candidats n'est pas une ambiguïté du
+monde, c'est le signe que **les deux branches ont fait la même requête**.
+
+Repris en vocalisé seul, les comptes égaux sont restés. Ce n'était donc plus
+l'instrument : c'est le témoin lui-même qui donne deux lemmes au même texte selon
+le contexte. שֵׁם est 8034 et 8035.
+
+La leçon n'est pas « vérifier deux fois ». Elle est qu'une **forme de sortie**
+peut trahir un défaut d'instrument avant qu'on ait de quoi contrôler le fond.
+
+### Le témoin faisait déjà la distinction, avec une donnée que le dépôt contenait
+
+73 fiches portent deux numéros ou plus. C'est la liste des mots que notre
+translittération confond et que le témoin sépare, et elle n'avait jamais été
+produite.
+
+    shem     8034 · 8035     le concept / le fils de Noach
+    ʾadam     120 ·  121     l'humanité / le nom propre
+    Hevel    1892 · 1893     « souffle » / le frère
+    Sarai    8269 · 8297     « princes » / l'ʾIshah
+    Charan   2771 a · 2771 b
+
+La dernière ligne est la plus instructive. **Deux jours plus tôt**, l'auteur avait
+séparé à la main `Haran` de `Charan`, après qu'une passe de translittération les
+eut fondus — et le journal du 10 septembre décrit le coût : des gloses verrouillées
+s'étaient mises à **expliquer** une homonymie qu'aucun manuscrit ne connaît.
+
+Le témoin portait la distinction depuis toujours, et personne ne la lui avait
+demandée. La passe fautive avait été bâtie sur une liste blanche de formes
+translittérées ; ==une seule requête sur les lemmes du témoin l'aurait arrêtée==.
+
+### Un artefact engendré n'a pas de date visible dans sa mesure
+
+Le plafond a d'abord été annoncé à **118 fiches**. Le chiffre venait de
+`ONTBibleApp/dist/glossary.json`, daté du **8 septembre à 14h53** — antérieur à la
+passe `ph → f` du même jour, et il portait encore `nephilim`. Le bon chiffre est
+133.
+
+La mesure était juste ; elle ne l'était plus. C'est la **prémisse périmée** que la
+note de concertation décrit, sous une forme qu'elle ne prévoyait pas : non pas une
+branche non rafraîchie, mais un **fichier engendré** dont rien dans la lecture ne
+dit l'âge. Un `git fetch` n'y aurait rien fait.
+
+Le même jour, la session iOS a rencontré la même forme sur un autre terrain : deux
+relevés exacts de `device`, l'un sur la locale en retard de 99 commits, l'autre sur
+le distant. ==Trois fois dans la journée, sur trois terrains sans rapport.==
+
+La parade est étroite et elle se dit : **un chiffre tiré d'un artefact engendré se
+rapporte avec la date de l'artefact**, comme un zéro se rapporte avec son outil et
+sa référence.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleTranslation** — le §2.5 ter porte la règle de la section `## Source`.
+164 fiches l'ont ; 73 attendent un arbitrage de l'auteur, un par un comme
+`Haran` / `Charan` ; 122 n'ont aucun appariement dans le corpus et attendent qu'il
+les emploie. Deux homographes vivants restent ouverts : `yamim` — יַמִּים les mers
+et יָמִים les jours sous une seule graphie — et `min`, dont le risque a été mesuré
+nul aujourd'hui parce que le corpus n'écrit aucun `min` nu.
+
+**ONTBibleApp** — le pipeline ne lit pas `## Source`. Tant qu'il ne l'émet pas,
+les 164 numéros sont écrits et personne ne les reçoit ; il faut un
+`source_declaree` à côté de `formes_declarees` (`reference.rs`), puis deux champs
+sur l'entrée émise. `glossary.json` porte son propre `schema`, indépendant de
+`CONTRAT_DES_NOEUDS`, et deux champs facultatifs ne cassent aucun décodeur. La
+session iOS le prend, dans le même lot que sa jointure par `forms`.
+
+**ONTBibleWebapp** — rien à faire aujourd'hui. Mais le site lit `dist/` comme
+l'app : le jour où `glossary.json` porte une Source, il la recevra sans qu'on l'ait
+prévenu. C'est la même remarque que le 10 septembre sur `prononciation.json`, et
+elle vaut deux jours de suite.

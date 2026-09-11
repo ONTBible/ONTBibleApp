@@ -21,6 +21,18 @@ struct ReadingModelTests {
         }
     }
 
+    /// **Une doublure muette pour les langues sources.**
+    ///
+    /// Aucune épreuve de ce fichier ne touche à la feuille du verset d'origine.
+    /// Le port entre quand même par le constructeur, et c'est précisément ce
+    /// qu'on voulait : sans valeur par défaut, une composition ne peut pas
+    /// l'oublier. Le prix, ce sont ces quatre lignes — et elles ne mentent pas,
+    /// `.aucune(nil)` est la réponse ordinaire, celle de six livres sur sept.
+    struct SourcesMuettes: SourcesRepository {
+        func sources(livre: String) -> SourcesDuLivre { .aucune(nil) }
+        func unite(livre: String, temoin: String, unite: String) -> UniteSource? { nil }
+    }
+
     /// Même comportement que le vrai stockage : `remove` marque, il ne détruit
     /// pas. Les tests existants comptent `stored` — ils comptent donc les
     /// pierres tombales, et c'est ce qu'on veut vérifier.
@@ -63,7 +75,8 @@ struct ReadingModelTests {
             corpus: FakeCorpus(),
             highlights: highlights,
             positions: FakePositions(),
-            preferences: preferences
+            preferences: preferences,
+            sources: SourcesMuettes()
         )
         return (model, highlights, preferences)
     }
@@ -452,7 +465,8 @@ struct PositionObservableTests {
             corpus: ReadingModelTests.FakeCorpus(),
             highlights: ReadingModelTests.FakeHighlights(),
             positions: ReadingModelTests.FakePositions(),
-            preferences: ReadingModelTests.FakePreferences()
+            preferences: ReadingModelTests.FakePreferences(),
+            sources: ReadingModelTests.SourcesMuettes()
         )
         let avant = model.revision
         model.remember(

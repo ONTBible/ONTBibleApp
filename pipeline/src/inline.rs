@@ -36,8 +36,10 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
-use crate::schema::{Inline, TermLevel};
+use crate::schema::{Inline, PorteeDeLaReference, TermLevel};
 
 /// L'écriture hébraïque, par sa propriété Unicode.
 ///
@@ -474,6 +476,50 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
             }
         }
 
+        // 4c. La référence — `*Genèse* 4:25`, `Bereshit 9:8`
+        //
+        // **Avant l'italique, et c'est tout le point.** Dans `*Genèse* 4:25`,
+        // l'italique se ferme AVANT les chiffres : le cas 5 produirait un `Em`
+        // puis un texte nu, et la référence sortirait coupée en deux.
+        //
+        // La branche ne mord que sur une majuscule ou une astérisque, et
+        // seulement si la liste blanche connaît le nom — `*Pharaon* 4:25` a
+        // exactement la même forme et n'en est pas une.
+        if c == b'*' || c.is_ascii_uppercase() || c >= 0xC0 {
+            if let Some(livres) = LIVRES.get() {
+                if let Some(r) = detecter_une_reference(&src[i..], livres) {
+                    flush!();
+                    out.push(Inline::Reference {
+                        v: r.texte,
+                        livre: r.livre,
+                        systeme: match r.systeme {
+                            Systeme::Recu => "recu".to_string(),
+                            Systeme::Ont => "ont".to_string(),
+                        },
+                        chapitre: r.chapitre,
+                        // La détection rend deux `Option` parce qu'elle lit
+                        // une forme de surface ; le schéma, lui, refuse
+                        // l'état illégal. La conversion se fait ici, une fois.
+                        portee: match (r.verset, r.dernier) {
+                            (Some(premier), Some(dernier)) => {
+                                PorteeDeLaReference::Plage { premier, dernier }
+                            }
+                            (Some(n), None) => PorteeDeLaReference::Verset { n },
+                            _ => PorteeDeLaReference::Chapitre,
+                        },
+                        // **Nulle ici, et c'est le seul état possible.** La
+                        // résolution demande la table des plages de tout le
+                        // corpus, et l'on est en train de lire un chapitre :
+                        // les autres n'existent pas encore. Elle est posée
+                        // plus tard, par `renvois::resoudre_les_references`.
+                        cible: None,
+                    });
+                    i += r.largeur;
+                    continue;
+                }
+            }
+        }
+
         // 5. L'italique ordinaire — `* … *`
         if c == b'*' {
             if let Some(end) = find_em_end(bytes, i + 1) {
@@ -496,6 +542,142 @@ pub fn parse_inline(src: &str) -> Vec<Inline> {
 
     flush!();
     out
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// La référence — `*Genèse* 4:25`, `Bereshit 9:8`, `*Genèse* 1:11-12`
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Laquelle des deux numérotations une référence emploie.
+///
+/// Décision de l'auteur du 10 septembre 2026 : **le nom du livre le dit**.
+/// `Genèse 9:25` est le verset 25 du chapitre 9 de la Genèse reçue ;
+/// `Bereshit 9:8` est le verset ⁸ de l'unité ONT n° 9. Ce sont le même verset,
+/// et la forme double est permise.
+///
+/// La règle ne signale pas l'exception — **elle supprime le cas d'exception**.
+/// Une notation qui repose sur le contexte se lit juste tant qu'on connaît le
+/// contexte ; un nom se lit seul.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Systeme {
+    /// Le nom français — la numérotation des Bibles reçues.
+    Recu,
+    /// Le nom ONT — l'unité et sa numérotation propre, qui repart de ¹ (§2.2).
+    Ont,
+}
+
+/// Une référence repérée dans le texte, **sans aucune résolution**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDetectee {
+    /// Le syntagme entier, tel qu'il s'affiche — italiques comprises.
+    pub texte: String,
+    /// Le nom du livre, sans les italiques.
+    pub livre: String,
+    pub systeme: Systeme,
+    pub chapitre: u32,
+    /// Absent sur `Genèse 3`, qui ne vise pas un verset.
+    pub verset: Option<u32>,
+    /// Présent sur une plage — `1:11-12`.
+    pub dernier: Option<u32>,
+    /// Longueur consommée dans la source, en octets.
+    pub largeur: usize,
+}
+
+/// Les livres que la détection reconnaît, posés une fois par construction.
+///
+/// ## Pourquoi un registre global, et ce qu'il coûte
+///
+/// `parse_inline` est récursive et appelée de partout ; y faire passer la liste
+/// en paramètre la ferait rippler dans tout le fichier et chez ses appelants,
+/// pour une donnée qui **ne change jamais pendant une construction** — elle est
+/// lue une fois dans les répertoires du §2.6.
+///
+/// Le prix est réel et il faut le nommer : un état global se teste mal, et deux
+/// constructions dans le même processus se partageraient le registre. C'est
+/// pourquoi `detecter_une_reference` prend la liste **en paramètre** et reste
+/// pure — le global ne sert qu'au branchement, et les tests ne le touchent pas.
+static LIVRES: OnceLock<BTreeMap<String, Systeme>> = OnceLock::new();
+
+/// Déclare les livres pour toute la construction. Sans appel, aucune référence
+/// n'est détectée — le texte reste tel quel, ce qui est le bon défaut : mieux
+/// vaut ne rien poser que poser faux.
+pub fn declarer_les_livres(livres: BTreeMap<String, Systeme>) {
+    let _ = LIVRES.set(livres);
+}
+
+/// **Deux écritures du même renvoi, et le vault emploie les deux.**
+///
+/// `Bereshit 1:4` est la forme courte. Mais la prose du corpus écrit aussi
+/// « écho délibéré de *Bereshit 1*, verset 2 » — le verset en toutes lettres,
+/// après une virgule, parce que la phrase le dit plutôt qu'elle ne le note.
+///
+/// Le motif ne connaissait que la première. Le renvoi s'arrêtait donc au
+/// chapitre, et « , verset 2 » restait du texte ordinaire à côté du lien :
+/// à l'écran, l'ambre couvrait « Bereshit 1 » et le doigt n'avait aucun moyen
+/// d'atteindre le verset 2. Relevé par l'auteur, capture à l'appui — « ici ça
+/// risque pas de pouvoir me ramener à Bereshit 1:2, c'est pas correctement
+/// agencé ». Quinze renvois du corpus sont dans ce cas.
+///
+/// `v.` et `vv.` entrent avec, parce qu'ils paraissent dans le même corpus et
+/// disent la même chose.
+static REFERENCE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(concat!(
+        r"^(\*?)([\p{Lu}][\p{L}\p{M}ʾʿ'’-]*(?: [\p{Lu}][\p{L}\p{M}ʾʿ'’-]*)*)(\*?)[  ]+(\d+)",
+        r"(?::(\d+)(?:\s*[-–]\s*(\d+))?",
+        r"|,?[  ]*(?:versets?|vv?\.)[  ]*(\d+)(?:\s*[-–]\s*(\d+))?)?"
+    ))
+    .unwrap()
+});
+
+/// Repère une référence **au début** de `src`, si la liste blanche la connaît.
+///
+/// ## Pourquoi une liste blanche, et pas un motif
+///
+/// C'est la leçon que le vault a payée trois fois en une journée : un balayage
+/// par exclusion — « ce qui n'est pas du français » — a failli convertir
+/// *Pharaon*, *Euphrate* et *orphelin*. **On énumère ce qu'on vise ; on ne
+/// soustrait pas le reste.** Et une liste blanche ne protège que de ce qu'elle
+/// exclut : c'est en y faisant entrer un mauvais nom qu'une passe a fondu deux
+/// **Shemot** distincts.
+///
+/// ## Aucune résolution
+///
+/// Comme `Renvoi` : on type sur place, on ne cherche pas si la cible existe.
+/// La grande majorité des renvois du corpus vise des livres **pas encore
+/// écrits** — les typer sur leur cible les rendrait tous inertes, et il
+/// faudrait tout reprendre à chaque livre traduit.
+pub fn detecter_une_reference(
+    src: &str,
+    livres: &BTreeMap<String, Systeme>,
+) -> Option<ReferenceDetectee> {
+    let c = REFERENCE.captures(src)?;
+    let livre = c.get(2)?.as_str().trim().to_string();
+    let systeme = *livres.get(&livre)?;
+
+    // Les italiques doivent s'apparier : `*Genèse 4:25` sans fermeture est une
+    // emphase qui court, pas une référence — la laisser passer mangerait le
+    // marqueur et déséquilibrerait la suite de la ligne.
+    let ouvre = !c.get(1)?.as_str().is_empty();
+    let ferme = !c.get(3)?.as_str().is_empty();
+    if ouvre != ferme {
+        return None;
+    }
+
+    let nombre = |n: usize| c.get(n).and_then(|m| m.as_str().parse::<u32>().ok());
+    let tout = c.get(0)?;
+
+    Some(ReferenceDetectee {
+        texte: tout.as_str().to_string(),
+        livre,
+        systeme,
+        chapitre: nombre(4)?,
+        // Les deux écritures remplissent deux jeux de groupes, et une seule
+        // branche du motif peut mordre : `or` les réunit sans qu'aucune
+        // priorité n'ait à être décidée.
+        verset: nombre(5).or_else(|| nombre(7)),
+        dernier: nombre(6).or_else(|| nombre(8)),
+        largeur: tout.len(),
+    })
 }
 
 /// La largeur en octets d'un caractère UTF-8, lue sur son premier octet.
@@ -536,9 +718,12 @@ pub fn plain_text(nodes: &[Inline], options: PlainOptions) -> String {
             // sujet — au contraire de l'appareil, qu'on retire sans rien perdre.
             // Un renvoi est du corps de texte au même titre qu'un Shem : la
             // phrase le nomme, l'éteindre laisserait un trou.
-            Inline::Term { v, .. } | Inline::Shem { v, .. } | Inline::Renvoi { v, .. } => {
-                out.push_str(v)
-            }
+            // Une référence aussi : « comme en *Genèse* 4:25 » perd son sens
+            // si le syntagme disparaît de l'extrait.
+            Inline::Term { v, .. }
+            | Inline::Shem { v, .. }
+            | Inline::Renvoi { v, .. }
+            | Inline::Reference { v, .. } => out.push_str(v),
             Inline::Heb { v } => {
                 if options.level3 {
                     out.push_str(v);
@@ -755,6 +940,7 @@ mod tests {
                 Inline::Em { .. } => "em",
                 Inline::Shem { .. } => "shem",
                 Inline::Renvoi { .. } => "renvoi",
+                Inline::Reference { .. } => "reference",
                 Inline::Link { .. } => "link",
                 Inline::Break => "break",
             })
@@ -1125,5 +1311,134 @@ mod triple_asterisque {
     fn une_parenthese_simple_reste_du_texte() {
         let n = parse_inline("une remarque (entre parenthèses) ordinaire");
         assert!(!n.iter().any(|x| matches!(x, Inline::Renvoi { .. })));
+    }
+}
+
+#[cfg(test)]
+mod tests_de_la_reference {
+    use super::*;
+
+    fn livres() -> BTreeMap<String, Systeme> {
+        BTreeMap::from([
+            ("Genèse".to_string(), Systeme::Recu),
+            ("Ésaïe".to_string(), Systeme::Recu),
+            ("Bereshit".to_string(), Systeme::Ont),
+            ("Sefar Gibbaraya".to_string(), Systeme::Ont),
+        ])
+    }
+
+    #[test]
+    fn le_nom_du_livre_decide_de_la_numerotation() {
+        //
+        // La décision de l'auteur du 10 septembre, faite code : le même
+        // chiffre ne désigne pas la même chose selon le nom qui le précède.
+        let l = livres();
+        let recu = detecter_une_reference("*Genèse* 9:25", &l).expect("une référence");
+        assert_eq!(recu.systeme, Systeme::Recu);
+        assert_eq!((recu.chapitre, recu.verset), (9, Some(25)));
+
+        let ont = detecter_une_reference("Bereshit 9:8", &l).expect("une référence");
+        assert_eq!(ont.systeme, Systeme::Ont);
+        assert_eq!((ont.chapitre, ont.verset), (9, Some(8)));
+    }
+
+    #[test]
+    fn la_reference_enjambe_la_fermeture_de_l_italique() {
+        //
+        // LE piège de l'étape. Dans `*Genèse* 4:25`, l'italique se ferme
+        // AVANT les chiffres : le cas 5 de la grammaire produirait un `Em`
+        // puis un texte nu, et la référence serait coupée en deux. La branche
+        // doit donc passer avant lui, et consommer le syntagme entier.
+        let r =
+            detecter_une_reference("*Genèse* 4:25 — et Qayin", &livres()).expect("une référence");
+        assert_eq!(r.texte, "*Genèse* 4:25");
+        assert_eq!(r.largeur, "*Genèse* 4:25".len());
+    }
+
+    #[test]
+    fn une_plage_et_un_chapitre_seul_se_lisent() {
+        let l = livres();
+        let plage = detecter_une_reference("*Genèse* 1:11-12", &l).expect("une plage");
+        assert_eq!((plage.verset, plage.dernier), (Some(11), Some(12)));
+
+        let seul = detecter_une_reference("*Genèse* 3", &l).expect("un chapitre");
+        assert_eq!((seul.chapitre, seul.verset), (3, None));
+    }
+
+    #[test]
+    fn un_nom_hors_liste_blanche_n_est_pas_une_reference() {
+        //
+        // La garde qui compte, et le vault l'a payée trois fois en un jour :
+        // une passe par exclusion — « ce qui n'est pas du français » — a
+        // failli convertir *Pharaon*, *Euphrate* et *orphelin*.
+        //
+        // `*Pharaon* 4:25` a exactement la forme d'une référence. Seule la
+        // liste blanche l'en sépare.
+        let l = livres();
+        assert_eq!(detecter_une_reference("*Pharaon* 4:25", &l), None);
+        assert_eq!(detecter_une_reference("*Euphrate* 2:14", &l), None);
+        assert_eq!(detecter_une_reference("Memphis 1:1", &l), None);
+    }
+
+    #[test]
+    fn un_nom_compose_se_lit_en_entier() {
+        let r = detecter_une_reference("*Sefar Gibbaraya* 4:10", &livres()).expect("une référence");
+        assert_eq!(r.livre, "Sefar Gibbaraya");
+    }
+
+    #[test]
+    fn branchee_la_reference_sort_entiere_du_parseur() {
+        //
+        // Le seul test qui touche au registre global — il est posé une fois
+        // pour tout le processus, donc un seul test peut le faire.
+        //
+        // Ce qu'il vérifie est le piège de l'étape : sans la branche 4c, le
+        // cas de l'italique produirait `Em["Genèse"]` puis `Text[" 4:25"]`, et
+        // la référence sortirait EN DEUX MORCEAUX.
+        declarer_les_livres(livres());
+        let noeuds = parse_inline("comme en *Genèse* 4:25 — et Qayin");
+        let reference = noeuds.iter().find_map(|n| match n {
+            Inline::Reference {
+                v,
+                livre,
+                systeme,
+                chapitre,
+                portee,
+                ..
+            } => Some((
+                v.clone(),
+                livre.clone(),
+                systeme.clone(),
+                *chapitre,
+                portee.clone(),
+            )),
+            _ => None,
+        });
+        assert_eq!(
+            reference,
+            Some((
+                "*Genèse* 4:25".to_string(),
+                "Genèse".to_string(),
+                "recu".to_string(),
+                4,
+                PorteeDeLaReference::Verset { n: 25 }
+            ))
+        );
+        // Et rien n'a été mangé autour.
+        let entier: String = plain_text(&noeuds, PlainOptions::default());
+        assert!(entier.contains("comme en"), "« {entier} »");
+        assert!(entier.contains("et Qayin"), "« {entier} »");
+    }
+
+    #[test]
+    fn un_italique_depareille_n_est_pas_une_reference() {
+        //
+        // `*Genèse 4:25` sans fermeture est une emphase qui court. La prendre
+        // mangerait le marqueur et déséquilibrerait la suite de la ligne —
+        // c'est le défaut des « trois astérisques » du cas 3, une branche plus
+        // haut, qui laissait une astérisque orpheline s'imprimer.
+        let l = livres();
+        assert_eq!(detecter_une_reference("*Genèse 4:25", &l), None);
+        assert_eq!(detecter_une_reference("Genèse* 4:25", &l), None);
     }
 }
