@@ -127,6 +127,22 @@ jobs:
             echo
             echo "Ce qui n'appartient qu'a ce depot va dans SYNCHRONISATION-locale.md."
           } > .corps
+          # **La branche de base se demande, elle ne s'écrit pas.**
+          #
+          # `--base main` était faux pour ONTBibleApp, qui n'a pas de `main` :
+          # ses paliers ont été renommés le 31 août 2026 en `device`, `dev`,
+          # `beta-test`, `app-store`. La PR aurait échoué chez lui.
+          #
+          # Et le contrôle qui l'a laissé passer mérite d'être nommé :
+          # `gh api repos/…/branches/main` **réussit** sur un dépôt sans
+          # `main`, en rendant la branche par défaut. Un test qui vérifie que
+          # l'appel aboutit répond donc « oui » à une question qu'il n'a pas
+          # posée. `git ls-remote --heads` est celui qui tranche.
+          base=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+          if [ -z "$base" ]; then
+            echo "::error::Branche par défaut illisible pour ce dépôt."
+            exit 1
+          fi
           gh pr create --title "Rapporter le journal depuis le vault" \
-                       --body-file .corps --base main --head "$branche"
+                       --body-file .corps --base "$base" --head "$branche"
           rm .corps
