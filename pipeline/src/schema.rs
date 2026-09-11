@@ -33,6 +33,20 @@
 
 use serde::{Deserialize, Serialize};
 
+/// La première ligne de tout fichier engendré depuis ce schéma.
+///
+/// Elle vit ici, et non chez les générateurs, parce qu'elle a **deux** lecteurs
+/// qui ne se voient pas : `codegen::swift` et `codegen::kotlin` l'écrivent,
+/// `emissions::aspirer` la lit pour refuser le fichier. Deux copies littérales
+/// auraient divergé le jour où l'une des deux aurait été retouchée, et la
+/// divergence ne se serait vue nulle part — le contrôle serait simplement
+/// redevenu faux, en silence.
+///
+/// Ce module-ci est compilé dans tous les jeux de fonctionnalités, alors que
+/// `codegen` et `parsers` sont chacun derrière le leur. C'est la seule maison
+/// possible pour une constante que les deux partagent.
+pub const MARQUE_ENGENDRE: &str = "// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Niveau inline — l'arbre d'un fragment de texte
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import ONTData
 import ONTDesignSystem
 import LexiconFeature
@@ -21,6 +22,7 @@ final class Composition {
 
     let reading: ReadingModel
     let lexicon: LexiconModel
+    let chuqqot: ChuqqotModel
     let search: SearchModel
     let qahal: QahalModel
     let you: YouModel
@@ -64,6 +66,15 @@ final class Composition {
     /// Gardé sur la composition pour la seule raison qui vaut : il faut
     /// pouvoir lui dire d'oublier après une mise à jour, comme aux autres.
     private let rechercheSurDisque: DiskSearchIndex
+    /// Les chuqqot, doublées comme le reste.
+    ///
+    /// **Gardée, et pas construite en ligne comme la prononciation.** Cette
+    /// dernière est passée directement à `LexiconModel` : personne ne tient sa
+    /// référence, donc personne ne peut lui dire d'oublier, et une feuille
+    /// corrigée en cours de route attend le prochain lancement. Le trou est
+    /// discret parce que la feuille bouge rarement — une chuqqah validée, elle,
+    /// est précisément l'événement qu'on veut voir arriver sans relancer l'app.
+    private let chuqqotSurDisque: DiskChuqqotRepository
 
     var dailyPool: [DailyVerse] { daily.pool() }
 
@@ -125,6 +136,8 @@ final class Composition {
         self.shemotSurDisque = shemot
         let index = DiskSearchIndex(socle: BundleSearchIndex(bundle: source))
         self.rechercheSurDisque = index
+        let chuqqotDuDisque = DiskChuqqotRepository(bundle: source)
+        self.chuqqotSurDisque = chuqqotDuDisque
         let store = FileReaderStore()
         // Un fichier à part : le profil se supprime avec le compte, les
         // réglages de lecture survivent à une déconnexion.
@@ -140,6 +153,7 @@ final class Composition {
             glossary: glossary, shemot: shemotSurDisque,
             feuilles: DiskPrononciationRepository(bundle: source))
         search = SearchModel(index: index, glossary: glossary, corpus: corpus)
+        chuqqot = ChuqqotModel(depot: chuqqotDuDisque)
         qahal = QahalModel(corpus: corpus, daily: daily)
         you = YouModel(corpus: corpus, glossary: glossary)
 
@@ -157,16 +171,20 @@ final class Composition {
             // un silence : on redemande un jeton. Voir `PushDistant`.
             PushDistant.reprendreSiBesoin()
 
-            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, reading, lexicon] in
+            CorpusRefresh.register { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, reading, lexicon, chuqqot] in
                 corpusSurDisque.oublier()
                 lexiqueSurDisque.oublier()
                 shemotSurDisque.oublier()
                 rechercheSurDisque.oublier()
+                chuqqotSurDisque.oublier()
                 // Le réveil d'arrière-plan n'est pas sur l'acteur principal, et les
                 // modèles y vivent : on repasse par lui pour le dire aux vues.
                 Task { @MainActor in
                     reading.corpusChanged()
                     lexicon.glossaryChanged()
+                    // Sans cette ligne, l'oubli juste au-dessus ne se verrait
+                    // pas : un cache vidé ne change aucune propriété observée.
+                    chuqqot.corpusChanged()
                 }
                 // **C'est ici que la notification a du sens.** Au lancement, le
                 // lecteur a l'app sous les yeux — il verra le livre. Réveillé par
@@ -176,7 +194,7 @@ final class Composition {
             CorpusRefresh.schedule()
         #endif
 
-        Task { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, reading, lexicon] in
+        Task { [corpusSurDisque, lexiqueSurDisque, shemotSurDisque, rechercheSurDisque, chuqqotSurDisque, reading, lexicon, chuqqot] in
             // La mise à jour du corpus, en arrière-plan, une fois l'app posée.
             //
             // Elle ne bloque **rien** : l'app a déjà tout ce qu'il lui faut,
@@ -195,8 +213,9 @@ final class Composition {
             lexiqueSurDisque.oublier()
             shemotSurDisque.oublier()
             rechercheSurDisque.oublier()
+            chuqqotSurDisque.oublier()
 
-            // Et sans ces deux lignes, l'oubli ne se voit pas non plus.
+            // Et sans ces trois lignes, l'oubli ne se voit pas non plus.
             //
             // Un cache vidé ne change aucune propriété observée : les vues ne
             // relisent donc rien, et le livre neuf attend le prochain
@@ -206,6 +225,7 @@ final class Composition {
             // devient visible.
             reading.corpusChanged()
             lexicon.glossaryChanged()
+            chuqqot.corpusChanged()
 
             // Un slot qui cesse d'être vide est une parution, et le lecteur
             // veut le savoir. Après l'oubli des caches, jamais avant : c'est

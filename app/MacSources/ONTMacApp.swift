@@ -1,3 +1,4 @@
+import ChuqqotFeature
 import LexiconFeature
 import ONTData
 import ONTDesignSystem
@@ -79,6 +80,7 @@ struct ONTMacApp: App {
                 .environment(etat.composition.reading)
                 .environment(etat.composition.lexicon)
                 .environment(etat.composition.search)
+                .environment(etat.composition.chuqqot)
                 .environment(etat.composition.qahal)
                 .environment(etat.composition.you)
                 .environment(etat.composition.account)

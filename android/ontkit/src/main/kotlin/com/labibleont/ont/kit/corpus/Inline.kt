@@ -47,6 +47,61 @@ public sealed interface CibleDuNiveauTrois {
     public data class Shem(public val lemma: String) : CibleDuNiveauTrois
 }
 
+/**
+ * Où une **référence biblique** mène, quand le corpus porte le passage visé.
+ *
+ * ## Résolue par le pipeline, jamais par la liseuse
+ *
+ * Les unités ONT ne coïncident pas avec les chapitres reçus : seule la table
+ * des plages de tout le corpus sait que « Genèse 7:11 » tombe dans `bereshit-7`.
+ * Cette table n'existe qu'au pipeline, et la reconstruire ici reviendrait à
+ * l'écrire trois fois — iOS, Android, le site — à partir d'une chaîne
+ * d'affichage qui n'a jamais été un format de données.
+ *
+ * **Nul est le cas ordinaire, et il est honnête** : 208 des 915 références du
+ * corpus visent des livres que personne n'a traduits.
+ */
+public data class CibleDeLaReference(
+    /** Le livre qui porte l'unité — `bereshit`. */
+    public val livre: String,
+    /** L'unité à ouvrir — `bereshit-7`. */
+    public val unite: String,
+    /**
+     * Le verset à rejoindre en arrivant, **dans la numérotation de l'unité**.
+     *
+     * Nul quand la référence vise un chapitre entier, et nul aussi quand le
+     * compte des versets ne confirme pas le calcul : mieux vaut ouvrir la bonne
+     * unité sans rien viser que d'en viser un faux.
+     */
+    public val verset: Int? = null,
+)
+
+/**
+ * Ce qu'une référence vise à l'intérieur du chapitre qu'elle nomme.
+ *
+ * **Un type somme, et pas deux nullables.** « premier verset nul, dernier
+ * verset 33 » serait une plage sans début — personne ne l'écrira, et c'est
+ * justement pour ça que ça finirait par arriver. Ici l'état illégal est
+ * irreprésentable, et le `when` des liseuses devient exhaustif.
+ *
+ * Il fait aussi disparaître une convention tacite : `Genèse 3` et `Genèse 3:1`
+ * ne se distinguaient que par la nullité d'un champ.
+ */
+public sealed interface PorteeDeLaReference {
+
+    /** `Genèse 3` — l'unité entière, pas un verset. */
+    public data object Chapitre : PorteeDeLaReference
+
+    /** `Genèse 3:24` — un verset. */
+    public data class Verset(public val n: Int) : PorteeDeLaReference
+
+    /** `Genèse 1:11-12` — une plage. La navigation vise son ouverture. */
+    public data class Plage(
+        public val premier: Int,
+        public val dernier: Int,
+    ) : PorteeDeLaReference
+}
+
 public sealed interface Inline {
 
     /** Le corps de la traduction. */
@@ -86,6 +141,41 @@ public sealed interface Inline {
      * un renvoi mort dit « ce n'est pas encore écrit », jamais « introuvable ».
      */
     public data class Renvoi(public val value: String, public val cible: String) : Inline
+
+    /**
+     * Une **référence biblique** — « *Genèse* 9:27 », « *Bereshit* 17 ».
+     *
+     * ## Ce qui la sépare du [Renvoi]
+     *
+     * Un [Renvoi] mène d'une chuqqah à une autre : il désigne un **énoncé**, et
+     * sa cible est un identifiant que le vault écrit à la main. Une référence
+     * désigne un **passage** du corpus, et son libellé est une notation que des
+     * siècles de lecture ont fixée. Les confondre ferait promettre une chuqqah
+     * là où il y a un chapitre.
+     *
+     * ## Le nom du livre dit la numérotation
+     *
+     * Deux systèmes coexistent et c'est [livre] qui les sépare : « Genèse 9:25 »
+     * est le verset 25 du chapitre 9 de la Genèse reçue, « *Bereshit* 9:8 » est
+     * le verset ⁸ de l'unité ONT n° 9. Ce sont le même verset, et la forme
+     * double est permise. Une notation qui repose sur le contexte se lit juste
+     * tant qu'on connaît le contexte ; un nom se lit seul.
+     *
+     * @param value ce qui s'affiche, tel que le texte l'écrit.
+     * @param livre le nom **affiché** — « Genèse », « Bereshit ». Ce n'est pas
+     *   un identifiant : celui-là vit dans [cible].
+     * @param systeme `"recu"` ou `"ont"`.
+     * @param cible où l'on va, **quand on peut y aller**. Voir
+     *   [CibleDeLaReference] : nul est le cas ordinaire.
+     */
+    public data class Reference(
+        public val value: String,
+        public val livre: String,
+        public val systeme: String,
+        public val chapitre: Int,
+        public val portee: PorteeDeLaReference,
+        public val cible: CibleDeLaReference? = null,
+    ) : Inline
 
     /**
      * `(*chasdo* / חַסְדּוֹ)`.
@@ -221,6 +311,10 @@ private fun kotlin.collections.List<Inline>.brut(
             // Un renvoi aussi : la phrase le nomme, et un partage ne doit pas
             // laisser un trou là où le lecteur a lu un mot.
             is Inline.Renvoi -> append(node.value)
+            // Une référence aussi : « comme en *Genèse* 4:25 » perd son sens si
+            // le syntagme disparaît d'un extrait, d'une recherche ou d'un
+            // partage.
+            is Inline.Reference -> append(node.value)
             is Inline.Hebrew -> if (level3) append(node.value)
             is Inline.Translit ->
                 if (level3) append("(${node.translit} / ${node.hebrew})")

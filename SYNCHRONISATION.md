@@ -4253,6 +4253,348 @@ où les liens sont déjà des nœuds et ne peuvent plus tromper. Les trois
 tentatives ratées du script reconstruisaient à la main ce que l'analyseur savait
 déjà faire.
 
+## 10 septembre 2026 — sept jours sans paquet livrable, sous une CI verte
+
+L'app Android n'était plus empaquetable pour Play depuis le 3 septembre.
+`:app:minifyReleaseWithR8` échouait net :
+
+    Missing class com.google.errorprone.annotations.CanIgnoreReturnValue
+    (referenced from: com.google.crypto.tink.KeysetManager … et 52 autres)
+
+Personne ne l'a su, parce que **personne ne construisait de bundle** et que la CI
+n'en construisait pas non plus.
+
+### Une dépendance inutilisée est invisible, et le jour où l'on s'en sert n'est pas celui où on l'a ajoutée
+
+`security-crypto` — donc tink — est déclaré depuis le portage du 24 août. Le
+bundle du 2 septembre se construisait pourtant sans peine, et sa carte proguard
+dit pourquoi : **zéro** occurrence de `com.google.crypto.tink`. R8 élague ce que
+personne n'atteint ; la bibliothèque n'entrait pas dans le graphe, donc ses
+annotations manquantes ne regardaient personne.
+
+Le 3 septembre, le coffre à jetons a employé `EncryptedSharedPreferences` pour la
+première fois. La carte du bundle d'aujourd'hui en compte **13 979**.
+
+    2 septembre    tink dans la carte :      0     bundle : construit
+    10 septembre   tink dans la carte : 13 979     bundle : construit, après correctif
+
+Deux relevés, deux artefacts distincts, le même instrument — c'est ce croisement
+qui date le basculement à la journée.
+
+### Le contrôle ne pouvait pas rougir
+
+La CI lance `./gradlew test`, qui compile en **debug**, où R8 ne tourne pas. Elle
+est restée verte sept jours — ==y compris sur une PR ouverte le matin même du
+diagnostic==, dont le contrôle `Android` est passé en 4 min 9 s pendant que le
+bundle ne se construisait pas.
+
+Ce n'est pas la variante « un contrôle qui s'exécute sans exiger » du 9 septembre.
+C'est un cran plus bas : **un contrôle qui ne mesure pas la chose**. Il exigeait,
+il rougissait, il était branché — et il regardait ailleurs.
+
+Et le détail qui pique : `proguard-rules.pro` portait **déjà deux fois** la phrase
+« rien ne le montre en debug, où R8 ne tourne pas », écrite pour
+`kotlinx.serialization`, puis pour Room. Troisième occurrence.
+
+> ==Une leçon écrite trois fois et jamais outillée n'est pas une leçon.==
+
+Le job `Android` construit donc désormais `:app:bundleRelease`. Sans magasin de
+clés, `signingConfig` vaut `null` et le bundle sort non signé : aucun secret n'est
+requis pour vérifier que R8 passe. Et l'étape **compte le fichier déposé** plutôt
+que le tampon `BUILD SUCCESSFUL`, comme l'étape des tests le faisait déjà.
+
+### La garde neuve a rougi à son premier tour, sur autre chose
+
+`verifierLeCorpus` a arrêté `chuqqot.json` : un document que le pipeline produit
+depuis le 10 septembre, dont iOS a un onglet entier, et qu'Android n'ouvre nulle
+part. Exclu de la copie, inscrit aux connus avec sa raison, écart consigné.
+
+C'est le **second en trois jours** après `prononciation.json`. `corpus.sh` copie
+`dist/*.json` par **glob**, pas par liste : tout ce que le pipeline produit entre
+dans les ressources, et seul `verifierLeCorpus` l'arrête — côté Android
+uniquement.
+
+C'est ce qui motive le portage de cette garde en amont, décidé par l'auteur. Un
+contrôle qui ne vit que chez un client ne protège que lui, et ce n'est pas là que
+la fuite commence. La version amont devra ==regarder les comptes, pas la
+présence== : un fichier vide et un fichier absent ne se distinguent pas, et l'un
+des deux est une panne.
+
+### Un numéro que le lecteur voit et qui ne distingue rien
+
+`versionName` était resté à `0.1.0` depuis le 24 août, pour les deux binaires
+téléversés. C'est le **seul** numéro qui sorte jusqu'au testeur — la fiche Play,
+les réglages du téléphone, « À propos de cette application » n'affichent que lui.
+
+Une testeuse a signalé un défaut corrigé le 28 août ; savoir si elle l'avait déjà
+exigeait de savoir laquelle des deux versions elle avait, et rien ne pouvait le
+dire. Seule la Play Console le savait, parce qu'elle affiche le `versionCode`.
+
+La doctrine ne change pas — elle vient d'iOS, où `CFBundleVersion` est daté et
+`CFBundleShortVersionString` s'écrit à la main, geste de dépôt délibéré. C'est ce
+geste qui n'avait jamais été fait : iOS en est à `1.0.6`.
+
+### Nommer, ramasser, compter — un partage de terrain, pas une hiérarchie
+
+La journée a mis trois mécanismes côte à côte sur le même problème, et la
+comparaison est plus utile qu'aucun des trois pris seul.
+
+Le site **ne peut pas** avoir le défaut d'Android. Chaque fichier de `dist/` y
+est nommé un par un, et `include_str!` **exige un chemin littéral** : ce qui
+n'est pas nommé n'entre pas dans le binaire. Il n'y a pas d'équivalent du
+`dist/*.json` d'Android. Le défaut ne se rattrape pas, il ne naît pas.
+
+    site       chaque fichier nommé, `include_str!` littéral
+               → la classe de défaut est supprimée
+    Android    `dist/*.json` par glob, puis `verifierLeCorpus` refuse les inconnus
+               → la classe de défaut existe, un contrôle l'attrape
+
+**Mais la supériorité de nommer a un périmètre**, et la session du site l'a posé
+elle-même avant que la formule ne circule sans lui : ==nommer ne s'applique que
+là où l'ensemble est fini et connu à la compilation==. Ses cinq fichiers, oui.
+`dist/books/`, non — elle le parcourt par `read_dir`, et il le faut : soixante-dix
+livres viendront, et c'est le vault qui les nomme.
+
+D'où la règle en trois termes, qui n'est pas un classement :
+
+    nommer     quand l'ensemble est fini et connu à la compilation
+    ramasser   quand il ne l'est pas — et alors un contrôle est obligatoire
+    compter    dans les deux cas, toujours
+
+Le troisième terme ne se déduit pas des deux autres. Un fichier vide et un
+fichier absent ne se distinguent pas, et l'un des deux est une panne : le vault
+a vu une table passer de 67 entrées à 0 sous une construction verte, et le site
+a vu des fiches vides répondre `200` du poids exact d'un lemme inventé.
+
+Et une quatrième exigence, que la garde d'Android **ne remplit pas** : `connusDuCorpus`
+vérifie qu'un fichier est **connu**, pas qu'il est **utilisé**. `prononciation.json`
+y figure depuis le 8 septembre et Android ne le lit toujours pas. ==Inscrire un nom
+y déclare un lecteur, et rien ne vérifie que la déclaration est vraie== — la garde a
+laissé exister le trou qu'elle devait fermer.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `-dontwarn com.google.errorprone.annotations.**` dans
+`proguard-rules.pro` ; le job `Android` construit `:app:bundleRelease` (environ
+3 à 4 minutes de plus sur chaque PR) ; `chuqqot.json` exclu de la copie ;
+`versionName` à `0.1.1`.
+
+**ONTBibleWebapp** — le site lit `dist/` lui aussi, et rien n'y vérifie qu'un
+document neuf a un lecteur. Deux sont arrivés en trois jours. La question à se
+poser : `prononciation.json` et `chuqqot.json` sont-ils servis, ignorés, ou
+embarqués sans être lus ?
+
+**ONTBibleTranslation** — rien à changer. Mais le vault est la source du glob :
+tout document neuf du pipeline atterrit chez deux clients qui n'en savent rien
+jusqu'à ce qu'un contrôle le dise.
+
+## 10 septembre 2026 — un contrôle de version que rien ne versionnait
+
+`CorpusUpdater` refuse un corpus dont le manifeste annonce un schéma qu'il ne
+connaît pas, et le décodeur **lève** sur un type de nœud inconnu — voulu, parce
+qu'en omettre un afficherait un texte amputé sans que personne ne s'en aperçoive.
+
+**Ces deux gardes ne gardaient rien.** Le nombre comparé était écrit en dur à
+deux endroits — `2` dans `corpus-publie.py` du site, `2` dans le Swift — et
+==aucun des deux ne dérivait des nœuds émis==.
+
+`Inline::Renvoi` est parti le 8 septembre sans que ce nombre bouge. Une app
+installée accepte alors le corpus — le schéma lui est familier —, échoue à le
+décoder, et `lire()` employant `try?` retombe **silencieusement** sur son
+bundle. Sa mise à jour réseau devient inerte, définitivement, sans que rien ne
+le dise ni au lecteur ni au journal.
+
+`renvois.rs` documentait ce piège trois fichiers plus loin et l'évitait
+délibérément en réemployant `Inline::Link`. Personne ne l'avait relu.
+
+**Vrai à la compilation, faux à l'exécution** : le `switch` exhaustif casse la
+compilation de l'app, mais une app déjà installée ne recompile pas.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — `CONTRAT_DES_NOEUDS` vit dans `schema.rs`, où les nœuds vivent, et
+  sort dans `dist/manifest.json`. Il vaut **4** : 3 pour `Renvoi`, 4 pour
+  `Reference`. Un contrôle sans bras `_` fait cesser de compiler quand un type
+  paraît — et il rougit **en dernier**, au moment où l'on croit avoir fini.
+- **Site** — ==à faire== : `corpus-publie.py` doit **recopier** le `contrat` du
+  manifeste au lieu d'écrire `2`. Tant qu'il ne le fait pas, la chaîne reste
+  muette de bout en bout. Signalé à la session du site.
+- **Vault** — rien à porter.
+
+### La leçon, et elle vaut au-delà du cas
+
+Le premier jet du contrôle listait les variantes dans un **tableau de valeurs**.
+Le compilateur attrapait bien la variante neuve — par les `match` du reste du
+code —, mais **une fois ceux-ci corrigés le tableau restait vrai**, et rien ne
+forçait la montée.
+
+==Un contrôle qui ne rougit qu'en compagnie d'un autre ne contrôle rien tout
+seul.== Vérifié dans les deux formes, pas relu.
+
+## 10 septembre 2026 — trois gardes au mauvais endroit, jamais appelée, jamais exécutée
+
+Trois occurrences de la même forme dans la même nuit, chacune d'un cran plus
+fine que la précédente.
+
+**Au mauvais endroit.** `verifierLeCorpus` d'Android fait rougir sa compilation
+quand un fichier de `dist/` n'a pas de lecteur. Elle ne protégeait qu'Android —
+or c'est le pipeline qui émet. Remontée dans `pipeline/src/emissions.rs`, elle
+couvre les trois liseuses.
+
+**Jamais appelée.** `.github/scripts/epreuves.py`, écrit le 31 août contre un
+faux App Store Connect pour les deux défauts que `py_compile` ne voit pas.
+**Aucun workflow ne le lançait** ; sa propre docstring donnait la commande.
+
+**Jamais exécutée — et ce troisième cas était faux.** J'ai écrit que la garde
+Android ne tournait pas en CI, `verifierLeCorpus` ne dépendant que de
+`copierLesDonnees` quand la CI ne lance que `gradlew test`.
+
+La session Android l'a remesuré : `tests.yml` porte une **seconde** invocation,
+`./gradlew :app:bundleRelease`, ajoutée la veille pour attraper une casse R8 —
+et elle branche `verifierLeCorpus` sur l'intégration par effet de bord. Preuve
+empirique qui tranche sans motif : **`chuqqot.json` a fait rougir cette garde en
+CI**. Une garde qui ne s'exécute jamais ne peut pas rougir.
+
+==Mon erreur n'était pas dans la mesure, elle était dans l'objet mesuré== : j'ai
+lu `tests.yml` du worktree principal, qui était sur `dev`, en raisonnant sur
+`device`. Compté depuis : `dev` porte une occurrence de `gradlew`, `device` en
+porte trois.
+
+C'est la forme la plus bête et la plus fréquente du motif de ces deux jours — un
+instrument exact braqué sur autre chose que la question. Elle m'a eu après que
+j'en ai relevé cinq chez les autres.
+
+### Ce que ça change pour chaque dépôt
+
+- **App** — le contrôle des émissions tourne à **chaque construction**, et
+  rougit dans les deux sens : un fichier déclaré lu dont le nom n'apparaît dans
+  aucun source, *et* un fichier déclaré non lu dont le nom apparaît quand même.
+  C'est cette seconde moitié qui empêche la table de pourrir.
+- **Android** — ==garder `verifierLeCorpus`==. Elle voit ce que le pipeline ne
+  voit pas : le contenu réellement copié dans les assets, au moment de la copie.
+  Second rideau, pas doublon. *(J'avais écrit qu'une ligne `chuqqot.json` lui
+  manquait : périmé, elle y est depuis le 10 septembre.)*
+
+  Sa limite reste entière, et c'est la session Android qui la formule le mieux :
+  `connusDuCorpus` **déclare** qu'un lecteur existe, et rien ne vérifie que
+  c'est vrai. Elle a trouvé le second étage en le cherchant — Android
+  **téléchargeait `occurrences.json` et ne l'ouvrait jamais**, et ne
+  téléchargeait pas `search.json` du tout. Les deux moitiés se protégeaient :
+  réparer le téléchargement seul n'aurait rien donné, réparer le lecteur seul
+  non plus.
+- **Site** — la colonne site **n'est pas mesurable en CI** : `ONTBibleWebapp`
+  n'y est jamais récupéré, elle sort « non mesurée », jamais verte. C'est
+  précisément la liseuse du défaut des Shemot — 2 878 liens qui répondaient
+  `200` avec « Fiche introuvable », réparés depuis.
+
+### Dix lacunes relevées au premier passage
+
+Dont `chuqqot.json`, que **les trois** liseuses ignorent alors que le pipeline
+l'écrit depuis le matin même. L'onglet de l'app annonce toujours « ils ne sont
+pas encore écrits ». Une mention n'est pas une lecture, et le contrôle le dit
+dans ses propres limites.
+
+
+## 11 septembre 2026 — le contrôle lisait ce que le pipeline venait d'écrire *(local)*
+
+Une session voisine a rapporté que `origin/device` cassait déjà `scripts/corpus.sh`,
+et a nommé le coupable : `android/app/build.gradle.kts` porte
+`exclude("prononciation.json")`, et le contrôle des émissions compterait cette
+**exclusion** comme une **mention** — donc comme la preuve qu'Android lit le
+fichier. La cause était fausse. Le symptôme ne l'était pas.
+
+### Ce que `.kts` ne fait pas
+
+`Liseuse::extensions()` rend `["kt"]` pour Android, et `aspirer` compare
+l'extension **entière**, par `Path::extension`. `build.gradle.kts` a pour
+extension `kts`, qui n'est pas `kt` : il n'entre jamais. Un
+`chemin.contains(".kt")` l'aurait laissé passer, et c'est bien le piège que le
+module documentait — mais il l'avait évité. La mesure le confirme : sur un
+worktree neuf de `25c219f`, `build.gradle.kts` présent avec ses deux lignes,
+`corpus.sh` rend **0** et le rapport dit « Aucun écart bloquant ».
+
+### Ce qui cassait vraiment
+
+Le second `corpus.sh`. Pas le premier.
+
+`Schema.swift` et `Schema.kt` ne sont pas committés : le pipeline les engendre
+depuis `schema.rs`, à l'étape qui suit le relevé des émissions. Sur un arbre
+neuf ils n'existent pas encore, et le contrôle ne les voit pas. Au passage
+suivant ils sont là — avec la bonne extension, au milieu du source de la
+liseuse, et leurs commentaires de documentation nomment les fichiers de `dist/`
+qu'ils décrivent.
+
+    run 1   Schema.kt absent    → exit 0, aucun écart
+    run 2   Schema.kt présent   → exit 1, `prononciation.json` × Android
+
+Le tableau dit, avec raison, qu'Android **ignore** `prononciation.json`. Le
+contrôle trouvait le jeton dans un fichier que le pipeline avait écrit lui-même,
+et accusait le tableau d'avoir tort.
+
+C'est pour cela que la CI restait verte, et qu'elle l'est : ses deux jobs
+partent d'un checkout neuf et lancent le relevé **avant** `engendrer`. Le
+dernier passage sur `device` est au vert. Le défaut n'était visible que sur une
+machine de travail, au deuxième geste — la forme d'intermittence qui se range en
+« c'était sûrement autre chose ».
+
+### Le faux rouge n'était pas le pire
+
+`Schema.swift` nomme **sept des neuf jetons** du tableau. Chaque
+`Lecture::Lit` d'iOS pouvait donc être satisfait par le schéma engendré seul —
+c'est-à-dire satisfait *aussi* le jour où le vrai lecteur disparaît. Un faux
+rouge se voit et fâche ; ==un contrôle qui ne peut plus rougir ne mesure plus
+rien, et ne fâche personne==.
+
+### Le correctif
+
+`aspirer` refuse tout fichier dont la première ligne est la marque
+`// ENGENDRÉ PAR LE PIPELINE — NE PAS MODIFIER À LA MAIN.` La marque est hissée
+en `schema::MARQUE_ENGENDRE`, seul exemplaire, écrite par `codegen::swift` et
+`codegen::kotlin`, lue par `emissions::aspirer` — le compilateur tient les trois
+ensemble, et un fichier engendré demain sera écarté sans que personne n'y pense.
+Les octets émis sont inchangés, vérifiés par `diff`.
+
+La règle générale, qui manquait à côté de celle sur la configuration :
+
+    la configuration de build n'est pas un lecteur
+    un fichier engendré par le pipeline non plus
+
+### L'épreuve, retournée contre le code d'avant
+
+Trois tests, dont une paire discriminante. Garde retirée, mesurée test par test
+et **nommée** — un filtre `cargo test aspirer` ne correspondait à aucun nom et
+rendait « ok. 0 passed », ce qui est exactement le défaut qu'on chassait, une
+couche plus haut :
+
+    un_schema_engendre_ne_prouve_aucune_lecture   sans la garde → FAILED
+    un_vrai_lecteur_kotlin_compte_toujours        sans la garde → ok
+    un_gradle_kts_n_est_pas_du_source_kotlin      sans la garde → ok
+
+Le premier rougit sur le code fautif ; les deux autres interdisent de sur-exclure
+— écarter *tous* les `.kt` passerait le premier test et casserait le contrôle.
+Le troisième fige la comparaison d'extension entière, que la relecture ne
+distingue pas d'un `contains`.
+
+Un piège de mesure au passage : restaurer le fichier par `mv` lui a rendu un
+mtime plus ancien que le dernier build, et `cargo` a réutilisé l'objet périmé —
+la suite rougissait sur un code déjà corrigé. **Un `touch` avant de conclure**,
+comme pour toute vérification qui remet un fichier en place.
+
+### Pourquoi cette entrée est locale
+
+Rien ne traverse, et il faut le dire plutôt que de le laisser supposer. Le
+tableau des émissions n'a pas bougé d'une ligne, aucun nom JSON ne change,
+`dist/` sort octet pour octet identique — `diff` le vérifie sur `Schema.swift`
+et `Schema.kt`. Ce qui a changé est ce que le contrôle accepte comme **preuve**,
+et ce contrôle vit dans le pipeline, chez nous.
+
+Le site est mesuré par ses `.rs`, dont aucun n'est engendré par le pipeline : sa
+colonne ne pouvait pas porter ce défaut. Le vault n'entre pas dans le relevé.
+
+Ce qui vaut ailleurs est la leçon, pas le correctif : ==un contrôle qui lit un
+artefact de sa propre construction se croit informé==. Elle est ici, et elle
+attendra d'avoir coûté quelque chose chez un voisin pour y monter au tronc.
+
 ---
 
 ## 11 septembre 2026 — la détection avait quadruplé, la navigation était tombée à zéro

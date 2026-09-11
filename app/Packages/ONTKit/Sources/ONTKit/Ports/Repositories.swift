@@ -210,3 +210,80 @@ public struct FeuilleDePrononciation: Hashable, Sendable {
         self.blocs = blocs
     }
 }
+
+// MARK: - Les chuqqot
+
+/// Une **chuqqah** — un énoncé permanent de l'ontologie hébraïque.
+///
+/// De *chaqaq* (חָקַק), graver dans la pierre : ce qui est gravé tient de
+/// soi-même, et le reste s'y appuie. Ni une opinion qu'on défend, ni un
+/// commentaire qui accompagne un texte.
+///
+/// ## Pourquoi un type du domaine et non la fiche de lexique
+///
+/// Les deux portent des `Block`, et la tentation de les confondre est réelle.
+/// Une fiche explique **un mot** et se consulte ; une chuqqah énonce **une
+/// règle du fonctionnement** et se lit d'un bout à l'autre. C'est ce qui décide
+/// de leur place à l'écran — une feuille pour l'une, une page pour l'autre — et
+/// donc de leur type.
+///
+/// Réutiliser `GlossaryEntry` aurait coûté un `lemma` inventé, un `count` faux
+/// et un `hebrew` vide : trois champs qui mentent, et qui se paieraient à la
+/// première colonne qu'on ajoute à l'un des deux.
+///
+/// ## Ce que ce type ne porte pas, et c'est délibéré
+///
+/// **Aucun `Status`.** La garde vit dans le pipeline : une chuqqah en brouillon
+/// n'entre jamais dans `dist/chuqqot.json` — décision de l'auteur du 9 septembre
+/// 2026, parce qu'un énoncé permanent « en attente de validation » se contredit
+/// lui-même. Un champ qui ne peut prendre qu'une valeur invite à l'autre.
+public struct Chuqqah: Hashable, Sendable, Identifiable {
+    /// Le nom du fichier, slugifié — `les-quatre-modes-de-presence`.
+    ///
+    /// C'est aussi son adresse sur le site, `/fr/chuqqot/{id}` : elle ne se
+    /// renomme pas à la légère.
+    public let id: String
+    /// Le titre, lu de la ligne `# ` du fichier du vault.
+    public let titre: String
+    /// L'ordre de lecture. `chuqqot-0-intro` ouvre la série.
+    ///
+    /// **Un `Int` et non la position dans le tableau.** Le pipeline trie déjà
+    /// ce qu'il émet, et l'app pourrait donc s'en remettre à l'ordre reçu. Elle
+    /// ne le fait pas : un tri qu'on ne peut pas refaire est un tri qu'on ne
+    /// peut pas vérifier, et l'épreuve qui garantit que l'introduction passe
+    /// devant n'aurait plus rien à mesurer.
+    public let rang: Int
+    /// Le corps, en blocs de corpus.
+    ///
+    /// Des `Block`, jamais du markdown : une chuqqah cite `ʿolam`, `kavod`,
+    /// `malʾakh`. C'est le rendu du corpus qui les pose en or et en terre
+    /// brûlée, **touchables**, sans une ligne de code de plus ici.
+    public let blocs: [Block]
+
+    public init(id: String, titre: String, rang: Int, blocs: [Block]) {
+        self.id = id
+        self.titre = titre
+        self.rang = rang
+        self.blocs = blocs
+    }
+}
+
+/// Ce qui donne accès aux chuqqot.
+///
+/// ## Pourquoi un port, et un port qui ne lève pas
+///
+/// Le texte vit dans le vault et se relit comme le reste du corpus ; l'écrire
+/// dans l'app en ferait une seconde source, qui divergerait à la première
+/// correction. C'est la même raison que pour la feuille de prononciation.
+///
+/// **Rien ne lève, et rien n'est optionnel.** Une liste vide est la réponse
+/// normale aujourd'hui — les sept chuqqot écrites sont en brouillon, et la
+/// garde du pipeline les retient. Distinguer « vide » de « absent » par un
+/// `throws` ou un `nil` obligerait chaque appelant à trancher un cas qui ne
+/// change rien à ce qu'il affiche : dans les deux cas, il n'y a rien à lire.
+/// C'est à l'écran de dire *pourquoi* il n'y a rien, et il le dit en toutes
+/// lettres.
+public protocol ChuqqotRepository: Sendable {
+    /// Les chuqqot publiées, **dans l'ordre de lecture**.
+    func chuqqot() -> [Chuqqah]
+}
