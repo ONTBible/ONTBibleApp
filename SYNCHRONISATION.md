@@ -206,7 +206,7 @@ et un oubli coûte une journée.
    sur le distant, et il n'y a plus rien à retenir.
 
 6. **Ne jamais écrire dans la copie de la racine puis diffuser.**
-   `~/ONTBible/SYNCHRONISATION.md` se présente comme la source des quatre, et
+   `~/ONTBible/SYNCHRONISATION.md` se présente comme la source de toutes, et
    c'est la seule que **rien** ne synchronise : la racine n'est pas un dépôt,
    aucun `pull` ne l'atteint, aucune fusion ne la corrige. Elle dérive donc en
    silence, et la recopier dans les dépôts n'y perd rien — elle y **impose un
@@ -233,6 +233,29 @@ et un oubli coûte une journée.
    avant d'y écrire. La parade : `git fetch` puis `git rev-list --left-right
    --count origin/<branche>...HEAD` avant de toucher un arbre qu'on ne vient pas
    de quitter — et `git pull --ff-only` après toute commande `gh` qui écrit.
+
+8. **Le monter sous `~/ONTBible/`, jamais ailleurs.** Le contrôle de concordance
+   du vault — `scripts/concorder-la-synchronisation.py` — **balaie
+   `~/ONTBible/`**. C'est ce qui le rend meilleur qu'une liste en dur : il voit
+   les worktrees, et ils sont un exemplaire de plus chacun. Mesuré le 12
+   septembre : **seize copies de ce fichier** vivent sous ce dossier, dont dix
+   worktrees de l'app.
+
+   Mais son balayage a un bord, et **ce bord est un chemin, pas une propriété du
+   dépôt**. Un worktree monté ailleurs — `/tmp`, un dossier de session, n'importe
+   où hors de `~/ONTBible/` — porte son `SYNCHRONISATION.md` comme les autres et
+   n'apparaît dans aucun relevé. `git worktree list` les montre tous ; le
+   balayage n'en voit qu'une partie. **Les deux outils sont justes et ne mesurent
+   pas le même ensemble.**
+
+   Trouvé le 12 septembre, en en fabriquant trois — dans la soirée même où l'on
+   écrivait qu'un instrument ne voit pas ce qui n'est pas là où il regarde. Le
+   piège est sans douleur : rien ne signale l'exemplaire invisible, et le
+   contrôle annonce une concordance qui ne porte pas sur lui.
+
+   `git worktree add ../ONTBibleApp-<sujet> <branche>` depuis un dépôt met le
+   dossier au bon endroit sans y penser. C'est la forme à employer, et c'est
+   pourquoi l'exemple plus haut est écrit avec `../`.
 
 **Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
 les décisions : deux sessions qui refondent le même module chacune de leur côté
@@ -5208,19 +5231,69 @@ Contrôlé par les titres, jamais par les lignes : 244 avant, 5 apportés, 249
 après, zéro perdu. Un compte de lignes aurait annoncé le même succès sans rien
 prouver.
 
-### Ce que la promotion ne fait pas, contrairement à ce que son nom dit
+### Ce que la promotion déclenche — et la preuve fausse qui disait l'inverse
 
-`app-store` **ne soumet rien à la revue**. Vérifié dans `livraison.yml` avant d'y
-aller, parce que le nom de la branche laisse croire l'inverse :
+**Cette section disait : « `app-store` ne soumet rien à la revue ». C'est faux,
+et la façon dont je l'ai cru vaut plus que la correction.**
+
+`livraison.yml` porte un job `soumettre`, conditionné `if: canal == 'appstore'`,
+qui lance `.github/scripts/soumettre.py`. **Promouvoir vers `app-store` soumet à
+la revue d'Apple.** Le 12 septembre à 02:35, ONT 1.0.6 est partie en
+`WAITING_FOR_REVIEW`.
+
+#### La preuve que j'avais apportée
+
+> « aucun appel à `appStoreVersionSubmissions` dans le fichier »
+
+Vraie, vérifiable, et sans rapport avec ce qu'elle prétendait établir. **Deux
+raisons indépendantes de ne rien trouver :**
+
+1. l'appel n'est pas dans le YAML, mais dans un script Python à côté ;
+2. le script emploie `reviewSubmissions`, **pas** `appStoreVersionSubmissions` —
+   et son en-tête explique en toutes lettres, ligne 21, pourquoi cet endpoint-là
+   et pas l'autre.
+
+Chacune suffisait à vider la sortie du `grep`. Aucune ne disait rien de la
+soumission.
+
+> **Un `grep` qui ne trouve rien mesure son propre motif, pas l'absence de la
+> chose.** Chercher le mauvais nom dans le bon fichier, et le bon nom dans le
+> mauvais fichier, rendent exactement la même sortie vide — et la même
+> impression d'avoir vérifié.
+
+#### Pourquoi elle était plus dangereuse qu'une simple erreur
+
+Elle ne dormait pas dans un coin du journal. Elle a été **écrite dans le corps
+de la PR #293**, portée à trois sessions, et l'une d'elles s'en est servie pour
+confirmer ce qu'elle avait observé de l'extérieur — *« je l'avais constaté au tir
+du cask, ta lecture de `livraison.yml` le prouve de l'intérieur »*.
+
+Sa conclusion était juste pour d'autres raisons ; ma preuve, non. **Conforter
+quelqu'un dans une conclusion juste par une preuve fausse lui retire sa raison de
+continuer à chercher** — c'est un service rendu qui coûte une vérification.
+
+#### Ce qui reste vrai de la section d'origine
+
+Ces trois points-là tiennent, et ils sont vérifiés :
 
 - `refs/heads/app-store` → `CANAL=appstore`, `GROUPE=` vide ;
 - « Rattacher au groupe TestFlight » : `if: groupe != ''` → sautée ;
-- job `distribuer` : `if: canal != 'appstore'` → sauté ;
-- aucun appel à `appStoreVersionSubmissions` dans le fichier.
+- job `distribuer` : `if: canal != 'appstore'` → sauté.
 
-Le build monte sur App Store Connect et s'arrête. La soumission reste un geste
-de l'auteur. Le prix réel du train, c'est **trois places de quota** — et aucune
-n'avait été consommée ce jour-là.
+`app-store` ne distribue donc à **aucun groupe de testeurs** — c'est exact. Mais
+« ne distribue pas aux testeurs » n'est pas « ne soumet pas à Apple » : le
+quatrième job fait précisément ce que les trois premiers ne font pas. J'ai
+conclu d'un ensemble de gardes fermées que la porte suivante n'existait pas.
+
+#### Et l'annulation a tenu, ce qui se vérifie dans le log du second essai
+
+Le job a été coupé 88 secondes après son départ, sans aucune sortie. Une absence
+de sortie ne prouve rien — Python bufférise. Mais le log du **second** essai
+imprime `build 260911.2142 : VALID` *avant* de créer la version : le premier
+était donc encore dans `attendre_le_build`, qui attend cinq à trente minutes
+qu'Apple traite le binaire. **Rien n'avait été créé.**
+
+La preuve n'est pas venue de l'essai qu'on voulait juger, mais du suivant.
 
 ### Le site avait le même défaut, trois fois — et l'a trouvé parce qu'on l'a nommé
 
