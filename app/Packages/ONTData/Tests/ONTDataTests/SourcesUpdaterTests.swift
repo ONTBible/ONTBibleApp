@@ -60,7 +60,7 @@ struct SourcesUpdaterTests {
 
         // La fixture porte aussi six livres à `temoins` vides : leur absence
         // est déclarée, la complétude ne les attend pas.
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
 
         let actif = dossier.appendingPathComponent("actif")
         #expect(
@@ -87,9 +87,9 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
         // La même publication, resservie : l'actif la porte déjà.
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
         _ = dossier
     }
 
@@ -104,7 +104,12 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, abime),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        // Le candidat est jeté, et la cause est nommée — pas un « 0 ».
+        let issue = try await updater.synchroniser()
+        #expect(issue.fichiers == 0)
+        if case .generationIncomplete = issue {} else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+        }
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -115,7 +120,11 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z"))
             // bereshit.json : 404
         ]
-        #expect(try await updater.synchroniser() == 0)
+        let issue = try await updater.synchroniser()
+        #expect(issue.fichiers == 0)
+        if case .generationIncomplete = issue {} else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+        }
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -132,7 +141,10 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, try JSONSerialization.data(withJSONObject: objet)),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        // **Le cas qui était confondu avec le repos.** Un publieur qui
+        // omet `genere` ne livrera jamais rien ; avant, il rendait la
+        // même valeur que « rien n'a changé ».
+        #expect(try await updater.synchroniser() == .dateIndecidable)
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -143,7 +155,7 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -156,11 +168,11 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
 
         ReseauFige.reponses["/sources/manifeste.json"] =
             (200, Self.manifeste(genere: "2026-09-05T00:00:00Z"))
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
         #expect(
             try String(
                 contentsOf: dossier.appendingPathComponent("actif/estampille.txt"),
