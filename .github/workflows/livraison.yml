@@ -122,6 +122,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée** — voir `tests.yml` pour le raisonnement
+          # complet. Sans `ref:`, `actions/checkout` prend la branche par
+          # défaut du dépôt cloné : une dépendance non déclarée, correcte
+          # jusqu'au jour où la valeur par défaut change.
+          #
+          # Ici l'enjeu est plus lourd que pour les épreuves : **c'est le
+          # corpus qui entre dans le binaire livré.** Un vault dont la branche
+          # par défaut bascule changerait ce que les testeurs et Apple
+          # reçoivent, sans qu'aucun fichier de ce dépôt n'ait bougé.
+          ref: main
           path: ONTBibleTranslation
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -519,6 +529,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée** — voir `tests.yml` pour le raisonnement
+          # complet. Sans `ref:`, `actions/checkout` prend la branche par
+          # défaut du dépôt cloné : une dépendance non déclarée, correcte
+          # jusqu'au jour où la valeur par défaut change.
+          #
+          # Ici l'enjeu est plus lourd que pour les épreuves : **c'est le
+          # corpus qui entre dans le binaire livré.** Un vault dont la branche
+          # par défaut bascule changerait ce que les testeurs et Apple
+          # reçoivent, sans qu'aucun fichier de ce dépôt n'ait bougé.
+          ref: main
           path: ONTBibleTranslation
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
