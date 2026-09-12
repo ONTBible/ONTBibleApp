@@ -5325,3 +5325,40 @@ résultat arrivé, une fin de fichier : à chaque fois, l'instrument a pris ce q
 se présentait pour ce qu'on lui demandait. Trois formes différentes, le même
 défaut — *mesurer un objet en croyant en mesurer un autre*, pour la neuvième
 fois de la journée.
+## 11 septembre 2026 — SourcesUpdater : la génération entière ou rien
+
+La mise à jour à distance des langues sources existe — `SourcesUpdater`, dans
+ONTData, à côté du `CorpusUpdater` dont elle ne reprend **pas** le modèle. Le
+corpus se remplace fichier par fichier, choix assumé chez lui ; les sources
+basculent **par génération entière** :
+
+> Une génération = un dossier = une estampille. Le bundle est le plancher :
+> sous le plancher on purge, on ne fusionne jamais.
+
+Tout ce que le manifeste annonce se télécharge dans un candidat, chaque
+fichier se prouve par son empreinte **pleine, sur les octets reçus** (A09),
+l'estampille s'écrit en dernier, la bascule est un seul geste (A08). Un livre
+à `temoins` vide est complet par déclaration. Dix épreuves, chaque chemin de
+refus prouvé capable de refuser — et le contrôle retourné contre un code
+mutilé pour le voir rougir avant d'y croire.
+
+### Le contrat, arrêté à trois dépôts dans la même soirée
+
+- **le pipeline** (#286, iOS) émet `genere` dans le manifeste des sources —
+  la date du dernier commit du vault, la même valeur au caractère près que le
+  `generatedAt` du corpus du même passage. Jamais un `now()` ;
+- **le site** écrira le publieur des sources sous `/sources/` : manifeste du
+  pipeline transformé dans une seule dimension — les `chemin`, renommés au
+  préfixe du `sha256` déclaré pour le cache immuable — et dans aucune autre.
+  Une seule empreinte dans toute la chaîne : le nom publié en est une tranche,
+  le champ `sha256` reste pleine et seule autorité, et le publieur recalcule
+  avant de publier ce que la liseuse recalcule après avoir reçu ;
+- **les liseuses** suivent le manifeste aveuglément — c'est ce qui rend le
+  renommage invisible pour elles. Android a les mêmes consignes pour son
+  updater : même invariant de génération, mêmes gardes, mêmes refus.
+
+La fixture des épreuves est le fichier **émis par le pipeline d'après #284 et
+#286** — la première copie datait d'un build antérieur et validait une forme
+que le pipeline n'émettait plus ; c'est la session iOS qui l'a vu, en
+comparant deux nombres. Cinquième forme du motif du jour : la mesure exacte
+sur l'objet qui n'est pas le bon.
