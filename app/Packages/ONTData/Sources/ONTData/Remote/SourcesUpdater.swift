@@ -49,6 +49,75 @@ public actor SourcesUpdater {
     /// La version du manifeste des sources que ce code sait lire.
     static let schema = 1
 
+    /// Ce que la synchronisation a fait — ou **pourquoi elle ne l'a pas fait**.
+    ///
+    /// ## Pourquoi un type et non un compte
+    ///
+    /// Cette méthode rendait un `Int` : le nombre de fichiers installés, et
+    /// `0` sinon. Quatre chemins sortaient par ce `0` — pas de manifeste, rien
+    /// de plus récent, génération incomplète, bascule refusée — et le
+    /// deuxième est le **cas normal**. Un appelant ne pouvait donc pas
+    /// distinguer « tout va bien, rien à faire » de « ça échoue à chaque tour
+    /// depuis trois semaines ».
+    ///
+    /// Les gardes étaient justes et éprouvées ; c'est leur **rapport** qui
+    /// était muet. On avait mesuré que le refus se produit, jamais qu'il se
+    /// fasse entendre.
+    ///
+    /// > **Une garde qui refuse sans le dire est un gel programmé.**
+    ///
+    /// Relevé le 12 septembre 2026 par la session du site, en déroulant les
+    /// conséquences d'un cache long sur des noms de fichiers fixes : le
+    /// manifeste neuf et un fichier servi depuis le cache du bord se
+    /// désaccordent, l'empreinte le détecte, le candidat entier est jeté — et
+    /// la seule trace est que rien n'arrive jamais. Le cache a été corrigé
+    /// chez eux ; ce silence-ci restait, et il vaut pour **toutes** les causes,
+    /// pas seulement celle-là.
+    ///
+    /// `Ne jette toujours pas sur une panne de réseau` — c'était juste, et ça
+    /// n'impliquait pas de rendre le refus indistinguable du repos.
+    public enum Resultat: Sendable, Equatable {
+        /// Une génération entière est installée et active.
+        case installee(fichiers: Int)
+        /// Le publié n'est pas plus récent que ce qu'on a. **Le cas normal.**
+        case rienDeNeuf
+        /// Pas de manifeste lisible à l'adresse publiée — réseau, 404, JSON
+        /// illisible. Sans gravité une fois ; répété, c'est une publication
+        /// qui n'a jamais eu lieu.
+        case manifesteInjoignable
+        /// Le manifeste n'a pas de `genere` exploitable. Un manifeste sans
+        /// date n'est pas plus vieux : il est **indécidable**, donc refusé.
+        /// Répété, c'est un publieur qui omet le champ — et rien d'autre ne le
+        /// dira.
+        case dateIndecidable
+        /// Un fichier annoncé n'est pas arrivé, ou n'a pas prouvé son
+        /// empreinte ou sa taille. Porte de quoi chercher.
+        case generationIncomplete(motif: String)
+        /// Tout était prêt, la bascule a échoué — disque plein, permissions.
+        case basculeRefusee(motif: String)
+
+        /// Le nombre de fichiers installés, `0` pour tout le reste.
+        ///
+        /// Conservé pour les appelants qui ne veulent que ça — mais il
+        /// **n'est plus le seul retour**, et c'est tout l'objet de ce type.
+        public var fichiers: Int {
+            if case .installee(let n) = self { return n }
+            return 0
+        }
+
+        /// Vrai quand rien n'a été installé **et que ce n'est pas normal**.
+        ///
+        /// `rienDeNeuf` n'en est pas : c'est la réponse attendue la plupart du
+        /// temps. Les quatre autres méritent une trace.
+        public var estUnRefus: Bool {
+            switch self {
+            case .installee, .rienDeNeuf: return false
+            case .manifesteInjoignable, .dateIndecidable,
+                .generationIncomplete, .basculeRefusee: return true
+            }
+        }
+    }
+
     public enum Failure: LocalizedError {
         case unsupportedSchema(Int)
 
@@ -115,15 +184,18 @@ public actor SourcesUpdater {
 
     /// Va chercher la génération publiée si elle est plus récente, et bascule.
     ///
-    /// Rend le nombre de fichiers de la génération installée, `0` quand rien
-    /// n'a changé — le cas le plus fréquent, au prix d'une requête.
+    /// Rend une `Issue` qui **nomme** ce qui s'est passé — installée, rien de
+    /// neuf, ou l'une des quatre raisons de n'avoir rien installé. Voir
+    /// `Resultat` pour pourquoi ce n'est plus un simple compte.
     ///
     /// **Ne jette pas sur une panne de réseau.** Une mise à jour est un
     /// agrément, pas une condition : la liseuse lit ce qu'elle a. Seul un
     /// manifeste d'une version inconnue remonte — il dit quelque chose.
     @discardableResult
-    public func synchroniser() async throws -> Int {
-        guard let (manifeste, octetsDuManifeste) = try await manifestePublie() else { return 0 }
+    public func synchroniser() async throws -> Resultat {
+        guard let (manifeste, octetsDuManifeste) = try await manifestePublie() else {
+            return .manifesteInjoignable
+        }
         guard manifeste.schema == Self.schema else {
             throw Failure.unsupportedSchema(manifeste.schema)
         }
@@ -140,7 +212,17 @@ public actor SourcesUpdater {
             let plancher,
             publiee > plancher,
             estampilleActive.map({ publiee > $0 }) ?? true
-        else { return 0 }
+        else {
+            // **Deux causes distinctes sous une même garde, et elles ne disent
+            // pas la même chose.** Une date absente ou illisible est un défaut
+            // du publieur ; une date plus vieille est le repos. Les séparer ici
+            // plutôt qu'éclater la garde : son enchaînement est ce qui la rend
+            // lisible.
+            guard let genere = manifeste.genere,
+                CorpusUpdater.Estampille(genere) != nil
+            else { return .dateIndecidable }
+            return .rienDeNeuf
+        }
 
         // **La génération entière, dans un dossier candidat.** Chaque fichier
         // que le manifeste annonce doit arriver et se prouver ; un seul échec
@@ -168,7 +250,7 @@ public actor SourcesUpdater {
                 to: candidat.appendingPathComponent("estampille.txt"),
                 atomically: true, encoding: .utf8)
         } catch {
-            return 0
+            return .generationIncomplete(motif: String(describing: error))
         }
 
         // **La bascule, d'un seul geste.** `replaceItemAt` échange les deux
@@ -181,9 +263,9 @@ public actor SourcesUpdater {
                 try FileManager.default.moveItem(at: candidat, to: actif)
             }
         } catch {
-            return 0
+            return .basculeRefusee(motif: String(describing: error))
         }
-        return annonces.count
+        return .installee(fichiers: annonces.count)
     }
 
     /// **Écarte la génération du disque quand le bundle est plus récent.**
