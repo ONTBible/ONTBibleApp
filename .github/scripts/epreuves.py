@@ -186,6 +186,22 @@ class LeChoixDUneVersionDeLaFiche(unittest.TestCase):
             "appStoreVersions": {"data": versions},
             "appStoreReviewDetail": {"data": {"id": "d-1",
                                               "attributes": {"notes": "déjà écrites"}}},
+            # **Une capture, pour franchir la garde du 12 septembre 2026.**
+            #
+            # Ces quatre épreuves ont rougi quand elle a été posée : leur faux
+            # client ne portait aucune capture, la garde arrêtait donc `main`
+            # avant le choix de version — ce qu'elles mesurent.
+            #
+            # Le signe est bon : une garde neuve qui fait rougir les épreuves
+            # d'avant mord quelque part. Mais elles n'éprouvent pas les
+            # captures, donc on leur en donne une et on ne touche pas à ce
+            # qu'elles disent. `LesCapturesAvantDeSoumettre` s'en charge à part.
+            "appStoreVersionLocalizations": {
+                "data": [{"id": "loc-1",
+                          "attributes": {"locale": "fr-FR",
+                                         "whatsNew": "déjà écrites"}}]},
+            "appScreenshotSets": {"data": [{"id": "jeu-1"}]},
+            "appScreenshots": {"data": [{"id": "cap-1"}]},
         })
         soumettre.Client = lambda: client
         soumettre.application = lambda c: "app-1"
@@ -237,6 +253,53 @@ class LeChoixDUneVersionDeLaFiche(unittest.TestCase):
         self.assertIn("version 1.0.5 reprise", texte)
         self.assertFalse([c for c, _ in client.envois if c == "appStoreVersions"],
                          "aucune version ne devrait être créée en double")
+
+
+class LesCapturesAvantDeSoumettre(unittest.TestCase):
+    """`compter_les_captures` — poser la question avant de dépenser.
+
+    Apple refuse une version sans captures, **et le refus arrive au bout** :
+    compilation, signature, téléversement, puis le dernier appel casse. Même
+    forme que le numéro déjà approuvé, donc même remède — demander d'abord.
+
+    Le cas s'est ouvert le 12 septembre 2026 en ajoutant macOS à la matrice de
+    soumission : iOS avait ses captures depuis longtemps, la plateforme neuve
+    pouvait n'en avoir aucune, et seule la revue l'aurait dit.
+    """
+
+    def _client(self, captures_par_jeu):
+        """Une fiche d'une langue, un jeu, et autant de captures qu'on veut."""
+        return FauxClient({
+            "appStoreVersions/v-1/appStoreVersionLocalizations": {
+                "data": [{"id": "loc-1", "attributes": {"locale": "fr-FR"}}]},
+            "appStoreVersionLocalizations/loc-1/appScreenshotSets": {
+                "data": [{"id": "jeu-1"}]},
+            "appScreenshotSets/jeu-1/appScreenshots": {
+                "data": [{"id": f"cap-{i}"} for i in range(captures_par_jeu)]},
+        })
+
+    def test_une_fiche_garnie_laisse_passer(self):
+        self.assertEqual(soumettre.compter_les_captures(self._client(4), "v-1"), 4)
+
+    def test_une_fiche_vide_rend_zero_et_non_none(self):
+        """**Zéro et « non mesurable » ne disent pas la même chose**, et tout
+        l'intérêt de la garde est là : un jeu présent mais vide est un défaut de
+        la fiche ; une question sans réponse est un défaut de transport. Les
+        confondre ferait soit bloquer une soumission valide, soit laisser
+        passer celle qu'Apple refusera."""
+        self.assertEqual(soumettre.compter_les_captures(self._client(0), "v-1"), 0)
+
+    def test_une_panne_rend_none_et_ne_bloque_pas(self):
+        class Casse:
+            def get(self, *a, **k):
+                raise RuntimeError("502 depuis le bord")
+
+        self.assertIsNone(soumettre.compter_les_captures(Casse(), "v-1"))
+
+    def test_aucune_localisation_rend_zero(self):
+        """Une version sans localisation n'a pas de captures non plus — et ce
+        n'est pas une panne : l'API a répondu, elle a répondu vide."""
+        self.assertEqual(soumettre.compter_les_captures(FauxClient(), "v-1"), 0)
 
 
 class LaFicheDesMagasins(unittest.TestCase):
