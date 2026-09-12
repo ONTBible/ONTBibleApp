@@ -69,6 +69,29 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée, et ce n'est pas cosmétique.**
+          #
+          # Sans `ref:`, `actions/checkout` prend la branche par défaut du
+          # dépôt cloné. C'était déjà `main` ici, donc rien ne change
+          # aujourd'hui — et c'est précisément ce qui rendait le défaut
+          # invisible : le comportement reste correct tant que la valeur par
+          # défaut l'est, et bascule le jour où elle change, sans qu'une ligne
+          # de ce fichier ne bouge.
+          #
+          # Une valeur par défaut implicite est une dépendance non déclarée.
+          #
+          # Le 11 septembre 2026, le vault avait le symétrique : son
+          # `eprouver.yml` clonait ce dépôt sans `ref:`, prenait donc
+          # `app-store` — restée au 7 septembre —, et jugeait le vault avec un
+          # pipeline de deux paliers en arrière. Il a fallu promouvoir les
+          # quatre paliers pour le débloquer. Le site a trouvé le même défaut
+          # trois fois chez lui le soir même.
+          #
+          # `main`, parce que l'app s'éprouve contre le vault **publié** — pas
+          # contre celui qu'on est en train d'écrire. C'est le symétrique exact
+          # du `ref: app-store` que le vault a posé de son côté : chacun juge
+          # l'autre sur ce qui est livré.
+          ref: main
           path: ONTBibleTranslation
 
       # ## Les scripts de livraison, que rien n'éprouvait
@@ -482,6 +505,29 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée, et ce n'est pas cosmétique.**
+          #
+          # Sans `ref:`, `actions/checkout` prend la branche par défaut du
+          # dépôt cloné. C'était déjà `main` ici, donc rien ne change
+          # aujourd'hui — et c'est précisément ce qui rendait le défaut
+          # invisible : le comportement reste correct tant que la valeur par
+          # défaut l'est, et bascule le jour où elle change, sans qu'une ligne
+          # de ce fichier ne bouge.
+          #
+          # Une valeur par défaut implicite est une dépendance non déclarée.
+          #
+          # Le 11 septembre 2026, le vault avait le symétrique : son
+          # `eprouver.yml` clonait ce dépôt sans `ref:`, prenait donc
+          # `app-store` — restée au 7 septembre —, et jugeait le vault avec un
+          # pipeline de deux paliers en arrière. Il a fallu promouvoir les
+          # quatre paliers pour le débloquer. Le site a trouvé le même défaut
+          # trois fois chez lui le soir même.
+          #
+          # `main`, parce que l'app s'éprouve contre le vault **publié** — pas
+          # contre celui qu'on est en train d'écrire. C'est le symétrique exact
+          # du `ref: app-store` que le vault a posé de son côté : chacun juge
+          # l'autre sur ce qui est livré.
+          ref: main
           path: ONTBibleTranslation
 
       - name: Java
