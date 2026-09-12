@@ -206,7 +206,7 @@ et un oubli coûte une journée.
    sur le distant, et il n'y a plus rien à retenir.
 
 6. **Ne jamais écrire dans la copie de la racine puis diffuser.**
-   `~/ONTBible/SYNCHRONISATION.md` se présente comme la source des quatre, et
+   `~/ONTBible/SYNCHRONISATION.md` se présente comme la source de toutes, et
    c'est la seule que **rien** ne synchronise : la racine n'est pas un dépôt,
    aucun `pull` ne l'atteint, aucune fusion ne la corrige. Elle dérive donc en
    silence, et la recopier dans les dépôts n'y perd rien — elle y **impose un
@@ -233,6 +233,29 @@ et un oubli coûte une journée.
    avant d'y écrire. La parade : `git fetch` puis `git rev-list --left-right
    --count origin/<branche>...HEAD` avant de toucher un arbre qu'on ne vient pas
    de quitter — et `git pull --ff-only` après toute commande `gh` qui écrit.
+
+8. **Le monter sous `~/ONTBible/`, jamais ailleurs.** Le contrôle de concordance
+   du vault — `scripts/concorder-la-synchronisation.py` — **balaie
+   `~/ONTBible/`**. C'est ce qui le rend meilleur qu'une liste en dur : il voit
+   les worktrees, et ils sont un exemplaire de plus chacun. Mesuré le 12
+   septembre : **seize copies de ce fichier** vivent sous ce dossier, dont dix
+   worktrees de l'app.
+
+   Mais son balayage a un bord, et **ce bord est un chemin, pas une propriété du
+   dépôt**. Un worktree monté ailleurs — `/tmp`, un dossier de session, n'importe
+   où hors de `~/ONTBible/` — porte son `SYNCHRONISATION.md` comme les autres et
+   n'apparaît dans aucun relevé. `git worktree list` les montre tous ; le
+   balayage n'en voit qu'une partie. **Les deux outils sont justes et ne mesurent
+   pas le même ensemble.**
+
+   Trouvé le 12 septembre, en en fabriquant trois — dans la soirée même où l'on
+   écrivait qu'un instrument ne voit pas ce qui n'est pas là où il regarde. Le
+   piège est sans douleur : rien ne signale l'exemplaire invisible, et le
+   contrôle annonce une concordance qui ne porte pas sur lui.
+
+   `git worktree add ../ONTBibleApp-<sujet> <branche>` depuis un dépôt met le
+   dossier au bon endroit sans y penser. C'est la forme à employer, et c'est
+   pourquoi l'exemple plus haut est écrit avec `../`.
 
 **Ce que ça ne remplace pas.** Se parler. Le worktree protège les fichiers, pas
 les décisions : deux sessions qui refondent le même module chacune de leur côté
@@ -3873,6 +3896,128 @@ la télémétrie sait filtrer* — en inventer un, c'est le publier.
 côté Sentry (l'accès outillé a expiré, le jeton local n'est qu'un jeton CI),
 et faire tourner le secret si l'exposition se confirme.
 
+---
+
+### 8 septembre 2026 — une règle que son porteur viole n'est pas violée, elle a un périmètre non écrit
+
+Le §2.5 du `CLAUDE.md` du vault interdit le gras d'insistance « partout, y
+compris dans les feuilles d'introduction et les notes ». Relevé du jour : le
+document qui porte la règle l'employait **337 fois**, et ==trois fois dans la
+phrase même de l'interdit== — dont une sur le mot « accentuation », dans la
+clause qui renvoie à `==…==`.
+
+**Ce n'est pas de l'étourderie, et c'est ce qu'il faut voir.** Une règle qu'on
+enfreint à chaque page depuis toujours, sans que personne ne le remarque, n'est
+pas une règle enfreinte : c'est une règle dont ==le périmètre n'a jamais été
+écrit==. Elle ne se compare à rien, donc elle ne peut pas diverger visiblement.
+C'est exactement la forme que le §2.9 du vault avait déjà nommée pour les
+translittérations.
+
+**Le périmètre est celui de la raison d'être de l'interdit**, et cette raison est
+mécanique : Affinity applique son style au copier-coller, l'app affiche le mot en
+or et le rend touchable. ==Un fichier qui ne passe ni dans l'un ni dans l'autre
+ne peut produire ni l'un ni l'autre.== La règle vaut donc pour ce qui est
+distribué — corps, gloses, notes, feuilles d'introduction, fiches de `lexique/` —
+et non pour les documents de travail des dépôts, ce journal compris.
+
+**L'exception est le vrai critère, et il ne porte pas sur le fichier :**
+==ce qui compte est ce qui fabrique un lemme==. Les entrées de glossaire sont
+lues par le pipeline et émises vers `dist/`.
+
+#### Ce qui vaut pour les trois dépôts : la règle a été écrite d'après une mesure
+
+J'allais écrire « les puces du §2.5 **et** les cases du §3 fabriquent des
+lemmes », par lecture du code. Deux témoins plantés, un dans chaque, puis une
+construction :
+
+    dans une puce du §2.5   → devient un lemme, signalé en lien mort
+    dans une case du §3     → rien
+
+Le §2.5 a la préséance sur le §3 pour la définition, et le terme témoin avait
+déjà sa puce : sa case n'était pas lue. ==Le §3 ne mord donc que pour les termes
+sans puce au §2.5.== La règle écrite dit ce que le code fait, non ce qu'il a
+l'air de faire.
+
+**Et la moitié qu'on oublie a deux moitiés.** Retirer les témoins, oui. Mais
+==avoir copié le fichier avant de les planter== est ce qui a rendu le retrait
+vérifiable : le compte est revenu à 235, c'est-à-dire exactement l'état d'avant.
+Sans la copie, il aurait fallu croire qu'on avait bien remis les choses.
+
+#### Une catégorie de plus pour « vérifier ce qu'un pair affirme »
+
+La session Android a corrigé une erreur que j'allais porter à l'auteur. J'avais
+écrit « la CI de `dev` est rouge », déduit d'un compte exact — 235 liens morts
+pour un plafond de 224. Ses trois dernières exécutions étaient ==vertes== : la CI
+tire le vault au moment où elle tourne, et n'avait pas encore vu le travail du
+jour.
+
+C'est une **prémisse périmée** et non fausse — la distinction est déjà dans le
+skill `concerter-les-sessions`, avec les deux autres.
+
+**Et il faut dire comment cette entrée a rétréci avant d'être portée**, parce que
+c'est le meilleur du fil. Je l'avais d'abord écrite ainsi : *la donnée était
+exacte et datée, et rien dans sa forme ne portait sa date*. La session Android a
+rouvert le skill et m'a montré qu'il porte déjà l'exemple qui la contredit :
+
+    « 0 par `git grep -F` sur `origin/android-suite` @ `d120907` »
+
+Ce `@ d120907` ==date le relevé== : un SHA fixe un état. Pour tout ce qui se
+mesure sur git, la règle existante suffit, et ma formulation ne faisait que la
+redire — ==une règle qui en redit une autre les affaiblit toutes les deux==.
+
+**Ce qui reste, et qui est neuf, est plus étroit :**
+
+> ==Une mesure qui n'est pas une mesure git n'a aucun SHA à donner.==
+
+« 235 liens morts pour un plafond de 224 » ne se rattache à rien qui le date.
+« La CI est verte » non plus, ni une taille de disque, ni un temps de
+construction. Ce sont ==celles-là== qui périment en silence, parce que la règle
+de l'outil et de la référence ne leur donne aucune prise. Elles doivent porter
+==ce sur quoi elles ont été prises et quand== — pour un compte de pipeline, la
+révision du vault qu'il a lue ; pour un état de CI, l'exécution nommée.
+
+Et le fait que l'entrée ait rétréci ==avant== d'être portée dans les trois dépôts
+est le seul mérite du procédé : une formulation trop large, portée trois fois,
+aurait été trois fois plus longue à défaire.
+
+#### Annoncer le geste ne suffit pas — il faut annoncer le contenu
+
+Constat de la session Android, sur cette entrée même. Le skill
+`concerter-les-sessions` demande d'annoncer ==avant== de toucher à ce qui est
+partagé. Il ne demande pas d'annoncer ==quoi==.
+
+La différence est entière pour celui qui reçoit :
+
+> Une annonce qui dit seulement le geste le laisse choisir entre faire confiance
+> et tout relire. Une annonce qui dit le contenu lui permet de vérifier ==la
+> partie qui le concerne==, et rien d'autre.
+
+Éprouvé ici : l'annonce portait les deux points mécaniques qui engageaient
+l'app, et la session Android les a ==vérifiés dans son code== au lieu de les
+découvrir dans un diff. Les deux ont tenu, et sa vérification vaut mieux que mon
+affirmation :
+
+- son nœud est `data class Shem(val value: String, val lemma: String)` — il ne
+  porte ==aucun genre==. La distinction identité / fonction vit dans la fiche,
+  jamais dans le nœud, donc le rendu ==ne peut pas diverger par construction==.
+  C'est plus solide qu'une décision de ne rien changer : il n'y a rien à changer ;
+- si la canonisation de `kelim` ratait, l'app ne casse pas — elle affiche que le
+  terme est balisé sans avoir encore d'entrée. ==Visible sans être grave==, ce
+  qui est la bonne façon d'échouer.
+
+#### Ce que le vault a décidé d'autre, et qui traverse
+
+- **La couche des Shemot distingue un `Shem` d'identité d'un `Shem` de
+  fonction.** Le critère est le surplus : un **navi** excède sa mission, un
+  **mal'akh** ==est== sa mission sans reste. ==La marque ne bouge pas== — l'app
+  et le site gardent la terre brûlée et la zone touchable, l'espace chaud étant
+  saturé sous ΔE 25. C'est la ==fiche== qui déclare qu'elle nomme une charge et
+  non une personne. Rien à faire côté rendu.
+- **`kli` / `Kli` / `kelim` devient intraduisible**, avec sa fiche. Il arrive par
+  le pipeline comme les autres. ==Attention au dérivé== : `kelim` retombe sur le
+  lemme `kli`, et c'est la canonisation à l'émission qui le rabat — sans elle il
+  paraît en lien mort, ce qu'il fait aujourd'hui quatre fois sur `dev`.
+
 ## 8 septembre 2026 — le niveau 3 devient touchable, et le champ qui le porte traverse les trois
 
 Le lecteur lit `(*chesed* / חֶסֶד)`, il est dessus, c'est exactement le moment où
@@ -4982,3 +5127,311 @@ session iOS le prend, dans le même lot que sa jointure par `forms`.
 l'app : le jour où `glossary.json` porte une Source, il la recevra sans qu'on l'ait
 prévenu. C'est la même remarque que le 10 septembre sur `prononciation.json`, et
 elle vaut deux jours de suite.
+
+---
+
+## 11 septembre 2026, la nuit — une CI qui ne dit pas quelle branche elle juge
+
+La chaîne `device → dev → beta-test → app-store` a été promue en entier. La
+demande ne venait pas d'Apple : elle venait du **vault**, et ce qui l'a rendue
+nécessaire ne se voyait depuis aucun des deux dépôts.
+
+### Le checkout qui choisit sa branche tout seul
+
+`eprouver.yml` du vault récupère le pipeline de l'app pour mesurer ses propres
+fiches :
+
+```yaml
+- uses: actions/checkout@…
+  with:
+    repository: ONTBible/ONTBibleApp
+    # ← pas de `ref:`
+```
+
+Sans `ref:`, `actions/checkout` prend la **branche par défaut du dépôt**. Pour
+`ONTBibleApp`, c'est `app-store` — la plus ancienne de la chaîne, celle que
+personne ne regarde entre deux revues d'Apple.
+
+Le vault croyait donc éprouver « le pipeline de l'app ». Il éprouvait une photo
+du 7 septembre.
+
+| branche | `PLAFOND_LIENS_MORTS` | lit `## Source` |
+|---|---|---|
+| `app-store` *(défaut)* | 224 | non |
+| `beta-test` | 224 | non |
+| `dev` | 0 | non |
+| `device` | 0 | oui |
+
+La PR du vault qui apporte 244 fiches `## Source` rougissait sur un plafond
+corrigé depuis des jours. **Aucun des deux dépôts ne pouvait le voir depuis chez
+lui** : le vault lisait un nombre juste calculé par un code périmé, l'app avait
+un code juste que personne n'interrogeait.
+
+### Ce qu'une ligne absente coûte de plus qu'une ligne fausse
+
+Une `ref:` fausse se corrige au premier échec — on lit le nom, on voit qu'il est
+faux. Une `ref:` **absente** ne se lit nulle part : le comportement est correct
+tant que la branche par défaut l'est, et bascule sans qu'une ligne du workflow
+ne bouge. Le défaut est dans la *configuration du dépôt*, pas dans le fichier
+qu'on relit.
+
+**Une valeur par défaut implicite est une dépendance non déclarée.** La
+promotion la satisfait aujourd'hui ; elle ne la déclare pas. Le correctif reste
+à faire côté vault — épingler la référence explicitement, **même sur
+`app-store`**.
+
+### La garde de concurrence qui ne pouvait pas garder
+
+Relevé en chemin, sur `tests.yml` de l'app :
+
+```yaml
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+Un `push` sur `device` porte `refs/heads/device` ; la `pull_request` du même
+commit porte `refs/pull/289/merge`. **Deux refs, deux groupes, aucun n'annule
+l'autre** — la garde existe, elle est écrite, elle ne peut pas s'appliquer.
+
+Mais elle n'est pas *inutile* pour autant, et c'est ce qui la sauve : les deux
+runs ne testent pas la même chose. Le `push` éprouve `device` seul, la
+`pull_request` éprouve **le résultat de la fusion**. Les fusionner en un seul
+groupe supprimerait le second, qui est le seul des deux qui réponde à la
+question posée.
+
+**Ce n'est donc pas un doublon à supprimer, c'est un nom de groupe à corriger**
+— et la distinction ne se voit qu'en lisant ce que chaque run mesure.
+
+### Le filtre qui n'a vu que la bonne nouvelle
+
+Le moniteur armé sur ces contrôles a annoncé « `tests` : pass » alors que la PR
+restait bloquée. Il filtrait les états non-*pending* : deux runs portaient le nom
+`tests`, l'un vert, l'autre encore en cours. Il a vu le vert et ignoré le reste.
+
+**Un filtre qui ne retient que les états terminaux annonce le succès du premier
+arrivé.** Le contrôle correct n'est pas « existe-t-il un vert », c'est « ne
+reste-t-il aucun *pending* ».
+
+C'est la même faute que celle qu'on venait de diagnostiquer, commise par
+l'instrument qui servait à la diagnostiquer.
+
+### Le journal a failli se faire écraser par la fin de son propre fichier
+
+La PR #243 portait l'entrée du 8 septembre et n'avait jamais pu fusionner : elle
+visait `dev`, les deux côtés ajoutaient en fin de fichier, et le conflit
+s'aggravait à chaque entrée. Reprise en #291, depuis `device`.
+
+**Le réflexe — ajouter au bout — aurait été faux.** Le journal est chronologique
+croissant ; la fin du fichier, c'était le 11. Le 8 serait arrivé après le 11, et
+se serait relu comme un journal sans en être un : on aurait lu *l'ordre des
+fusions* en croyant lire *l'ordre des jours*.
+
+Contrôlé par les titres, jamais par les lignes : 244 avant, 5 apportés, 249
+après, zéro perdu. Un compte de lignes aurait annoncé le même succès sans rien
+prouver.
+
+### Ce que la promotion déclenche — et la preuve fausse qui disait l'inverse
+
+**Cette section disait : « `app-store` ne soumet rien à la revue ». C'est faux,
+et la façon dont je l'ai cru vaut plus que la correction.**
+
+`livraison.yml` porte un job `soumettre`, conditionné `if: canal == 'appstore'`,
+qui lance `.github/scripts/soumettre.py`. **Promouvoir vers `app-store` soumet à
+la revue d'Apple.** Le 12 septembre à 02:35, ONT 1.0.6 est partie en
+`WAITING_FOR_REVIEW`.
+
+#### La preuve que j'avais apportée
+
+> « aucun appel à `appStoreVersionSubmissions` dans le fichier »
+
+Vraie, vérifiable, et sans rapport avec ce qu'elle prétendait établir. **Deux
+raisons indépendantes de ne rien trouver :**
+
+1. l'appel n'est pas dans le YAML, mais dans un script Python à côté ;
+2. le script emploie `reviewSubmissions`, **pas** `appStoreVersionSubmissions` —
+   et son en-tête explique en toutes lettres, ligne 21, pourquoi cet endpoint-là
+   et pas l'autre.
+
+Chacune suffisait à vider la sortie du `grep`. Aucune ne disait rien de la
+soumission.
+
+> **Un `grep` qui ne trouve rien mesure son propre motif, pas l'absence de la
+> chose.** Chercher le mauvais nom dans le bon fichier, et le bon nom dans le
+> mauvais fichier, rendent exactement la même sortie vide — et la même
+> impression d'avoir vérifié.
+
+#### Pourquoi elle était plus dangereuse qu'une simple erreur
+
+Elle ne dormait pas dans un coin du journal. Elle a été **écrite dans le corps
+de la PR #293**, portée à trois sessions, et l'une d'elles s'en est servie pour
+confirmer ce qu'elle avait observé de l'extérieur — *« je l'avais constaté au tir
+du cask, ta lecture de `livraison.yml` le prouve de l'intérieur »*.
+
+Sa conclusion était juste pour d'autres raisons ; ma preuve, non. **Conforter
+quelqu'un dans une conclusion juste par une preuve fausse lui retire sa raison de
+continuer à chercher** — c'est un service rendu qui coûte une vérification.
+
+#### Ce qui reste vrai de la section d'origine
+
+Ces trois points-là tiennent, et ils sont vérifiés :
+
+- `refs/heads/app-store` → `CANAL=appstore`, `GROUPE=` vide ;
+- « Rattacher au groupe TestFlight » : `if: groupe != ''` → sautée ;
+- job `distribuer` : `if: canal != 'appstore'` → sauté.
+
+`app-store` ne distribue donc à **aucun groupe de testeurs** — c'est exact. Mais
+« ne distribue pas aux testeurs » n'est pas « ne soumet pas à Apple » : le
+quatrième job fait précisément ce que les trois premiers ne font pas. J'ai
+conclu d'un ensemble de gardes fermées que la porte suivante n'existait pas.
+
+#### Et l'annulation a tenu, ce qui se vérifie dans le log du second essai
+
+Le job a été coupé 88 secondes après son départ, sans aucune sortie. Une absence
+de sortie ne prouve rien — Python bufférise. Mais le log du **second** essai
+imprime `build 260911.2142 : VALID` *avant* de créer la version : le premier
+était donc encore dans `attendre_le_build`, qui attend cinq à trente minutes
+qu'Apple traite le binaire. **Rien n'avait été créé.**
+
+La preuve n'est pas venue de l'essai qu'on voulait juger, mais du suivant.
+
+### Le site avait le même défaut, trois fois — et l'a trouvé parce qu'on l'a nommé
+
+Prévenu, le site a relevé tous les `checkout` de ses workflows :
+
+| dépôt cloné | ce que ses workflows demandaient |
+|---|---|
+| `ONTBibleApp` | `ref: dev` — explicite, dans les trois |
+| `ONTBibleTranslation` | **rien**, dans les trois |
+
+`deployer.yml`, `eprouver.yml`, `veiller.yml`. Le site construisait donc depuis
+la bonne branche du vault — mais **par chance**, via une valeur qui vit chez
+GitHub et pas dans ses fichiers. Corrigé chez eux, sans qu'aucun comportement ne
+change aujourd'hui.
+
+La nuance qu'ils relèvent vaut d'être gardée : leurs `checkout` de *notre* dépôt
+ont échappé au piège parce que quelqu'un avait écrit `ref: dev` — **pas parce
+que la règle était connue**. Sans cette ligne, le site se construisait depuis
+`app-store`, deux paliers en arrière, et aucune de leurs gardes ne pouvait le
+voir : elles mesurent toutes ce que le pipeline *produit*, jamais *lequel*.
+
+### Et la même journée leur avait déjà appris la version haute
+
+Ils ont publié un correctif qui confondait `dist/manifest.json` et
+`corpus/manifeste.json`. Il compilait, onze chemins l'éprouvaient, la CI était
+verte — et il aurait fait refuser le corpus par **toutes** les liseuses
+installées. Ce n'est pas leur relecture qui l'a arrêté, c'est la lecture de
+`CorpusUpdater.swift:87`, dans notre dépôt, où le nombre était nommé et justifié
+depuis le début.
+
+> **Un correctif éprouvé n'est pas un correctif juste — il est seulement
+> cohérent avec ce qu'on a cru.**
+
+Et la question qui l'aurait trouvé n'est pas *qu'est-ce que j'écris ?* mais
+**qui lit ce que j'écris ?** Ils modifiaient du Python ; la réponse était dans
+du Swift, chez nous, dans un dépôt qu'ils n'avaient aucune raison d'ouvrir.
+
+Ça vaut pour notre troisième manifeste, celui des sources : le jour où quelqu'un
+raisonnera sur son `schema`, la chose à ouvrir sera **le client qui le lit**, pas
+le pipeline qui l'écrit.
+
+### Un compte de titres conservé ne dit rien de leur structure
+
+La session macOS a relu la réinsertion et relevé, à raison, que
+« 244 avant, 5 apportés, 249 après, zéro perdu » **compte** les titres sans
+regarder leur **niveau** : la somme peut être exacte et la hiérarchie fausse.
+C'est la famille du jour, appliquée à l'instrument qu'on venait de se donner.
+
+Le contrôle a donc été refait avec la clé `(niveau, texte)` au lieu du texte
+seul. Résultat : aucun titre perdu, **et aucun titre déplacé de rang**.
+
+### Mais la convention qu'on invoquait pour le corriger n'existe pas
+
+La remarque venait avec un correctif — promouvoir l'entrée de `###` en `##`,
+« comme toutes les entrées datées ». Avant de l'appliquer, on l'a mesurée.
+
+| exemplaire | entrées datées en `##` | en `###` |
+|---|---|---|
+| app | 35 | **47** |
+| vault | 18 | **50** |
+| site | 12 | **46** |
+
+**La majorité est en `###`, dans les trois.** Ni chronologique — les deux
+niveaux alternent par blocs tout au long du fichier —, ni indice de provenance :
+si le niveau encodait le dépôt d'origine, les trois exemplaires ne montreraient
+pas la même répartition.
+
+Le journal n'a donc pas de convention tenue sur ce point. Aligner l'entrée sur
+une règle qui n'existe pas ne l'aurait pas rendue plus juste ; ça aurait ajouté
+une quarante-huitième exception à une règle qu'on aurait crue unanime.
+
+Elle reste en `###`, où elle est le **frère immédiat** du `###` qui la précède —
+la seule propriété hiérarchique qui se lise vraiment.
+
+> **Un correctif qui repose sur une convention se vérifie d'abord sur la
+> convention, pas sur le cas.** Sinon on répare le cas et on abîme la règle.
+
+Ce qui reste vrai de la remarque, et qui vaut plus que le correctif : la mesure
+par les titres était **exacte et insuffisante**. C'est la troisième fois de la
+journée qu'un instrument juste ne mesure pas la propriété qu'on lui prête.
+
+### Ce que ça change pour chaque dépôt
+
+**Le vault** — sa CI redevient verte, mais pour une raison qu'elle ne dit
+toujours pas. Épingler `ref:` explicitement dans `eprouver.yml`, faute de quoi
+le même silence reviendra à la prochaine bascule de branche par défaut.
+
+**Le site** — `sources/` et le contrat du manifeste (`schema`, `genere`,
+`temoins`, `livres`) atteignent une branche livrée : ce qui était compilé est
+maintenant installé. Ses trois `checkout` sans `ref:` sont **déjà corrigés**
+(leur PR #136), trouvés le soir même. Le publieur reste à écrire, et ils
+attendent d'avoir régénéré leur `dist/` pour l'écrire — écrire contre une
+forme qu'on ne peut pas faire tourner est la faute qu'ils venaient de réparer.
+
+**L'app** — corriger le `group:` de `tests.yml` pour qu'il porte le SHA plutôt
+que la ref, sans supprimer le run de `pull_request`.
+
+### La règle
+
+**Un contrôle doit nommer ce qu'il juge.** Une branche par défaut, un premier
+résultat arrivé, une fin de fichier : à chaque fois, l'instrument a pris ce qui
+se présentait pour ce qu'on lui demandait. Trois formes différentes, le même
+défaut — *mesurer un objet en croyant en mesurer un autre*, pour la neuvième
+fois de la journée.
+## 11 septembre 2026 — SourcesUpdater : la génération entière ou rien
+
+La mise à jour à distance des langues sources existe — `SourcesUpdater`, dans
+ONTData, à côté du `CorpusUpdater` dont elle ne reprend **pas** le modèle. Le
+corpus se remplace fichier par fichier, choix assumé chez lui ; les sources
+basculent **par génération entière** :
+
+> Une génération = un dossier = une estampille. Le bundle est le plancher :
+> sous le plancher on purge, on ne fusionne jamais.
+
+Tout ce que le manifeste annonce se télécharge dans un candidat, chaque
+fichier se prouve par son empreinte **pleine, sur les octets reçus** (A09),
+l'estampille s'écrit en dernier, la bascule est un seul geste (A08). Un livre
+à `temoins` vide est complet par déclaration. Dix épreuves, chaque chemin de
+refus prouvé capable de refuser — et le contrôle retourné contre un code
+mutilé pour le voir rougir avant d'y croire.
+
+### Le contrat, arrêté à trois dépôts dans la même soirée
+
+- **le pipeline** (#286, iOS) émet `genere` dans le manifeste des sources —
+  la date du dernier commit du vault, la même valeur au caractère près que le
+  `generatedAt` du corpus du même passage. Jamais un `now()` ;
+- **le site** écrira le publieur des sources sous `/sources/` : manifeste du
+  pipeline transformé dans une seule dimension — les `chemin`, renommés au
+  préfixe du `sha256` déclaré pour le cache immuable — et dans aucune autre.
+  Une seule empreinte dans toute la chaîne : le nom publié en est une tranche,
+  le champ `sha256` reste pleine et seule autorité, et le publieur recalcule
+  avant de publier ce que la liseuse recalcule après avoir reçu ;
+- **les liseuses** suivent le manifeste aveuglément — c'est ce qui rend le
+  renommage invisible pour elles. Android a les mêmes consignes pour son
+  updater : même invariant de génération, mêmes gardes, mêmes refus.
+
+La fixture des épreuves est le fichier **émis par le pipeline d'après #284 et
+#286** — la première copie datait d'un build antérieur et validait une forme
+que le pipeline n'émettait plus ; c'est la session iOS qui l'a vu, en
+comparant deux nombres. Cinquième forme du motif du jour : la mesure exacte
+sur l'objet qui n'est pas le bon.
