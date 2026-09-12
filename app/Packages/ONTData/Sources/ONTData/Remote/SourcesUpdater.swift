@@ -90,6 +90,13 @@ public actor SourcesUpdater {
         /// Répété, c'est un publieur qui omet le champ — et rien d'autre ne le
         /// dira.
         case dateIndecidable
+        /// Le **bundle** n'a pas d'estampille lisible — son `manifest.json`
+        /// manque, ou son `generatedAt` est vide ou mal formé. Sans plancher,
+        /// aucune publication n'est prouvable plus récente : chaque
+        /// synchronisation refuserait pour toujours, et c'est un défaut du
+        /// **build**, pas du publieur — la cause d'en face de
+        /// `dateIndecidable`, et rien d'autre ne la dira.
+        case plancherIllisible
         /// Un fichier annoncé n'est pas arrivé, ou n'a pas prouvé son
         /// empreinte ou sa taille. Porte de quoi chercher.
         case generationIncomplete(motif: String)
@@ -108,11 +115,11 @@ public actor SourcesUpdater {
         /// Vrai quand rien n'a été installé **et que ce n'est pas normal**.
         ///
         /// `rienDeNeuf` n'en est pas : c'est la réponse attendue la plupart du
-        /// temps. Les quatre autres méritent une trace.
+        /// temps. Les cinq autres méritent une trace.
         public var estUnRefus: Bool {
             switch self {
             case .installee, .rienDeNeuf: return false
-            case .manifesteInjoignable, .dateIndecidable,
+            case .manifesteInjoignable, .dateIndecidable, .plancherIllisible,
                 .generationIncomplete, .basculeRefusee: return true
             }
         }
@@ -184,7 +191,7 @@ public actor SourcesUpdater {
 
     /// Va chercher la génération publiée si elle est plus récente, et bascule.
     ///
-    /// Rend une `Issue` qui **nomme** ce qui s'est passé — installée, rien de
+    /// Rend un `Resultat` qui **nomme** ce qui s'est passé — installée, rien de
     /// neuf, ou l'une des quatre raisons de n'avoir rien installé. Voir
     /// `Resultat` pour pourquoi ce n'est plus un simple compte.
     ///
@@ -213,14 +220,20 @@ public actor SourcesUpdater {
             publiee > plancher,
             estampilleActive.map({ publiee > $0 }) ?? true
         else {
-            // **Deux causes distinctes sous une même garde, et elles ne disent
-            // pas la même chose.** Une date absente ou illisible est un défaut
-            // du publieur ; une date plus vieille est le repos. Les séparer ici
-            // plutôt qu'éclater la garde : son enchaînement est ce qui la rend
-            // lisible.
+            // **Trois causes distinctes sous une même garde, et aucune ne dit
+            // la même chose.** Une date absente ou illisible est un défaut du
+            // publieur ; un plancher illisible est un défaut du build — et il
+            // gèlerait TOUTES les synchronisations à venir, pas une ; une date
+            // plus vieille est le repos. Les séparer ici plutôt qu'éclater la
+            // garde : son enchaînement est ce qui la rend lisible.
+            //
+            // La #296 n'en séparait que deux : `plancher` nil tombait dans
+            // `rienDeNeuf` — le gel éternel rangé sous le repos, la famille
+            // exacte que son commit condamnait, une jambe plus loin.
             guard let genere = manifeste.genere,
                 CorpusUpdater.Estampille(genere) != nil
             else { return .dateIndecidable }
+            guard plancher != nil else { return .plancherIllisible }
             return .rienDeNeuf
         }
 
