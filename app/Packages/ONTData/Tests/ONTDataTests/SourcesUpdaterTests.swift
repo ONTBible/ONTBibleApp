@@ -159,6 +159,24 @@ struct SourcesUpdaterTests {
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
+    @Test("un plancher illisible se nomme — il n'est pas le repos")
+    func unPlancherIllisible() async throws {
+        // Un bundle sans estampille lisible : `Estampille("pas-une-date")`
+        // rend nil, exactement comme un `manifest.json` absent ou vide. La
+        // #296 rangeait ce cas dans `rienDeNeuf` — le gel de TOUTES les
+        // synchronisations à venir, rendu comme le repos. Cette épreuve tient
+        // la distinction : défaut du build, pas absence de nouveauté.
+        let (updater, dossier) = Self.updater(plancher: "pas-une-date")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
+            "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
+        ]
+        let resultat = try await updater.synchroniser()
+        #expect(resultat == .plancherIllisible)
+        #expect(resultat.estUnRefus, "un gel programmé doit se lire comme un refus")
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
     @Test("une publication plus vieille que l'actif est refusée — le scénario A08")
     func unePublicationPlusVieilleQueLActif() async throws {
         // V1 = plancher, V3 = téléchargée et active, V2 = publiée ensuite.
