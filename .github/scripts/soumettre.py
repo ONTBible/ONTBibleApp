@@ -138,6 +138,30 @@ def creer_la_version(client, app: str, numero: str, plateforme: str) -> str:
     return cree["data"]["id"]
 
 
+def compter_les_captures(client, version: str) -> int | None:
+    """Combien de captures la fiche de cette version porte-t-elle ?
+
+    `None` quand la question n'a pas pu être posée — panne de transport,
+    permission manquante. Ce n'est pas zéro : **ne rien trouver n'est pas
+    trouver zéro**, et la doctrine du dépôt est de laisser passer sur une
+    non-réponse plutôt que de bloquer une soumission valide.
+
+    Extraite de `main` pour être éprouvable. Une garde qu'on ne peut pas
+    retourner contre elle-même ne dit pas si elle sait refuser.
+    """
+    try:
+        total = 0
+        for loc in client.get(
+                f"appStoreVersions/{version}/appStoreVersionLocalizations")["data"]:
+            for jeu in client.get(
+                    f"appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")["data"]:
+                total += len(
+                    client.get(f"appScreenshotSets/{jeu['id']}/appScreenshots")["data"])
+        return total
+    except Exception:  # noqa: BLE001 — volontaire, voir ci-dessus
+        return None
+
+
 def main() -> None:
     client = Client()
     numero = os.environ["BUILD"]
@@ -267,6 +291,44 @@ def main() -> None:
                 "type": "appStoreVersionLocalizations", "id": loc["id"],
                 "attributes": {"whatsNew": NOUVEAUTES}}})
             print(f"  nouveautés posées en {langue}")
+
+    # ── Les captures, avant de soumettre ─────────────────────────────────────
+    #
+    # **Apple refuse une version sans captures, et le refus arrive au bout.**
+    # C'est la même forme que le numéro déjà approuvé, que `version_libre.py`
+    # ferme en amont : tout a tourné, et c'est le dernier appel qui casse. Puis
+    # ça recommence à chaque fusion tant que la fiche n'a pas été remplie.
+    #
+    # Le cas n'était pas théorique. Jusqu'au 12 septembre 2026, ce script ne
+    # soumettait qu'iOS, dont les captures étaient posées depuis longtemps.
+    # L'ajout de macOS à la matrice ouvre un chemin où la plateforme est neuve
+    # et sa fiche peut être vide — et seule la revue le dirait.
+    #
+    # `fiche.py --captures` les téléverse, mais il ne tourne **pas**
+    # automatiquement : `fiche.yml` est un `workflow_dispatch`. Rien ne garantit
+    # donc qu'il ait tourné pour cette plateforme, et c'est exactement pourquoi
+    # la question se pose ici.
+    #
+    # **En cas de panne, on laisse passer** — doctrine du dépôt. Une erreur de
+    # transport n'apprend rien sur les captures, et refuser sur une
+    # non-réponse bloquerait une soumission parfaitement valide.
+    captures = compter_les_captures(client, version)
+    if captures is None:
+        print("  captures : non vérifiables — on laisse passer")
+    elif captures == 0:
+        print(
+            f"  ARRÊT : aucune capture dans la fiche {plateforme}.\n"
+            "  Apple refuserait la revue, et le refus arriverait après\n"
+            "  la compilation, la signature et le téléversement.\n"
+            "\n"
+            "  Le remède, une fois :\n"
+            "      gh workflow run fiche.yml -f captures=true\n"
+            "\n"
+            "  Les captures sont dans le dépôt — `app/Captures/` — et\n"
+            "  `fiche.py` sait les poser. Il ne tourne pas tout seul.")
+        raise SystemExit(1)
+    else:
+        print(f"  captures : {captures} dans la fiche {plateforme}")
 
     # ── La soumission, en trois temps ────────────────────────────────────────
 
