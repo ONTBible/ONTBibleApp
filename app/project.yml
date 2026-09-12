@@ -186,7 +186,7 @@ targets:
         #
         # Le numéro de build, lui, n'a pas ce problème : il est daté et croît
         # tout seul (voir l'en-tête de `.github/workflows/livraison.yml`).
-        CFBundleShortVersionString: "1.0.6"
+        CFBundleShortVersionString: "1.0.7"
         CFBundleVersion: "1"
         # Sans cette clé, iOS lance l'app en mode compatibilité letterboxé.
         # Le dictionnaire vide suffit : il déclare une scène de lancement
@@ -304,7 +304,7 @@ targets:
       path: Widget/Info.plist
       properties:
         CFBundleDisplayName: Verset du jour
-        CFBundleShortVersionString: "1.0.6"
+        CFBundleShortVersionString: "1.0.7"
         CFBundleVersion: "1"
         UIAppFonts:
           - Literata-Regular.ttf
@@ -424,7 +424,7 @@ targets:
         # juste — d'où un défaut visible partout sauf là où on l'avait vérifié.
         CFBundleName: La Bible ONT
         CFBundleDisplayName: La Bible ONT
-        CFBundleShortVersionString: "1.0.6"
+        CFBundleShortVersionString: "1.0.7"
         CFBundleVersion: "1"
         # Le même contrat de lien public que sur iOS.
         ONTWebBaseURL: https://ontbible.com
