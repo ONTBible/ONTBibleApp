@@ -218,8 +218,7 @@ public struct YouTab: View {
                 .ontLigneDeCarte()
             }
             .ontListeDeCartes()
-            .ontScreen()
-            .navigationTitle("Vous")
+            .ontOngletRacine("Vous")
             // Demander à l'ouverture de l'onglet, pas au lancement de l'app :
             // c'est le seul écran qui s'en sert, et un lecteur qui n'y vient
             // jamais n'a pas à payer un appel réseau.

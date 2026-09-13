@@ -72,9 +72,7 @@ public struct ChuqqotTab: View {
                     ListeDesChuqqot(chuqqot: model.chuqqot)
                 }
             }
-            .ontScreen()
-            .navigationTitle("Chuqqot")
-            .ontTitreCompact()
+            .ontOngletRacine("Chuqqot")
             // **La destination est déclarée ici, une fois.**
             //
             // La poser sur la rangée la redéclarerait à chaque ligne : SwiftUI

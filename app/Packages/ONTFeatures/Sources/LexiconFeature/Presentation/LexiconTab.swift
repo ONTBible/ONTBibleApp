@@ -149,8 +149,7 @@ public struct LexiconTab: View {
                     .padding(.trailing, 2)
                 }
             }
-            .ontScreen()
-            .navigationTitle("Lexique")
+            .ontOngletRacine("Lexique")
             .searchable(
                 text: $search,
                 prompt: "Un terme, un mot français, de l'hébreu…"

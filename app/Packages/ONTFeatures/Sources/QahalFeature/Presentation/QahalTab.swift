@@ -49,8 +49,7 @@ public struct QahalTab: View {
             }
             // La règle du design system : tout écran de premier niveau le
             // porte. Le Qahal ne l'avait pas — il posait son fond à la main.
-            .ontScreen()
-            .navigationTitle("Qahal")
+            .ontOngletRacine("Qahal")
             .task { model.pick() }
         }
         .ontColumn()

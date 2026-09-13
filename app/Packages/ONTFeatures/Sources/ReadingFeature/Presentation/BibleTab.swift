@@ -59,8 +59,7 @@ public struct BibleTab: View {
 
         NavigationStack(path: $router.biblePath) {
             sommaire
-                .ontScreen()
-            .navigationTitle("La Bible ONT")
+                .ontOngletRacine("La Bible ONT")
             .toolbar {
                 ToolbarItem(placement: ONTPlacement.principale) {
                     Button("Rechercher", systemImage: "magnifyingglass") { searching = true }
