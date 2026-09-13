@@ -179,6 +179,9 @@ fn identity() -> ExternalIdentity {
         prenom: None,
         nom: None,
         bio: None,
+        // Apple ne donne pas de portrait, et Gravatar n'a pas répondu. C'est
+        // le cas le plus dépouillé, et celui qui doit rester valide.
+        portrait: None,
     }
 }
 
@@ -191,6 +194,25 @@ fn identite_nommee() -> ExternalIdentity {
         prenom: Some("Gloire".into()),
         nom: Some("Bikouta".into()),
         bio: None,
+        portrait: None,
+    }
+}
+
+/// Une identité **qui n'apporte qu'un portrait** — ni prénom, ni nom, ni
+/// biographie.
+///
+/// C'est le cas d'un compte Apple dont l'adresse est chez Gravatar, et il a
+/// failli être perdu : la garde d'entrée d'`amorcer_le_profil` ne regardait que
+/// les trois champs de texte, et repartait sans rien écrire.
+fn identite_au_seul_portrait() -> ExternalIdentity {
+    ExternalIdentity {
+        provider: Provider::Apple,
+        subject: "001234.abcdef".into(),
+        email: Some("lecteur@example.com".into()),
+        prenom: None,
+        nom: None,
+        bio: None,
+        portrait: Some("data:image/png;base64,iVBORw0KGgo=".into()),
     }
 }
 
@@ -575,6 +597,45 @@ async fn une_identite_sans_nom_n_ecrit_aucun_profil() {
     assert!(
         sync.profil(&UserId("x".into())).await.unwrap().is_none(),
         "aucun profil ne doit être écrit quand le fournisseur ne dit rien"
+    );
+}
+
+/// **Un portrait seul suffit à amorcer un profil.**
+///
+/// Le cas est celui d'un compte Apple dont l'adresse est déposée chez
+/// Gravatar : ni prénom, ni nom, ni biographie ne viennent du serveur — Apple
+/// ne les donne qu'au client — mais une image, si.
+///
+/// La garde d'entrée d'`amorcer_le_profil` ne regardait que les trois champs de
+/// texte quand le portrait a été ajouté, et repartait donc sans rien écrire. Le
+/// portrait était rapatrié, encodé, puis jeté à la dernière ligne.
+///
+/// Retourner cette épreuve contre la garde d'avant la fait rougir : c'est ce
+/// qu'on lui demande.
+#[tokio::test]
+async fn un_portrait_seul_amorce_le_profil() {
+    let (app, _, sync) = app_avec(identite_au_seul_portrait(), true);
+
+    app.sign_in(Provider::Apple, Origine::App, "code", "app://retour", None)
+        .await
+        .unwrap();
+
+    let profil = sync
+        .profil(&UserId("x".into()))
+        .await
+        .unwrap()
+        .expect("un portrait, même seul, mérite un profil");
+    assert_eq!(
+        profil.portrait.as_deref(),
+        Some("data:image/png;base64,iVBORw0KGgo="),
+        "le portrait du fournisseur doit traverser jusqu'au profil"
+    );
+    // Et rien d'autre n'est inventé au passage.
+    assert!(profil.prenom.is_empty());
+    assert!(profil.nom.is_empty());
+    assert!(
+        profil.nom_dusage.is_empty(),
+        "le nom d'usage est un identifiant, il ne se déduit jamais"
     );
 }
 

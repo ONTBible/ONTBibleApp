@@ -112,7 +112,12 @@ impl App {
         let prenom = identity.prenom.clone().unwrap_or_default();
         let nom = identity.nom.clone().unwrap_or_default();
         let bio = identity.bio.clone().unwrap_or_default();
-        if prenom.is_empty() && nom.is_empty() && bio.is_empty() {
+        let portrait = identity.portrait.clone();
+        // **Le portrait compte comme les trois autres.** Un compte Apple
+        // n'arrive avec ni prénom, ni nom, ni biographie à la deuxième
+        // connexion — mais peut arriver avec un portrait Gravatar. Sans lui
+        // dans cette garde, on repartait sans rien écrire.
+        if prenom.is_empty() && nom.is_empty() && bio.is_empty() && portrait.is_none() {
             return;
         }
 
@@ -126,7 +131,16 @@ impl App {
             prenom,
             nom,
             bio,
-            portrait: None,
+            // **Le portrait du fournisseur, ou Gravatar** — voir
+            // `ExternalIdentity::portrait`. `None` reste possible : Apple sans
+            // Gravatar, ou une image trop lourde, ou le réseau. Le lecteur voit
+            // alors ses initiales, ce que `ProfilDuLecteur` sait déjà faire.
+            //
+            // Écrit **à l'amorçage seulement**, donc jamais à une reconnexion :
+            // c'est la règle de cette fonction et elle vaut d'autant plus ici.
+            // Un portrait que le lecteur a choisi ne doit pas être remplacé par
+            // celui de son fournisseur, qui peut avoir changé sans lui.
+            portrait,
             updated_at: self.clock.now().unix_timestamp(),
         };
         let _ = self.sync.set_profil(user, &profil).await;

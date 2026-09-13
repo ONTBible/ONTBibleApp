@@ -121,6 +121,29 @@ pub struct ExternalIdentity {
     pub prenom: Option<String>,
     pub nom: Option<String>,
     pub bio: Option<String>,
+    /// Le portrait, **déjà encodé en base64 avec son type MIME** — prêt à
+    /// écrire dans `ProfilLecteur.portrait`.
+    ///
+    /// ## Qui en donne un, et qui n'en donne pas
+    ///
+    /// - **Google** le rend dans `userinfo`, champ `picture` ;
+    /// - **GitHub** le rend dans `/user`, champ `avatar_url` ;
+    /// - **Apple n'en donne aucun, et n'en donnera pas.** Vérifié dans le SDK
+    ///   d'iOS 27 plutôt que supposé : les scopes se limitent à
+    ///   `ASAuthorizationScopeEmail` et `ASAuthorizationScopeFullName` ;
+    ///   `ASAuthorizationAppleIDCredential` porte `user`, `state`,
+    ///   `authorizedScopes`, `authorizationCode`, `identityToken`, `email`,
+    ///   `fullName`, `realUserStatus`, `userAgeRange` — et rien d'autre ;
+    ///   `CKUserIdentity` de CloudKit s'arrête à `nameComponents` ; et la fiche
+    ///   « Moi » des Contacts est `NS_AVAILABLE(10_11, NA)`, donc macOS
+    ///   seulement. Aucune API publique ne rend l'avatar d'un compte Apple.
+    ///
+    ///   C'est un choix, pas un oubli : *Sign in with Apple* est vendu sur le
+    ///   minimum identifiant, et le relais d'adresse va dans le même sens.
+    ///
+    /// Pour Apple, le repli est **Gravatar** — voir `gravatar` dans
+    /// l'infrastructure — quand l'adresse n'est pas un relais privé.
+    pub portrait: Option<String>,
 }
 
 impl ExternalIdentity {
