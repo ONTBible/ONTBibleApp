@@ -29,86 +29,30 @@ import SwiftUI
 /// s'affirme en aplat, et c'est voulu : les deux disent « ceci n'est pas du
 /// corpus, c'est l'app qui te parle ».
 struct HeroDePrononciation: View {
-    @Environment(\.ontTheme) private var theme
-    private var spacing = ONTSpacing()
-
     let action: () -> Void
 
     init(action: @escaping () -> Void) {
         self.action = action
     }
 
+    // **La forme vit dans `ONTHero`, le sens reste ici.**
+    //
+    // Ce qui est propre à ce hero — son libellé, ce qu'il ouvre, ce qu'un
+    // lecteur d'écran en dit — ne se factorise pas. Le reste, si : il était
+    // recopié de travers dans l'onglet Bible, avec onze propriétés
+    // différentes dont aucune n'était une décision.
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .center, spacing: spacing.m) {
-                VStack(alignment: .leading, spacing: spacing.xs) {
-                    Text("Comment ça se prononce")
-                        // **Une fonte sémantique, pas la fonte de titre.**
-                        //
-                        // La fonte d'affichage porte un interligne large, fait
-                        // pour un titre d'écran qui tient sur une ligne. Dès
-                        // que ce libellé passe à deux lignes — et il y passe
-                        // au premier cran d'accessibilité — le blanc entre les
-                        // deux fait le double de celui du sous-titre, et le
-                        // pavé se lit comme deux fragments au lieu d'un titre.
-                        //
-                        // **Mesuré, et une hypothèse écartée en chemin** :
-                        // `relativeTo: .headline` ne change rien. La courbe
-                        // d'échelle n'était pas en cause, l'interligne l'était.
-                        //
-                        // C'est ce que fait déjà le pavé « Reprendre » de
-                        // l'onglet Bible — `ONTUI.subheadline` — et c'est
-                        // précisément celui qui tient à toutes les tailles.
-                        // La chrome emploie les fontes du système ; la fonte
-                        // de la marque reste au texte et aux titres d'écran,
-                        // qui ne se replient pas.
-                        .font(ONTUI.headline)
-                    Text("Les cinq sons que le français n'a pas")
-                        .font(ONTUI.footnote)
-                        .opacity(0.85)
-                }
-                .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "waveform")
-                    .font(.system(size: ONTUI.points(22), weight: .light))
-                    .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
-            }
-            .padding(.horizontal, spacing.l)
-            // **Une marge verticale, et non la hauteur minimale qui en tenait
-            // lieu.**
-            //
-            // Il n'y en avait aucune : `minHeight` centrait un contenu plus
-            // court que lui, et l'espace au-dessus et au-dessous *ressemblait*
-            // à une marge. Dès que le contenu dépasse 76 pt — c'est-à-dire dès
-            // que le sous-titre se replie, au premier cran d'accessibilité — le
-            // cadre grandit pour l'épouser exactement, et « n'a pas » se
-            // retrouve collé au bord.
-            //
-            // Relevé sur l'iPhone de Gloire. C'est un réglage qui marchait par
-            // accident : il tenait tant qu'une condition tenait, et rien ne
-            // disait laquelle.
-            .padding(.vertical, spacing.m)
-            // **Le rapport de un à trois, tenu par la hauteur et non par un
-            // `aspectRatio`.** Ce dernier imposerait sa forme au texte, qui
-            // grandit avec le curseur de taille : le bloc se déformerait chez
-            // qui en a le plus besoin. Une hauteur minimale laisse le contenu
-            // décider quand il faut plus.
-            // La hauteur minimale garde son vrai rôle — le rapport de un à
-            // trois quand le texte est court — et n'a plus celui d'une marge.
-            .frame(minHeight: ONTUI.points(76))
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(ONTColors.brandInk(theme.mode))
-            )
-            .ontSurvol(dans: RoundedRectangle(cornerRadius: 16, style: .continuous), souleve: true)
-            .contentShape(.rect(cornerRadius: 16))
-        }
-        .buttonStyle(.ontPresse)
+        ONTHero(
+            "Comment ça se prononce",
+            sousTitre: "Les cinq sons que le français n'a pas",
+            icone: "waveform",
+            action: action
+        )
         .accessibilityLabel("Comment se prononce ce qui est écrit")
         .accessibilityHint("Ouvre la feuille de prononciation")
     }
 }
+
 
 /// La feuille elle-même — le texte du vault, rendu comme du corpus.
 ///
