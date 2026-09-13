@@ -119,6 +119,7 @@ private struct EnTeteDeLivre: View {
 }
 
 private struct LigneDeSurlignage: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     let situe: SurlignageSitue
 
@@ -127,7 +128,7 @@ private struct LigneDeSurlignage: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: spacing.m) {
             // Le filet. `Capsule` et non `Rectangle` : ses bouts arrondis le
             // rapprochent du trait d'un marqueur, et l'éloignent d'une bordure
             // de tableau.
@@ -136,7 +137,7 @@ private struct LigneDeSurlignage: View {
                 .frame(width: 4)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: spacing.xs) {
                 HStack {
                     Text(situe.renvoi)
                         .font(ONTUI.caption.weight(.medium))
@@ -172,12 +173,13 @@ private struct LigneDeSurlignage: View {
 }
 
 private struct FiltreDeCouleur: View {
+    private let spacing = ONTSpacing()
     let couleurs: [(HighlightColor, Int)]
     @Binding var choisie: HighlightColor?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: spacing.s) {
                 Pastille(titre: "Tout", couleur: nil, actif: choisie == nil) { choisie = nil }
                 ForEach(couleurs, id: \.0) { couleur, n in
                     Pastille(
@@ -199,6 +201,7 @@ private struct FiltreDeCouleur: View {
 }
 
 private struct Pastille: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     let titre: String
     let couleur: HighlightColor?
@@ -215,7 +218,7 @@ private struct Pastille: View {
                 }
                 Text(titre).font(ONTUI.caption)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, spacing.m)
             .padding(.vertical, 7)
             .background(
                 Capsule().fill(

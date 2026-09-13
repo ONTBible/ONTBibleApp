@@ -41,7 +41,7 @@ struct HeroDePrononciation: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: spacing.m) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: spacing.xs) {
                     Text("Comment ça se prononce")
                         // **Une fonte sémantique, pas la fonte de titre.**
                         //

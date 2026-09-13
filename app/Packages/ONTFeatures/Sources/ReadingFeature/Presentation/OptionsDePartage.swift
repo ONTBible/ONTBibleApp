@@ -13,6 +13,7 @@ import SwiftUI
 /// règle — et la dérive ne se verrait que le jour où quelqu'un partagerait
 /// vraiment.
 public struct OptionsDePartage: View {
+    private let spacing = ONTSpacing()
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
 
@@ -75,7 +76,7 @@ public struct OptionsDePartage: View {
                             .truncationMode(.middle)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, spacing.xs)
                 // Le tout d'un bloc pour VoiceOver : lu élément par élément,
                 // l'aperçu se hacherait en fragments sans rapport.
                 .accessibilityElement(children: .combine)

@@ -42,7 +42,7 @@ public struct BibleTab: View {
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
 
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     /// Ce que la barre d'outils propose d'ouvrir — injecté par l'app pour que
     /// la lecture n'ait pas à connaître la feature de recherche.
@@ -227,10 +227,10 @@ public struct BibleTab: View {
 #if os(macOS)
     /// La carte « Reprendre » — de bord à bord, elle se lève et s'enfonce.
     private struct CarteDeReprise: View {
+        private let spacing = ONTSpacing()
         @Environment(\.ontTheme) private var theme
         let position: ReadingPosition
         let open: () -> Void
-        private var spacing = ONTSpacing()
 
         init(position: ReadingPosition, open: @escaping () -> Void) {
             self.position = position
@@ -271,12 +271,12 @@ public struct BibleTab: View {
     /// Un rayon du sommaire — la carte entière est la cible, le chevron tourne,
     /// les livres arrivent en cascade.
     private struct CarteDeRayon: View {
+        private let spacing = ONTSpacing()
         @Environment(\.ontTheme) private var theme
         @Environment(ReadingModel.self) private var model
         let mode: Mode
         let ouvert: Bool
         let basculer: () -> Void
-        private var spacing = ONTSpacing()
 
         init(mode: Mode, ouvert: Bool, basculer: @escaping () -> Void) {
             self.mode = mode
@@ -387,6 +387,7 @@ private struct ModeLabel: View {
 }
 
 private struct BookRow: View {
+    private let spacing = ONTSpacing()
     @Environment(ReadingModel.self) private var model
     let book: BookOutline
 
@@ -412,7 +413,7 @@ private struct BookRow: View {
 
     private var title: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
+            HStack(spacing: spacing.s) {
                 Text("\(book.slot)")
                     .font(ONTUI.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
@@ -552,6 +553,7 @@ private struct SousTitreDeBarre: ViewModifier {
 }
 
 private struct ChapterRow: View {
+    private let spacing = ONTSpacing()
     @Environment(ReadingModel.self) private var model
     let stub: ChapterStub
 
@@ -596,7 +598,7 @@ private struct ChapterRow: View {
                 }
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 6)
-                .padding(.leading, 8)
+                .padding(.leading, spacing.s)
                 .contentShape(.rect)
             }
             .buttonStyle(.borderless)
@@ -690,6 +692,7 @@ private func disposer(_ mode: Mode) -> [Element] {
 /// *Igeret HaIvrim* est « le dernier mot du Bayit vivant » ; trois numéros plus
 /// loin, il n'existe plus.
 private struct ConteneurLabel: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     @Environment(ReadingModel.self) private var model
     let groupe: Conteneur
@@ -712,7 +715,7 @@ private struct ConteneurLabel: View {
                 Rectangle()
                     .fill(ONTColors.accent(theme.mode).opacity(0.7))
                     .frame(height: 2)
-                    .padding(.top, 8)
+                    .padding(.top, spacing.s)
                 Text(rupture)
                     .font(ONTUI.footnote.italic())
                     .foregroundStyle(.secondary)

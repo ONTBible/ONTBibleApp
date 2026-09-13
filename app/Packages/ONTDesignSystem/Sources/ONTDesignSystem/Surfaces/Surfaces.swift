@@ -21,11 +21,30 @@ public struct ParchmentPage<Content: View>: View {
             .padding(.vertical, spacing.l)
             .frame(maxWidth: ONTLayout.readingWidth, alignment: .leading)
             .frame(maxWidth: .infinity)
-            // Pas de grain ici : `ParchmentPage` est la **colonne** de lecture,
-            // pas la page. Le grain s'arrêterait au bord du texte, ce qui se
-            // verrait dès qu'un écran est plus large que la mesure. Il vit dans
-            // `ONTScreenModifier`, qui couvre l'écran entier.
-            .background(theme.background)
+            // **Le grain aussi, et pas seulement la couleur.**
+            //
+            // Ce fond est plein : il recouvre celui que `ontScreen()` a posé
+            // dessous, grain compris. Tant que la colonne occupait tout l'écran
+            // visible, l'effacement ne se voyait pas — il n'y avait rien à
+            // côté pour le comparer.
+            //
+            // Le pli du glissement a changé ça : il soulève la page et découvre
+            // la marge, qui porte le grain d'`ontScreen()`. Deux surfaces de
+            // même couleur, l'une grainée et l'autre non, et la couture court
+            // le long du pli. Relevé par l'auteur sur l'iPad, le 13 septembre
+            // 2026.
+            //
+            // Le commentaire d'avant disait « pas de grain ici, il s'arrêterait
+            // au bord du texte ». C'était vrai quand ce fond épousait la mesure
+            // du texte ; il est borné à `pageWidth` depuis que la liseuse prend
+            // toute la largeur, et sa bordure ne tombe donc plus là.
+            //
+            // Retirer ce fond plutôt que le grainer aurait été plus court, et
+            // plus risqué : c'est lui qui rend la page opaque quand le pli la
+            // soulève, et une page qu'on soulève doit avoir un dos.
+            .background {
+                theme.background.overlay(ONTGrain(theme: theme.mode))
+            }
     }
 }
 

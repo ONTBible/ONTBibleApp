@@ -84,6 +84,13 @@ public struct ChuqqotTab: View {
                 PageDeChuqqah(chuqqah: chuqqah)
             }
         }
+        // **La borne de l'iPad**, comme les cinq autres racines. Sans elle, le
+        // contenu s'étirait d'un bord à l'autre : titre collé à la marge,
+        // état vide traversant l'écran, là où Lexique et Qahal se centrent.
+        //
+        // Posée **autour** de la pile et non dedans, pour que le grand titre
+        // suive sa page — voir `ontColumn(bornee:)`.
+        .ontColumn()
     }
 }
 
@@ -157,12 +164,13 @@ private struct ListeDesChuqqot: View {
 /// L'afficher inviterait à citer « la chuqqah n° 3 », qui changerait de numéro
 /// à la première insertion.
 private struct RangeeDeChuqqah: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
 
     let chuqqah: Chuqqah
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: spacing.m) {
             Text(chuqqah.titre)
                 .font(ONTUI.body)
                 .foregroundStyle(theme.ink)

@@ -188,6 +188,21 @@ jobs:
         working-directory: ONTBibleApp
         run: ./scripts/eprouver-les-feuilles.sh
 
+      # **Le même raisonnement, étendu aux racines d'onglet et à l'échelle.**
+      #
+      # Le 13 septembre 2026, l'auteur a relevé sur deux captures que l'onglet
+      # des chuqqot ne ressemblait pas aux cinq autres — deux fois dans la même
+      # heure : le grand titre, puis la borne de l'iPad. Les deux compilaient,
+      # les deux passaient toutes les épreuves, et ni l'une ni l'autre n'était
+      # visible autrement qu'en mettant deux onglets côte à côte.
+      #
+      # Ce contrôle sait rougir : on lui a retiré `ontColumn` de Chuqqot pour
+      # le vérifier. La première version ne rougissait pas — elle cherchait le
+      # **mot** et le trouvait dans un commentaire. Elle cherche l'appel.
+      - name: Le design system est employé, pas contourné
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-le-design-system.sh
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest

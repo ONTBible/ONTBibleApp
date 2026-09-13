@@ -20,7 +20,7 @@ public struct SearchView: View {
     /// SwiftUI qui l'a présentée — la carte du Mac, par exemple.
     @Environment(\.ontFermer) private var fermer
 
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     public init() {}
 
@@ -132,6 +132,7 @@ extension View {
 }
 
 private struct HitRow: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
 
     let hit: SearchHit
@@ -140,7 +141,7 @@ private struct HitRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+            HStack(spacing: spacing.s) {
                 Text(reference)
                     .font(ONTUI.caption.monospaced())
                     .foregroundStyle(ONTColors.accent(theme.mode))
@@ -197,7 +198,7 @@ private struct HitRow: View {
 
 private struct Hints: View {
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.l) {
