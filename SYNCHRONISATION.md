@@ -5435,3 +5435,253 @@ La fixture des épreuves est le fichier **émis par le pipeline d'après #284 et
 que le pipeline n'émettait plus ; c'est la session iOS qui l'a vu, en
 comparant deux nombres. Cinquième forme du motif du jour : la mesure exacte
 sur l'objet qui n'est pas le bon.
+
+---
+
+## 12 septembre 2026 — le demi-anneau devient une lettre, et trois engendrés dérivaient en silence
+
+Décision de l'auteur : `ʾ` (U+02BE, l'alef) et `ʿ` (U+02BF, le ayin) cessent de
+tomber dans `slugify`. Ce sont des **consonnes de l'hébreu**, pas des ornements
+de translittération, et les jeter faisait tomber deux mots sur la même clé.
+
+### Le cas qui a forcé la décision
+
+`malʾakh` — l'envoyé — et `malakh` — régner, 347 emplois — rendaient tous deux
+`malakh`. La fiche du verbe ne pouvait donc pas être écrite : sa place était
+prise par celle du messager.
+
+Le `CLAUDE.md` du vault portait le contournement depuis des semaines, ligne 404 :
+
+> Le verbe `**malakh**` est déclaré ici et non à part, et c'est une **contrainte
+> d'outil, non un choix de sens**.
+
+**Un contournement écrit dans un dépôt à cause d'une contrainte d'un autre, que
+l'autre ne mentionnait nulle part.** Aucune des deux sessions ne pouvait le voir
+depuis chez elle : le vault lisait sa propre règle comme une décision de langue,
+le pipeline ne savait pas qu'il en imposait une.
+
+### Le prix, écrit dans le code plutôt qu'au journal
+
+Le système cesse d'être indulgent. Une fiche qui omet le demi-anneau d'une
+graphie n'est plus rattrapée par le pardon du slug : elle devient **invisible**,
+et rien ne le dit.
+
+Ce prix a été payé immédiatement, et il a rendu plus qu'il n'a coûté. Vingt-quatre
+lignes des tables du §3 du vault ne portaient pas le demi-anneau que leur fiche
+porte : chacune engendrait un **jumeau** du lemme réel, que le slug recollait.
+Le changement ne les a pas créés, il les a révélés.
+
+Et il a révélé un mot faux que personne ne cherchait. `gevirah` comptait quatre
+occurrences mortes ; le témoin tranchait sans appel :
+
+    1376  gevir     le puissant             2 emplois, tous deux en Genèse 27
+    1377  gevirah   la mère du roi          6 emplois — AUCUN dans la Torah
+    1404  geveret   la maîtresse de maison  9 emplois, dont 3 en Genèse 16
+
+La glose verrouillée de *Bereshit* 16 confondait les trois dans une phrase, et
+`geveret.md` écrivait `**gevirah**` pour parler de son propre sujet — alors que
+sa propre section « Sous un numéro voisin » explique que c'est un autre mot.
+**Une fiche qui portait son contre-exemple sans le voir.**
+
+### Un bug que seule la table de redirections pouvait attraper
+
+Le premier jet rendait `basarʾechad` pour `basar ʾechad` : la branche annulait le
+tiret en attente au lieu de le poser, là où la branche des lettres le pose.
+
+**Sur les quarante-quatre lemmes déplacés, un seul le montrait.** Tous les autres
+portent leur demi-anneau au milieu d'un mot, où la question ne se pose pas. Ce
+n'est pas une relecture qui l'a trouvé, c'est l'appariement automatique de la
+table : quarante-trois clés se déduisaient de l'ancienne, une refusait.
+
+> **Un correctif qui ne casse qu'un cas sur quarante-quatre ne se trouve pas en
+> relisant le code. Il se trouve en demandant à une machine d'apparier.**
+
+### Trois engendrés committés, et une phrase fausse répétée trois fois
+
+Prévenu par le vault qu'un outil « qui écrit et qui vérifie avec le même appel ne
+vérifie rien », ce dépôt a répondu qu'il ne pouvait pas avoir ce défaut :
+`Schema.swift`, `Schema.kt`, `ONT.xcodeproj` et `dist/` sont tous dans
+`.gitignore`.
+
+C'était **vérifier une liste qu'on avait écrite soi-même**. Il y en avait trois
+autres, et les trois portaient une valeur périmée :
+
+| fichier | ce qu'il portait |
+|---|---|
+| `app/Resources/data/` | l'ancien slug, dans tout le corpus embarqué |
+| `…/Tests/Fixtures/sources/he-wlc/bereshit.json` | l'ancien slug, plus un manifeste décrivant un autre fichier — 535 534 octets annoncés contre 545 131 portés |
+| `app/Info-Mac.plist` | la **1.0.6**, que la montée en 1.0.7 avait manquée |
+
+Aucun des trois n'a de contrôle qui le compare à sa source. **Les trois ont été
+rattrapés par accident** — la CI pour les deux premiers, un `git status` pour le
+troisième, dans un chantier sans rapport. Le dernier serait parti à la revue
+d'Apple sous le numéro d'une version déjà approuvée.
+
+> **Vérifier une liste qu'on a écrite soi-même, ce n'est pas vérifier.** Et un
+> engendré committé sans contrôle qui le compare à sa source est une divergence
+> qui attend son tour.
+
+### Deux suites justes, et le défaut exactement entre elles
+
+Le vault et l'app avaient chacun mesuré **zéro lien mort**, chacun sur son objet,
+et avaient raison tous les deux. La CI a quand même rougi — sur une épreuve
+Swift qui exigeait `bara.cible == .term(lemma: "bara")`.
+
+Les 209 épreuves du pipeline passaient pendant ce temps. Elles n'ont aucune
+raison de traverser un JSON du paquet Swift.
+
+C'est la variante que la journée n'avait pas encore produite : ni un instrument
+faux, ni une prémisse périmée, mais **deux instruments corrects dont la réunion
+ne couvre pas tout**. Aucune relecture ne la trouve, puisque chaque moitié est
+irréprochable.
+
+### Deux épreuves réécrites, jamais supprimées
+
+`les_demi_anneaux_savants_ne_coupent_pas_le_lemme` (Rust) et le cas de
+`SourcesDuBundleTests` (Swift) exigeaient tous deux l'ancienne forme. Elles
+gardaient exactement ce qu'on changeait.
+
+Elles sont réécrites. Ce qu'elles protégeaient d'autre reste vrai et reste
+mesuré — le demi-anneau ne devient **jamais un tiret**, qui était le danger
+d'origine ; la jointure **aboutit**, et l'épreuve dit sur quelle fiche.
+
+> **Une épreuve qu'on supprime parce qu'elle gêne emporte avec elle ce qu'elle
+> protégeait d'autre.**
+
+### La mesure, sur le même objet des deux côtés
+
+    vault origin/main  d78fdf5
+      pipeline d'avant   0 occurrence morte sur 0 lemme
+      pipeline d'après   0 occurrence morte sur 0 lemme
+      clés changées      44, toutes appariées à leur nouvelle
+
+Il a fallu quatre relevés pour y arriver, et les trois premiers comparaient deux
+vaults différents ou deux branches différentes. **Le chiffre n'a de sens que
+lorsque les deux mesures portent sur le même objet** — et c'est la chose la plus
+facile à perdre de vue quand l'objet, lui, est écrit par quelqu'un d'autre au
+même moment.
+
+### Ce que ça change pour chaque dépôt
+
+**Le vault** — le verbe `malakh` peut recevoir sa fiche ; la contrainte d'outil
+de la ligne 404 n'existe plus. Et la règle vaut chez eux comme ici : un engendré
+committé demande un contrôle qui le compare à sa source, et ce contrôle ne doit
+pas écrire dans le même appel qu'il vérifie.
+
+**Le site** — **44 redirections permanentes** `/fr/lexique/<ancien>` →
+`/fr/lexique/<nouveau>`, engendrées depuis le glossaire et non tenues à la main.
+Les clés portent des caractères non-ASCII : `ʾ` s'encode `%CA%BE`, `ʿ` s'encode
+`%CA%BF`, et un routeur qui compare la forme encodée à la forme brute ne trouve
+rien.
+
+**L'app** — trois engendrés committés sans contrôle, nommés ci-dessus. Et une
+épreuve qui rapprocherait `NOUVEAUTES` du contenu réel de la version : les notes
+de la 1.0.6 décrivaient la glose et le thème alors que la version portait le
+renvoi biblique et le verset d'origine. La description et la chose décrite ont
+divergé sans que rien ne les rapproche.
+
+---
+
+## 13 septembre 2026 — la question qu'aucun contrôle ne posait, et un titre que seul l'œil pouvait voir
+
+Deux défauts trouvés le même jour, et aucun des deux n'était atteignable par les
+instruments en place. Ce n'est pas qu'ils mesuraient mal : ils ne posaient pas
+la question.
+
+### Deux fiches sur la même clé, et l'ordre alphabétique qui tranche
+
+`read_fiches` faisait un `insert` simple. Deux fiches de slugs identiques se
+recouvraient donc en silence, et `noms.sort()` décidait laquelle gagne.
+
+Le cas était réel et vivant : `malakh.md` — le verbe, régner — et `malʾakh.md`
+— l'envoyé — rendaient la même clé sous l'ancien slug. **Cent quatre-vingts
+occurrences du messager pouvaient ouvrir la fiche d'un verbe sans rapport.**
+
+**Rien ne l'a vu.** Ni `eprouver` du vault, ni le contrôle des liens morts, ni
+les 209 épreuves du pipeline. Tous demandent *« ce terme a-t-il une fiche ? »* ;
+aucun ne demande *« a-t-il **la bonne** ? »*, et aucun ne compare les clés des
+fiches **entre elles**.
+
+> **Un contrôle qui vérifie chaque élément contre l'ensemble ne voit jamais deux
+> éléments qui se percutent entre eux.**
+
+C'est la formulation de la session du vault, et elle est plus forte que celle
+qu'on avait la veille — *« deux suites justes, deux périmètres, et le défaut
+entre les deux »*. Celle-là décrit un accident de découpage, réparable en
+élargissant un périmètre. **Celle-ci décrit une impossibilité de forme** :
+aucun élargissement ne la corrige, parce que l'instrument compare au
+dictionnaire et jamais les entrées entre elles. Il fallait un contrôle d'une
+autre nature, pas un contrôle plus large.
+
+La garde est posée **dans le pipeline**, qui calcule le slug — donc le seul qui
+sache ce qui se percute. Elle **refuse au build** plutôt que de compter une
+anomalie : un lien mort fait une page qui n'ouvre rien, une collision de clé
+fait une page qui ouvre **autre chose**, et ça se lit comme la vérité.
+
+### Six collisions de plus, d'une autre espèce
+
+Le site les a trouvées en préparant les redirections du demi-anneau : rediriger
+`/fr/lexique/ish` vers `ʾish` volerait l'URL d'une fiche **existante**.
+
+    el-roi · el-shaddai · el-elyon · ish · ishah · orlah
+
+Et en **301 permanent**, donc mis en cache par les navigateurs souvent sans
+expiration. Une 404 se répare ; une 301 fausse déjà servie, non.
+
+> **Une redirection ne capte jamais un chemin qui est lui-même un lemme vivant.
+> La fiche existante gagne, toujours.**
+
+La table de 44 lignes qu'on s'apprêtait à leur transmettre portait le défaut. Le
+site a refusé la table et engendre la règle depuis `glossary.json` : l'ancienne
+clé est la nouvelle privée de ses demi-anneaux, **sauf si cette forme est
+elle-même un lemme**. Trois conséquences qu'une table figée n'a pas — zéro ligne
+à la main, elle ne se périme jamais, et **elle ne fait rien avant l'heure**.
+
+Ce dernier point est celui qui manquait. `dev` porte encore 158 lemmes sans
+demi-anneau : une table posée aujourd'hui aurait cassé quarante-quatre URLs qui
+fonctionnent, pour préparer un état qui n'est pas encore arrivé. *Le mécanisme
+d'abord, les données ensuite, et aucun jour de bascule* — c'est l'ordre qu'on
+avait tenu la veille pour `sources/`, et qu'on n'a pas reconnu en le revoyant.
+
+### Un titre qui divergeait depuis toujours, et qu'aucune machine ne pouvait voir
+
+`ChuqqotTab` portait `.ontTitreCompact()` : son titre s'affichait petit et
+centré, quand les cinq autres racines d'onglet s'affichent en grand titre aligné
+à gauche.
+
+`ontTitreCompact` est juste pour un écran **poussé** — le sélecteur de
+référence, les réglages, un chapitre. Une racine d'onglet ouvre une section, et
+son grand titre est ce qui la distingue à l'œil d'un écran de passage.
+
+**Rien ne pouvait le détecter.** Les deux formes compilent, aucune épreuve ne
+regarde un mode d'affichage de titre, et la divergence ne se lit qu'en mettant
+deux onglets **côte à côte** — ce qu'aucun écran de test ne fait. Il a fallu
+l'œil de l'auteur sur deux captures.
+
+Le correctif ne retire pas la ligne : il nomme le geste. Les six racines
+recopiaient chacune `.ontScreen()` puis `.navigationTitle(…)`, et rien ne disait
+qu'il fallait s'arrêter là.
+
+> **Une convention qui tient par la recopie ne tient pas.**
+
+`ontOngletRacine(_:)` pose le fond et le grand titre ensemble. `.large` y est
+écrit alors qu'il est déjà le défaut de SwiftUI — volontairement : **un défaut
+ne se relit pas**, et c'est exactement ce qui a permis à la divergence de passer
+inaperçue.
+
+### Ce que ça change pour chaque dépôt
+
+**Le vault** — la garde des collisions le protège sans qu'il ait à
+réimplémenter une règle dont il ne tient pas la définition. `malakh.md` peut
+revenir au lexique quand le demi-anneau aura atteint `app-store` ; avant, les
+deux CI rougiraient, et c'est le comportement voulu.
+
+**Le site** — sa règle de redirection est meilleure qu'une table et n'a rien à
+recevoir de nous. Les clés portent des caractères non-ASCII : `ʾ` s'encode
+`%CA%BE`, `ʿ` s'encode `%CA%BF`, et comparer une forme encodée à une forme brute
+ne trouve rien. Ils comparent les formes décodées, côté serveur.
+
+**L'app** — deux gardes de plus, et une leçon qui vaut pour les trois : les
+défauts de ce jour n'ont pas été trouvés par des instruments, mais par **une
+session qui regardait autre chose** et par **un œil humain sur deux images**.
+Ce qu'aucun contrôle ne peut voir doit au moins être écrit.

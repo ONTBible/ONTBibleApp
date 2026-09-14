@@ -14,6 +14,7 @@ import SwiftUI
 /// L'écran **le dit**. Une bio qu'on remplit sans savoir qui la lit est la
 /// seule chose qu'un écran de compte ne doit pas laisser deviner.
 struct EnTeteDuProfil: View {
+    private let spacing = ONTSpacing()
     @Environment(AccountModel.self) private var account
     @Environment(\.ontTheme) private var theme
 
@@ -85,7 +86,7 @@ struct EnTeteDuProfil: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, spacing.xs)
         }
         .accessibilityHint("Modifie votre profil")
     }
@@ -152,6 +153,7 @@ public struct Portrait: View {
 
 /// L'éditeur.
 struct EditeurDuProfil: View {
+    private let spacing = ONTSpacing()
     @Environment(AccountModel.self) private var account
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -214,7 +216,7 @@ struct EditeurDuProfil: View {
                     }
                     Spacer()
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, spacing.xs)
             }
             .ontRow()
 

@@ -80,7 +80,7 @@ struct ChapterSwipe: View {
     @State private var taille: CGSize = .zero
     /// Pour lire la marge latérale de la colonne de lecture, qui suit le
     /// Dynamic Type — voir `seuilDuGeste(_:)`.
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     init(depart: Chapter) {
         self.depart = depart

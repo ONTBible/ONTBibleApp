@@ -691,11 +691,19 @@ fn formes_declarees(texte: &str) -> Vec<String> {
     formes
 }
 
-pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
+/// Deux fiches qui rendent le même slug — et que l'une écrasait l'autre.
+///
+/// Porte le slug commun et les titres qui s'y percutent, dans l'ordre où le
+/// dossier les rend.
+pub type CollisionDeSlug = (String, Vec<String>);
+
+pub fn read_fiches(racine: &Path) -> (HashMap<String, Fiche>, Vec<CollisionDeSlug>) {
     let mut fiches = HashMap::new();
+    // **Les titres retenus par slug**, pour dire lesquels se percutent.
+    let mut titres: HashMap<String, Vec<String>> = HashMap::new();
     let dossier = racine.join(crate::config::LEXIQUE);
     let Ok(entrées) = std::fs::read_dir(&dossier) else {
-        return fiches;
+        return (fiches, Vec::new());
     };
 
     let mut noms: Vec<_> = entrées
@@ -718,6 +726,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
         if !blocs.is_empty() {
             let formes = formes_declarees(&texte);
             let source = source_declaree(&texte);
+            titres.entry(lemme.clone()).or_default().push(nom.clone());
             fiches.insert(
                 lemme,
                 Fiche {
@@ -729,7 +738,33 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
             );
         }
     }
-    fiches
+    // **Ce qu'un `insert` ne dit jamais.** Deux fiches de slugs identiques se
+    // recouvrent en silence, et le gagnant est celui que `noms.sort()` place en
+    // dernier — l'ordre alphabétique décide, personne ne le sait.
+    //
+    // Relevé le 13 septembre 2026 par la session du vault, sur un cas réel :
+    // `malakh.md` (le verbe, régner) et `malʾakh.md` (l'envoyé) rendaient la
+    // même clé sous l'ancien slug. **180 occurrences du messager pouvaient
+    // ouvrir la fiche d'un verbe sans rapport**, et rien ne l'a vu — ni
+    // `eprouver` du vault, ni le contrôle des liens morts, ni ces 209 épreuves.
+    //
+    // > **Un contrôle qui vérifie chaque élément contre l'ensemble ne voit
+    // > jamais deux éléments qui se percutent entre eux.**
+    //
+    // Tous les contrôles existants demandaient « ce terme a-t-il une fiche ? ».
+    // Aucun ne demandait « a-t-il **la bonne** ? », et aucun ne comparait les
+    // clés des fiches **entre elles**. C'est une classe de défaut invisible par
+    // construction à un instrument qui compare au dictionnaire.
+    //
+    // Posé ici plutôt que côté vault : le slug est calculé par ce pipeline,
+    // donc c'est ici qu'on sait ce qui se percute — et le vault en profite sans
+    // avoir à y penser.
+    let mut collisions: Vec<CollisionDeSlug> = titres
+        .into_iter()
+        .filter(|(_, noms)| noms.len() > 1)
+        .collect();
+    collisions.sort();
+    (fiches, collisions)
 }
 
 /// Lit `CLAUDE.md` et en tire le glossaire et les noms de livres.

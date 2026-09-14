@@ -14,6 +14,7 @@ import SwiftUI
 /// porte après lui, et les renvois. D'où les titres de section, que les fiches
 /// d'intraduisibles n'ont pas.
 public struct ShemSheet: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     /// Posé par la présentation quand ce n'est pas une feuille — voir
@@ -38,7 +39,7 @@ public struct ShemSheet: View {
             List {
                 if let entree {
                     Section {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: spacing.xs) {
                             Text(entree.title)
                                 .font(.custom(ONTFonts.display, size: ONTUI.points(26)))
                                 // La terre brûlée, la même qu'en lecture : le
@@ -49,7 +50,7 @@ public struct ShemSheet: View {
                                 .font(ONTUI.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, spacing.xs)
                         .accessibilityElement(children: .combine)
                     }
                     .ontRow()

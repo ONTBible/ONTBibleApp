@@ -149,8 +149,7 @@ public struct LexiconTab: View {
                     .padding(.trailing, 2)
                 }
             }
-            .ontScreen()
-            .navigationTitle("Lexique")
+            .ontOngletRacine("Lexique")
             .searchable(
                 text: $search,
                 prompt: "Un terme, un mot français, de l'hébreu…"
@@ -224,12 +223,13 @@ public struct LexiconTab: View {
 }
 
 private struct EntryRow: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
 
     let entry: GlossaryEntry
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: spacing.m) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title)
                     .font(ONTUI.body.weight(.medium))
@@ -275,11 +275,12 @@ struct NomSelectionne: Identifiable {
 /// forme rendue ni famille de formes. Y afficher des colonnes vides ferait
 /// croire à une fiche incomplète.
 private struct RangeeDeNom: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     let nom: ShemEntry
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: spacing.m) {
             Text(nom.title)
                 .font(ONTUI.body)
                 .foregroundStyle(ONTColors.shem(theme.mode))

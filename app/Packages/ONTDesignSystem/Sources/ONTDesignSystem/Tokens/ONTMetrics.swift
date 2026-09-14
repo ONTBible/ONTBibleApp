@@ -89,6 +89,12 @@ public enum ONTRadius {
     /// Blocs secondaires.
     public static let block: CGFloat = 18
     /// Cartes de premier plan.
+    /// 16 pt — un hero, le pavé d'appel en tête d'onglet.
+    ///
+    /// Entre `block` et `card` : plus doux qu'une rangée de liste, plus ferme
+    /// qu'une carte de contenu. Il était écrit `16` en dur dans
+    /// `HeroDePrononciation`, quatre fois dans le même corps.
+    public static let hero: CGFloat = 16
     public static let card: CGFloat = 22
     /// Une feuille modale — la carte du Mac, à hauteur de ce que l'iPad donne.
     ///

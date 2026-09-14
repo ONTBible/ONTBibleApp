@@ -26,11 +26,51 @@ import SwiftUI
 extension View {
     /// Un titre de barre compact — sans effet sur le Mac, qui n'a pas de
     /// grand titre à réduire.
+    ///
+    /// **Pour un écran poussé, jamais pour une racine d'onglet.** Un écran
+    /// poussé arrive avec un bouton de retour et un titre qui rappelle d'où
+    /// l'on vient : le compact est sa forme. Une racine d'onglet, elle, ouvre
+    /// une section — son titre est un grand titre, et c'est ce qui la distingue
+    /// à l'œil d'un écran de passage.
+    ///
+    /// Employer `ontOngletRacine(_:)` pour une racine, qui pose le grand titre
+    /// avec le fond et rend le choix impossible à faire de travers.
     public func ontTitreCompact() -> some View {
         #if os(iOS)
             return navigationBarTitleDisplayMode(.inline)
         #else
             return self
+        #endif
+    }
+
+    /// **La racine d'un onglet** — le fond de l'app, et son grand titre.
+    ///
+    /// ## Pourquoi un modificateur et non deux lignes recopiées
+    ///
+    /// Les six racines posaient chacune `.ontScreen()` puis
+    /// `.navigationTitle(…)`, et rien ne disait qu'il fallait s'arrêter là.
+    /// `ChuqqotTab` avait en plus `.ontTitreCompact()` — son titre s'affichait
+    /// petit et centré quand les cinq autres s'affichaient grands et alignés à
+    /// gauche. Relevé par l'auteur le 13 septembre 2026, sur une capture.
+    ///
+    /// Rien ne pouvait le voir : les deux formes compilent, aucune épreuve ne
+    /// regarde un mode d'affichage de titre, et la divergence ne se lit qu'en
+    /// mettant deux onglets côte à côte — ce qu'aucun écran de test ne fait.
+    ///
+    /// > **Une convention qui tient par la recopie ne tient pas.**
+    ///
+    /// En la nommant, le cas par cas disparaît : une racine d'onglet est ceci,
+    /// et un écran qui en dévie le montre dans son diff.
+    ///
+    /// `.large` est explicite plutôt qu'implicite. C'est déjà le défaut de
+    /// SwiftUI sur iPhone, mais un défaut ne se relit pas — et c'est
+    /// exactement ce qui a permis à la divergence de passer inaperçue.
+    public func ontOngletRacine(_ titre: LocalizedStringKey) -> some View {
+        let base = ontScreen().navigationTitle(titre)
+        #if os(iOS)
+            return base.navigationBarTitleDisplayMode(.large)
+        #else
+            return base
         #endif
     }
 

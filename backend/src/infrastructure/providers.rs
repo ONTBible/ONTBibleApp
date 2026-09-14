@@ -68,12 +68,18 @@ struct GoogleUser {
     /// Google sépare les deux, ce qui nous épargne de deviner où couper.
     given_name: Option<String>,
     family_name: Option<String>,
+    /// L'adresse du portrait. Google la sert sans jeton et sans expiration.
+    picture: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct GithubUser {
     id: u64,
     email: Option<String>,
+    /// GitHub en donne toujours une : à défaut de portrait choisi, c'est
+    /// l'identicon qu'il engendre du compte. On la prend telle quelle — c'est
+    /// ce que le lecteur voit chez eux, donc ce qu'il reconnaîtra ici.
+    avatar_url: Option<String>,
     /// GitHub ne rend qu'une chaîne, et n'a aucune idée de ce qui est le
     /// prénom — voir `couper_le_nom`.
     name: Option<String>,
@@ -85,6 +91,106 @@ struct GithubUser {
 struct AppleClaims {
     sub: String,
     email: Option<String>,
+}
+
+/// **Le portrait, rapatrié et encodé** — ou `None`, sans jamais faire échouer
+/// la connexion.
+///
+/// ## Pourquoi rien ne remonte en erreur
+///
+/// Un portrait est un agrément. Si le fournisseur est lent, si l'image est trop
+/// lourde, si le réseau tombe, le compte se crée quand même et le lecteur voit
+/// ses initiales — ce que `ProfilDuLecteur` sait déjà faire. Faire échouer une
+/// connexion parce qu'une image n'est pas arrivée serait échanger l'essentiel
+/// contre l'accessoire.
+///
+/// ## La borne est sur les octets reçus, pas sur ce qu'annonce le serveur
+///
+/// `Content-Length` est déclaratif : un serveur peut en annoncer un et en
+/// envoyer un autre. On lit, puis on mesure ce qu'on a — la même règle que
+/// l'empreinte des sources, vérifiée sur les octets reçus et non sur ceux que
+/// le manifeste promet.
+///
+/// La marge tient compte de l'encodage : base64 gonfle de 4/3, donc on borne
+/// **avant** à `PORTRAIT_MAX * 3 / 4` pour que le résultat encodé tienne.
+async fn portrait_depuis(client: &reqwest::Client, url: &str) -> Option<String> {
+    use base64::Engine as _;
+
+    let reponse = client
+        .get(url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .ok()?;
+    if !reponse.status().is_success() {
+        return None;
+    }
+    // Le type MIME dit par le serveur, réduit à ce qu'on sait afficher. Un
+    // `image/svg+xml` n'est pas refusé par méfiance : il n'entre simplement pas
+    // dans un `UIImage`, et un portrait qui ne s'affiche pas vaut moins que
+    // des initiales.
+    let mime = reponse
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap_or(v).trim().to_string())
+        .filter(|m| matches!(m.as_str(), "image/jpeg" | "image/png" | "image/webp"))?;
+
+    let octets = reponse.bytes().await.ok()?;
+    if octets.is_empty() || octets.len() > crate::domain::sync::PORTRAIT_MAX * 3 / 4 {
+        return None;
+    }
+    let encode = base64::engine::general_purpose::STANDARD.encode(&octets);
+    Some(format!("data:{mime};base64,{encode}"))
+}
+
+/// **Gravatar** — le repli pour qui n'a pas d'avatar chez son fournisseur.
+///
+/// Décision de l'auteur du 13 septembre 2026, après avoir constaté qu'Apple
+/// n'en donne aucun et n'en donnera pas.
+///
+/// ## Ce qu'on envoie, et à qui
+///
+/// L'empreinte SHA-256 de l'adresse, normalisée en minuscules et sans espaces
+/// de bord — jamais l'adresse elle-même. Gravatar apprend donc qu'un compte
+/// portant **cette empreinte** a été consulté depuis notre serveur, sans pouvoir
+/// remonter à l'adresse autrement qu'en la connaissant déjà.
+///
+/// SHA-256 et non MD5 : c'est la forme que Gravatar recommande depuis 2024, et
+/// MD5 n'a plus rien à faire dans du code neuf même là où il n'est qu'une clé.
+///
+/// ## `d=404`, et c'est le cœur du procédé
+///
+/// Sans ce paramètre, Gravatar rend **toujours** une image — un motif engendré
+/// de l'empreinte. On recevrait donc un portrait pour tout le monde, y compris
+/// pour qui n'a jamais rien déposé, et le lecteur verrait un dessin abstrait
+/// arriver sans l'avoir voulu. Avec `d=404`, l'absence se dit et l'app retombe
+/// sur les initiales, qui sont **les siennes**.
+///
+/// ## L'adresse relais d'Apple est écartée d'emblée
+///
+/// `…@privaterelay.appleid.com` est engendrée par Apple, propre à notre app, et
+/// n'a jamais pu être déposée chez Gravatar. Interroger serait dépenser une
+/// requête et une fuite d'empreinte pour un 404 certain.
+/// `gravatar` quand une adresse est connue, `None` sinon — le passe-plat qui
+/// évite d'écrire le même `match` chez les trois fournisseurs.
+async fn gravatar_si_adresse(client: &reqwest::Client, email: Option<&str>) -> Option<String> {
+    gravatar(client, email?).await
+}
+
+async fn gravatar(client: &reqwest::Client, email: &str) -> Option<String> {
+    use sha2::{Digest, Sha256};
+
+    let normalise = email.trim().to_ascii_lowercase();
+    if normalise.is_empty() || normalise.ends_with("@privaterelay.appleid.com") {
+        return None;
+    }
+    let empreinte = format!("{:x}", Sha256::digest(normalise.as_bytes()));
+    portrait_depuis(
+        client,
+        &format!("https://www.gravatar.com/avatar/{empreinte}?s=400&d=404"),
+    )
+    .await
 }
 
 /// Une chaîne vide vaut « rien dit ».
@@ -256,6 +362,10 @@ impl HttpIdentityProvider {
         let (prenom, nom) = couper_le_nom(user.name.as_deref());
         Ok(ExternalIdentity {
             provider: Provider::Github,
+            portrait: match &user.avatar_url {
+                Some(url) => portrait_depuis(&self.client, url).await,
+                None => gravatar_si_adresse(&self.client, user.email.as_deref()).await,
+            },
             subject: user.id.to_string(),
             email: user.email,
             prenom,
@@ -306,6 +416,10 @@ impl HttpIdentityProvider {
 
         Ok(ExternalIdentity {
             provider: Provider::Google,
+            portrait: match &user.picture {
+                Some(url) => portrait_depuis(&self.client, url).await,
+                None => gravatar_si_adresse(&self.client, user.email.as_deref()).await,
+            },
             subject: user.sub,
             email: user.email,
             prenom: vide_en_none(user.given_name),
@@ -381,6 +495,11 @@ impl HttpIdentityProvider {
         // l'état exact de ce que le serveur sait.
         Ok(ExternalIdentity {
             provider: Provider::Apple,
+            // **Le seul chemin possible pour Apple.** Vérifié dans le SDK
+            // d'iOS 27 : aucune API publique ne rend l'avatar d'un compte
+            // Apple. Gravatar est donc le repli, et il ne répond que si
+            // l'adresse y a été déposée — ce qu'un relais privé n'a jamais pu.
+            portrait: gravatar_si_adresse(&self.client, claims.email.as_deref()).await,
             subject: claims.sub,
             email: claims.email,
             prenom: None,

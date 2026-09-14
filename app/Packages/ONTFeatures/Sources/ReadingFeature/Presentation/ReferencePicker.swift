@@ -21,7 +21,7 @@ public struct ReferencePicker: View {
     @Environment(\.ontFermer) private var fermer
     @Environment(\.ontTheme) private var theme
 
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
     var echelle = ONTScaled()
 
     /// L'unité ouverte — le sélecteur s'ouvre là, pas en haut de la liste.
@@ -357,7 +357,7 @@ public struct ChoixDuVerset: View {
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
 
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
     var echelle = ONTScaled()
 
     let book: String

@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 #
-# Installe et lance La Bible ONT sur l'iPhone, dès qu'il est joignable.
+# Installe et lance La Bible ONT sur un appareil, dès qu'il est joignable.
 #
-#   ./scripts/lancer-sur-iphone.sh
+#   ./scripts/lancer-sur-iphone.sh          l'iPhone, par défaut
+#   ./scripts/lancer-sur-iphone.sh iPad     l'iPad
 #
 # Attend l'appareil, l'installe, la lance. Ctrl-C pour abandonner.
+#
+# ## Pourquoi il prend un argument depuis le 13 septembre 2026
+#
+# Il cherchait `deviceType == 'iPhone'` en dur. Demandé de lancer sur l'iPad
+# aussi, il n'avait rien à répondre — et la tentation était d'en recopier un
+# second, `lancer-sur-ipad.sh`, qui aurait divergé du premier à la première
+# retouche. C'est le défaut qu'on venait de corriger dans les vues, et il
+# n'était pas plus acceptable dans les scripts.
+#
+# Le nom du fichier reste, parce qu'il est cité dans les `CLAUDE.md` des dépôts
+# et que l'iPhone reste le cas ordinaire.
 
 set -euo pipefail
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="com.labibleont.ONT"
+# `iPhone` ou `iPad`, tel qu'`devicectl` les nomme dans `deviceType`.
+CIBLE="${1:-iPhone}"
 
 vert=$'\033[32m'; gris=$'\033[90m'; fin=$'\033[0m'
 
@@ -25,14 +39,14 @@ trap 'rm -f "$INVENTAIRE"' EXIT
 
 appareil() {
   xcrun devicectl list devices --json-output "$INVENTAIRE" >/dev/null 2>&1 || return 1
-  python3 - "$INVENTAIRE" <<'PY'
+  python3 - "$INVENTAIRE" "$CIBLE" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     devices = json.load(f)['result']['devices']
 for d in devices:
     materiel = d.get('hardwareProperties', {})
     lien = d.get('connectionProperties', {})
-    if (materiel.get('deviceType') == 'iPhone'
+    if (materiel.get('deviceType') == sys.argv[2]
             and materiel.get('reality') == 'physical'
             and lien.get('tunnelState') != 'unavailable'):
         print(d['identifier'], d.get('deviceProperties', {}).get('name', ''), sep='\t')
@@ -40,7 +54,7 @@ for d in devices:
 PY
 }
 
-printf '%sEn attente de l'\''iPhone…%s\n' "$gris" "$fin"
+printf '%sEn attente de %s…%s\n' "$gris" "$CIBLE" "$fin"
 printf '%s  Branchez-le en USB, déverrouillez-le, et acceptez « Se fier » si demandé.%s\n\n' "$gris" "$fin"
 
 essais=0

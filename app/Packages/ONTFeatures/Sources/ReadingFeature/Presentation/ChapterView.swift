@@ -22,7 +22,7 @@ struct ChapterView: View {
     @Environment(\.ontTheme) private var theme
     @Environment(\.ontLectureFigee) private var lectureFigee
 
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
     var echelle = ONTScaled()
 
     @State private var showingSettings = false
@@ -384,7 +384,7 @@ struct ChapterView: View {
             // à la table, replier, déplier, redescendre.
             ToolbarItem(placement: ONTPlacement.retrait) {
                 Button { showingPicker = true } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: spacing.xs) {
                         Text(pastille)
                             .font(ONTUI.subheadline.weight(.semibold))
                             .lineLimit(1)
@@ -409,7 +409,7 @@ struct ChapterView: View {
                     // question posée.
                     .fixedSize(horizontal: true, vertical: false)
                     .foregroundStyle(theme.ink)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, spacing.m)
                     .padding(.vertical, 6)
                     // Le verre du système sous la pastille — elle flotte
                     // au-dessus du texte, c'est exactement sa place. Le voile
@@ -690,7 +690,7 @@ private struct VerseRow: View {
     @Environment(\.ontSuivi) private var suivi
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     let verse: Verse
     let chapter: Chapter
@@ -838,7 +838,7 @@ private struct VerseRow: View {
 private struct VerseActionBar: View {
     @Environment(ReadingModel.self) private var model
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
     var echelle = ONTScaled()
 
     let chapter: Chapter
@@ -1321,7 +1321,7 @@ private struct FlowingVerses: View {
     @Environment(ReadingModel.self) private var model
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     let verses: [Verse]
     let chapter: Chapter
@@ -1612,7 +1612,7 @@ private struct FlowingVerses: View {
 
 private struct BlockView: View {
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     let block: Block
     let chapter: Chapter
@@ -1723,7 +1723,7 @@ private struct BlockView: View {
 /// Le pied d'unité — version, verrouillage, décisions terminologiques propres.
 private struct FooterView: View {
     @Environment(\.ontTheme) private var theme
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     let footer: Footer
 
@@ -2066,7 +2066,7 @@ public struct ReadingSettingsSheet: View {
 /// trois niveaux qui décide si un réglage tient.
 private struct SettingsPreview: View {
     @Environment(ReadingModel.self) private var model
-    var spacing = ONTSpacing()
+    private let spacing = ONTSpacing()
 
     let chapter: Chapter
 
@@ -2092,8 +2092,8 @@ private struct SettingsPreview: View {
     }
 
     private struct PreviewBody: View {
+        private let spacing = ONTSpacing()
         @Environment(\.ontTheme) private var theme
-        var spacing = ONTSpacing()
 
         let verses: [Verse]
         let title: String
@@ -2193,6 +2193,7 @@ private struct SettingsPreview: View {
 /// « Mystique » — d'autant plus vite que le lecteur a monté sa taille de texte,
 /// c'est-à-dire exactement quand il a besoin de lire les libellés.
 private struct ThemeRow: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     @Binding var selection: ReadingTheme
 
@@ -2219,7 +2220,7 @@ private struct ThemeRow: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: spacing.s) {
                 Text("Thème")
                     .foregroundStyle(theme.ink)
                     .font(ONTUI.ligneDeListe)
@@ -2237,6 +2238,7 @@ private struct ThemeRow: View {
 }
 
 private struct FontRow: View {
+    private let spacing = ONTSpacing()
     @Environment(\.ontTheme) private var theme
     let font: ReadingFont
     @Binding var selection: ReadingFont
@@ -2247,7 +2249,7 @@ private struct FontRow: View {
         Button {
             selection = font
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: spacing.m) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(font.label)
                         .font(.custom(ONTFonts.family(font), size: ONTUI.points(19)))
