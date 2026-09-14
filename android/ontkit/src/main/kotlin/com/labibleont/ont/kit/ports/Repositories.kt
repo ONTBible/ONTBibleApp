@@ -1,5 +1,6 @@
 package com.labibleont.ont.kit.ports
 
+import com.labibleont.ont.kit.corpus.Block
 import com.labibleont.ont.kit.corpus.Book
 import com.labibleont.ont.kit.corpus.BookOutline
 import com.labibleont.ont.kit.corpus.Chapter
@@ -117,3 +118,38 @@ public interface PreferencesRepository {
 public interface DailyVerseRepository {
     public fun pool(): kotlin.collections.List<DailyVerse>
 }
+
+/**
+ * La feuille de prononciation — comment se lisent les mots hébreux du corpus.
+ *
+ * ## Pourquoi un port et non une constante
+ *
+ * Le texte vit dans le vault — `lexique/prononciation.md` — et se relit comme le
+ * reste du corpus. L'écrire dans l'app en ferait une **seconde source**, qui
+ * divergerait à la première correction et que personne ne penserait à remettre
+ * à jour.
+ *
+ * Elle peut être **absente** : le pipeline n'écrit rien quand le vault ne la
+ * porte pas, et l'écran dit alors ce qu'il attend au lieu de faire croire à une
+ * panne. Le `null` est donc un état déclaré, pas un échec.
+ *
+ * Le contrat est celui d'iOS, mot pour mot — `PrononciationRepository` dans
+ * `ONTKit/Ports/Repositories.swift`. Ce fichier-là faisait autorité depuis le
+ * début ; Android ne l'avait simplement jamais lu, et `prononciation.json`
+ * partait exclu du paquet faute de lecteur (#263).
+ */
+public interface PrononciationRepository {
+    public fun feuille(): FeuilleDePrononciation?
+}
+
+/**
+ * Le titre et le corps de la feuille.
+ *
+ * Des [Block], jamais du markdown : la feuille cite `chokhmah`, `malʾakh` et
+ * `Chanokh`, et c'est le rendu du corpus qui les pose en or et en terre brûlée,
+ * touchables, sans une ligne de code de plus.
+ */
+public data class FeuilleDePrononciation(
+    public val titre: String,
+    public val blocs: kotlin.collections.List<Block>,
+)
