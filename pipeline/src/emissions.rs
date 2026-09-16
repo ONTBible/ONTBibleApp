@@ -410,13 +410,7 @@ pub const ARTEFACTS: &[Artefact] = &[
         jetons: &["prononciation.json"],
         lectures: &[
             (Liseuse::Ios, Lecture::Lit),
-            (
-                Liseuse::Android,
-                Lecture::Ignore(
-                    "exclu de `copierLesDonnees` en connaissance de cause — voir la raison \
-                     écrite dans `android/app/build.gradle.kts`",
-                ),
-            ),
+            (Liseuse::Android, Lecture::Lit),
             (
                 Liseuse::Site,
                 Lecture::Lacune("la feuille de prononciation n'a pas de page sur le site"),

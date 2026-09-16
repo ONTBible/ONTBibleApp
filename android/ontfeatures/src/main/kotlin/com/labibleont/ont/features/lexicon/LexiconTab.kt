@@ -39,6 +39,7 @@ import com.labibleont.ont.kit.glossary.GlossaryEntry
 public fun LexiconTab(
     model: LexiconModel,
     onOuvrir: (String) -> Unit,
+    onOuvrirLaPrononciation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
@@ -69,6 +70,18 @@ public fun LexiconTab(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         )
+
+        // Le pavé de prononciation, **au-dessus** de la liste et non dedans.
+        //
+        // C'est ce qu'il faut lire avant la première fiche, et une ligne perdue
+        // au milieu des entrées ne serait jamais touchée. Il disparaît quand le
+        // vault ne porte pas la feuille — l'absence est un état, pas une panne.
+        model.prononciation?.let {
+            HeroDePrononciation(
+                onOuvrir = onOuvrirLaPrononciation,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+        }
 
         val visibles = model.visibles
         LazyColumn(modifier = Modifier.fillMaxWidth()) {

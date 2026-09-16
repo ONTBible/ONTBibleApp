@@ -202,23 +202,6 @@ tasks.register<Sync>("copierLesDonnees") {
     from(donneesDuPipeline)
     into(File(assetsEngendres, "data"))
 
-    // ## Le guide de prononciation n'est pas lu par Android
-    //
-    // `corpus.sh` copie `dist/*.json` — un **glob**, pas une liste. Tout
-    // nouveau document du pipeline entre donc dans les ressources sans que
-    // personne l'ait décidé, et de là dans le paquet de tous les lecteurs.
-    //
-    // C'est ce qui vient d'arriver : `prononciation.json`, seize kilo-octets
-    // qu'iOS lit dans sept fichiers et qu'Android n'ouvre nulle part.
-    // `verifierLeCorpus` l'a arrêté — c'est exactement ce pour quoi il existe.
-    //
-    // On exclut plutôt que de l'inscrire aux connus : inscrire déclare qu'un
-    // lecteur existe, et ce serait faux.
-    //
-    // **C'est un écart de parité, pas une décision** — voir l'issue ouverte le
-    // 8 septembre. Le jour où Android saura le lire, cette ligne disparaît et
-    // le nom rejoint `connusDuCorpus`.
-    exclude("prononciation.json")
 
     // ## Les chuqqot non plus — et c'est la seconde fois en trois jours
     //
@@ -305,15 +288,42 @@ tasks.register<Sync>("copierLesDonnees") {
  */
 val connusDuCorpus = setOf(
     "books", "corpus.json", "daily.json", "glossary.json",
-    "manifest.json", "occurrences.json", "report.md", "search.json",
+    // `report.md` a quitté cette liste le 14 septembre 2026, trouvé par la
+    // seconde moitié de la garde à son premier tour. Il n'arrive jamais dans les
+    // assets — `corpus.sh` copie `dist/*.json`, et c'est un `.md` — et aucune
+    // ligne de Kotlin ne l'ouvre. Il y figurait donc en déclarant un lecteur qui
+    // n'a jamais existé, sur un fichier qui n'a jamais été copié : les deux
+    // moitiés fausses à la fois, ce qui est précisément ce qui le rendait
+    // invisible.
+    "manifest.json", "occurrences.json", "search.json",
     "shemot.json",
-    // Exclus de la copie plutôt que lus — voir `copierLesDonnees`. Ils figurent
-    // ici pour que la garde ne redise pas ce qui est déjà tranché, et les
-    // commentaires des exclusions portent la raison.
+    // **Lu depuis le 12 septembre 2026**, par `DiskPrononciationRepository`.
+    // Il figurait ici sous un commentaire disant « exclu de la copie plutôt que
+    // lu » — la garde le tolérait sans qu'un lecteur existe, et c'est exactement
+    // la limite qu'elle porte : inscrire un nom **déclare** qu'un lecteur
+    // existe, et rien ne vérifie que la déclaration est vraie. Elle était fausse
+    // pendant quatre jours (#263).
     "prononciation.json",
-    // Même traitement, même raison — voir `copierLesDonnees`.
+    // Exclu de la copie plutôt que lu — voir `copierLesDonnees`. Il figure ici
+    // pour que la garde ne redise pas ce qui est déjà tranché, et le commentaire
+    // de l'exclusion porte la raison.
     "chuqqot.json",
     "sources",
+)
+
+/**
+ * Ce qui est **volontairement** exclu du paquet, faute de lecteur.
+ *
+ * Une liste séparée de [connusDuCorpus], et non un drapeau dans celle-ci : les
+ * deux disent des choses opposées. Y figurer veut dire « le pipeline l'émet,
+ * Android ne sait pas le lire, et c'est consigné » — chaque nom a son issue
+ * ouverte et le commentaire de son `exclude` porte la raison.
+ *
+ * Un nom qui quitte cette liste doit avoir gagné un lecteur le même jour.
+ */
+val exclusDeLaCopie = setOf(
+    "chuqqot.json", // #273 — iOS a un onglet entier, Android n'a pas d'écran
+    "sources", // les langues sources, même date et même raison
 )
 
 tasks.register("verifierLeCorpus") {
@@ -323,12 +333,63 @@ tasks.register("verifierLeCorpus") {
     // et refuse le build entier plutôt que de la perdre en silence.
     val dossier = donneesDuPipeline.asFile
     val connus = connusDuCorpus.toSet()
+    // Capturée ici comme `connus`, et pour la même raison exactement : la lire
+    // depuis `doLast` en ferait une référence au script, que le cache de
+    // configuration refuse de sérialiser. Le commentaire ci-dessus l'annonçait,
+    // et je l'ai quand même posée dans le bloc — la règle était écrite trois
+    // lignes plus haut.
+    val exclus = exclusDeLaCopie.toSet()
     doLast {
         val inattendus = dossier.listFiles()
             .orEmpty()
             .map { it.name }
             .filterNot { it in connus || it.startsWith(".") }
             .sorted()
+        // ## Ce que la liste seule ne peut pas voir
+        //
+        // `connusDuCorpus` compare des **noms**. Inscrire un nom y *déclare*
+        // qu'un lecteur existe, et rien ne vérifie que la déclaration est vraie :
+        // `prononciation.json` y figurait depuis le 8 septembre 2026, exclu de la
+        // copie, sans qu'aucune ligne de Kotlin ne l'ouvre — quatre jours, et la
+        // garde verte tout du long (#263).
+        //
+        // D'où la seconde moitié : un fichier **inscrit aux connus et absent des
+        // assets** est un lecteur déclaré qui n'a rien à lire. Les deux cas sont
+        // des pannes opposées, et une liste ne peut nommer que le premier.
+        //
+        // Les exclusions assumées sont retirées de la comparaison : elles disent
+        // « pas de lecteur, et on le sait ». C'est ce qui distingue un écart
+        // consigné d'un oubli.
+        // **On mesure `dist/`, pas les assets** — et c'est le piège qu'on a
+        // failli poser ici. Cette tâche est une *dépendance* de
+        // `copierLesDonnees` : elle tourne **avant** la copie. Lire
+        // `generated/assets` y rendrait le résultat du build précédent, ou rien
+        // du tout sur un arbre neuf — un contrôle vert parce qu'il regarde un
+        // dossier qui n'existe pas encore.
+        //
+        // La question « ce nom arrivera-t-il dans le paquet ? » se répond donc
+        // sur la source et la règle : présent dans `dist/`, et non exclu.
+        val emis = dossier.listFiles().orEmpty().map { it.name }.toSet()
+        val declaresSansEtreCopies = (connus - emis - exclus).sorted()
+
+        if (declaresSansEtreCopies.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Android déclare lire ce que le pipeline n'émet pas :")
+                    declaresSansEtreCopies.forEach { appendLine("    $it") }
+                    appendLine()
+                    appendLine("Le nom figure à `connusDuCorpus` — ce qui déclare qu'un lecteur")
+                    appendLine("existe — mais le pipeline ne l'émet pas. Le lecteur lira donc")
+                    appendLine("le vide, en silence.")
+                    appendLine()
+                    appendLine("Deux sorties :")
+                    appendLine("  · le pipeline ne l'émet plus → retirer le nom des connus ;")
+                    appendLine("  · il est exclu volontairement → l'inscrire à `exclusDeLaCopie`,")
+                    appendLine("    qui dit « pas de lecteur, et on le sait ».")
+                },
+            )
+        }
+
         if (inattendus.isNotEmpty()) {
             throw GradleException(
                 buildString {
