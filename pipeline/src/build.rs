@@ -641,6 +641,8 @@ pub struct BuildResult {
     pub moins_glosee: Option<(String, f64)>,
     /// Les plages à cheval dont la longueur déduite a été confrontée au témoin
     /// **et** tombe juste.
+    /// Les mots que plusieurs fiches revendiquaient — voir `BilanDesDisputes`.
+    pub disputes: crate::sources::BilanDesDisputes,
     pub plages_mesurees: usize,
     /// Celles qu'aucun témoin n'a permis de confronter.
     ///
@@ -1343,7 +1345,24 @@ pub fn build() -> Result<BuildResult, String> {
     let mut liaison = crate::sources::LiaisonDesMots::nouvelle(glossary.iter().map(|e| {
         crate::sources::FichePourLaJointure {
             lemme: e.lemma.as_str(),
-            hebreu: e.hebrew.as_deref(),
+            // **`hebreu_de_la_fiche` en repli, et les deux champs ne disent
+            // pas la même chose.**
+            //
+            // `hebrew` vient de la puce du §2.5, entre parenthèses ; celle-ci
+            // vient de la section `## Source` de la fiche. La puce de **YHWH
+            // est volontairement nue**, le §7 réservant son traitement — donc
+            // le nom divin n'avait aucune forme à comparer, et l'arbitre le
+            // laissait inerte.
+            //
+            // Mesuré : 14 fiches sur 158 sont dans ce cas, dont `yhwh` et
+            // `yhwh-elohim`, et à elles deux elles portaient **95 des 144 mots
+            // inertes** de Bereshit. J'allais demander au vault d'écrire ce
+            // qu'il avait déjà écrit, sous un autre nom de champ — c'est la
+            // session du vault qui l'a relevé.
+            //
+            // Le §3 d'abord quand il existe : il est le lieu du terme, la
+            // fiche est le lieu du mot.
+            hebreu: e.hebrew.as_deref().or(e.hebreu_de_la_fiche.as_deref()),
             strong: e.strong.as_deref(),
         }
     }));
@@ -1723,6 +1742,7 @@ pub fn build() -> Result<BuildResult, String> {
             .count(),
         chapitres_mesures: densites.len(),
         moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
+        disputes: preparation.as_ref().map(|p| p.disputes).unwrap_or_default(),
         plages_mesurees: deductions.mesurees.len(),
         plages_non_mesurees: deductions.non_mesurees.len(),
     })

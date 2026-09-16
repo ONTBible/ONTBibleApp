@@ -247,13 +247,19 @@ pub struct FichierPublie {
     pub sha256: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// **Relisible, et pas seulement écrivable.**
+///
+/// `Deserialize` sert `bin/departager`, qui reprend ce que le pipeline vient
+/// d'écrire pour présenter les mots qu'il n'a pas su départager. Un format
+/// publié qu'on ne sait pas relire est un format qu'on ne peut pas vérifier —
+/// et l'outil ne réécrit pas la lecture, il emploie la structure même.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivreSources {
     pub temoin: String,
     pub unites: BTreeMap<String, Vec<VersetPublie>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersetPublie {
     /// Le numéro **à afficher**. Pas une clé — voir l'en-tête du module.
     pub n: u32,
@@ -272,7 +278,7 @@ pub struct VersetPublie {
 }
 
 /// Un mot du texte source, et la fiche qu'il ouvre quand il en ouvre une.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotPublie {
     /// La forme telle qu'elle est écrite, voyelles et cantillation comprises.
     pub t: String,
@@ -392,9 +398,72 @@ pub struct LiaisonDesMots {
     ///
     /// Rempli par `apprendre_du_temoin`, une fois par livre.
     strong_atteste: HashMap<String, String>,
+    /// **L'aspect que le témoin attribue à la forme d'une fiche.**
+    ///
+    /// Même principe que `strong_atteste`, sur un autre axe : la fiche déclare
+    /// une forme, le témoin dit ce qu'il en fait grammaticalement. Quand il ne
+    /// lui donne qu'un aspect, cet aspect **est** celui de la fiche — attesté,
+    /// pas supposé.
+    ///
+    /// Ne sert qu'à départager `raʾah` de `roʿeh` et leurs semblables : deux
+    /// fiches pour un même numéro, dont l'une est le participe substantivé de
+    /// l'autre. Le témoin atteste `רָאָה` **uniquement** en accompli et `רֹאֶה`
+    /// **uniquement** en participe ; la partition est donc franche, et le mot
+    /// rejoint son côté.
+    morph_atteste: HashMap<String, Aspects>,
     vocalisees: HashMap<String, CibleDuNiveauTrois>,
     /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
     consonantiques: HashMap<String, CibleDuNiveauTrois>,
+
+    /// **Les clés que plusieurs fiches revendiquent, avec leurs prétendants.**
+    ///
+    /// Elles étaient jetées, et pire : sur deux des trois tables elles ne
+    /// l'étaient même pas — un `insert` nu laissait la dernière fiche lue
+    /// écraser la précédente, et le mot ouvrait celle que l'ordre du glossaire
+    /// avait mise en dernier. Mesuré sur Bereshit : **146 mots** tombaient
+    /// ainsi sur quatre paires, et ouvraient une fiche tirée au sort.
+    ///
+    /// Les garder permet de les départager par ce que le témoin montre — voir
+    /// `arbitrer`. Ce qu'on ne peut pas départager reste inerte, ce qui est la
+    /// règle de la maison : un mot sans fiche se lit comme un mot sans fiche,
+    /// un mot qui ouvre la fiche d'un autre se lit comme la vérité.
+    disputes: HashMap<Cle, Vec<String>>,
+    /// **Ce que chaque fiche déclare : sa forme vocalisée, et son squelette.**
+    ///
+    /// Les deux, parce que l'arbitrage a besoin des deux étages. `qadash`
+    /// déclare `קָדַשׁ` et `qodesh` déclare `קֹדֶשׁ` : mêmes consonnes, voyelles
+    /// différentes. Un arbitre qui ne regarde que le squelette les tient pour
+    /// indiscernables et les laisse tous deux inertes — alors que le témoin
+    /// vocalise, et que la réponse est écrite des deux côtés.
+    hebreu_de: HashMap<String, (String, String)>,
+}
+
+/// Par quelle table une clé disputée est arrivée.
+///
+/// Le type existe pour que les trois disputes vivent dans **une** table sans se
+/// confondre : `430` le numéro de Strong et `430` une forme hébraïque n'ont
+/// aucune raison de se rencontrer, et une clé nue les mêlerait.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Cle {
+    Strong(String),
+    Vocalisee(String),
+    Consonantique(String),
+}
+
+/// Ce que la jointure a fait des mots que plusieurs fiches revendiquaient.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BilanDesDisputes {
+    /// Mots tombant sur une clé que plusieurs fiches revendiquent.
+    pub disputes: u32,
+    /// Ceux qu'une forme déclarée de part et d'autre a départagés.
+    pub tranches: u32,
+}
+
+impl BilanDesDisputes {
+    /// Ceux qu'on a laissés inertes faute de pouvoir trancher.
+    pub fn inertes(&self) -> u32 {
+        self.disputes.saturating_sub(self.tranches)
+    }
 }
 
 /// Ce qu'une fiche déclare d'elle-même, pour la jointure.
@@ -408,12 +477,14 @@ pub struct FichePourLaJointure<'a> {
 
 impl LiaisonDesMots {
     pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = FichePourLaJointure<'a>>) -> Self {
-        let mut strongs = HashMap::new();
-        let mut strong_de = HashMap::new();
-        let mut vocalisees = HashMap::new();
+        let mut par_strong: HashMap<String, Vec<String>> = HashMap::new();
+        let mut par_vocalisee: HashMap<String, Vec<String>> = HashMap::new();
         let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
+        let mut strong_de: HashMap<String, Vec<String>> = HashMap::new();
+        let mut hebreu_de: HashMap<String, (String, String)> = HashMap::new();
+
         for fiche in fiches {
-            let lemme = fiche.lemme;
+            let lemme = fiche.lemme.to_string();
             if let Some(strong) = fiche.strong {
                 // **Un construit déclare deux numéros, joints par un `+`.**
                 //
@@ -422,62 +493,46 @@ impl LiaisonDesMots {
                 // l'auteur : un construit hébreu est **deux mots** que le
                 // témoin segmente, et lui donner un seul numéro serait en
                 // taire un.
-                //
-                // Sans cette lecture, la chaîne entière servait de clé et ne
-                // correspondait à rien. Le mot n'aurait pas été mal joint — il
-                // n'aurait simplement jamais été joint, et la Source de ces
-                // huit fiches n'aurait rien servi. Un échec silencieux de plus,
-                // et celui-là je l'ai évité parce que la session du vault m'a
-                // prévenu avant de pousser.
                 let numeros: Vec<String> = strong.split('+').map(numero_nu).collect();
                 for nu in &numeros {
-                    strongs.insert(
-                        nu.clone(),
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemme.to_string(),
-                        },
-                    );
+                    pretendre(&mut par_strong, nu.clone(), &lemme);
                 }
-                strong_de.insert(lemme.to_string(), numeros);
+                strong_de.insert(lemme.clone(), numeros);
             }
             let Some(hebreu) = fiche.hebreu else { continue };
             let vocalisee = sans_cantillation(hebreu);
             if vocalisee.is_empty() {
                 continue;
             }
-            vocalisees.insert(
-                vocalisee.clone(),
-                CibleDuNiveauTrois::Term {
-                    lemma: lemme.to_string(),
-                },
-            );
-            par_squelette
-                .entry(consonnes(&vocalisee))
-                .or_default()
-                .push(lemme.to_string());
+            hebreu_de.insert(lemme.clone(), (vocalisee.clone(), consonnes(&vocalisee)));
+            pretendre(&mut par_squelette, consonnes(&vocalisee), &lemme);
+            pretendre(&mut par_vocalisee, vocalisee, &lemme);
         }
-        let consonantiques = par_squelette
-            .into_iter()
-            .filter_map(|(squelette, mut lemmes)| {
-                lemmes.sort();
-                lemmes.dedup();
-                // **Un seul prétendant, sinon rien.** Voir l'en-tête du type.
-                (lemmes.len() == 1).then(|| {
-                    (
-                        squelette,
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemmes.remove(0),
-                        },
-                    )
-                })
-            })
-            .collect();
+
+        // **Les trois tables passent par la même porte.**
+        //
+        // Avant, elles en avaient trois : `consonantiques` accumulait pour
+        // pouvoir refuser, `strongs` et `vocalisees` écrasaient. La garde était
+        // écrite une fois et posée sur un seul étage — et sur celui que 1 529
+        // mots sur 1 530 ne franchissent jamais, puisque le numéro de Strong
+        // répond en premier.
+        //
+        // C'est la leçon de `table_sure`, à laquelle ce code n'avait pas été
+        // soumis : deux écritures de la même garde finissent par diverger.
+        let mut disputes = HashMap::new();
+        let strongs = trier(par_strong, Cle::Strong, &mut disputes);
+        let vocalisees = trier(par_vocalisee, Cle::Vocalisee, &mut disputes);
+        let consonantiques = trier(par_squelette, Cle::Consonantique, &mut disputes);
+
         Self {
             strongs,
             strong_de,
             strong_atteste: HashMap::new(),
+            morph_atteste: HashMap::new(),
             vocalisees,
             consonantiques,
+            disputes,
+            hebreu_de,
         }
     }
 
@@ -489,6 +544,32 @@ impl LiaisonDesMots {
     /// plusieurs, on ne conclut pas.
     ///
     /// Appelée une fois par livre, avant la jointure de ses mots.
+    /// **Ce que le témoin dit de la forme d'une fiche, grammaticalement.**
+    ///
+    /// Seconde moitié de l'apprentissage, sur l'axe de l'aspect. On n'accumule
+    /// que pour les formes qu'une fiche déclare : le reste du témoin ne nous
+    /// apprend rien sur le lexique.
+    fn apprendre_les_aspects(&mut self, mots: impl IntoIterator<Item = (String, String)>) {
+        for (forme, morph) in mots {
+            let f = sans_cantillation(&forme);
+            let Some(lemme) = self.vocalisees.get(&f).map(|c| match c {
+                CibleDuNiveauTrois::Term { lemma } => lemma.clone(),
+                CibleDuNiveauTrois::Shem { lemma } => lemma.clone(),
+            }) else {
+                continue;
+            };
+            let Some(participe) = est_participe(&morph) else {
+                continue;
+            };
+            let vu = self.morph_atteste.entry(lemme).or_default();
+            if participe {
+                vu.participe = true;
+            } else {
+                vu.autre = true;
+            }
+        }
+    }
+
     fn apprendre_du_temoin(&mut self, mots: impl IntoIterator<Item = (String, String)>) {
         let mut vus: HashMap<String, Option<String>> = HashMap::new();
         for (forme, lem) in mots {
@@ -518,20 +599,181 @@ impl LiaisonDesMots {
         }
     }
 
-    fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
+    /// **Départager deux fiches qui revendiquent la même clé, sans rien
+    /// deviner.**
+    ///
+    /// Les deux côtés déclarent une forme hébraïque : la fiche dans son §3, le
+    /// témoin dans son texte. Quand une seule des candidates déclare celle que
+    /// le mot porte, c'est elle — et ce n'est pas une déduction, c'est une
+    /// coïncidence attestée de part et d'autre.
+    ///
+    /// **Mesuré sur Bereshit :** des 146 mots tombant sur une paire disputée,
+    /// 79 se tranchent ainsi. Les 66 autres sont des formes fléchies —
+    /// `וַיַּרְא` ne ressemble ni à `רָאָה` ni à `רֹאֶה` —, et les départager
+    /// demanderait de savoir laquelle des deux fiches est un verbe et laquelle
+    /// est un nom. **Rien ne le déclare.** Une règle morphologique inventée ici
+    /// rendrait le mot touchable vers la mauvaise fiche, et le lecteur ne
+    /// pourrait pas le voir : c'est exactement le défaut qu'on répare.
+    ///
+    /// Ceux-là restent inertes, et `bin/departager` les présente au vault pour
+    /// qu'il tranche **une fois**, au lieu que le pipeline devine à chaque
+    /// build.
+    fn arbitrer(
+        &self,
+        cle: &Cle,
+        vocalisee: &str,
+        lem: Option<&str>,
+        morph: Option<&str>,
+    ) -> Option<CibleDuNiveauTrois> {
+        let pretendants = self.disputes.get(cle)?;
+        let squelette = consonnes(vocalisee);
+        // **Le témoin déclare ses préfixes ; on ne les devine pas.**
+        //
+        // `l/3068` dit « un lamed, puis le mot 3068 ». La forme du mot est
+        // alors `לַיהוָה`, qui ne ressemble à aucune forme citée — et
+        // `יְהוָה` restait inerte sous préfixe alors qu'il se tranchait nu.
+        //
+        // Comparer la **fin** du squelette est donc licite ici, et seulement
+        // ici : la segmentation vient du témoin, pas d'une règle. Sans cette
+        // condition, `ראה` se dirait la fin de `מראה` et l'on inventerait une
+        // morphologie.
+        let prefixe_declare = lem.is_some_and(|l| l.contains('/'));
+        // **La vocalisée d'abord, le squelette ensuite.** Le premier étage
+        // sépare ce que le second confond — `קָדַשׁ` de `קֹדֶשׁ` —, et le second
+        // rattrape les formes que la cantillation seule distinguait.
+        seul(pretendants, |l| {
+            self.hebreu_de.get(l).is_some_and(|(v, _)| v == vocalisee)
+        })
+        .or_else(|| {
+            seul(pretendants, |l| {
+                self.hebreu_de.get(l).is_some_and(|(_, c)| *c == squelette)
+            })
+        })
+        .or_else(|| self.par_l_aspect(pretendants, morph))
+        .or_else(|| {
+            prefixe_declare.then(|| {
+                seul(pretendants, |l| {
+                    self.hebreu_de
+                        .get(l)
+                        .is_some_and(|(_, c)| !c.is_empty() && squelette.ends_with(c.as_str()))
+                })
+            })?
+        })
+        .map(|lemma| CibleDuNiveauTrois::Term { lemma })
+    }
+
+    /// **Les fiches qui se disputaient ce mot, quand il est resté inerte.**
+    ///
+    /// Sert `bin/departager` et rien d'autre. Rendre les prétendants plutôt que
+    /// la table entière garde `Cle` privée : l'outil n'a pas à savoir par
+    /// quelle porte la dispute est arrivée, seulement qui se disputait.
+    ///
+    /// Vide quand le mot n'est disputé par personne — un mot sans fiche est le
+    /// cas ordinaire, pas un cas à examiner.
+    pub fn pretendants(&self, mot: &str, lem: Option<&str>) -> &[String] {
+        let vocalisee = sans_cantillation(mot);
+        let cles = [
+            lem.map(|l| Cle::Strong(numero_nu(l))),
+            Some(Cle::Vocalisee(vocalisee.clone())),
+            Some(Cle::Consonantique(consonnes(&vocalisee))),
+        ];
+        for cle in cles.into_iter().flatten() {
+            if let Some(p) = self.disputes.get(&cle) {
+                return p;
+            }
+        }
+        &[]
+    }
+
+    /// La forme hébraïque qu'une fiche déclare — pour la montrer à côté du mot.
+    pub fn hebreu_declare(&self, lemme: &str) -> Option<&str> {
+        self.hebreu_de.get(lemme).map(|(v, _)| v.as_str())
+    }
+
+    /// **Le participe substantivé, départagé par ce que le témoin atteste.**
+    ///
+    /// `raʾah` et `roʿeh` portent le même numéro — et c'est juste : le témoin
+    /// n'emploie jamais 7203, que Strong réserve au voyant. Ce sont deux fiches
+    /// pour un mot dont l'une est le participe de l'autre, et le numéro ne peut
+    /// pas les séparer.
+    ///
+    /// Le témoin, lui, les sépare déjà : il atteste `רָאָה` **uniquement** en
+    /// accompli et `רֹאֶה` **uniquement** en participe. Quand la partition est
+    /// franche — l'une jamais participe, l'autre seulement participe —, le mot
+    /// rejoint son côté selon ce que le témoin dit **de lui**.
+    ///
+    /// **Rien n'est inventé à aucun bout** : les deux natures viennent de
+    /// l'attestation, et l'aspect du mot vient de son propre code. C'est la
+    /// règle des préfixes, un cran plus loin — ne comparer que ce que le témoin
+    /// déclare.
+    ///
+    /// Une partition qui n'est pas franche ne tranche rien : deux fiches vues
+    /// toutes deux en participe, ou aucune des deux attestée, laissent le mot
+    /// inerte.
+    fn par_l_aspect(&self, pretendants: &[String], morph: Option<&str>) -> Option<String> {
+        let participe = est_participe(morph?)?;
+        let cote = |l: &String| {
+            self.morph_atteste.get(l).is_some_and(|a| {
+                if participe {
+                    a.participe_seulement()
+                } else {
+                    a.jamais_participe()
+                }
+            })
+        };
+        let autre_cote = |l: &String| {
+            self.morph_atteste.get(l).is_some_and(|a| {
+                if participe {
+                    a.jamais_participe()
+                } else {
+                    a.participe_seulement()
+                }
+            })
+        };
+        // La partition doit être franche des **deux** côtés : un seul candidat
+        // du bon, et tous les autres de l'autre.
+        if !pretendants.iter().all(|l| cote(l) || autre_cote(l)) {
+            return None;
+        }
+        seul(pretendants, |l| cote(&l.to_string()))
+    }
+
+    fn cible(
+        &self,
+        mot: &str,
+        lem: Option<&str>,
+        morph: Option<&str>,
+    ) -> Option<CibleDuNiveauTrois> {
         let numero = lem.map(numero_nu);
+
+        let vocalisee = sans_cantillation(mot);
 
         // **Le numéro d'abord**, parce qu'il est le seul vérifiable.
         if let Some(c) = numero.as_ref().and_then(|n| self.strongs.get(n)) {
             return Some(c.clone());
         }
+        // Et s'il est disputé, on demande au témoin de trancher.
+        if let Some(c) = numero
+            .as_ref()
+            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee, lem, morph))
+        {
+            return Some(c);
+        }
 
-        let vocalisee = sans_cantillation(mot);
         let par_la_forme = self
             .vocalisees
             .get(&vocalisee)
             .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
-            .cloned()?;
+            .cloned()
+            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee, lem, morph))
+            .or_else(|| {
+                self.arbitrer(
+                    &Cle::Consonantique(consonnes(&vocalisee)),
+                    &vocalisee,
+                    lem,
+                    morph,
+                )
+            })?;
 
         // **Et le numéro a aussi un droit de veto.**
         //
@@ -760,6 +1002,105 @@ impl BilanDesTranslitterations {
     pub fn total(&self) -> u32 {
         self.couverts() + self.sans
     }
+}
+
+/// Le seul prétendant qui satisfait le critère — ou rien.
+///
+/// Deux fiches qui déclarent la **même** forme ne se départagent pas davantage
+/// que deux qui n'en déclarent aucune. La règle ne change pas d'un étage à
+/// l'autre, et elle s'écrit donc une seule fois.
+fn seul(pretendants: &[String], convient: impl Fn(&str) -> bool) -> Option<String> {
+    let mut gagnants = pretendants.iter().filter(|l| convient(l));
+    let premier = gagnants.next()?;
+    if gagnants.next().is_some() {
+        return None;
+    }
+    Some(premier.clone())
+}
+
+/// Les aspects qu'un témoin attribue à une forme.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct Aspects {
+    /// Le témoin a vu cette forme en participe — `r` ou `s` du code OSHB.
+    participe: bool,
+    /// Il l'a vue autrement : accompli, inaccompli, impératif, nom…
+    autre: bool,
+}
+
+impl Aspects {
+    /// Vrai quand le témoin n'a jamais vu cette forme qu'en participe.
+    fn participe_seulement(&self) -> bool {
+        self.participe && !self.autre
+    }
+
+    fn jamais_participe(&self) -> bool {
+        self.autre && !self.participe
+    }
+}
+
+/// **L'aspect d'un mot, lu dans le code morphologique du témoin.**
+///
+/// Le format est celui d'OSHB, publié et versionné, crédité dans le manifeste
+/// des sources du vault : une lettre de langue — `H` pour l'hébreu, `A` pour
+/// l'araméen —, puis des segments séparés par `/`, un par morphème. Un segment
+/// verbal s'écrit `V` + radical + **aspect** + accord : `Vqp3ms` est un qal
+/// accompli 3ᵉ masculin singulier, `Vqrmsa` un qal participe.
+///
+/// ## Pourquoi le dernier segment ne suffit pas
+///
+/// `HVhi1cs/Sp2ms` finit par un **pronom suffixe**, pas par le verbe. Prendre
+/// la fin donnerait `Sp2ms` et l'on conclurait « pas un participe » sans avoir
+/// regardé le verbe. On cherche donc le segment verbal, où qu'il soit.
+///
+/// ## Ce qu'on lit, et ce qu'on ne lit pas
+///
+/// Seulement : « est-ce un participe ». Pas le radical, pas l'accord, pas la
+/// personne. C'est la seule question qui départage deux fiches dont l'une est
+/// le participe substantivé de l'autre — et lire davantage serait lire pour
+/// lire.
+fn est_participe(morph: &str) -> Option<bool> {
+    let nu = morph.strip_prefix(['H', 'A']).unwrap_or(morph);
+    let verbal = nu.split('/').find(|seg| seg.starts_with('V'))?;
+    // `V` + radical + aspect : l'aspect est le troisième signe.
+    let aspect = verbal.chars().nth(2)?;
+    // `r` participe actif, `s` participe passif.
+    Some(aspect == 'r' || aspect == 's')
+}
+
+/// Inscrit un prétendant, sans doublon.
+fn pretendre(table: &mut HashMap<String, Vec<String>>, cle: String, lemme: &str) {
+    let e = table.entry(cle).or_default();
+    if !e.iter().any(|l| l == lemme) {
+        e.push(lemme.to_string());
+    }
+}
+
+/// Sépare ce qui est sûr de ce qui est disputé.
+///
+/// **La différence avec `table_sure` tient en un mot : celle-ci ne jette pas.**
+/// Une clé que deux fiches revendiquent n'est pas perdue, elle est mise de côté
+/// avec ses prétendants — c'est ce qui permet de la départager plus tard par ce
+/// que le témoin montre, au lieu de la trancher au hasard ou de l'abandonner.
+fn trier(
+    brut: HashMap<String, Vec<String>>,
+    quelle: fn(String) -> Cle,
+    disputes: &mut HashMap<Cle, Vec<String>>,
+) -> HashMap<String, CibleDuNiveauTrois> {
+    let mut surs = HashMap::new();
+    for (cle, mut lemmes) in brut {
+        if lemmes.len() == 1 {
+            surs.insert(
+                cle,
+                CibleDuNiveauTrois::Term {
+                    lemma: lemmes.remove(0),
+                },
+            );
+        } else {
+            lemmes.sort();
+            disputes.insert(quelle(cle), lemmes);
+        }
+    }
+    surs
 }
 
 /// La règle « un seul prétendant, sinon rien », appliquée à une liste.
@@ -1072,6 +1413,15 @@ fn deplier(reference: &str, versets_par_chapitre: &BTreeMap<u32, u32>) -> Option
 /// `Vec<String>` porte les écarts et lequel porte les relevés.
 pub struct Preparation {
     pub manifeste: ManifesteSources,
+    /// **Le bilan des mots que deux fiches se disputaient.**
+    ///
+    /// Il voyage jusqu'à `stdout` parce qu'un compte sans son dénominateur ne
+    /// dit rien : « 144 inertes » se lit comme une panne, « 144 inertes sur
+    /// 1 600 disputés, 87 tranchés » se lit comme un état du lexique.
+    ///
+    /// `bin/departager` en donne le détail ; cette ligne dit seulement s'il y a
+    /// lieu de le lancer.
+    pub disputes: BilanDesDisputes,
     /// `(chemin relatif, contenu)` pour chaque livre × témoin.
     pub fichiers: Vec<(String, LivreSources)>,
     /// Les fichiers frères des divergences d'éditions.
@@ -1193,6 +1543,7 @@ pub fn preparer(
     let mut sautees: Vec<String> = Vec::new();
     // Ce qui mérite l'œil de l'auteur sans rien empêcher.
     let mut releves: Vec<String> = Vec::new();
+    let mut disputes = BilanDesDisputes::default();
     let mut editions_par_livre: BTreeMap<String, FichierPublie> = BTreeMap::new();
     let mut fichiers_editions: Vec<(String, EditionsComparees)> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
@@ -1232,6 +1583,19 @@ pub fn preparer(
             // Deux passes sur le même contenu plutôt qu'une : la seconde a
             // besoin de ce que la première établit, et joindre au fil de la
             // lecture reviendrait à décider avant de savoir.
+            liaison.apprendre_les_aspects(
+                contenu
+                    .lines()
+                    .filter_map(|l| {
+                        let v: VersetSource = serde_json::from_str(l).ok()?;
+                        Some(
+                            v.w.into_iter()
+                                .filter_map(|m| m.oshb.map(|o| (m.t, o.morph)))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .flatten(),
+            );
             liaison.apprendre_du_temoin(
                 contenu
                     .lines()
@@ -1265,7 +1629,7 @@ pub fn preparer(
                         .map(|m| {
                             let o = m.oshb.as_ref().expect("filtré juste au-dessus");
                             MotPublie {
-                                cible: liaison.cible(&m.t, Some(&o.lem)),
+                                cible: liaison.cible(&m.t, Some(&o.lem), Some(&o.morph)),
                                 // **Pas ici.** À cette ligne on lit un `.jsonl`
                                 // classé par référence biblique : on ne sait pas
                                 // encore dans quelle unité ni à quelle position
@@ -1428,6 +1792,22 @@ pub fn preparer(
                         mot.translit =
                             translitterations.a_l_occurrence(&u.id, i, &mot.t, &mut bilan);
                     }
+                    // **On compte à l'émission, pas à la lecture.**
+                    //
+                    // Le `.jsonl` d'un témoin porte tout le livre biblique ;
+                    // les unités ONT n'en reprennent qu'une part. Compter au
+                    // moment de lire donnait 12 114 mots disputés sur un corpus
+                    // qui n'en publie que 6 185 — un dénominateur qui n'est
+                    // celui de personne, et un chiffre que le lecteur ne peut
+                    // pas rapprocher de ce qu'il a sous les yeux.
+                    for m in mots_par_ref.get(cle_ref).into_iter().flatten() {
+                        if !liaison.pretendants(&m.t, m.lem.as_deref()).is_empty() {
+                            disputes.disputes += 1;
+                            if m.cible.is_some() {
+                                disputes.tranches += 1;
+                            }
+                        }
+                    }
                     sortie.push(VersetPublie {
                         n: numeros.get(i).copied().unwrap_or((i + 1) as u32),
                         t: texte.clone(),
@@ -1551,6 +1931,7 @@ pub fn preparer(
     }
 
     Ok(Some(Preparation {
+        disputes,
         manifeste: ManifesteSources {
             schema: 1,
             genere: genere.to_string(),
@@ -1677,14 +2058,14 @@ mod tests {
 
         // Vocalisé, cantillation ôtée — le cas exact.
         assert_eq!(
-            liaison.cible("אֱלֹהִ֑ים", None),
+            liaison.cible("אֱלֹהִ֑ים", None, None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "elohim".into()
             })
         );
         // Fléchi : seul le squelette tombe juste, et il est seul à le porter.
         assert_eq!(
-            liaison.cible("בְּרֹ֤א", None),
+            liaison.cible("בְּרֹ֤א", None, None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "bara".into()
             })
@@ -1692,9 +2073,9 @@ mod tests {
         // **Ambigu : rien.** `דבר` est *davar* et *dibber* ; la forme
         // vocalisée du texte ne coïncide avec aucune des deux fiches, et le
         // squelette en désigne deux. Ouvrir l'une des deux serait mentir.
-        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר", None), None);
+        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר", None, None), None);
         // Un mot qu'aucune fiche ne nomme.
-        assert_eq!(liaison.cible("אֵ֥ת", None), None);
+        assert_eq!(liaison.cible("אֵ֥ת", None, None), None);
     }
 
     /// **La récolte des translittérations, et son refus.**
@@ -1954,13 +2335,13 @@ mod tests {
             strong: Some("8034"),
         }]);
         assert_eq!(
-            liaison.cible("שֵׁ֣ם", Some("8034")),
+            liaison.cible("שֵׁ֣ם", Some("8034"), None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "shem".into()
             })
         );
         // Même forme, autre numéro — *Shem fils de Noach*. On ne joint pas.
-        assert_eq!(liaison.cible("שֵׁ֖ם", Some("8035")), None);
+        assert_eq!(liaison.cible("שֵׁ֖ם", Some("8035"), None), None);
 
         // `el` ne déclare rien : le veto doit venir du témoin.
         let mut liaison = LiaisonDesMots::nouvelle([FichePourLaJointure {
@@ -1970,7 +2351,7 @@ mod tests {
         }]);
         // Sans apprentissage, le squelette confond — et c'est le code d'avant.
         assert_eq!(
-            liaison.cible("אֶל", Some("413")),
+            liaison.cible("אֶל", Some("413"), None),
             Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
         );
         // Le témoin dit que `אֵל` porte 410, et rien d'autre.
@@ -1978,9 +2359,9 @@ mod tests {
             ("אֵ֣ל".to_string(), "410".to_string()),
             ("אֵל".to_string(), "410".to_string()),
         ]);
-        assert_eq!(liaison.cible("אֶל", Some("413")), None);
+        assert_eq!(liaison.cible("אֶל", Some("413"), None), None);
         assert_eq!(
-            liaison.cible("אֵ֣ל", Some("410")),
+            liaison.cible("אֵ֣ל", Some("410"), None),
             Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
         );
     }
@@ -2005,10 +2386,177 @@ mod tests {
             lemma: "tov-vara".into(),
         };
         // Chaque moitié ouvre la fiche du construit.
-        assert_eq!(liaison.cible("ט֥וֹב", Some("2896 b")), Some(cible.clone()));
-        assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b")), Some(cible));
+        assert_eq!(
+            liaison.cible("ט֥וֹב", Some("2896 b"), None),
+            Some(cible.clone())
+        );
+        assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b"), None), Some(cible));
         // Et le veto tient toujours pour ce que la fiche ne déclare pas.
-        assert_eq!(liaison.cible("ט֥וֹב", Some("2897")), None);
+        assert_eq!(liaison.cible("ט֥וֹב", Some("2897"), None), None);
+    }
+
+    /// **Deux fiches au même numéro ne se tranchent pas au hasard.**
+    ///
+    /// Le défaut que cette épreuve garde : `strongs` et `vocalisees` étaient
+    /// des `insert` nus, et la seconde fiche lue écrasait la première. Le mot
+    /// ouvrait celle que l'ordre du glossaire avait mise en dernier — mesuré
+    /// sur Bereshit, **231 mots** tombaient ainsi sur quatre paires.
+    ///
+    /// Contre le code d'avant, cette épreuve rougit deux fois : `roeh`
+    /// écraserait `raah`, et les deux mots ouvriraient `roeh`.
+    #[test]
+    fn deux_fiches_au_meme_numero_se_departagent_par_la_forme() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "raah",
+                hebreu: Some("רָאָה"),
+                strong: Some("7200"),
+            },
+            FichePourLaJointure {
+                lemme: "roeh",
+                hebreu: Some("רֹאֶה"),
+                strong: Some("7200"),
+            },
+        ]);
+
+        // Chacune ouvre la sienne : les deux côtés déclarent la même forme.
+        assert_eq!(
+            liaison.cible("רָאָ֣ה", Some("7200"), None),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "raah".into()
+            })
+        );
+        assert_eq!(
+            liaison.cible("רֹאֶ֖ה", Some("7200"), None),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "roeh".into()
+            })
+        );
+
+        // **Et une forme fléchie n'ouvre rien.** `וַיַּרְא` ne ressemble à
+        // aucune des deux formes citées ; les départager demanderait de savoir
+        // laquelle des fiches est le verbe, et rien ne le déclare. Mieux vaut
+        // inerte que plausible.
+        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200"), None), None);
+    }
+
+    /// **Un préfixe déclaré par le témoin ne fait pas perdre la fiche.**
+    ///
+    /// `לַיהוָה` est un lamed puis le nom divin, et le témoin le dit —
+    /// `l/3068`. Sans cette lecture, le nom se tranchait nu et restait inerte
+    /// dès qu'une préposition s'y collait : onze fois sur Bereshit, sept cent
+    /// soixante fois sur le Tanakh selon le relevé du vault.
+    ///
+    /// Le suffixe n'est comparé **que** si le témoin déclare un préfixe. Sans
+    /// cette condition, `ראה` se dirait la fin de `מראה` et l'on aurait inventé
+    /// une morphologie — exactement ce qu'on refuse.
+    #[test]
+    fn un_prefixe_declare_par_le_temoin_ne_perd_pas_la_fiche() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "yhwh",
+                hebreu: Some("יְהוָה"),
+                strong: Some("3068"),
+            },
+            FichePourLaJointure {
+                lemme: "yhwh-elohim",
+                hebreu: Some("יְהוָה אֱלֹהִים"),
+                strong: Some("3068 + 430"),
+            },
+        ]);
+        let yhwh = Some(CibleDuNiveauTrois::Term {
+            lemma: "yhwh".into(),
+        });
+        // Nu : la forme tranche.
+        assert_eq!(liaison.cible("יְהוָ֔ה", Some("3068"), None), yhwh);
+        // Préfixé, et le témoin le déclare : la fin du mot tranche.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("l/3068"), None), yhwh);
+        // **Sans préfixe déclaré, aucune comparaison de fin.** Le mot ne
+        // ressemble à rien de cité, et rien ne dit qu'il porte un préfixe.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("3068"), None), None);
+    }
+
+    /// **Le participe substantivé va d'un côté, le reste de l'autre.**
+    ///
+    /// `raʾah` et `roʿeh` portent le même numéro, et c'est juste : le témoin
+    /// n'emploie jamais 7203, que Strong réserve au voyant. Aucune forme citée
+    /// ne ressemble à `וַיַּרְא`, donc ni le numéro ni la forme ne tranchent.
+    ///
+    /// Le témoin, lui, a tout dit : il n'atteste `רָאָה` qu'en accompli et
+    /// `רֹאֶה` qu'en participe. La partition est franche, le mot rejoint son
+    /// côté — et rien n'est inventé à aucun bout.
+    #[test]
+    fn le_participe_substantive_se_separe_de_son_verbe() {
+        let mut liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "raʾah",
+                hebreu: Some("רָאָה"),
+                strong: Some("7200"),
+            },
+            FichePourLaJointure {
+                lemme: "roʿeh",
+                hebreu: Some("רֹאֶה"),
+                strong: Some("7200"),
+            },
+        ]);
+        // Ce que le témoin atteste : chaque forme dans un seul emploi.
+        liaison.apprendre_les_aspects([
+            ("רָאָ֣ה".to_string(), "HVqp3ms".to_string()),
+            ("רֹאֶ֖ה".to_string(), "HVqrmsa".to_string()),
+        ]);
+
+        let verbe = Some(CibleDuNiveauTrois::Term {
+            lemma: "raʾah".into(),
+        });
+        let participe = Some(CibleDuNiveauTrois::Term {
+            lemma: "roʿeh".into(),
+        });
+
+        // Un wayyiqtol : ni accompli ni participe, mais pas un participe.
+        assert_eq!(
+            liaison.cible("וַיַּ֥רְא", Some("c/7200"), Some("HC/Vqw3ms")),
+            verbe
+        );
+        // Un participe, fût-il préfixé et pluriel.
+        assert_eq!(
+            liaison.cible("הָרֹאִ֖ים", Some("d/7200"), Some("HTd/Vqrmpa")),
+            participe
+        );
+        // **Sans morphologie, rien ne tranche.** L'arbitre ne suppose pas.
+        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("c/7200"), None), None);
+    }
+
+    /// Le code du témoin se lit là où le verbe est, pas à la fin.
+    #[test]
+    fn le_segment_verbal_n_est_pas_toujours_le_dernier() {
+        // Un pronom suffixe ferme le mot ; le verbe est avant.
+        assert_eq!(est_participe("HVhi1cs/Sp2ms"), Some(false));
+        assert_eq!(est_participe("HVqrmsc/Sp1cs"), Some(true));
+        // Un préfixe l'ouvre.
+        assert_eq!(est_participe("HTd/VNrmsa"), Some(true));
+        assert_eq!(est_participe("HC/Vqw3ms"), Some(false));
+        // Sans segment verbal, on ne dit rien.
+        assert_eq!(est_participe("HNcmsa"), None);
+    }
+
+    /// La même règle sur la forme, quand aucune des deux ne déclare de numéro.
+    #[test]
+    fn deux_fiches_a_la_meme_forme_ne_tranchent_pas_non_plus() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "davar",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+            FichePourLaJointure {
+                lemme: "dibber",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+        ]);
+        // Deux fiches qui déclarent **la même** forme ne se départagent par
+        // rien : l'arbitre est muet quand les deux disent pareil.
+        assert_eq!(liaison.cible("דָּבָ֣ר", None, None), None);
     }
 
     /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
