@@ -270,9 +270,26 @@ pub struct VersetPublie {
     /// les espaces que la liste de mots perd, et c'est lui qu'on copie ou
     /// qu'on lit à voix haute. La liste, elle, est ce qu'on touche.
     ///
-    /// Vide quand le témoin n'étiquette pas — le guèze de Dillmann, par
-    /// exemple. La liseuse rend alors le verset sans mots touchables, ce qui
-    /// est exact : il n'y a rien à ouvrir.
+    /// ## Un seul témoin sur cinq est étiqueté
+    ///
+    /// L'hébreu, par **TAHOT**. Le guèze de Dillmann, l'araméen, le slavon
+    /// n'ont pas d'équivalent public : leurs versets se lisent, leurs mots ne
+    /// s'ouvrent pas. La liseuse rend alors le verset sans mots touchables, ce
+    /// qui est exact — il n'y a rien à ouvrir.
+    ///
+    /// ## Un `Vec` vide, et pourquoi ça suffit ici
+    ///
+    /// Un `Option<Vec<_>>` distinguerait « témoin non étiqueté » de « témoin
+    /// étiqueté, verset sans mots ». La distinction est réelle en Rust, et
+    /// **elle n'existe pas dans la sortie** : `skip_serializing_if` omet le
+    /// champ dans les deux cas, et le lecteur reçoit le même JSON.
+    ///
+    /// Elle ne serait donc pas fausse, seulement plus précise que ce que le
+    /// contrat porte — et un type plus fin que son contrat se paie en
+    /// déballages que rien ne justifie côté liseuse.
+    ///
+    /// **Le second cas n'arrive pas** : un témoin étiqueté l'est verset par
+    /// verset, et un verset sans mots serait un verset sans texte.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mots: Vec<MotPublie>,
 }
@@ -311,6 +328,21 @@ pub struct MotPublie {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub translit: Option<String>,
     /// La fiche ONT que ce mot ouvre — absente quand aucune ne lui correspond.
+    ///
+    /// ## `CibleDuNiveauTrois`, et c'est une décision
+    ///
+    /// L'auteur a tranché : *« c'est la même fiche »*. Toucher `אָמַר` dans le
+    /// verset d'origine ouvre exactement ce que touche `**amar**` dans la
+    /// traduction — **une fiche, deux portes**.
+    ///
+    /// Réemployer le type du niveau 3 rend cette décision **impossible à
+    /// contredire** : il n'existe pas de « fiche du mot hébreu » à côté de la
+    /// fiche du terme, donc rien à faire diverger. Un type propre à cette
+    /// couche aurait laissé la porte ouverte à deux lexiques qui se
+    /// ressemblent, et ils auraient fini par ne plus dire la même chose.
+    ///
+    /// C'est la même règle que partout ici : ce qu'on veut rendre impossible
+    /// se rend impossible par le type, pas par la vigilance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cible: Option<CibleDuNiveauTrois>,
 }

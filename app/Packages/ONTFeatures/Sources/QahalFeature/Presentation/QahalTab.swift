@@ -11,6 +11,7 @@ import SwiftUI
 /// tout ce qui suppose d'autres lecteurs est annoncé sans être simulé — un
 /// faux fil d'activité donnerait une idée fausse de ce qui existe.
 public struct QahalTab: View {
+    private let spacing = ONTSpacing()
     @Environment(QahalModel.self) private var model
     @Environment(\.ontTheme) private var theme
 
@@ -49,8 +50,7 @@ public struct QahalTab: View {
             }
             // La règle du design system : tout écran de premier niveau le
             // porte. Le Qahal ne l'avait pas — il posait son fond à la main.
-            .ontScreen()
-            .navigationTitle("Qahal")
+            .ontOngletRacine("Qahal")
             .task { model.pick() }
         }
         .ontColumn()
@@ -91,12 +91,12 @@ public struct QahalTab: View {
             )
             .font(ONTUI.caption)
             .foregroundStyle(.tertiary)
-            .padding(.top, 4)
+            .padding(.top, spacing.xs)
                 .font(ONTUI.ligneDeListe)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 18))
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: ONTRadius.block))
     }
 
 }
@@ -108,6 +108,7 @@ public struct QahalTab: View {
 /// ici est ce que le widget ne peut pas faire : composer le verset depuis son
 /// arbre d'inline, avec les intraduisibles en or.
 private struct VerseOfTheDayCard: View {
+    private let spacing = ONTSpacing()
     @Environment(Router.self) private var router
     @Environment(\.ontTheme) private var theme
     /// La jumelle de la pastille du widget, qui suit le curseur des réglages :
@@ -159,8 +160,8 @@ private struct VerseOfTheDayCard: View {
                     Text("Partager")
                         .font(.system(size: echelle(14), weight: .semibold))
                         .foregroundStyle(ONTColors.gold)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, spacing.l)
+                        .padding(.vertical, spacing.s)
                         .background(Capsule().fill(ONTColors.gold.opacity(0.18)))
                         .contentShape(.capsule)
                 }

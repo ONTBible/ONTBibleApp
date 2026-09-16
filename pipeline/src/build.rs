@@ -704,7 +704,32 @@ pub fn build() -> Result<BuildResult, String> {
     // Les fiches denses recouvrent la définition tirée de `CLAUDE.md`. Elles ne
     // remplacent que ce champ : l'hébreu, les formes, le rendu et la règle de
     // balisage restent au document de référence, qui en est la source.
-    let fiches = read_fiches(&racine);
+    let (fiches, collisions_de_slug) = read_fiches(&racine);
+
+    // **Deux fiches sur la même clé : on refuse, on ne choisit pas.**
+    //
+    // `read_fiches` faisait un `insert` simple ; le dernier écrasait le premier
+    // et `noms.sort()` décidait lequel. `malakh.md` (le verbe) et `malʾakh.md`
+    // (l'envoyé) rendaient la même clé sous l'ancien slug, et 180 occurrences
+    // du messager pouvaient ouvrir la fiche du verbe.
+    //
+    // Relevé par la session du vault le 13 septembre 2026. Aucun contrôle ne
+    // l'a vu, parce qu'ils demandent tous « ce terme a-t-il une fiche ? » et
+    // jamais « a-t-il la bonne ? ».
+    if !collisions_de_slug.is_empty() {
+        let details: Vec<String> = collisions_de_slug
+            .iter()
+            .map(|(slug, noms)| format!("  {slug} ← {}", noms.join(", ")))
+            .collect();
+        return Err(format!(
+            "échec : {} clé(s) de fiche en collision — deux fiches se \
+             recouvriraient en silence, et l'ordre alphabétique déciderait \
+             laquelle gagne.\n\n{}\n\nLe remède est au vault : renommer l'une \
+             des deux, ou sortir du lexique celle qui n'a pas à être publiée.",
+            collisions_de_slug.len(),
+            details.join("\n")
+        ));
+    }
 
     // **Les formes que les fiches déclarent elles-mêmes**, §2.5 ter du vault.
     //

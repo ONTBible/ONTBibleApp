@@ -13,6 +13,7 @@ import SwiftUI
 /// utile, parce que tout le projet consiste à retirer les catégories
 /// importées — puis où il paraît ailleurs.
 public struct TermSheet: View {
+    private let spacing = ONTSpacing()
     @Environment(LexiconModel.self) private var model
     @Environment(\.ontTheme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -171,7 +172,7 @@ public struct TermSheet: View {
                     .font(ONTUI.ligneDeListe)
             } else {
                 ForEach(Array(list.prefix(60).enumerated()), id: \.offset) { _, occurrence in
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: spacing.xs) {
                         HStack {
                             Text(reference(occurrence))
                                 .font(ONTUI.caption.monospaced())
