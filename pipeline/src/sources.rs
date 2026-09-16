@@ -247,13 +247,19 @@ pub struct FichierPublie {
     pub sha256: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// **Relisible, et pas seulement écrivable.**
+///
+/// `Deserialize` sert `bin/departager`, qui reprend ce que le pipeline vient
+/// d'écrire pour présenter les mots qu'il n'a pas su départager. Un format
+/// publié qu'on ne sait pas relire est un format qu'on ne peut pas vérifier —
+/// et l'outil ne réécrit pas la lecture, il emploie la structure même.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivreSources {
     pub temoin: String,
     pub unites: BTreeMap<String, Vec<VersetPublie>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersetPublie {
     /// Le numéro **à afficher**. Pas une clé — voir l'en-tête du module.
     pub n: u32,
@@ -272,7 +278,7 @@ pub struct VersetPublie {
 }
 
 /// Un mot du texte source, et la fiche qu'il ouvre quand il en ouvre une.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotPublie {
     /// La forme telle qu'elle est écrite, voyelles et cantillation comprises.
     pub t: String,
@@ -409,8 +415,14 @@ pub struct LiaisonDesMots {
     /// règle de la maison : un mot sans fiche se lit comme un mot sans fiche,
     /// un mot qui ouvre la fiche d'un autre se lit comme la vérité.
     disputes: HashMap<Cle, Vec<String>>,
-    /// Le squelette hébraïque que chaque fiche déclare — l'arbitre.
-    hebreu_de: HashMap<String, String>,
+    /// **Ce que chaque fiche déclare : sa forme vocalisée, et son squelette.**
+    ///
+    /// Les deux, parce que l'arbitrage a besoin des deux étages. `qadash`
+    /// déclare `קָדַשׁ` et `qodesh` déclare `קֹדֶשׁ` : mêmes consonnes, voyelles
+    /// différentes. Un arbitre qui ne regarde que le squelette les tient pour
+    /// indiscernables et les laisse tous deux inertes — alors que le témoin
+    /// vocalise, et que la réponse est écrite des deux côtés.
+    hebreu_de: HashMap<String, (String, String)>,
 }
 
 /// Par quelle table une clé disputée est arrivée.
@@ -423,6 +435,22 @@ enum Cle {
     Strong(String),
     Vocalisee(String),
     Consonantique(String),
+}
+
+/// Ce que la jointure a fait des mots que plusieurs fiches revendiquaient.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BilanDesDisputes {
+    /// Mots tombant sur une clé que plusieurs fiches revendiquent.
+    pub disputes: u32,
+    /// Ceux qu'une forme déclarée de part et d'autre a départagés.
+    pub tranches: u32,
+}
+
+impl BilanDesDisputes {
+    /// Ceux qu'on a laissés inertes faute de pouvoir trancher.
+    pub fn inertes(&self) -> u32 {
+        self.disputes.saturating_sub(self.tranches)
+    }
 }
 
 /// Ce qu'une fiche déclare d'elle-même, pour la jointure.
@@ -440,7 +468,7 @@ impl LiaisonDesMots {
         let mut par_vocalisee: HashMap<String, Vec<String>> = HashMap::new();
         let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
         let mut strong_de: HashMap<String, Vec<String>> = HashMap::new();
-        let mut hebreu_de: HashMap<String, String> = HashMap::new();
+        let mut hebreu_de: HashMap<String, (String, String)> = HashMap::new();
 
         for fiche in fiches {
             let lemme = fiche.lemme.to_string();
@@ -463,7 +491,7 @@ impl LiaisonDesMots {
             if vocalisee.is_empty() {
                 continue;
             }
-            hebreu_de.insert(lemme.clone(), consonnes(&vocalisee));
+            hebreu_de.insert(lemme.clone(), (vocalisee.clone(), consonnes(&vocalisee)));
             pretendre(&mut par_squelette, consonnes(&vocalisee), &lemme);
             pretendre(&mut par_vocalisee, vocalisee, &lemme);
         }
@@ -553,18 +581,46 @@ impl LiaisonDesMots {
     fn arbitrer(&self, cle: &Cle, vocalisee: &str) -> Option<CibleDuNiveauTrois> {
         let pretendants = self.disputes.get(cle)?;
         let squelette = consonnes(vocalisee);
-        let mut gagnants = pretendants
-            .iter()
-            .filter(|l| self.hebreu_de.get(*l).is_some_and(|h| *h == squelette));
-        let seul = gagnants.next()?;
-        // Deux fiches qui déclarent la **même** forme ne se départagent pas non
-        // plus. La règle ne change pas d'un étage à l'autre.
-        if gagnants.next().is_some() {
-            return None;
-        }
-        Some(CibleDuNiveauTrois::Term {
-            lemma: seul.clone(),
+        // **La vocalisée d'abord, le squelette ensuite.** Le premier étage
+        // sépare ce que le second confond — `קָדַשׁ` de `קֹדֶשׁ` —, et le second
+        // rattrape les formes que la cantillation seule distinguait.
+        seul(pretendants, |l| {
+            self.hebreu_de.get(l).is_some_and(|(v, _)| v == vocalisee)
         })
+        .or_else(|| {
+            seul(pretendants, |l| {
+                self.hebreu_de.get(l).is_some_and(|(_, c)| *c == squelette)
+            })
+        })
+        .map(|lemma| CibleDuNiveauTrois::Term { lemma })
+    }
+
+    /// **Les fiches qui se disputaient ce mot, quand il est resté inerte.**
+    ///
+    /// Sert `bin/departager` et rien d'autre. Rendre les prétendants plutôt que
+    /// la table entière garde `Cle` privée : l'outil n'a pas à savoir par
+    /// quelle porte la dispute est arrivée, seulement qui se disputait.
+    ///
+    /// Vide quand le mot n'est disputé par personne — un mot sans fiche est le
+    /// cas ordinaire, pas un cas à examiner.
+    pub fn pretendants(&self, mot: &str, lem: Option<&str>) -> &[String] {
+        let vocalisee = sans_cantillation(mot);
+        let cles = [
+            lem.map(|l| Cle::Strong(numero_nu(l))),
+            Some(Cle::Vocalisee(vocalisee.clone())),
+            Some(Cle::Consonantique(consonnes(&vocalisee))),
+        ];
+        for cle in cles.into_iter().flatten() {
+            if let Some(p) = self.disputes.get(&cle) {
+                return p;
+            }
+        }
+        &[]
+    }
+
+    /// La forme hébraïque qu'une fiche déclare — pour la montrer à côté du mot.
+    pub fn hebreu_declare(&self, lemme: &str) -> Option<&str> {
+        self.hebreu_de.get(lemme).map(|(v, _)| v.as_str())
     }
 
     fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
@@ -819,6 +875,20 @@ impl BilanDesTranslitterations {
     pub fn total(&self) -> u32 {
         self.couverts() + self.sans
     }
+}
+
+/// Le seul prétendant qui satisfait le critère — ou rien.
+///
+/// Deux fiches qui déclarent la **même** forme ne se départagent pas davantage
+/// que deux qui n'en déclarent aucune. La règle ne change pas d'un étage à
+/// l'autre, et elle s'écrit donc une seule fois.
+fn seul(pretendants: &[String], convient: impl Fn(&str) -> bool) -> Option<String> {
+    let mut gagnants = pretendants.iter().filter(|l| convient(l));
+    let premier = gagnants.next()?;
+    if gagnants.next().is_some() {
+        return None;
+    }
+    Some(premier.clone())
 }
 
 /// Inscrit un prétendant, sans doublon.
@@ -1167,6 +1237,15 @@ fn deplier(reference: &str, versets_par_chapitre: &BTreeMap<u32, u32>) -> Option
 /// `Vec<String>` porte les écarts et lequel porte les relevés.
 pub struct Preparation {
     pub manifeste: ManifesteSources,
+    /// **Le bilan des mots que deux fiches se disputaient.**
+    ///
+    /// Il voyage jusqu'à `stdout` parce qu'un compte sans son dénominateur ne
+    /// dit rien : « 144 inertes » se lit comme une panne, « 144 inertes sur
+    /// 1 600 disputés, 87 tranchés » se lit comme un état du lexique.
+    ///
+    /// `bin/departager` en donne le détail ; cette ligne dit seulement s'il y a
+    /// lieu de le lancer.
+    pub disputes: BilanDesDisputes,
     /// `(chemin relatif, contenu)` pour chaque livre × témoin.
     pub fichiers: Vec<(String, LivreSources)>,
     /// Les fichiers frères des divergences d'éditions.
@@ -1288,6 +1367,7 @@ pub fn preparer(
     let mut sautees: Vec<String> = Vec::new();
     // Ce qui mérite l'œil de l'auteur sans rien empêcher.
     let mut releves: Vec<String> = Vec::new();
+    let mut disputes = BilanDesDisputes::default();
     let mut editions_par_livre: BTreeMap<String, FichierPublie> = BTreeMap::new();
     let mut fichiers_editions: Vec<(String, EditionsComparees)> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
@@ -1523,6 +1603,22 @@ pub fn preparer(
                         mot.translit =
                             translitterations.a_l_occurrence(&u.id, i, &mot.t, &mut bilan);
                     }
+                    // **On compte à l'émission, pas à la lecture.**
+                    //
+                    // Le `.jsonl` d'un témoin porte tout le livre biblique ;
+                    // les unités ONT n'en reprennent qu'une part. Compter au
+                    // moment de lire donnait 12 114 mots disputés sur un corpus
+                    // qui n'en publie que 6 185 — un dénominateur qui n'est
+                    // celui de personne, et un chiffre que le lecteur ne peut
+                    // pas rapprocher de ce qu'il a sous les yeux.
+                    for m in mots_par_ref.get(cle_ref).into_iter().flatten() {
+                        if !liaison.pretendants(&m.t, m.lem.as_deref()).is_empty() {
+                            disputes.disputes += 1;
+                            if m.cible.is_some() {
+                                disputes.tranches += 1;
+                            }
+                        }
+                    }
                     sortie.push(VersetPublie {
                         n: numeros.get(i).copied().unwrap_or((i + 1) as u32),
                         t: texte.clone(),
@@ -1646,6 +1742,7 @@ pub fn preparer(
     }
 
     Ok(Some(Preparation {
+        disputes,
         manifeste: ManifesteSources {
             schema: 1,
             genere: genere.to_string(),

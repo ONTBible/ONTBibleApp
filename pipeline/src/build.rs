@@ -641,6 +641,8 @@ pub struct BuildResult {
     pub moins_glosee: Option<(String, f64)>,
     /// Les plages à cheval dont la longueur déduite a été confrontée au témoin
     /// **et** tombe juste.
+    /// Les mots que plusieurs fiches revendiquaient — voir `BilanDesDisputes`.
+    pub disputes: crate::sources::BilanDesDisputes,
     pub plages_mesurees: usize,
     /// Celles qu'aucun témoin n'a permis de confronter.
     ///
@@ -1723,6 +1725,7 @@ pub fn build() -> Result<BuildResult, String> {
             .count(),
         chapitres_mesures: densites.len(),
         moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
+        disputes: preparation.as_ref().map(|p| p.disputes).unwrap_or_default(),
         plages_mesurees: deductions.mesurees.len(),
         plages_non_mesurees: deductions.non_mesurees.len(),
     })
