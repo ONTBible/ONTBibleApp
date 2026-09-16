@@ -5499,18 +5499,39 @@ La règle s'est construite en quatre étages, et **aucun n'invente** :
 3. **le préfixe que le témoin segmente.** `לַיהוָה` porte `l/3068` : un lamed,
    puis le nom divin. La fin du squelette n'est comparée **que** si un préfixe
    est déclaré — sans quoi `ראה` se dirait la fin de `מראה` ;
-4. **l'aspect que le témoin atteste.** Il n'emploie `רָאָה` qu'en accompli et
-   `רֹאֶה` qu'en participe : la partition est franche, et chaque mot rejoint son
-   côté. 38 non-participes vers le verbe, 3 participes vers le nom.
+**Un quatrième étage a existé une heure, et il était faux.** Il rangeait
+« participe → la fiche du nom `roʿeh` », sur la foi d'une mesure disant que le
+témoin n'emploie jamais 7203, le numéro du voyant.
+
+==La mesure portait sur Bereshit seul.== Le témoin emploie 7203 **six fois**
+dans le WLC — quatre en 1 Samuel 9, une en Ésaïe 28 —, et ce sont exactement
+les versets où le voyant paraît, dont celui que le §2.5 cite pour fonder la
+fiche. Le bon dénominateur disait le contraire du mauvais.
+
+Et la règle se trompait aussi de sens : **un participe de *raʾah* reste le
+verbe.** Les trois mots qu'elle a rangés sont « la terre que tu vois », « qui
+me voit », et un **niphal** — *nirʾah*, « qui lui apparut ». Trois sur trois
+vers la mauvaise fiche, et plausibles puisque c'est la même racine : le défaut
+même que l'entrée ci-dessus décrit. Relevé par la session du vault, qui a
+mesuré sur tout le WLC là où je n'avais regardé qu'un livre.
+
+La distinction n'avait pas besoin d'une règle : elle est **déjà dans le
+témoin**, sous forme de deux numéros. C'est à la fiche `roʿeh` de déclarer
+7203, et la dispute disparaît sans qu'on arbitre rien.
 
 | | départ | arrivée |
 |---|---|---|
-| mots touchables | 1 530 | **1 593** |
+| mots touchables | 1 530 | **1 555** |
 | dont choisis par l'ordre d'insertion | **240** | **0** |
-| disputes laissées inertes | — | 11 |
+| disputes laissées inertes | — | 45 |
 
 « Chaîne attestée » est la seule vérification qui vaille : chaque mot ouvre une
-fiche **qui déclare son numéro**. 1 593 sur 1 593.
+fiche **qui déclare son numéro**.
+
+Et un mot pointe encore le voyant — `רֹאֶה` en *Bereshit* 13:15, « toute la
+terre que tu vois ». Il tombe exactement sur la forme que `roʿeh` déclare, donc
+la jointure par la forme l'y envoie, et le faisait **avant** la règle retirée.
+Ce n'est pas une jointure à corriger, c'est une fiche à déclarer.
 
 ### Trois fois j'ai demandé qu'on écrive ce qui était écrit
 
@@ -5554,15 +5575,16 @@ sert à **déclarer une fois dans le vault**, jamais à deviner à chaque build.
 ### Ce que ça change pour chaque dépôt
 
 - **ONTBibleApp** — aucune forme JSON ne change, `cible` reste
-  `Option<CibleDuNiveauTrois>`. Le pipeline lit désormais **une seule chose** du
-  code morphologique d'OSHB : « est-ce un participe ». Pas le radical, pas
-  l'accord. Et le segment verbal n'est pas le dernier — `HVhi1cs/Sp2ms` finit
-  par un pronom suffixe.
+  `Option<CibleDuNiveauTrois>`. Le pipeline **ne lit aucun code morphologique** :
+  la règle qui en lisait un est retirée, et sa trace est gardée à l'endroit
+  qu'elle occupait.
 - **Android et le site** — rien à porter. Moins de mots portent une cible, plus
   aucun n'en porte une fausse.
-- **ONTBibleTranslation** — rien à écrire pour les quatre paires réglées. Restent
-  onze mots sur cinq paires, des construits et `qadash`/`qodesh` : ils coûtent
-  moins qu'une règle de plus.
+- **ONTBibleTranslation** — une chose à déclarer, et une seule : que `roʿeh`
+  porte **7203**, le numéro que le témoin emploie pour le voyant. Les quarante
+  mots de *Bereshit* se rangeront alors sur `raʾah` par le simple veto du
+  numéro, sans une ligne de plus côté pipeline. Restent après ça quarante-cinq
+  mots sur des construits, qui coûtent moins qu'une règle de plus.
 
 ### Mesuré et laissé
 
