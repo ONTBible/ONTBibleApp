@@ -578,9 +578,25 @@ impl LiaisonDesMots {
     /// Ceux-là restent inertes, et `bin/departager` les présente au vault pour
     /// qu'il tranche **une fois**, au lieu que le pipeline devine à chaque
     /// build.
-    fn arbitrer(&self, cle: &Cle, vocalisee: &str) -> Option<CibleDuNiveauTrois> {
+    fn arbitrer(
+        &self,
+        cle: &Cle,
+        vocalisee: &str,
+        lem: Option<&str>,
+    ) -> Option<CibleDuNiveauTrois> {
         let pretendants = self.disputes.get(cle)?;
         let squelette = consonnes(vocalisee);
+        // **Le témoin déclare ses préfixes ; on ne les devine pas.**
+        //
+        // `l/3068` dit « un lamed, puis le mot 3068 ». La forme du mot est
+        // alors `לַיהוָה`, qui ne ressemble à aucune forme citée — et
+        // `יְהוָה` restait inerte sous préfixe alors qu'il se tranchait nu.
+        //
+        // Comparer la **fin** du squelette est donc licite ici, et seulement
+        // ici : la segmentation vient du témoin, pas d'une règle. Sans cette
+        // condition, `ראה` se dirait la fin de `מראה` et l'on inventerait une
+        // morphologie.
+        let prefixe_declare = lem.is_some_and(|l| l.contains('/'));
         // **La vocalisée d'abord, le squelette ensuite.** Le premier étage
         // sépare ce que le second confond — `קָדַשׁ` de `קֹדֶשׁ` —, et le second
         // rattrape les formes que la cantillation seule distinguait.
@@ -591,6 +607,15 @@ impl LiaisonDesMots {
             seul(pretendants, |l| {
                 self.hebreu_de.get(l).is_some_and(|(_, c)| *c == squelette)
             })
+        })
+        .or_else(|| {
+            prefixe_declare.then(|| {
+                seul(pretendants, |l| {
+                    self.hebreu_de
+                        .get(l)
+                        .is_some_and(|(_, c)| !c.is_empty() && squelette.ends_with(c.as_str()))
+                })
+            })?
         })
         .map(|lemma| CibleDuNiveauTrois::Term { lemma })
     }
@@ -635,7 +660,7 @@ impl LiaisonDesMots {
         // Et s'il est disputé, on demande au témoin de trancher.
         if let Some(c) = numero
             .as_ref()
-            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee))
+            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee, lem))
         {
             return Some(c);
         }
@@ -645,8 +670,10 @@ impl LiaisonDesMots {
             .get(&vocalisee)
             .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
             .cloned()
-            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee))
-            .or_else(|| self.arbitrer(&Cle::Consonantique(consonnes(&vocalisee)), &vocalisee))?;
+            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee, lem))
+            .or_else(|| {
+                self.arbitrer(&Cle::Consonantique(consonnes(&vocalisee)), &vocalisee, lem)
+            })?;
 
         // **Et le numéro a aussi un droit de veto.**
         //
@@ -2246,6 +2273,42 @@ mod tests {
         // laquelle des fiches est le verbe, et rien ne le déclare. Mieux vaut
         // inerte que plausible.
         assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
+    /// **Un préfixe déclaré par le témoin ne fait pas perdre la fiche.**
+    ///
+    /// `לַיהוָה` est un lamed puis le nom divin, et le témoin le dit —
+    /// `l/3068`. Sans cette lecture, le nom se tranchait nu et restait inerte
+    /// dès qu'une préposition s'y collait : onze fois sur Bereshit, sept cent
+    /// soixante fois sur le Tanakh selon le relevé du vault.
+    ///
+    /// Le suffixe n'est comparé **que** si le témoin déclare un préfixe. Sans
+    /// cette condition, `ראה` se dirait la fin de `מראה` et l'on aurait inventé
+    /// une morphologie — exactement ce qu'on refuse.
+    #[test]
+    fn un_prefixe_declare_par_le_temoin_ne_perd_pas_la_fiche() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "yhwh",
+                hebreu: Some("יְהוָה"),
+                strong: Some("3068"),
+            },
+            FichePourLaJointure {
+                lemme: "yhwh-elohim",
+                hebreu: Some("יְהוָה אֱלֹהִים"),
+                strong: Some("3068 + 430"),
+            },
+        ]);
+        let yhwh = Some(CibleDuNiveauTrois::Term {
+            lemma: "yhwh".into(),
+        });
+        // Nu : la forme tranche.
+        assert_eq!(liaison.cible("יְהוָ֔ה", Some("3068")), yhwh);
+        // Préfixé, et le témoin le déclare : la fin du mot tranche.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("l/3068")), yhwh);
+        // **Sans préfixe déclaré, aucune comparaison de fin.** Le mot ne
+        // ressemble à rien de cité, et rien ne dit qu'il porte un préfixe.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("3068")), None);
     }
 
     /// La même règle sur la forme, quand aucune des deux ne déclare de numéro.
