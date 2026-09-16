@@ -242,6 +242,23 @@ public actor SourcesUpdater {
         // jette le candidat entier. Un livre à `temoins` vide est complet par
         // déclaration — son absence est du contrat, pas un trou.
         let annonces = fichiersAnnonces(manifeste)
+
+        // **Et les annonces ne doivent pas se percuter ENTRE ELLES.** Toutes
+        // les gardes ci-dessous comparent un fichier à SON entrée — élément
+        // contre ensemble. Aucune ne voyait deux entrées en collision : deux
+        // `chemin` identiques s'écriraient au même endroit, dernier gagnant,
+        // et la preuve du premier serait silencieusement annulée — la
+        // génération basculée porterait un fichier dont l'empreinte ne répond
+        // qu'à une des deux annonces. Même famille que les `n` en double de
+        // bereshit-7 : chaque élément valide seul, l'ensemble faux.
+        //
+        // Le pipeline émet des chemins uniques par construction (BTreeMap par
+        // témoin) — mais le manifeste est une donnée reçue, pas une promesse
+        // tenue d'avance. Question posée par le vault le 16 septembre 2026,
+        // et la réponse est celle-ci.
+        if let percussion = Self.percussionDesChemins(annonces) {
+            return .generationIncomplete(motif: percussion)
+        }
         let candidat = dossier.appendingPathComponent(
             "candidat-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: candidat) }
@@ -312,6 +329,31 @@ public actor SourcesUpdater {
     }
 
     // MARK: - Ce que le manifeste annonce
+
+    /// La collision entre annonces, s'il y en a une — `nil` sinon.
+    ///
+    /// Trois formes, toutes rendues avec le chemin fautif pour le diagnostic :
+    /// un chemin **en double** (deux annonces, un seul fichier écrit) ; un
+    /// chemin **réservé** (`sources/manifeste.json`, `estampille.txt` — il
+    /// écraserait ou serait écrasé par ce que l'updater écrit lui-même) ; un
+    /// chemin **qui s'évade** (`..`, ou absolu — il écrirait hors du dossier
+    /// candidat, et la bascule ne l'emporterait pas).
+    static func percussionDesChemins(_ annonces: [ONTSources.Fichier]) -> String? {
+        var vus = Set<String>()
+        for fichier in annonces {
+            let chemin = fichier.chemin
+            if !vus.insert(chemin).inserted {
+                return "chemin annoncé deux fois : \(chemin)"
+            }
+            if chemin == "sources/manifeste.json" || chemin == "estampille.txt" {
+                return "chemin réservé à l'updater : \(chemin)"
+            }
+            if chemin.hasPrefix("/") || chemin.split(separator: "/").contains("..") {
+                return "chemin hors du candidat : \(chemin)"
+            }
+        }
+        return nil
+    }
 
     /// Tous les fichiers que la génération doit porter — les témoins de
     /// chaque livre, et l'apparat d'éditions quand il existe. La complétude

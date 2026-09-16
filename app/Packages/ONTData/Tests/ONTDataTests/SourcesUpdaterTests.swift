@@ -159,6 +159,60 @@ struct SourcesUpdaterTests {
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
+    @Test("deux annonces sur le même chemin se percutent — refusées avant tout octet")
+    func deuxAnnoncesSurLeMemeChemin() async throws {
+        // Chaque garde compare un fichier à SON entrée ; celle-ci compare les
+        // entrées ENTRE ELLES. Deux chemins identiques : un seul fichier
+        // écrit, dernier gagnant, la preuve du premier annulée en silence.
+        // Question posée par le vault le 16 septembre — même famille que les
+        // `n` en double de bereshit-7.
+        var objet = try JSONSerialization.jsonObject(with: Self.fixture("manifeste.json"))
+            as! [String: Any]
+        objet["genere"] = "2026-09-16T00:00:00Z"
+        var livres = objet["livres"] as! [String: Any]
+        // Un second livre annonce LE chemin de bereshit, sous une autre empreinte.
+        livres["doublon"] = [
+            "temoins": [
+                "he-wlc": [
+                    "chemin": "sources/he-wlc/bereshit.json",
+                    "octets": 3, "sha256": String(repeating: "a", count: 64),
+                ]
+            ]
+        ]
+        objet["livres"] = livres
+        let (updater, dossier) = Self.updater(plancher: "2026-09-10T00:00:00Z")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, try JSONSerialization.data(withJSONObject: objet)),
+            "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
+        ]
+        let resultat = try await updater.synchroniser()
+        guard case .generationIncomplete(let motif) = resultat else {
+            Issue.record("attendu generationIncomplete, reçu \(resultat)")
+            return
+        }
+        #expect(motif.contains("deux fois"))
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
+    @Test("un chemin réservé ou évadé est une percussion, pas un fichier")
+    func unCheminReserveOuEvade() {
+        func annonce(_ chemin: String) -> [ONTSources.Fichier] {
+            let json = """
+                {"chemin": "\(chemin)", "octets": 1, "sha256": "\(String(repeating: "a", count: 64))"}
+                """
+            return [try! JSONDecoder().decode(ONTSources.Fichier.self, from: Data(json.utf8))]
+        }
+        // Réservés : l'updater écrit lui-même ces deux noms — une annonce qui
+        // les vise écraserait ou serait écrasée, selon l'ordre.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/manifeste.json")) != nil)
+        #expect(SourcesUpdater.percussionDesChemins(annonce("estampille.txt")) != nil)
+        // Évadés : la bascule n'emporte que le candidat.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/../../evade.json")) != nil)
+        #expect(SourcesUpdater.percussionDesChemins(annonce("/tmp/absolu.json")) != nil)
+        // Et le chemin légitime passe — la garde discrimine, elle ne bloque pas.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/he-wlc/bereshit.json")) == nil)
+    }
+
     @Test("un plancher illisible se nomme — il n'est pas le repos")
     func unPlancherIllisible() async throws {
         // Un bundle sans estampille lisible : `Estampille("pas-une-date")`
