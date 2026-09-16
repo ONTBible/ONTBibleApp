@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.labibleont.ont.designsystem.text.BlocDeFiche
 import com.labibleont.ont.designsystem.text.ONTTextRenderer
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
@@ -147,16 +148,13 @@ public fun TermSheet(
 
         entree.definition?.let { blocs ->
             for (bloc in blocs) {
-                if (bloc is Block.Paragraph) {
-                    Text(
-                        ONTTextRenderer.compose(
-                            bloc.nodes, typo,
-                            showGloss = preferences.showGloss,
-                            showLevel3 = preferences.showLevel3,
-                        ),
-                        modifier = Modifier.padding(bottom = 10.dp),
-                    )
-                }
+                BlocDeFiche(
+                    bloc = bloc,
+                    typo = typo,
+                    showGloss = preferences.showGloss,
+                    showLevel3 = preferences.showLevel3,
+                    titresPleins = true,
+                )
             }
         }
 
@@ -174,16 +172,13 @@ public fun TermSheet(
             )
             Spacer(Modifier.height(8.dp))
             for (bloc in blocs) {
-                if (bloc is Block.Paragraph) {
-                    Text(
-                        ONTTextRenderer.compose(
-                            bloc.nodes, typo,
-                            showGloss = preferences.showGloss,
-                            showLevel3 = preferences.showLevel3,
-                        ),
-                        modifier = Modifier.padding(bottom = 10.dp),
-                    )
-                }
+                BlocDeFiche(
+                    bloc = bloc,
+                    typo = typo,
+                    showGloss = preferences.showGloss,
+                    showLevel3 = preferences.showLevel3,
+                    titresPleins = true,
+                )
             }
         }
 

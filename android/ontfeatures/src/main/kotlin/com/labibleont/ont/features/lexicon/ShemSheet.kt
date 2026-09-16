@@ -116,10 +116,26 @@ public fun ShemSheet(
                     Spacer(Modifier.height(espace.s))
                 }
 
-                // Une fiche ne porte que des titres et des paragraphes. Le reste
-                // du schéma existe pour le corpus, pas pour elle — et l'ignorer
-                // en silence vaut mieux que de rendre au hasard une forme qu'on
-                // n'a jamais vue ici.
+                // ## Le reste est ignoré, et c'est vrai **par accident**
+                //
+                // Ce commentaire disait « une fiche ne porte que des titres et
+                // des paragraphes ». Mesuré le 16 septembre 2026 sur les quatre
+                // fichiers de fiche : 4 640 `para`, 1 734 `heading`, et rien
+                // d'autre. L'affirmation est donc exacte aujourd'hui.
+                //
+                // Mais elle décrit le corpus, pas la règle. Le vault autorise
+                // depuis le 30 août les sous-titres, **les listes, les citations
+                // et les filets** — `BlocDeFiche.swift` les rend tous côté iOS,
+                // et c'est pour ça que la contrainte « des paragraphes et rien
+                // d'autre » est tombée là-bas.
+                //
+                // Le jour où une fiche en portera un, cet écran le jettera en
+                // silence. `BlocDeFiche` (design system) les rend ; cet écran ne
+                // s'y branche pas encore parce qu'il porte une décision
+                // typographique qui lui est propre — un seul corps de titre,
+                // proportionnel au réglage du lecteur. Les réunir est un travail
+                // à part, qui se décide en regardant les deux écrans côte à
+                // côte.
                 else -> Unit
             }
         }
