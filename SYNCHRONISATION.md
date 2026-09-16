@@ -5435,3 +5435,142 @@ La fixture des épreuves est le fichier **émis par le pipeline d'après #284 et
 que le pipeline n'émettait plus ; c'est la session iOS qui l'a vu, en
 comparant deux nombres. Cinquième forme du motif du jour : la mesure exacte
 sur l'objet qui n'est pas le bon.
+
+---
+
+## 16 septembre 2026 — la garde était écrite, et posée sur la porte que personne ne franchit
+
+La session du vault a nommé une forme de défaut et l'a proposée aux trois
+dépôts :
+
+> Un contrôle qui compare chaque élément à l'ensemble ne voit pas deux éléments
+> qui se percutent **entre eux**.
+
+Elle mordait ici, et elle mordait à l'écran.
+
+### Trois tables, une garde, et la mauvaise porte
+
+`LiaisonDesMots` relie un mot hébreu du témoin à sa fiche ONT. Elle range les
+fiches dans **trois** tables : par numéro de Strong, par forme vocalisée, par
+squelette consonantique.
+
+La troisième portait une garde soignée — « un seul prétendant, sinon rien » —,
+avec son commentaire, ses trois cas d'ambiguïté nommés, et sa raison écrite.
+Les deux autres étaient des `insert` nus : ==la seconde fiche lue écrasait la
+première, en silence==.
+
+Et la garde était posée sur l'étage que **1 529 mots sur 1 530** ne franchissent
+jamais, puisque le numéro de Strong répond en premier. Elle protégeait une porte
+que presque personne n'emprunte.
+
+**240 mots de Bereshit** ouvraient donc une fiche tirée par l'ordre du
+glossaire. `וַיַּרְא`, « et il vit », pouvait ouvrir `roʿeh`, « le voyant ». Le
+lecteur ne pouvait pas le voir : la fiche est plausible, elle parle de la même
+racine.
+
+C'est la leçon de `table_sure`, à laquelle ce code n'avait pas été soumis :
+==deux écritures de la même garde finissent par diverger==. Les trois tables
+passent désormais par une seule porte.
+
+### Le même défaut, un étage plus haut
+
+`ARTEFACTS`, le tableau qui dit quel fichier de `dist/` chaque liseuse lit,
+portait deux lignes couvrant le même chemin — `Cible::Exact("sources/manifeste.json")`
+et `Cible::Sous("sources/")`. Elles s'accordaient sur tout, donc le
+recouvrement ne coûtait rien ; le piège était posé pour le jour où l'une
+passerait en `ApresLeReleve`, qui fait `continue`, et masquerait en silence ce
+que l'autre promettait.
+
+Le test qui les garde **porte « sans doublon » dans son nom** et ne vérifiait
+que l'unicité des liseuses par ligne. Il compare maintenant les cibles entre
+elles — et il a trouvé le recouvrement au premier passage.
+
+### Ce qui remplace le hasard : ne comparer que ce que le témoin déclare
+
+La règle s'est construite en quatre étages, et **aucun n'invente** :
+
+1. **la forme déclarée de part et d'autre.** La fiche déclare son hébreu, le
+   témoin donne celui du mot ; quand une seule candidate porte la forme du mot,
+   c'est elle ;
+2. **le champ que je ne lisais pas.** `hebrew` vient de la puce du §2.5,
+   `hebreu_de_la_fiche` de la section `## Source` — et la puce de YHWH est
+   *volontairement nue*, le §7 réservant son traitement. Quatorze fiches sur
+   cent cinquante-huit sont dans ce cas ;
+3. **le préfixe que le témoin segmente.** `לַיהוָה` porte `l/3068` : un lamed,
+   puis le nom divin. La fin du squelette n'est comparée **que** si un préfixe
+   est déclaré — sans quoi `ראה` se dirait la fin de `מראה` ;
+4. **l'aspect que le témoin atteste.** Il n'emploie `רָאָה` qu'en accompli et
+   `רֹאֶה` qu'en participe : la partition est franche, et chaque mot rejoint son
+   côté. 38 non-participes vers le verbe, 3 participes vers le nom.
+
+| | départ | arrivée |
+|---|---|---|
+| mots touchables | 1 530 | **1 593** |
+| dont choisis par l'ordre d'insertion | **240** | **0** |
+| disputes laissées inertes | — | 11 |
+
+« Chaîne attestée » est la seule vérification qui vaille : chaque mot ouvre une
+fiche **qui déclare son numéro**. 1 593 sur 1 593.
+
+### Trois fois j'ai demandé qu'on écrive ce qui était écrit
+
+Et la troisième fois, ==ma prémisse elle-même était fausse== : j'allais faire
+corriger le numéro de Strong de `roʿeh`, qui était déjà juste — le témoin
+n'emploie jamais 7203, et la fiche avait été corrigée la veille pour
+exactement cette raison. La session du vault a vérifié avant d'obéir.
+
+**La règle qui en sort, et elle vaut pour les trois dépôts :** avant de demander
+une déclaration, chercher si la donnée est déjà attestée quelque part — et
+==vérifier la prémisse d'une demande comme on vérifie le reste==. Une demande
+bien formée adressée à un fait faux coûte plus cher qu'une absence de demande.
+
+### Et une leçon sur les instruments, pour la sixième fois de la semaine
+
+Ma vérification du remède était fausse au premier jet : elle exigeait que la
+fiche porte la **forme exacte** du mot, ce qui accusait à tort les construits —
+dont chaque moitié ouvre légitimement la fiche entière. Elle rendait « 5 fautes »
+sur un corpus qui n'en portait aucune.
+
+Et mes mesures en Python conflaient voyelles et cantillation, la plage
+`֑-ֽ` incluant les points-voyelles — le Rust, lui, les énumère. Deux
+chiffres identiques que je croyais indépendants ne l'étaient pas.
+
+### Où un modèle a sa place, et où il n'en a pas
+
+Gloire a demandé si un petit modèle local pourrait départager les cas restants.
+La réponse tient en une ligne et ne concerne pas que ce cas :
+
+==Le modèle propose à un humain ; il ne décide pas dans un artefact.==
+
+La CI construit le corpus — `macos-15`, `ubuntu-latest` — et n'a aucun modèle.
+Un pipeline qui en appelle un rend deux corpus différents pour le même vault
+selon la machine. **Ce qui entre dans `dist/` doit être reproductible par
+quiconque a le vault et le dépôt.**
+
+D'où `bin/departager` : il présente les cas — le verset, la forme, la
+morphologie, ce que chaque prétendante déclare — et ne propose rien. Sa sortie
+sert à **déclarer une fois dans le vault**, jamais à deviner à chaque build.
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — aucune forme JSON ne change, `cible` reste
+  `Option<CibleDuNiveauTrois>`. Le pipeline lit désormais **une seule chose** du
+  code morphologique d'OSHB : « est-ce un participe ». Pas le radical, pas
+  l'accord. Et le segment verbal n'est pas le dernier — `HVhi1cs/Sp2ms` finit
+  par un pronom suffixe.
+- **Android et le site** — rien à porter. Moins de mots portent une cible, plus
+  aucun n'en porte une fausse.
+- **ONTBibleTranslation** — rien à écrire pour les quatre paires réglées. Restent
+  onze mots sur cinq paires, des construits et `qadash`/`qodesh` : ils coûtent
+  moins qu'une règle de plus.
+
+### Mesuré et laissé
+
+Trois autres pistes de la même forme, toutes vérifiées sans morsure aujourd'hui :
+les formes slugifiées qui se percutent (**0** échappe aux deux filtres de
+`reference.rs` et `build.rs`), deux unités déclarant la même plage (**0**
+recouvrement sur 22), deux livres au même nom affiché (**0** parmi les cinq
+écrits). `renvois::Index` reçoit le commentaire que `build::declarer_les_livres`
+portait déjà pour la même double indexation — `Amos`, `Ruth`, `Esther` et
+`Daniel` s'écrivent pareil dans les deux langues, et « le jour où l'un d'eux
+sera traduit, il lui faudra une marque ».
