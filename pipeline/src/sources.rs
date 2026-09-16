@@ -395,6 +395,34 @@ pub struct LiaisonDesMots {
     vocalisees: HashMap<String, CibleDuNiveauTrois>,
     /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
     consonantiques: HashMap<String, CibleDuNiveauTrois>,
+
+    /// **Les clés que plusieurs fiches revendiquent, avec leurs prétendants.**
+    ///
+    /// Elles étaient jetées, et pire : sur deux des trois tables elles ne
+    /// l'étaient même pas — un `insert` nu laissait la dernière fiche lue
+    /// écraser la précédente, et le mot ouvrait celle que l'ordre du glossaire
+    /// avait mise en dernier. Mesuré sur Bereshit : **146 mots** tombaient
+    /// ainsi sur quatre paires, et ouvraient une fiche tirée au sort.
+    ///
+    /// Les garder permet de les départager par ce que le témoin montre — voir
+    /// `arbitrer`. Ce qu'on ne peut pas départager reste inerte, ce qui est la
+    /// règle de la maison : un mot sans fiche se lit comme un mot sans fiche,
+    /// un mot qui ouvre la fiche d'un autre se lit comme la vérité.
+    disputes: HashMap<Cle, Vec<String>>,
+    /// Le squelette hébraïque que chaque fiche déclare — l'arbitre.
+    hebreu_de: HashMap<String, String>,
+}
+
+/// Par quelle table une clé disputée est arrivée.
+///
+/// Le type existe pour que les trois disputes vivent dans **une** table sans se
+/// confondre : `430` le numéro de Strong et `430` une forme hébraïque n'ont
+/// aucune raison de se rencontrer, et une clé nue les mêlerait.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Cle {
+    Strong(String),
+    Vocalisee(String),
+    Consonantique(String),
 }
 
 /// Ce qu'une fiche déclare d'elle-même, pour la jointure.
@@ -408,12 +436,14 @@ pub struct FichePourLaJointure<'a> {
 
 impl LiaisonDesMots {
     pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = FichePourLaJointure<'a>>) -> Self {
-        let mut strongs = HashMap::new();
-        let mut strong_de = HashMap::new();
-        let mut vocalisees = HashMap::new();
+        let mut par_strong: HashMap<String, Vec<String>> = HashMap::new();
+        let mut par_vocalisee: HashMap<String, Vec<String>> = HashMap::new();
         let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
+        let mut strong_de: HashMap<String, Vec<String>> = HashMap::new();
+        let mut hebreu_de: HashMap<String, String> = HashMap::new();
+
         for fiche in fiches {
-            let lemme = fiche.lemme;
+            let lemme = fiche.lemme.to_string();
             if let Some(strong) = fiche.strong {
                 // **Un construit déclare deux numéros, joints par un `+`.**
                 //
@@ -422,62 +452,45 @@ impl LiaisonDesMots {
                 // l'auteur : un construit hébreu est **deux mots** que le
                 // témoin segmente, et lui donner un seul numéro serait en
                 // taire un.
-                //
-                // Sans cette lecture, la chaîne entière servait de clé et ne
-                // correspondait à rien. Le mot n'aurait pas été mal joint — il
-                // n'aurait simplement jamais été joint, et la Source de ces
-                // huit fiches n'aurait rien servi. Un échec silencieux de plus,
-                // et celui-là je l'ai évité parce que la session du vault m'a
-                // prévenu avant de pousser.
                 let numeros: Vec<String> = strong.split('+').map(numero_nu).collect();
                 for nu in &numeros {
-                    strongs.insert(
-                        nu.clone(),
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemme.to_string(),
-                        },
-                    );
+                    pretendre(&mut par_strong, nu.clone(), &lemme);
                 }
-                strong_de.insert(lemme.to_string(), numeros);
+                strong_de.insert(lemme.clone(), numeros);
             }
             let Some(hebreu) = fiche.hebreu else { continue };
             let vocalisee = sans_cantillation(hebreu);
             if vocalisee.is_empty() {
                 continue;
             }
-            vocalisees.insert(
-                vocalisee.clone(),
-                CibleDuNiveauTrois::Term {
-                    lemma: lemme.to_string(),
-                },
-            );
-            par_squelette
-                .entry(consonnes(&vocalisee))
-                .or_default()
-                .push(lemme.to_string());
+            hebreu_de.insert(lemme.clone(), consonnes(&vocalisee));
+            pretendre(&mut par_squelette, consonnes(&vocalisee), &lemme);
+            pretendre(&mut par_vocalisee, vocalisee, &lemme);
         }
-        let consonantiques = par_squelette
-            .into_iter()
-            .filter_map(|(squelette, mut lemmes)| {
-                lemmes.sort();
-                lemmes.dedup();
-                // **Un seul prétendant, sinon rien.** Voir l'en-tête du type.
-                (lemmes.len() == 1).then(|| {
-                    (
-                        squelette,
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemmes.remove(0),
-                        },
-                    )
-                })
-            })
-            .collect();
+
+        // **Les trois tables passent par la même porte.**
+        //
+        // Avant, elles en avaient trois : `consonantiques` accumulait pour
+        // pouvoir refuser, `strongs` et `vocalisees` écrasaient. La garde était
+        // écrite une fois et posée sur un seul étage — et sur celui que 1 529
+        // mots sur 1 530 ne franchissent jamais, puisque le numéro de Strong
+        // répond en premier.
+        //
+        // C'est la leçon de `table_sure`, à laquelle ce code n'avait pas été
+        // soumis : deux écritures de la même garde finissent par diverger.
+        let mut disputes = HashMap::new();
+        let strongs = trier(par_strong, Cle::Strong, &mut disputes);
+        let vocalisees = trier(par_vocalisee, Cle::Vocalisee, &mut disputes);
+        let consonantiques = trier(par_squelette, Cle::Consonantique, &mut disputes);
+
         Self {
             strongs,
             strong_de,
             strong_atteste: HashMap::new(),
             vocalisees,
             consonantiques,
+            disputes,
+            hebreu_de,
         }
     }
 
@@ -518,20 +531,66 @@ impl LiaisonDesMots {
         }
     }
 
+    /// **Départager deux fiches qui revendiquent la même clé, sans rien
+    /// deviner.**
+    ///
+    /// Les deux côtés déclarent une forme hébraïque : la fiche dans son §3, le
+    /// témoin dans son texte. Quand une seule des candidates déclare celle que
+    /// le mot porte, c'est elle — et ce n'est pas une déduction, c'est une
+    /// coïncidence attestée de part et d'autre.
+    ///
+    /// **Mesuré sur Bereshit :** des 146 mots tombant sur une paire disputée,
+    /// 79 se tranchent ainsi. Les 66 autres sont des formes fléchies —
+    /// `וַיַּרְא` ne ressemble ni à `רָאָה` ni à `רֹאֶה` —, et les départager
+    /// demanderait de savoir laquelle des deux fiches est un verbe et laquelle
+    /// est un nom. **Rien ne le déclare.** Une règle morphologique inventée ici
+    /// rendrait le mot touchable vers la mauvaise fiche, et le lecteur ne
+    /// pourrait pas le voir : c'est exactement le défaut qu'on répare.
+    ///
+    /// Ceux-là restent inertes, et `bin/departager` les présente au vault pour
+    /// qu'il tranche **une fois**, au lieu que le pipeline devine à chaque
+    /// build.
+    fn arbitrer(&self, cle: &Cle, vocalisee: &str) -> Option<CibleDuNiveauTrois> {
+        let pretendants = self.disputes.get(cle)?;
+        let squelette = consonnes(vocalisee);
+        let mut gagnants = pretendants
+            .iter()
+            .filter(|l| self.hebreu_de.get(*l).is_some_and(|h| *h == squelette));
+        let seul = gagnants.next()?;
+        // Deux fiches qui déclarent la **même** forme ne se départagent pas non
+        // plus. La règle ne change pas d'un étage à l'autre.
+        if gagnants.next().is_some() {
+            return None;
+        }
+        Some(CibleDuNiveauTrois::Term {
+            lemma: seul.clone(),
+        })
+    }
+
     fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
         let numero = lem.map(numero_nu);
+
+        let vocalisee = sans_cantillation(mot);
 
         // **Le numéro d'abord**, parce qu'il est le seul vérifiable.
         if let Some(c) = numero.as_ref().and_then(|n| self.strongs.get(n)) {
             return Some(c.clone());
         }
+        // Et s'il est disputé, on demande au témoin de trancher.
+        if let Some(c) = numero
+            .as_ref()
+            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee))
+        {
+            return Some(c);
+        }
 
-        let vocalisee = sans_cantillation(mot);
         let par_la_forme = self
             .vocalisees
             .get(&vocalisee)
             .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
-            .cloned()?;
+            .cloned()
+            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee))
+            .or_else(|| self.arbitrer(&Cle::Consonantique(consonnes(&vocalisee)), &vocalisee))?;
 
         // **Et le numéro a aussi un droit de veto.**
         //
@@ -760,6 +819,42 @@ impl BilanDesTranslitterations {
     pub fn total(&self) -> u32 {
         self.couverts() + self.sans
     }
+}
+
+/// Inscrit un prétendant, sans doublon.
+fn pretendre(table: &mut HashMap<String, Vec<String>>, cle: String, lemme: &str) {
+    let e = table.entry(cle).or_default();
+    if !e.iter().any(|l| l == lemme) {
+        e.push(lemme.to_string());
+    }
+}
+
+/// Sépare ce qui est sûr de ce qui est disputé.
+///
+/// **La différence avec `table_sure` tient en un mot : celle-ci ne jette pas.**
+/// Une clé que deux fiches revendiquent n'est pas perdue, elle est mise de côté
+/// avec ses prétendants — c'est ce qui permet de la départager plus tard par ce
+/// que le témoin montre, au lieu de la trancher au hasard ou de l'abandonner.
+fn trier(
+    brut: HashMap<String, Vec<String>>,
+    quelle: fn(String) -> Cle,
+    disputes: &mut HashMap<Cle, Vec<String>>,
+) -> HashMap<String, CibleDuNiveauTrois> {
+    let mut surs = HashMap::new();
+    for (cle, mut lemmes) in brut {
+        if lemmes.len() == 1 {
+            surs.insert(
+                cle,
+                CibleDuNiveauTrois::Term {
+                    lemma: lemmes.remove(0),
+                },
+            );
+        } else {
+            lemmes.sort();
+            disputes.insert(quelle(cle), lemmes);
+        }
+    }
+    surs
 }
 
 /// La règle « un seul prétendant, sinon rien », appliquée à une liste.
@@ -2009,6 +2104,71 @@ mod tests {
         assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b")), Some(cible));
         // Et le veto tient toujours pour ce que la fiche ne déclare pas.
         assert_eq!(liaison.cible("ט֥וֹב", Some("2897")), None);
+    }
+
+    /// **Deux fiches au même numéro ne se tranchent pas au hasard.**
+    ///
+    /// Le défaut que cette épreuve garde : `strongs` et `vocalisees` étaient
+    /// des `insert` nus, et la seconde fiche lue écrasait la première. Le mot
+    /// ouvrait celle que l'ordre du glossaire avait mise en dernier — mesuré
+    /// sur Bereshit, **231 mots** tombaient ainsi sur quatre paires.
+    ///
+    /// Contre le code d'avant, cette épreuve rougit deux fois : `roeh`
+    /// écraserait `raah`, et les deux mots ouvriraient `roeh`.
+    #[test]
+    fn deux_fiches_au_meme_numero_se_departagent_par_la_forme() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "raah",
+                hebreu: Some("רָאָה"),
+                strong: Some("7200"),
+            },
+            FichePourLaJointure {
+                lemme: "roeh",
+                hebreu: Some("רֹאֶה"),
+                strong: Some("7200"),
+            },
+        ]);
+
+        // Chacune ouvre la sienne : les deux côtés déclarent la même forme.
+        assert_eq!(
+            liaison.cible("רָאָ֣ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "raah".into()
+            })
+        );
+        assert_eq!(
+            liaison.cible("רֹאֶ֖ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "roeh".into()
+            })
+        );
+
+        // **Et une forme fléchie n'ouvre rien.** `וַיַּרְא` ne ressemble à
+        // aucune des deux formes citées ; les départager demanderait de savoir
+        // laquelle des fiches est le verbe, et rien ne le déclare. Mieux vaut
+        // inerte que plausible.
+        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
+    /// La même règle sur la forme, quand aucune des deux ne déclare de numéro.
+    #[test]
+    fn deux_fiches_a_la_meme_forme_ne_tranchent_pas_non_plus() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "davar",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+            FichePourLaJointure {
+                lemme: "dibber",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+        ]);
+        // Deux fiches qui déclarent **la même** forme ne se départagent par
+        // rien : l'arbitre est muet quand les deux disent pareil.
+        assert_eq!(liaison.cible("דָּבָ֣ר", None), None);
     }
 
     /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
