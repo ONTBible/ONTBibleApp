@@ -398,19 +398,6 @@ pub struct LiaisonDesMots {
     ///
     /// Rempli par `apprendre_du_temoin`, une fois par livre.
     strong_atteste: HashMap<String, String>,
-    /// **L'aspect que le témoin attribue à la forme d'une fiche.**
-    ///
-    /// Même principe que `strong_atteste`, sur un autre axe : la fiche déclare
-    /// une forme, le témoin dit ce qu'il en fait grammaticalement. Quand il ne
-    /// lui donne qu'un aspect, cet aspect **est** celui de la fiche — attesté,
-    /// pas supposé.
-    ///
-    /// Ne sert qu'à départager `raʾah` de `roʿeh` et leurs semblables : deux
-    /// fiches pour un même numéro, dont l'une est le participe substantivé de
-    /// l'autre. Le témoin atteste `רָאָה` **uniquement** en accompli et `רֹאֶה`
-    /// **uniquement** en participe ; la partition est donc franche, et le mot
-    /// rejoint son côté.
-    morph_atteste: HashMap<String, Aspects>,
     vocalisees: HashMap<String, CibleDuNiveauTrois>,
     /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
     consonantiques: HashMap<String, CibleDuNiveauTrois>,
@@ -528,7 +515,6 @@ impl LiaisonDesMots {
             strongs,
             strong_de,
             strong_atteste: HashMap::new(),
-            morph_atteste: HashMap::new(),
             vocalisees,
             consonantiques,
             disputes,
@@ -544,32 +530,6 @@ impl LiaisonDesMots {
     /// plusieurs, on ne conclut pas.
     ///
     /// Appelée une fois par livre, avant la jointure de ses mots.
-    /// **Ce que le témoin dit de la forme d'une fiche, grammaticalement.**
-    ///
-    /// Seconde moitié de l'apprentissage, sur l'axe de l'aspect. On n'accumule
-    /// que pour les formes qu'une fiche déclare : le reste du témoin ne nous
-    /// apprend rien sur le lexique.
-    fn apprendre_les_aspects(&mut self, mots: impl IntoIterator<Item = (String, String)>) {
-        for (forme, morph) in mots {
-            let f = sans_cantillation(&forme);
-            let Some(lemme) = self.vocalisees.get(&f).map(|c| match c {
-                CibleDuNiveauTrois::Term { lemma } => lemma.clone(),
-                CibleDuNiveauTrois::Shem { lemma } => lemma.clone(),
-            }) else {
-                continue;
-            };
-            let Some(participe) = est_participe(&morph) else {
-                continue;
-            };
-            let vu = self.morph_atteste.entry(lemme).or_default();
-            if participe {
-                vu.participe = true;
-            } else {
-                vu.autre = true;
-            }
-        }
-    }
-
     fn apprendre_du_temoin(&mut self, mots: impl IntoIterator<Item = (String, String)>) {
         let mut vus: HashMap<String, Option<String>> = HashMap::new();
         for (forme, lem) in mots {
@@ -623,7 +583,6 @@ impl LiaisonDesMots {
         cle: &Cle,
         vocalisee: &str,
         lem: Option<&str>,
-        morph: Option<&str>,
     ) -> Option<CibleDuNiveauTrois> {
         let pretendants = self.disputes.get(cle)?;
         let squelette = consonnes(vocalisee);
@@ -649,7 +608,6 @@ impl LiaisonDesMots {
                 self.hebreu_de.get(l).is_some_and(|(_, c)| *c == squelette)
             })
         })
-        .or_else(|| self.par_l_aspect(pretendants, morph))
         .or_else(|| {
             prefixe_declare.then(|| {
                 seul(pretendants, |l| {
@@ -689,61 +647,30 @@ impl LiaisonDesMots {
     pub fn hebreu_declare(&self, lemme: &str) -> Option<&str> {
         self.hebreu_de.get(lemme).map(|(v, _)| v.as_str())
     }
-
-    /// **Le participe substantivé, départagé par ce que le témoin atteste.**
+    /// **Ici vivait une règle du participe, et elle était fausse.**
     ///
-    /// `raʾah` et `roʿeh` portent le même numéro — et c'est juste : le témoin
-    /// n'emploie jamais 7203, que Strong réserve au voyant. Ce sont deux fiches
-    /// pour un mot dont l'une est le participe de l'autre, et le numéro ne peut
-    /// pas les séparer.
+    /// Elle rangeait « participe → la fiche du nom `roʿeh`, le reste → le verbe
+    /// `raʾah` », sur la foi d'une mesure qui disait le témoin n'employant
+    /// jamais 7203, le numéro du voyant.
     ///
-    /// Le témoin, lui, les sépare déjà : il atteste `רָאָה` **uniquement** en
-    /// accompli et `רֹאֶה` **uniquement** en participe. Quand la partition est
-    /// franche — l'une jamais participe, l'autre seulement participe —, le mot
-    /// rejoint son côté selon ce que le témoin dit **de lui**.
+    /// **La mesure portait sur Bereshit seul.** Le témoin emploie 7203 six fois
+    /// dans le WLC — quatre en 1 Samuel 9, une en Ésaïe 28 —, et ce sont
+    /// exactement les versets où le voyant paraît, dont celui que le §2.5 cite
+    /// pour fonder la fiche. Le bon dénominateur disait le contraire du mauvais.
     ///
-    /// **Rien n'est inventé à aucun bout** : les deux natures viennent de
-    /// l'attestation, et l'aspect du mot vient de son propre code. C'est la
-    /// règle des préfixes, un cran plus loin — ne comparer que ce que le témoin
-    /// déclare.
+    /// Et la règle se trompait aussi de sens : **un participe de *raʾah* reste
+    /// le verbe.** Les trois qu'elle a rangés sont « la terre que tu vois »,
+    /// « qui me voit », et un **niphal** — *nirʾah*, « qui lui apparut ». Trois
+    /// sur trois vers la mauvaise fiche, et plausibles puisque c'est la même
+    /// racine : le défaut même qu'on venait de fermer.
     ///
-    /// Une partition qui n'est pas franche ne tranche rien : deux fiches vues
-    /// toutes deux en participe, ou aucune des deux attestée, laissent le mot
-    /// inerte.
-    fn par_l_aspect(&self, pretendants: &[String], morph: Option<&str>) -> Option<String> {
-        let participe = est_participe(morph?)?;
-        let cote = |l: &String| {
-            self.morph_atteste.get(l).is_some_and(|a| {
-                if participe {
-                    a.participe_seulement()
-                } else {
-                    a.jamais_participe()
-                }
-            })
-        };
-        let autre_cote = |l: &String| {
-            self.morph_atteste.get(l).is_some_and(|a| {
-                if participe {
-                    a.jamais_participe()
-                } else {
-                    a.participe_seulement()
-                }
-            })
-        };
-        // La partition doit être franche des **deux** côtés : un seul candidat
-        // du bon, et tous les autres de l'autre.
-        if !pretendants.iter().all(|l| cote(l) || autre_cote(l)) {
-            return None;
-        }
-        seul(pretendants, |l| cote(&l.to_string()))
-    }
-
-    fn cible(
-        &self,
-        mot: &str,
-        lem: Option<&str>,
-        morph: Option<&str>,
-    ) -> Option<CibleDuNiveauTrois> {
+    /// La distinction n'a pas besoin d'une règle : elle est **déjà dans le
+    /// témoin**, sous forme de deux numéros. C'est à la fiche `roʿeh` de
+    /// déclarer 7203, et la dispute disparaît sans qu'on arbitre rien.
+    ///
+    /// Relevé par la session du vault, qui a mesuré sur tout le WLC là où je
+    /// n'avais regardé qu'un livre.
+    fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
         let numero = lem.map(numero_nu);
 
         let vocalisee = sans_cantillation(mot);
@@ -755,7 +682,7 @@ impl LiaisonDesMots {
         // Et s'il est disputé, on demande au témoin de trancher.
         if let Some(c) = numero
             .as_ref()
-            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee, lem, morph))
+            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee, lem))
         {
             return Some(c);
         }
@@ -765,14 +692,9 @@ impl LiaisonDesMots {
             .get(&vocalisee)
             .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
             .cloned()
-            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee, lem, morph))
+            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee, lem))
             .or_else(|| {
-                self.arbitrer(
-                    &Cle::Consonantique(consonnes(&vocalisee)),
-                    &vocalisee,
-                    lem,
-                    morph,
-                )
+                self.arbitrer(&Cle::Consonantique(consonnes(&vocalisee)), &vocalisee, lem)
             })?;
 
         // **Et le numéro a aussi un droit de veto.**
@@ -1016,55 +938,6 @@ fn seul(pretendants: &[String], convient: impl Fn(&str) -> bool) -> Option<Strin
         return None;
     }
     Some(premier.clone())
-}
-
-/// Les aspects qu'un témoin attribue à une forme.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Aspects {
-    /// Le témoin a vu cette forme en participe — `r` ou `s` du code OSHB.
-    participe: bool,
-    /// Il l'a vue autrement : accompli, inaccompli, impératif, nom…
-    autre: bool,
-}
-
-impl Aspects {
-    /// Vrai quand le témoin n'a jamais vu cette forme qu'en participe.
-    fn participe_seulement(&self) -> bool {
-        self.participe && !self.autre
-    }
-
-    fn jamais_participe(&self) -> bool {
-        self.autre && !self.participe
-    }
-}
-
-/// **L'aspect d'un mot, lu dans le code morphologique du témoin.**
-///
-/// Le format est celui d'OSHB, publié et versionné, crédité dans le manifeste
-/// des sources du vault : une lettre de langue — `H` pour l'hébreu, `A` pour
-/// l'araméen —, puis des segments séparés par `/`, un par morphème. Un segment
-/// verbal s'écrit `V` + radical + **aspect** + accord : `Vqp3ms` est un qal
-/// accompli 3ᵉ masculin singulier, `Vqrmsa` un qal participe.
-///
-/// ## Pourquoi le dernier segment ne suffit pas
-///
-/// `HVhi1cs/Sp2ms` finit par un **pronom suffixe**, pas par le verbe. Prendre
-/// la fin donnerait `Sp2ms` et l'on conclurait « pas un participe » sans avoir
-/// regardé le verbe. On cherche donc le segment verbal, où qu'il soit.
-///
-/// ## Ce qu'on lit, et ce qu'on ne lit pas
-///
-/// Seulement : « est-ce un participe ». Pas le radical, pas l'accord, pas la
-/// personne. C'est la seule question qui départage deux fiches dont l'une est
-/// le participe substantivé de l'autre — et lire davantage serait lire pour
-/// lire.
-fn est_participe(morph: &str) -> Option<bool> {
-    let nu = morph.strip_prefix(['H', 'A']).unwrap_or(morph);
-    let verbal = nu.split('/').find(|seg| seg.starts_with('V'))?;
-    // `V` + radical + aspect : l'aspect est le troisième signe.
-    let aspect = verbal.chars().nth(2)?;
-    // `r` participe actif, `s` participe passif.
-    Some(aspect == 'r' || aspect == 's')
 }
 
 /// Inscrit un prétendant, sans doublon.
@@ -1583,19 +1456,6 @@ pub fn preparer(
             // Deux passes sur le même contenu plutôt qu'une : la seconde a
             // besoin de ce que la première établit, et joindre au fil de la
             // lecture reviendrait à décider avant de savoir.
-            liaison.apprendre_les_aspects(
-                contenu
-                    .lines()
-                    .filter_map(|l| {
-                        let v: VersetSource = serde_json::from_str(l).ok()?;
-                        Some(
-                            v.w.into_iter()
-                                .filter_map(|m| m.oshb.map(|o| (m.t, o.morph)))
-                                .collect::<Vec<_>>(),
-                        )
-                    })
-                    .flatten(),
-            );
             liaison.apprendre_du_temoin(
                 contenu
                     .lines()
@@ -1629,7 +1489,7 @@ pub fn preparer(
                         .map(|m| {
                             let o = m.oshb.as_ref().expect("filtré juste au-dessus");
                             MotPublie {
-                                cible: liaison.cible(&m.t, Some(&o.lem), Some(&o.morph)),
+                                cible: liaison.cible(&m.t, Some(&o.lem)),
                                 // **Pas ici.** À cette ligne on lit un `.jsonl`
                                 // classé par référence biblique : on ne sait pas
                                 // encore dans quelle unité ni à quelle position
@@ -2058,14 +1918,14 @@ mod tests {
 
         // Vocalisé, cantillation ôtée — le cas exact.
         assert_eq!(
-            liaison.cible("אֱלֹהִ֑ים", None, None),
+            liaison.cible("אֱלֹהִ֑ים", None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "elohim".into()
             })
         );
         // Fléchi : seul le squelette tombe juste, et il est seul à le porter.
         assert_eq!(
-            liaison.cible("בְּרֹ֤א", None, None),
+            liaison.cible("בְּרֹ֤א", None),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "bara".into()
             })
@@ -2073,9 +1933,9 @@ mod tests {
         // **Ambigu : rien.** `דבר` est *davar* et *dibber* ; la forme
         // vocalisée du texte ne coïncide avec aucune des deux fiches, et le
         // squelette en désigne deux. Ouvrir l'une des deux serait mentir.
-        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר", None, None), None);
+        assert_eq!(liaison.cible("וַיְדַבֵּ֥ר", None), None);
         // Un mot qu'aucune fiche ne nomme.
-        assert_eq!(liaison.cible("אֵ֥ת", None, None), None);
+        assert_eq!(liaison.cible("אֵ֥ת", None), None);
     }
 
     /// **La récolte des translittérations, et son refus.**
@@ -2335,13 +2195,13 @@ mod tests {
             strong: Some("8034"),
         }]);
         assert_eq!(
-            liaison.cible("שֵׁ֣ם", Some("8034"), None),
+            liaison.cible("שֵׁ֣ם", Some("8034")),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "shem".into()
             })
         );
         // Même forme, autre numéro — *Shem fils de Noach*. On ne joint pas.
-        assert_eq!(liaison.cible("שֵׁ֖ם", Some("8035"), None), None);
+        assert_eq!(liaison.cible("שֵׁ֖ם", Some("8035")), None);
 
         // `el` ne déclare rien : le veto doit venir du témoin.
         let mut liaison = LiaisonDesMots::nouvelle([FichePourLaJointure {
@@ -2351,7 +2211,7 @@ mod tests {
         }]);
         // Sans apprentissage, le squelette confond — et c'est le code d'avant.
         assert_eq!(
-            liaison.cible("אֶל", Some("413"), None),
+            liaison.cible("אֶל", Some("413")),
             Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
         );
         // Le témoin dit que `אֵל` porte 410, et rien d'autre.
@@ -2359,9 +2219,9 @@ mod tests {
             ("אֵ֣ל".to_string(), "410".to_string()),
             ("אֵל".to_string(), "410".to_string()),
         ]);
-        assert_eq!(liaison.cible("אֶל", Some("413"), None), None);
+        assert_eq!(liaison.cible("אֶל", Some("413")), None);
         assert_eq!(
-            liaison.cible("אֵ֣ל", Some("410"), None),
+            liaison.cible("אֵ֣ל", Some("410")),
             Some(CibleDuNiveauTrois::Term { lemma: "el".into() })
         );
     }
@@ -2386,13 +2246,10 @@ mod tests {
             lemma: "tov-vara".into(),
         };
         // Chaque moitié ouvre la fiche du construit.
-        assert_eq!(
-            liaison.cible("ט֥וֹב", Some("2896 b"), None),
-            Some(cible.clone())
-        );
-        assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b"), None), Some(cible));
+        assert_eq!(liaison.cible("ט֥וֹב", Some("2896 b")), Some(cible.clone()));
+        assert_eq!(liaison.cible("וָרָ֖ע", Some("c/7451 b")), Some(cible));
         // Et le veto tient toujours pour ce que la fiche ne déclare pas.
-        assert_eq!(liaison.cible("ט֥וֹב", Some("2897"), None), None);
+        assert_eq!(liaison.cible("ט֥וֹב", Some("2897")), None);
     }
 
     /// **Deux fiches au même numéro ne se tranchent pas au hasard.**
@@ -2421,13 +2278,13 @@ mod tests {
 
         // Chacune ouvre la sienne : les deux côtés déclarent la même forme.
         assert_eq!(
-            liaison.cible("רָאָ֣ה", Some("7200"), None),
+            liaison.cible("רָאָ֣ה", Some("7200")),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "raah".into()
             })
         );
         assert_eq!(
-            liaison.cible("רֹאֶ֖ה", Some("7200"), None),
+            liaison.cible("רֹאֶ֖ה", Some("7200")),
             Some(CibleDuNiveauTrois::Term {
                 lemma: "roeh".into()
             })
@@ -2437,7 +2294,7 @@ mod tests {
         // aucune des deux formes citées ; les départager demanderait de savoir
         // laquelle des fiches est le verbe, et rien ne le déclare. Mieux vaut
         // inerte que plausible.
-        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200"), None), None);
+        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200")), None);
     }
 
     /// **Un préfixe déclaré par le témoin ne fait pas perdre la fiche.**
@@ -2468,26 +2325,27 @@ mod tests {
             lemma: "yhwh".into(),
         });
         // Nu : la forme tranche.
-        assert_eq!(liaison.cible("יְהוָ֔ה", Some("3068"), None), yhwh);
+        assert_eq!(liaison.cible("יְהוָ֔ה", Some("3068")), yhwh);
         // Préfixé, et le témoin le déclare : la fin du mot tranche.
-        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("l/3068"), None), yhwh);
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("l/3068")), yhwh);
         // **Sans préfixe déclaré, aucune comparaison de fin.** Le mot ne
         // ressemble à rien de cité, et rien ne dit qu'il porte un préfixe.
-        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("3068"), None), None);
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("3068")), None);
     }
 
-    /// **Le participe substantivé va d'un côté, le reste de l'autre.**
+    /// **La règle du participe a existé une heure, et elle envoyait trois mots
+    /// sur trois vers la mauvaise fiche.**
     ///
-    /// `raʾah` et `roʿeh` portent le même numéro, et c'est juste : le témoin
-    /// n'emploie jamais 7203, que Strong réserve au voyant. Aucune forme citée
-    /// ne ressemble à `וַיַּרְא`, donc ni le numéro ni la forme ne tranchent.
+    /// Cette épreuve garde ce qu'il en reste : la distinction entre le verbe et
+    /// le nom **ne s'arbitre pas**, parce qu'elle est déjà déclarée. `roʿeh`
+    /// doit porter 7203, que le témoin emploie six fois dans le WLC — là où le
+    /// voyant paraît, 1 Samuel 9 et Ésaïe 28.
     ///
-    /// Le témoin, lui, a tout dit : il n'atteste `רָאָה` qu'en accompli et
-    /// `רֹאֶה` qu'en participe. La partition est franche, le mot rejoint son
-    /// côté — et rien n'est inventé à aucun bout.
+    /// Tant que les deux fiches portent 7200, le mot reste inerte. C'est le
+    /// bon état : un mot sans fiche se lit comme un mot sans fiche.
     #[test]
-    fn le_participe_substantive_se_separe_de_son_verbe() {
-        let mut liaison = LiaisonDesMots::nouvelle([
+    fn le_verbe_et_son_nom_ne_s_arbitrent_pas() {
+        let liaison = LiaisonDesMots::nouvelle([
             FichePourLaJointure {
                 lemme: "raʾah",
                 hebreu: Some("רָאָה"),
@@ -2499,44 +2357,30 @@ mod tests {
                 strong: Some("7200"),
             },
         ]);
-        // Ce que le témoin atteste : chaque forme dans un seul emploi.
-        liaison.apprendre_les_aspects([
-            ("רָאָ֣ה".to_string(), "HVqp3ms".to_string()),
-            ("רֹאֶ֖ה".to_string(), "HVqrmsa".to_string()),
-        ]);
+        // **Un niphal n'ouvre rien.** `הַנִּרְאֶה` est *nirʾah*, « qui lui
+        // apparut » — la règle retirée l'envoyait vers le voyant.
+        assert_eq!(liaison.cible("הַנִּרְאֶ֥ה", Some("d/7200")), None);
+        // **Un participe suffixé non plus.** `רֹאִי`, « qui me voit ».
+        assert_eq!(liaison.cible("רֹאִֽי", Some("7200")), None);
 
-        let verbe = Some(CibleDuNiveauTrois::Term {
-            lemma: "raʾah".into(),
-        });
-        let participe = Some(CibleDuNiveauTrois::Term {
-            lemma: "roʿeh".into(),
-        });
-
-        // Un wayyiqtol : ni accompli ni participe, mais pas un participe.
+        // **Ce que cette épreuve ne garde pas, et qui reste à faire.**
+        //
+        // `רֹאֶה` nu tombe exactement sur la forme que `roʿeh` déclare, donc la
+        // jointure par la forme l'y envoie — et le faisait **avant** la règle
+        // du participe. Or ce mot-là est verbal : « toute la terre que tu
+        // vois ».
+        //
+        // Ce n'est pas une jointure à corriger, c'est une fiche à déclarer : le
+        // témoin distingue déjà le verbe (7200) du voyant (7203), et tant que
+        // `roʿeh` porte 7200, aucune mécanique ne peut les séparer sans
+        // inventer. Le jour où elle portera 7203, le veto du numéro refusera ce
+        // mot de lui-même — sans une ligne de plus ici.
         assert_eq!(
-            liaison.cible("וַיַּ֥רְא", Some("c/7200"), Some("HC/Vqw3ms")),
-            verbe
+            liaison.cible("רֹאֶ֖ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "roʿeh".into()
+            })
         );
-        // Un participe, fût-il préfixé et pluriel.
-        assert_eq!(
-            liaison.cible("הָרֹאִ֖ים", Some("d/7200"), Some("HTd/Vqrmpa")),
-            participe
-        );
-        // **Sans morphologie, rien ne tranche.** L'arbitre ne suppose pas.
-        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("c/7200"), None), None);
-    }
-
-    /// Le code du témoin se lit là où le verbe est, pas à la fin.
-    #[test]
-    fn le_segment_verbal_n_est_pas_toujours_le_dernier() {
-        // Un pronom suffixe ferme le mot ; le verbe est avant.
-        assert_eq!(est_participe("HVhi1cs/Sp2ms"), Some(false));
-        assert_eq!(est_participe("HVqrmsc/Sp1cs"), Some(true));
-        // Un préfixe l'ouvre.
-        assert_eq!(est_participe("HTd/VNrmsa"), Some(true));
-        assert_eq!(est_participe("HC/Vqw3ms"), Some(false));
-        // Sans segment verbal, on ne dit rien.
-        assert_eq!(est_participe("HNcmsa"), None);
     }
 
     /// La même règle sur la forme, quand aucune des deux ne déclare de numéro.
@@ -2556,7 +2400,7 @@ mod tests {
         ]);
         // Deux fiches qui déclarent **la même** forme ne se départagent par
         // rien : l'arbitre est muet quand les deux disent pareil.
-        assert_eq!(liaison.cible("דָּבָ֣ר", None, None), None);
+        assert_eq!(liaison.cible("דָּבָ֣ר", None), None);
     }
 
     /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
