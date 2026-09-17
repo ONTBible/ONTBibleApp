@@ -9,6 +9,23 @@
 set -euo pipefail
 
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# **Ce script ne source PAS `xcode-de-la-chaine.sh`, et c'est mesuré.**
+#
+# Les scripts du Mac et des captures aiguillent `DEVELOPER_DIR` vers la stable,
+# pour fermer la divergence de la #216 — un programme que la bêta accepte et
+# que la CI refuse. Celui-ci ne le peut pas :
+#
+#     l'iPhone de l'auteur   iOS 27.2       (bêta)
+#     Xcode stable           27.0
+#     Xcode bêta             27.2
+#
+# Une stable ne sait pas installer sur un appareil plus neuf qu'elle. L'y
+# aiguiller casserait le seul geste que l'auteur répète tout le jour.
+#
+# Ce n'est donc pas un oubli, et ce n'est pas non plus définitif : le jour où
+# la stable rattrape la version de l'appareil, cette ligne s'ajoute et ce
+# paragraphe s'en va. Relevé le 17 septembre 2026.
 BUNDLE="com.labibleont.ONT"
 
 vert=$'\033[32m'; gris=$'\033[90m'; fin=$'\033[0m'
