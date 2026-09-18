@@ -151,8 +151,7 @@ public fun PrononciationSheet(
             BlocDeFiche(
                 bloc = bloc,
                 typo = typo,
-                showGloss = preferences.showGloss,
-                showLevel3 = preferences.showLevel3,
+                preferences = preferences,
                 titresPleins = true,
             )
         }

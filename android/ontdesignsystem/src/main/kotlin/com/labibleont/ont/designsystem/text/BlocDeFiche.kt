@@ -23,6 +23,7 @@ import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.designsystem.typography.ONTTypography
 import com.labibleont.ont.kit.corpus.Block
+import com.labibleont.ont.kit.reader.ReadingPreferences
 
 /**
  * Un bloc de **prose de fiche** — lexique, Shem, prononciation.
@@ -65,12 +66,21 @@ import com.labibleont.ont.kit.corpus.Block
 public fun BlocDeFiche(
     bloc: Block,
     typo: ONTTypography,
-    showGloss: Boolean,
-    showLevel3: Boolean,
+    preferences: ReadingPreferences,
     titresPleins: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalReadingTheme.current
+    val showGloss = preferences.showGloss
+    val showLevel3 = preferences.showLevel3
+
+    // **La taille du corps, d'où tout le reste se dérive.**
+    //
+    // Les préférences entières plutôt que deux booléens extraits : il manquait
+    // `textSize`, et c'est ce qui rendait les titres sourds au réglage du
+    // lecteur. Passer un objet par ses parties fait qu'on oublie celle qu'on
+    // n'a pas encore employée.
+    val corps = preferences.textSize.toFloat()
 
     fun rendu(nodes: kotlin.collections.List<com.labibleont.ont.kit.corpus.Inline>) =
         ONTTextRenderer.compose(nodes, typo, showGloss = showGloss, showLevel3 = showLevel3)
@@ -88,12 +98,32 @@ public fun BlocDeFiche(
         is Block.Heading -> Text(
             rendu(bloc.nodes),
             fontFamily = ONTFonts.display,
-            fontSize = when {
-                titresPleins && bloc.level <= 2 -> 20.sp
-                titresPleins -> 17.sp
-                bloc.level <= 2 -> 15.sp
-                else -> 13.sp
-            },
+            // ## Des rapports au corps, jamais des points fixes
+            //
+            // Ces quatre valeurs étaient `20.sp`, `17.sp`, `15.sp`, `13.sp` —
+            // écrites en dur, donc **sourdes au réglage de taille du lecteur**.
+            // Le corps d'une fiche, lui, suit `preferences.textSize`. Dès que le
+            // lecteur monte le curseur au-delà de 20, un titre « plein » passait
+            // *sous* son propre corps de texte, et un titre resserré s'y trouvait
+            // déjà à 15.
+            //
+            // Ce n'est pas un détail d'esthétique : c'est le curseur que monte
+            // celui qui voit mal, donc le défaut frappe exactement qui en dépend
+            // le plus. `ShemSheet` était le seul écran à faire juste — ses titres
+            // valaient `textSize * 1.1f` — et le brancher ici sans ce correctif
+            // aurait cassé la seule chose qui marchait.
+            //
+            // Les rapports reprennent l'échelle d'iOS, où les styles sont
+            // relatifs par construction : `title3` et `headline` en régime plein,
+            // `subheadline` et `footnote` en resserré.
+            fontSize = (
+                corps * when {
+                    titresPleins && bloc.level <= 2 -> 1.2f
+                    titresPleins -> 1.05f
+                    bloc.level <= 2 -> 0.9f
+                    else -> 0.8f
+                }
+                ).sp,
             fontWeight = FontWeight.SemiBold,
             color = ONTColors.brandInk(theme),
             // Un titre est un en-tête pour TalkBack, sans quoi il se lit comme
