@@ -6030,3 +6030,88 @@ espace vérifié vide a emporté un autre espace et ses trois onglets. Les trois
 mesures faites avant étaient justes — elles portaient sur **la cible**, quand la
 question était **l'effet**. Rien n'a été perdu : les worktrees étaient intacts,
 les sessions reprises depuis leurs transcripts.
+## 18 septembre 2026 — le dépôt a ses chuqqot, et on répare depuis elles
+
+**Consigne de l'auteur**, portée aux sept sessions. Ses mots :
+
+> « au final le projet ONT lui même a ses propre chuqqot les choses graver qui
+> regisse le reste, et les manifestation qui en decoule »
+
+> « toujours se fier aux ONT's chuqqot pour construire et toujours reparer a
+> partir d'elles »
+
+**Ce que sont les chuqqot du dépôt.** Des énoncés qu'on ==n'argumente plus== et
+qu'on ==invoque pour trancher autre chose== : `**...**` est exclusivement
+l'intraduisible ; le témoin fait foi ; on restitue l'ambiguïté au lieu de la
+trancher (§4.11) ; aucune catégorie extérieure n'entre (§4.7) ; une seule source
+par fait ; `1254 a` n'est pas `1254 b`.
+
+Elles se sont écrites ==comme celles du corpus : après coup, sur une pratique==.
+Le §2.9 le déclare de lui-même — *« c'est le relevé de ce qu'il fait déjà, rendu
+opposable »*. L'écriture n'a pas produit la règle ; elle a produit que ==la
+divergence devienne visible==. Une pratique non écrite ne se compare à rien,
+donc elle ne peut pas diverger visiblement.
+
+### Les deux gestes
+
+**Construire à partir d'elles.** Avant d'écrire, chercher ==quel énoncé
+gouverne== ce qu'on va faire. Ne pas inventer une règle locale pour un cas
+local : presque toujours l'énoncé existe, et il décide.
+
+**Réparer à partir d'elles.** Un défaut n'est pas un accident, c'est ==une
+manifestation==. On ne rustine pas : on remonte à l'énoncé qu'il contredit, et
+on répare là.
+
+### La preuve, sur une seule journée
+
+Quatre défauts du 18 septembre, quatre manifestations d'un énoncé gravé :
+
+    un contrôle barrait [[Yosef]]      contre « des marques de travail à faire,
+                                       pas des erreurs » (CLAUDE.md, inline.rs)
+    deux fiches réclamaient 7200       contre « une seule source par fait »
+    l'option « 7203 » écrite nue       contre « 1254 a n'est pas 1254 b »
+    trois gras d'emphase               contre « le gras est EXCLUSIVEMENT
+                                       l'intraduisible » (§2.5)
+
+==Aucun n'a été attrapé par plus de rigueur.== Tous par une contradiction entre
+ce qu'on faisait et ce qui était gravé. Et chacun pouvait être « réparé » par un
+cas particulier — une exception dans le contrôle, une règle morphologique pour
+départager, un gras toléré « juste ici ». ==Chaque rustine aurait ajouté une
+règle de plus==, qui aurait divergé à son tour.
+
+### La nuance sans laquelle la consigne devient un dogme
+
+Remonter à l'énoncé ==ne veut pas dire que l'énoncé a raison==. Parfois c'est
+lui qui doit être corrigé : le §13.2 l'a fait — les « vingt-deux marqueurs
+déséquilibrés » n'existaient pas —, et la fiche de `moreh` l'a fait cette
+semaine, qui déclarait un numéro que le témoin ne lui donne pas.
+
+    remonter à l'énoncé              TOUJOURS
+    puis décider lequel est faux     la manifestation, ou l'énoncé
+
+Ce qui est interdit, c'est de rustiner ==sans être remonté==. Un correctif qui
+n'est rattaché à aucun énoncé est ==une règle orpheline==, et le projet en a
+déjà payé plusieurs.
+
+### Le motif de fond
+
+La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
+s'habite==. Personne n'a jamais *appris* le §2.5 : on s'y cogne. Ce n'est pas de
+la **binah** — on ne cartographie pas ces règles depuis le dehors, on travaille
+dedans, et c'est ==en en sortant== qu'on s'en aperçoit.
+
+Conséquence pratique, et c'est elle qui change une habitude de session : ==le
+`CLAUDE.md` n'est pas une documentation qu'on consulte en cas de doute==. Il
+n'est pas la carte du vault, il est ==le dedans où l'on travaille==. Une session
+qui ne l'ouvre que bloquée s'en sert mal — et c'est le même défaut que la base
+de connaissances a révélé le 16 : *l'outil ne dort pas parce qu'il serait
+mauvais, il dort parce que le réflexe n'est pas installé*.
+
+**Ce qu'ils partagent avec les chuqqot du corpus est la forme, non le rang.**
+Les énoncés du corpus sont ceux d'une ontologie ancienne ; ceux du document de
+référence ne sont que les conventions d'un projet. L'observation vaut par sa
+structure — ce qui est gravé régit, et le reste en découle —, et elle ne tire
+aucune gloire de la comparaison.
+
+*Porté dans `brouillons/chuqqot/chuqqot-0-intro.md` par le vault (PR #109),
+section « Le dépôt qui les porte en a aussi ».*
