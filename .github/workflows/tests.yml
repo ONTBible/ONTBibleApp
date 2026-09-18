@@ -170,6 +170,25 @@ jobs:
         working-directory: ONTBibleApp
         run: ./scripts/eprouver-les-scripts.sh
 
+      # ## Les captures de la fiche montrent-elles encore l'app ?
+      #
+      # Trois récidives — 13 août, 19 août, 31 août — et le même mode d'échec à
+      # chaque fois : la capture périmée a la bonne taille, passe tous les
+      # contrôles, et montre une app qui n'existe plus. La garde de
+      # `soumettre.py` refuse une version **sans** captures ; personne ne
+      # refusait une version aux captures **fausses**.
+      #
+      # **À chaque PR plutôt qu'à la soumission**, sur décision de l'auteur du
+      # 18 septembre 2026 : à la soumission, le contrôle arriverait après le
+      # train de promotion et le bloquerait au pire moment. Ici il est bruyant
+      # — toute modification d'interface rend tous les jeux suspects, même ceux
+      # qu'elle ne touche pas — et c'est le prix assumé d'un contrôle qui ne
+      # déclare rien, donc ne peut pas mentir. L'en-tête du script porte
+      # l'argument entier, et dit aussi ce qu'il **n**'attrape **pas**.
+      - name: Les captures de la fiche sont postérieures à l'interface
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-la-fraicheur-des-captures.sh
+
       # ## Une feuille passe par le système de design, jamais par `.sheet` nu
       #
       # Le 8 septembre 2026, la feuille de prononciation s'ouvrait plein écran
