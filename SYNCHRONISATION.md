@@ -6148,6 +6148,51 @@ La fiche déclare désormais `7203 a` seul, et elle ==nomme== `7203 b` pour dire
 qu'elle ne le revendique pas, ==plutôt que de le taire== : une absence déclarée
 se relit, un silence non.
 
+### Un tube avale le code de sortie — et fabrique une réussite
+
+Relevé le 18 septembre 2026 par la session du vault, sur ses propres commandes,
+après un accident de la manageuse.
+
+    bash -c 'set -e; false | tail -1; echo ATTEINT'    →  ATTEINT
+    bash -c 'set -e; false; echo jamais'               →  arrêté
+
+==Une commande dont la sortie passe dans un tube n'est plus protégée par
+`set -e`== : c'est le statut du ==dernier maillon== qui compte, et `tail` réussit
+toujours.
+
+**Ce que ça a produit, et ce que ça aurait pu produire :**
+
+- un enchaînement de la manageuse a commité ==dans l'arbre partagé== : le
+  `worktree add` avait échoué, son échec a été avalé, le `cd` suivant a échoué à
+  son tour, et `add`/`commit`/`push` se sont exécutés dans le dossier courant.
+  ==Sans dégât par hasard== — l'arbre se trouvait sur la bonne branche ;
+- le vault écrivait `git push --quiet 2>&1 | tail -1` ==sur chaque PR de la
+  journée==. Si une poussée avait échoué — distant en avance, jeton expiré,
+  branche protégée —, ==le tube aurait avalé le code et la poussée aurait été
+  annoncée réussie à l'auteur==.
+
+**C'est le motif du 25 août sous une forme qu'on n'avait pas vue** : *le format
+de sortie survit à l'absence de mesure*. Ici ==le tube fabrique le format==. La
+ligne rendue est bien formée, elle ressemble à un succès, et rien n'a été mesuré.
+
+**Les trois remèdes, et ils ne coûtent rien :**
+
+    git -C <chemin> …          plutôt que `cd` puis `git` — ne dépend d'aucun
+                               dossier courant, donc aucun `cd` à réussir
+    pas de tube                sur ce dont l'échec doit arrêter le script
+    vérifier par les SHA       `rev-parse <branche>` contre
+                               `rev-parse origin/<branche>` — un push n'a pas
+                               de `set -e` pour le protéger en interactif
+
+==Le dernier est le seul qui mesure l'atterrissage== au lieu de lire ce que la
+commande a bien voulu dire. Les trois branches de cette entrée ont été
+vérifiées ainsi avant d'être annoncées.
+
+**Et une règle d'arbre partagé, du même accident** : ==ne jamais annoncer de
+mémoire la branche d'un arbre que six sessions lisent==. `git branch
+--show-current` coûte une commande ; l'inexactitude qui l'a remplacée a failli
+faire commiter un tiers sur `main`.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
