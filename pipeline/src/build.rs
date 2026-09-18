@@ -570,39 +570,8 @@ fn outline(book: &Book) -> BookOutline {
 /// orphelines **et** à l'émettre, et les deux doivent parler du même fichier.
 const PRONONCIATION: &str = "prononciation";
 
-/// **Les octets d'un fichier publié — une seule écriture pour deux lecteurs.**
-///
-/// Compact par défaut : ces fichiers sont embarqués dans un binaire d'app, pas
-/// lus par un humain. `search.json` seul gagne 40 % à ne pas être indenté.
-/// `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
-/// seule façon de regarder un arbre d'inline sans passer par `jq`.
-///
-/// **Pourquoi une fonction et non deux appels à `serde_json`.** Le manifeste
-/// des sources calculait sa taille et son empreinte avec `to_string`, donc
-/// toujours compact, pendant que le fichier partait par `write_json`, qui
-/// honore `ONT_PRETTY`. Sous ce réglage, le manifeste annonçait une taille et
-/// une empreinte **compactes pour un fichier indenté** — les deux fausses
-/// ensemble, et d'accord entre elles, ce qui est la pire des combinaisons.
-///
-/// Le commentaire qui vivait ici disait déjà « la sortie indentée ne doit
-/// jamais être livrée ». Il interdisait, et rien n'empêchait : c'est la forme
-/// qu'on retire du dépôt depuis dix jours. Une seule source d'octets rend la
-/// divergence impossible au lieu de la déconseiller — le même geste que
-/// `Translitterations::table_sure` et que la garde des fiches qui se disputent
-/// un mot.
-///
-/// Relevé par la session macOS, dont le `SourcesUpdater` refusait la
-/// génération entière sans que rien ne dise pourquoi côté publication.
-pub(crate) fn corps_json<T: Serialize>(data: &T) -> Result<String, serde_json::Error> {
-    if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
-        serde_json::to_string_pretty(data)
-    } else {
-        serde_json::to_string(data)
-    }
-}
-
 fn write_json<T: Serialize>(file: &Path, data: &T) -> std::io::Result<usize> {
-    let body = corps_json(data).expect("sérialisation");
+    let body = crate::sources::corps_json(data).expect("sérialisation");
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent)?;
     }
