@@ -38,17 +38,21 @@ d'échouer et de demander de relancer.
 """
 
 import os
+import pathlib
 import sys
 
 from asc import API, Client, application, attendre_le_build, detailler
 
-# Ce que le relecteur doit savoir avant d'ouvrir l'app. Trois livres sur
-# soixante-dix, et des unités marquées « brouillon » : sans cette note, un
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+from compte_du_corpus import phrase  # noqa: E402
+
+# Ce que le relecteur doit savoir avant d'ouvrir l'app. Le compte des livres
+# se lit dans le corpus, et des unités marquées « brouillon » : sans cette note, un
 # relecteur peut lire un chantier assumé comme une app inachevée — le motif de
 # rejet 2.1 le plus courant.
 NOTES = (
     "La Bible ONT est une restitution française du corpus hébreu et araméen "
-    "antique, en cours de traduction. Trois livres sur soixante-dix sont "
+    f"antique, en cours de traduction. {phrase()} sont "
     "publiés ; le sommaire montre les autres sans les rendre cliquables, et "
     "les unités non relues portent la mention « brouillon ». C'est délibéré, "
     "et non un contenu manquant.\n\n"
