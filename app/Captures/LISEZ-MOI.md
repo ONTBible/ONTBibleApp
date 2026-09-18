@@ -26,8 +26,10 @@ pas **quand**, et rien ne le vérifiait. Trois récidives en sont sorties, la
 même à chaque fois :
 
     13 août 2026   survivent à deux refontes de la mise en page iPad
-    19 août 2026   les jeux iPhone et iPad y restent un mois — la vitrine de
-                   la 1.0.6 montre quatre onglets pour une app qui en a cinq
+    19 août 2026   les jeux iPhone et iPad y restent un mois — l'affiche 01
+                   annonce « Nistarot 0/6 » quand le corpus en porte 2, et
+                   l'affiche 04 « Trois livres sur soixante-dix » quand il y
+                   en a cinq depuis le 11 septembre
     31 août 2026   ceux du Mac traversent la refonte entière
 
 Trois fois, c'est le signe qu'on réparait la manifestation — refaire les
