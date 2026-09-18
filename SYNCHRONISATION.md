@@ -6248,6 +6248,27 @@ bougé depuis.
 ==un seul agent n'a pas de témoin==. Le défaut qui bloquait le site était chez
 le seul qui y travaillait, donc personne ne pouvait le voir de l'intérieur.
 
+**Et il y a deux horodatages, non un.** Précision de la session du site, une
+heure après, sur un cas qu'elle a failli rapporter à l'envers.
+
+Le vault venait de fusionner le correctif. Elle a mesuré, trouvé le défaut
+toujours là, et s'apprêtait à écrire que la fusion n'avait rien changé. Elle a
+comparé les octets avant :
+
+    git ls-tree origin/main   lexique/basar-ʾechad.md   la fiche neuve
+    ls lexique/               basar-echad.md            l'ancienne
+    HEAD local du vault       68c7849                   avant la fusion
+
+==L'arbre qu'elle lisait n'avait pas tiré.== Elle régénère depuis ce dossier :
+sa mesure était fraîche, et sa source périmée.
+
+    l'horodatage du contrôle           se voit sur la PR
+    l'horodatage de ce qu'il a mesuré  ==ne se voit nulle part==
+
+Les deux se périment séparément, et aucun tableau n'affiche l'état du dépôt
+voisin au moment où le contrôle a tourné. D'où la règle courte, qui est d'elle :
+==un `fetch` met à jour ce qu'on voit, pas ce qu'on lit.==
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
