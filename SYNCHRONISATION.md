@@ -5788,6 +5788,33 @@ qui chercherait==, et distinguer dans la phrase **« je n'ai pas cherché »** d
 **« j'ai cherché et il n'y a rien »**. Les deux sont honnêtes ; les confondre ne
 l'est pas.
 
+### Un contrôle vert est une affirmation sur l'instant où il a tourné
+
+Relevé par la session du site le 18 septembre au soir, et c'est ==la seule des
+six qui porte sur le temps== plutôt que sur la mesure.
+
+    #149  pass  8m36s   tourné AVANT l'arrivée des demi-anneaux
+    #150  pass  7m55s   idem
+    #151  fail  2m13s   tourné APRÈS — deux fiches sans définition
+
+Les trois disent la vérité. ==Les deux premières la disent d'un dépôt qui
+n'existe plus== : cinquante-deux clés du lexique ont changé entre-temps.
+
+**Fusionner sur un vert périmé ne casse pas seulement la branche**, et c'est ce
+qui le rend coûteux : ==la PR suivante porte le chapeau== d'un défaut qui n'est
+pas le sien. C'est exactement ce qui a tenu le corpus publié huit jours en
+arrière — le site a servi un texte du 10 septembre jusqu'au 18, et les deux
+gardes qui ont fini par voir la panne étaient ==externes==, ni l'une ni l'autre
+ne cherchant cela.
+
+==Le vert n'est pas un état, c'est un horodatage.== Avant de fusionner, regarder
+non pas *si* le contrôle est vert, mais ==quand il l'est devenu== — et ce qui a
+bougé depuis.
+
+**Et un corollaire que la journée a donné deux fois** : un espace où travaille
+==un seul agent n'a pas de témoin==. Le défaut qui bloquait le site était chez
+le seul qui y travaillait, donc personne ne pouvait le voir de l'intérieur.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
