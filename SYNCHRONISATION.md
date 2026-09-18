@@ -356,6 +356,88 @@ La table porte les rôles, qui durent — pas les chantiers ni les arbitrages en
 attente, qui périment : ceux-là voyagent par message, et par `DECISIONS.md`
 pour ce qui attend l'auteur.
 
+### Où chaque rôle se tient — la carte Herdr
+
+**Posée le 18 septembre 2026**, à la demande de l'auteur. La table ci-dessus dit
+==ce que chaque rôle tient== ; celle-ci dit ==où il se tient==, et elle règle le
+problème que la première contournait.
+
+**L'auteur pilote depuis Herdr** ([herdr.dev](https://herdr.dev)), un
+gestionnaire d'espaces de terminal fait pour les agents. Trois étages :
+
+    SESSION      un projet        `ont`
+      ESPACE     un dépôt         « ONT App », « ONT Trad », « ONT MANAGER »
+        ONGLET   un agent         « iOS/iPadOS », « Vault », « ANA »
+          VOLET  le processus
+
+| rôle | espace | onglet | volet | moteur |
+|---|---|---|---|---|
+| la manageuse | ONT MANAGER | — | `w7:p1` | claude |
+| le vault | ONT Trad | Vault | `w1:p3` | claude |
+| les langues sources | ONT Trad | ANA | `w1:p6` | claude |
+| ==Astra== | ONT Trad | Astra | `w1:p7` | ==codex== |
+| iOS / iPadOS | ONT App | iOS/iPadOS | `wE:p3` | claude |
+| macOS | ONT App | MacOS | `wE:p2` | claude |
+| Android | ONT App | Android | `wE:p1` | claude |
+| le site | ONT WebApp | — | `w6:p1` | claude |
+
+==Ils sont huit et non sept==, et la huitième est **Astra**, sur codex. Elle
+n'apparaît dans **aucun `ListAgents`** et son envoi de message échoue en
+`Operation not permitted` : elle ==reçoit par le dépôt== —
+`knowledge/synchronisation-a-terminer.md`, `AGENTS.md` — ou par l'auteur, qui
+la lit. Sa place ci-dessus a été établie ==sans qu'elle puisse la dire==.
+
+#### Chaque agent connaît sa place, et doit la lancer
+
+    env | grep HERDR
+
+    HERDR_SESSION=ont · HERDR_WORKSPACE_ID · HERDR_TAB_ID · HERDR_PANE_ID
+
+==Lancer la commande, ne pas répondre de mémoire.== Deux sessions ont affirmé
+ne pas voir leur place sans avoir cherché ; leurs réponses étaient argumentées
+et fausses. *Une absence dans ce qu'on voit n'est pas une absence.*
+
+**C'est le premier identifiant stable de la flotte**, et il fallait quatre
+péremptions pour le trouver :
+
+    le nom d'agent          change à un /rename
+    le socket               un PID, rebattu à chaque redémarrage
+    la référence [abc123]   change à une reconnexion
+    l'auteur d'une PR       ne distingue personne — un seul compte GitHub
+    le volet Herdr          ne bouge pas : c'est une place, pas un processus
+
+==Le filtre juste, pour attribuer une PR, est la branche== — jamais
+`--author @me`. Trois sessions y sont tombées dans la même heure.
+
+#### Deux pièges de la disposition, et ils ont coûté
+
+**Les agents d'un même espace démarrent dans le même dossier**, donc dans le
+==même arbre de travail git==. Le 18 septembre, 237 lignes non commitées
+d'Astra se sont retrouvées sur la branche du vault — ==ce n'était la faute de
+personne, c'était la disposition==. La parade est `git worktree`, et c'est ce
+que font les langues sources, macOS et Android.
+
+**La branche affichée sous un espace est celle du dossier de lancement**, donc
+celle du seul agent qui y est resté. ==Les agents partis en worktree
+travaillent sur des branches qu'aucun écran ne montre.==
+
+#### Ce que l'auteur voit, et ce que ça engage
+
+Un ==point de couleur par agent== dans sa barre latérale : qui attend, qui
+travaille. Une session qui pose une question ==en prose== y paraît donc
+**finie**. C'est la raison de la règle du sélecteur — sans elle, il ne peut pas
+voir qu'on l'attend, et il ne relit pas huit écrans pour le découvrir.
+
+==L'état complet est un fichier lisible==,
+`~/.config/herdr/sessions/ont/session.json` : pour chaque volet, son dossier de
+lancement, son moteur, et l'identifiant de session de l'agent. ⚠️ ==L'ordre
+d'affichage n'y est pas l'ordre des numéros== — dans « ONT App », l'onglet
+affiché en premier est `t3`. Ne jamais déduire un identifiant d'une position à
+l'écran.
+
+**Cette table se relève, elle ne se recopie pas.** Les volets durent, les
+branches et les PR non — celles-ci sont des mesures, pas une identité.
+
 ---
 
 ## Tronc commun et entrées locales
