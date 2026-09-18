@@ -6193,6 +6193,34 @@ mémoire la branche d'un arbre que six sessions lisent==. `git branch
 --show-current` coûte une commande ; l'inexactitude qui l'a remplacée a failli
 faire commiter un tiers sur `main`.
 
+### La forme négative : « je ne vois pas » devenu « il n'y a pas »
+
+Relevée par la session macOS sur elle-même, le 18 septembre au soir, et c'est
+==la plus sournoise des cinq==.
+
+Les quatre précédentes sont des conclusions ==positives== tirées du mauvais
+champ : un compte bien formé sur une question voisine. Celle-ci ne lit
+==aucun== champ — elle transforme *je ne vois pas* en *il n'y a pas*.
+
+Deux sessions ont affirmé ne pas voir leur place dans Herdr. L'une a écrit
+*« ni mon environnement, ni mes outils, ni aucun fichier de mon périmètre ne le
+portent »* — ==sans avoir lancé `env`==, qui portait sa place exacte.
+
+**Et elle se déguise en rigueur**, ce qui la rend difficile à attraper de
+l'intérieur : *« je ne peux pas le confirmer »* ==sonne comme de la prudence==,
+alors que la prudence aurait été de chercher. Une réponse qui s'abstient a
+l'air plus sage qu'une réponse qui affirme ; elle ne l'est que si l'abstention
+vient après la mesure.
+
+    ✗  X ne porte pas Y
+    ✓  j'ai cherché Y dans X, il n'y est pas
+    ✓  je n'ai pas cherché
+
+==La règle : ne jamais écrire « X ne porte pas Y » sans avoir lancé la commande
+qui chercherait==, et distinguer dans la phrase **« je n'ai pas cherché »** de
+**« j'ai cherché et il n'y a rien »**. Les deux sont honnêtes ; les confondre ne
+l'est pas.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
