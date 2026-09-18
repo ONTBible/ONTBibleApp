@@ -5660,6 +5660,30 @@ Ce qui est interdit, c'est de rustiner ==sans être remonté==. Un correctif qui
 n'est rattaché à aucun énoncé est ==une règle orpheline==, et le projet en a
 déjà payé plusieurs.
 
+### Le même défaut ne se reconnaît pas quand il change d'échelle
+
+Relevé par la session des langues sources, le même jour, sur elle-même :
+
+> J'ai passé la matinée à mesurer une chose, et l'après-midi à la commettre
+> ailleurs.
+
+Le matin, elle déclarait une limite du pont Septante : il écrit `2617` là où le
+témoin écrit `2617 a`. L'après-midi, elle proposait qu'une fiche déclare `7203`
+là où le témoin écrit `7203 a`. ==Le même énoncé violé deux fois en un jour, à
+deux étages du projet==, par la personne qui venait de l'inscrire.
+
+    le pont écrit 2617    là où le témoin écrit 2617 a    → limite déclarée
+    une fiche écrirait 7203   là où le témoin écrit 7203 a  → rien ne joindrait
+
+**Et le second cas est muet**, ce qui le rend pire : `7203` nu n'existe pas dans
+le témoin — ==zéro occurrence==. Une fiche qui le déclarerait ne joindrait pas
+« moins », elle ne joindrait ==rien==, sans qu'aucun contrôle ne s'en plaigne.
+
+D'où la clause qui manquait aux deux gestes : ==remonter à un énoncé ne dispense
+pas de regarder si on vient de le violer soi-même ailleurs==. Une règle qu'on
+vient d'écrire est précisément celle qu'on croit tenir, donc celle qu'on ne
+vérifie plus.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
