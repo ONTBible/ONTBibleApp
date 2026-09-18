@@ -98,7 +98,28 @@ serie() {
   xcrun simctl shutdown "$sim" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "$sim" -b >/dev/null 2>&1
 
+  # **Désinstaller avant d'installer.** `install` par-dessus garde le conteneur
+  # de données, donc les réglages de lecture de la dernière séance de travail —
+  # et le thème en fait partie. Le 18 septembre 2026, `ONT iPadOS` a rendu ses
+  # quatre affiches en sombre pendant que l'iPhone les rendait en parchemin :
+  # une même fiche d'App Store dans deux thèmes.
+  #
+  # Effacer le conteneur ferme la famille entière d'un coup — le thème, l'onglet
+  # retenu, la position de lecture, tout ce qu'une séance laisse derrière elle.
+  # C'est plus sûr que de supprimer les clés une par une : la prochaine
+  # préférence ajoutée est couverte sans qu'on y pense.
+  xcrun simctl uninstall "$sim" "$BUNDLE" >/dev/null 2>&1 || true
   xcrun simctl install "$sim" "$APP"
+
+  # **L'apparence, imposée.** `ONT Pro Max` était en clair et `ONT iPadOS` en
+  # sombre — deux affiches de la même fiche dans deux thèmes, parce que chaque
+  # simulateur gardait le réglage de sa dernière séance de travail. La vitrine
+  # ne doit pas dépendre de ça, exactement comme elle ne doit pas dépendre de
+  # l'onglet restauré.
+  #
+  # `light` reproduit les affiches en place. Le passer à `dark` change toute la
+  # vitrine d'un mot — c'est une décision de l'auteur, pas un réglage technique.
+  xcrun simctl ui "$sim" appearance light >/dev/null 2>&1 || true
 
   # L'onglet, remis sur Bible.
   #
@@ -157,11 +178,28 @@ serie() {
 import sys
 import numpy as np
 from PIL import Image
+
+# **Ce qu'on cherche, c'est du contenu — pas de la lumière.**
+#
+# La garde mesurait la luminance moyenne et refusait en dessous de 100. Le
+# 18 septembre 2026, elle a refusé une capture d'iPad parfaitement rendue :
+# l'app y était en **thème sombre**, moyenne 22,2. Le seuil n'attrapait pas une
+# app qui n'a pas fini de charger, il attrapait un fond foncé — et c'est le
+# thème que l'auteur emploie.
+#
+# L'écart-type sépare les deux sans rien supposer du thème : un écran vide est
+# uniforme, quelle que soit sa couleur ; un écran rendu porte du texte, des
+# cartes, des bords. Un aplat noir et un aplat crème tombent tous les deux,
+# comme ils le doivent.
 im = Image.open(sys.argv[1])
-lum = np.asarray(im.convert("L")).mean()
-etat = "✓" if lum > 100 else "✗ ÉCRAN NOIR"
-print(f"  {sys.argv[1]}  {im.size[0]}×{im.size[1]}  {etat}")
-if lum <= 100:
+gris = np.asarray(im.convert("L"), dtype=float)
+contraste = gris.std()
+lum = gris.mean()
+assez = contraste > 12
+etat = "✓" if assez else "✗ ÉCRAN VIDE"
+print(f"  {sys.argv[1]}  {im.size[0]}×{im.size[1]}  {etat}"
+      f"  (contraste {contraste:.1f}, luminance {lum:.1f})")
+if not assez:
     raise SystemExit(1)
 PY
     i=$((i + 1))
