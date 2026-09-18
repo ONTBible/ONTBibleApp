@@ -5872,11 +5872,31 @@ concordance n'a rien prouvé*. Ici, deux instruments ==justes== qui concordent, 
 la concordance ne prouve pas davantage. ==Ce n'est donc pas la justesse des
 instruments qui est en cause, c'est qu'ils ne pouvaient pas se contredire.==
 
-**Le corollaire tient pour les sauvegardes comme pour les mesures.** Le filet
-gardé par la session qui avait alerté vivait dans `/tmp` — et le dépôt porte
-déjà la phrase qui le condamne : *« un redémarrage a purgé `/tmp` et emporté
-tous les fichiers de travail »*. ==Deux copies qui meurent ensemble ne font pas
-deux copies.==
+**Le corollaire tient pour les sauvegardes comme pour les mesures — et il a
+fallu deux tours pour le formuler juste.**
+
+Premier jet : le filet gardé par la session qui avait alerté vivait dans `/tmp`,
+que le dépôt condamne déjà — *« un redémarrage a purgé `/tmp` et emporté tous
+les fichiers de travail »* —, donc ==deux copies qui meurent ensemble==.
+
+==C'était faux, et la session concernée l'a mesuré plutôt que de l'accepter== :
+le `.git` qui portait le commit n'est **pas** dans `/tmp`. Les deux copies
+mouraient de causes **différentes** :
+
+    redémarrage                    tuait le patch seul
+    ref de branche perdue, puis gc tuerait le commit seul
+    perte du disque                ==tue les deux==
+
+La couverture était donc ==partielle, pas nulle==, et c'est la troisième ligne
+qui vérifie la règle, non la première. La formulation juste est plus large :
+
+> ==Deux copies sur le même disque ne font pas deux copies.== Le seul geste qui
+> en fabrique une seconde est celui qui met les octets ==sur une autre
+> machine==.
+
+==Et c'est la septième forme appliquée à sa propre correction== : le premier
+jet nommait un risque réel et manquait le principal, parce qu'il mesurait ce
+qui venait d'être nommé — `/tmp` — plutôt que ce que la situation engageait.
 
 ### Le motif de fond
 
