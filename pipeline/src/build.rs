@@ -571,19 +571,7 @@ fn outline(book: &Book) -> BookOutline {
 const PRONONCIATION: &str = "prononciation";
 
 fn write_json<T: Serialize>(file: &Path, data: &T) -> std::io::Result<usize> {
-    // Compact par défaut : ces fichiers sont embarqués dans un binaire d'app,
-    // pas lus par un humain. `search.json` seul gagne 40 % à ne pas être
-    // indenté.
-    //
-    // `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
-    // seule façon de regarder un arbre d'inline sans passer par `jq`. La
-    // sortie indentée ne doit jamais être livrée : elle change les empreintes
-    // du manifeste, donc ferait retélécharger tout le corpus.
-    let body = if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
-        serde_json::to_string_pretty(data).expect("sérialisation")
-    } else {
-        serde_json::to_string(data).expect("sérialisation")
-    };
+    let body = crate::sources::corps_json(data).expect("sérialisation");
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -1399,6 +1387,19 @@ pub fn build() -> Result<BuildResult, String> {
         }
         for (relatif, editions) in &sources.fichiers_editions {
             bytes += write_json(&sortie.join(relatif), editions).map_err(|e| e.to_string())?;
+        }
+
+        // **Le manifeste vient de parler de ces fichiers ; on les lui oppose.**
+        //
+        // Après l'écriture et non avant : un contrôle qui vérifierait la
+        // promesse contre la structure en mémoire ne mesurerait que sa propre
+        // cohérence. Ce qui compte est ce que le client téléchargera.
+        let ecarts = crate::sources::confronter_le_manifeste(&sources.manifeste, &sortie);
+        if !ecarts.is_empty() {
+            return Err(format!(
+                "le manifeste des sources ne décrit pas ce qui a été écrit :\n  {}",
+                ecarts.join("\n  ")
+            ));
         }
         for dit in &sources.ecartees {
             eprintln!("source écartée — {dit}");
