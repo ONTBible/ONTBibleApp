@@ -989,11 +989,13 @@ fn trier(
 /// Cinq numéros du glossaire sont revendiqués deux fois, et les cinq opposent
 /// une fiche simple à un construit qui la contient :
 ///
-///     136      ʾadonai        contre  ʾadonai-yhwh
-///     2896 a   tov            contre  tov-meʾod
-///     3068     yhwh           contre  yhwh-elohim
-///     410      ʾel            contre  ʾel-roi, ʾel-shaddai, ʾel-ʿelyon
-///     430      ʾelohim        contre  yhwh-elohim
+/// ```text
+/// 136      ʾadonai        contre  ʾadonai-yhwh
+/// 2896 a   tov            contre  tov-meʾod
+/// 3068     yhwh           contre  yhwh-elohim
+/// 410      ʾel            contre  ʾel-roi, ʾel-shaddai, ʾel-ʿelyon
+/// 430      ʾelohim        contre  yhwh-elohim
+/// ```
 ///
 /// **Ce n'est pas un arbitrage, c'est une lecture de ce que les deux
 /// déclarent.** Un mot du témoin porte **un** numéro, parce qu'il est **un**
