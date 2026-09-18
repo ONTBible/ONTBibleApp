@@ -107,9 +107,44 @@ struct SourcesUpdaterTests {
         // Le candidat est jeté, et la cause est nommée — pas un « 0 ».
         let issue = try await updater.synchroniser()
         #expect(issue.fichiers == 0)
-        if case .generationIncomplete = issue {} else {
+        guard case .generationIncomplete(let motif) = issue else {
             Issue.record("attendu generationIncomplete, obtenu \(issue)")
+            return
         }
+        // **Et le motif nomme le fichier et sa taille**, parce que c'est ce
+        // qu'un lecteur du journal a besoin de savoir. Le premier jet rendait
+        // « dataLengthExceedsMaximum » : exact, et muet sur ce qu'il faut
+        // chercher.
+        #expect(motif.contains("he-wlc/bereshit.json"))
+        #expect(motif.contains("empreinte fausse"))
+        #expect(motif.contains("\(abime.count)"), "la taille reçue doit être dite")
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
+    @Test("une taille inattendue porte les deux nombres — l'écart dit la cause")
+    func uneTailleInattenduePorteLesDeuxNombres() async throws {
+        // Deux sens, deux causes distinctes — mesurées avec la session du
+        // vault le 18 septembre 2026 :
+        //
+        //     annoncés ≫ reçus   troncature, mauvais fichier, transfert coupé
+        //     annoncés ≪ reçus   génération construite avec `ONT_PRETTY` armé
+        //
+        // Sans les deux nombres au journal, les deux cas se lisent pareil —
+        // et l'un se répare en retentant, l'autre en republiant.
+        let entier = Self.fixture("he-wlc/bereshit.json")
+        let tronque = entier.prefix(1204)
+        let (updater, dossier) = Self.updater(plancher: "2026-09-10T00:00:00Z")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
+            "/sources/he-wlc/bereshit.json": (200, Data(tronque)),
+        ]
+        let issue = try await updater.synchroniser()
+        guard case .generationIncomplete(let motif) = issue else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+            return
+        }
+        #expect(motif.contains("1204 octets reçus"))
+        #expect(motif.contains("\(entier.count) annoncés"))
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
