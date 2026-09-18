@@ -1720,7 +1720,7 @@ pub fn preparer(
                         temoin: cle.clone(),
                         unites: divergences,
                     };
-                    let corps_app = serde_json::to_string(&rendu_app).map_err(|e| e.to_string())?;
+                    let corps_app = corps_json(&rendu_app).map_err(|e| e.to_string())?;
                     let relatif_app = format!("sources/{cle}/{}-editions.json", meta.slug);
                     editions_par_livre.insert(
                         meta.slug.clone(),
@@ -1738,7 +1738,8 @@ pub fn preparer(
                 temoin: cle.clone(),
                 unites: unites_publiees,
             };
-            let corps = serde_json::to_string(&rendu).map_err(|e| e.to_string())?;
+            // Les mêmes octets que `write_json` posera sur le disque.
+            let corps = corps_json(&rendu).map_err(|e| e.to_string())?;
             let relatif = format!("sources/{cle}/{}.json", meta.slug);
             livres
                 .entry(meta.slug.clone())
@@ -1811,6 +1812,112 @@ pub fn preparer(
             .collect(),
         translitterations: bilan,
     }))
+}
+
+/// **Ce que le manifeste affirme de `dist/`, demandé à `dist/`.**
+///
+/// Le manifeste promet à chaque client une taille et une empreinte par
+/// fichier. Rien ne les confrontait aux fichiers réellement écrits : `sha256`
+/// n'était appelé qu'au moment de *composer* la promesse, jamais pour la
+/// vérifier. Un manifeste ne pouvait donc mentir qu'en silence.
+///
+/// C'est la forme que ce dépôt retire partout — **une affirmation sur une
+/// chose, jamais confrontée à la chose**. Elle est la même que la fiche du
+/// vault qui déclarait un numéro absent du témoin, et que le contrôle qui
+/// comparait chaque élément à l'ensemble sans jamais comparer deux éléments
+/// entre eux.
+///
+/// Le cas qui l'a fait écrire est `ONT_PRETTY`, désormais impossible par
+/// construction. Ce contrôle ne le vise pas : il vise **tout ce qui écrira un
+/// fichier après que le manifeste a parlé de lui** — une réécriture, une
+/// troncature, une seconde passe. Le remède d'aujourd'hui ferme une cause ;
+/// celui-ci ferme la famille.
+///
+/// Rend les écarts, un par ligne. Le silence est la seule sortie acceptable.
+pub fn confronter_le_manifeste(manifeste: &ManifesteSources, sortie: &Path) -> Vec<String> {
+    let mut ecarts = Vec::new();
+    let mut verifier = |f: &FichierPublie| {
+        let chemin = sortie.join(&f.chemin);
+        match fs::read(&chemin) {
+            Err(e) => ecarts.push(format!(
+                "{} — annoncé par le manifeste, illisible sur le disque : {e}",
+                f.chemin
+            )),
+            Ok(octets) => {
+                // **La taille d'abord, parce qu'elle nomme la cause.**
+                //
+                // Annoncés bien plus petits que reçus, c'est une sortie
+                // indentée ; bien plus grands, une écriture tronquée. L'écart
+                // tranche entre les deux, là où l'empreinte seule dirait
+                // seulement « ce n'est pas le même fichier ». La session macOS
+                // a bâti son diagnostic de `SourcesUpdater` sur exactement
+                // cette distinction.
+                if octets.len() != f.octets {
+                    ecarts.push(format!(
+                        "{} — le manifeste annonce {} octets, le fichier en porte {}",
+                        f.chemin,
+                        f.octets,
+                        octets.len()
+                    ));
+                }
+                let reelle = sha256(&octets);
+                if reelle != f.sha256 {
+                    ecarts.push(format!(
+                        "{} — empreinte annoncée {}, empreinte réelle {}",
+                        f.chemin, f.sha256, reelle
+                    ));
+                }
+            }
+        }
+    };
+    for livre in manifeste.livres.values() {
+        for f in livre.temoins.values() {
+            verifier(f);
+        }
+        if let Some(f) = &livre.editions {
+            verifier(f);
+        }
+    }
+    ecarts
+}
+
+/// **Les octets d'un fichier publié — une seule écriture pour deux lecteurs.**
+///
+/// Compact par défaut : ces fichiers sont embarqués dans un binaire d'app, pas
+/// lus par un humain. `search.json` seul gagne 40 % à ne pas être indenté.
+/// `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
+/// seule façon de regarder un arbre d'inline sans passer par `jq`.
+///
+/// **Pourquoi une fonction et non deux appels à `serde_json`.** Le manifeste
+/// des sources calculait sa taille et son empreinte avec `to_string`, donc
+/// toujours compact, pendant que le fichier partait par `write_json`, qui
+/// honore `ONT_PRETTY`. Sous ce réglage, le manifeste annonçait une taille et
+/// une empreinte **compactes pour un fichier indenté** — les deux fausses
+/// ensemble, et d'accord entre elles, ce qui est la pire des combinaisons.
+///
+/// Le commentaire qui vivait ici disait déjà « la sortie indentée ne doit
+/// jamais être livrée ». Il interdisait, et rien n'empêchait : c'est la forme
+/// qu'on retire du dépôt depuis dix jours. Une seule source d'octets rend la
+/// divergence impossible au lieu de la déconseiller — le même geste que
+/// `Translitterations::table_sure` et que la garde des fiches qui se disputent
+/// un mot.
+///
+/// Relevé par la session macOS, dont le `SourcesUpdater` refusait la
+/// génération entière sans que rien ne dise pourquoi côté publication.
+///
+/// **Ici et non dans `build`, qui serait pourtant sa place.** `build` vit
+/// derrière la feature `parsers` ; `sources` n'y est pas, et c'est lui qui
+/// doit hacher exactement les octets écrits. Posée là-bas, la fonction
+/// rendait `sources` incompilable sans la feature — vert en local, rouge en
+/// CI, parce que les deux ne compilent pas la même chose. Le dépôt connaît
+/// déjà cette forme sous « le vert local ne prédit pas la CI » ; elle vaut
+/// aussi entre deux jeux de features du même paquet.
+pub fn corps_json<T: Serialize>(data: &T) -> Result<String, serde_json::Error> {
+    if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
+        serde_json::to_string_pretty(data)
+    } else {
+        serde_json::to_string(data)
+    }
 }
 
 /// L'empreinte, en hexadécimal minuscule — la forme que vérifient les clients.
@@ -2261,6 +2368,84 @@ mod tests {
     ///
     /// Contre le code d'avant, cette épreuve rougit deux fois : `roeh`
     /// écraserait `raah`, et les deux mots ouvriraient `roeh`.
+    /// **Le contrôle du manifeste rougit — éprouvé contre les trois écarts.**
+    ///
+    /// Un contrôle qu'on n'a pas vu échouer ne mesure rien. Celui-ci est
+    /// retourné contre les trois états qu'il doit refuser : un fichier absent,
+    /// une taille qui ment, une empreinte qui ment. Et contre celui qu'il doit
+    /// laisser passer, sans quoi il barrerait tous les builds.
+    #[test]
+    fn le_manifeste_est_confronte_a_ce_qui_est_ecrit() {
+        let dossier = std::env::temp_dir().join(format!(
+            "ont-manifeste-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(dossier.join("sources/he-wlc")).expect("dossier d'épreuve");
+        let corps = br#"{"temoin":"he-wlc","unites":{}}"#;
+        let relatif = "sources/he-wlc/bereshit.json";
+        fs::write(dossier.join(relatif), corps).expect("écriture d'épreuve");
+
+        let manifeste = |f: FichierPublie| ManifesteSources {
+            schema: 1,
+            genere: "2026-09-18T00:00:00Z".into(),
+            temoins: BTreeMap::new(),
+            livres: BTreeMap::from([(
+                "bereshit".to_string(),
+                LivrePublie {
+                    temoins: BTreeMap::from([("he-wlc".to_string(), f)]),
+                    transmission: None,
+                    editions: None,
+                    cause: None,
+                },
+            )]),
+        };
+        let juste = FichierPublie {
+            chemin: relatif.into(),
+            octets: corps.len(),
+            sha256: sha256(corps),
+        };
+
+        // Ce qui doit passer, et qui doit passer **en silence**.
+        assert!(confronter_le_manifeste(&manifeste(juste.clone()), &dossier).is_empty());
+
+        // Une taille qui ment. L'écart doit nommer les deux nombres : c'est
+        // leur sens qui tranche entre « sortie indentée » et « écriture
+        // tronquée », et un contrôle qui dirait seulement « faux » enverrait
+        // chercher au mauvais endroit.
+        let taille = FichierPublie {
+            octets: juste.octets + 40,
+            ..juste.clone()
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(taille), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("octets"), "{}", ecarts[0]);
+
+        // Une empreinte qui ment, la taille restant juste — le cas qu'aucune
+        // comparaison de longueur ne peut voir.
+        let empreinte = FichierPublie {
+            sha256: "0".repeat(64),
+            ..juste.clone()
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(empreinte), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("empreinte"), "{}", ecarts[0]);
+
+        // Un fichier annoncé qui n'existe pas. Le manifeste promet alors un
+        // téléchargement que le client ne pourra pas faire.
+        let absent = FichierPublie {
+            chemin: "sources/he-wlc/nulle-part.json".into(),
+            ..juste
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(absent), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("illisible"), "{}", ecarts[0]);
+
+        fs::remove_dir_all(&dossier).ok();
+    }
+
     /// **Les trois questions du vault sur `roʿeh`, éprouvées et non déduites.**
     ///
     /// Le témoin écrit `d/7203 a` et `7203 b`, jamais `7203` nu ; et il range
