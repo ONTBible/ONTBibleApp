@@ -20,12 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.labibleont.ont.designsystem.text.ONTTextRenderer
+import com.labibleont.ont.designsystem.text.BlocDeFiche
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.designsystem.typography.ONTTypography
-import com.labibleont.ont.kit.corpus.Block
 import com.labibleont.ont.kit.reader.ReadingPreferences
 import com.labibleont.ont.kit.ports.FeuilleDePrononciation
 
@@ -113,18 +112,12 @@ public fun HeroDePrononciation(
  * ce texte ici en ferait une **seconde source**, qui divergerait à la première
  * correction du vault.
  *
- * ## Les deux formes de blocs, et pourquoi on les traite toutes les deux
+ * ## Le rendu des blocs est délégué
  *
- * Le fichier émis en porte exactement deux : **29 `para` et 7 `heading`**,
- * relevés sur `dist/prononciation.json`. Les rendre toutes les deux n'est donc
- * pas de la prudence, c'est le minimum — `TermSheet` ne rend que les
- * paragraphes, et appliquer son motif ici ferait disparaître sept titres sans
- * rien signaler.
- *
- * Les autres formes de [Block] sont ignorées : elles n'apparaissent pas dans ce
- * document. Le jour où le vault en pose une, elle manquera **en silence** — un
- * `when` exhaustif serait meilleur ici, et c'est un travail qui vaut pour les
- * trois écrans qui rendent des blocs, pas pour celui-ci seul.
+ * `BlocDeFiche` du design system rend les cinq formes que le vault autorise, et
+ * nomme les deux qu'il ne rend pas. Ce fichier disait que le `when` exhaustif
+ * « vaudrait pour les trois écrans, pas pour celui-ci seul » — c'est exactement
+ * ce qui a été fait le 16 septembre, et ce paragraphe en est la trace.
  */
 @Composable
 public fun PrononciationSheet(
@@ -155,30 +148,13 @@ public fun PrononciationSheet(
         )
 
         for (bloc in feuille.blocs) {
-            when (bloc) {
-                is Block.Heading -> Text(
-                    ONTTextRenderer.compose(
-                        bloc.nodes, typo,
-                        showGloss = preferences.showGloss,
-                        showLevel3 = preferences.showLevel3,
-                    ),
-                    fontFamily = ONTFonts.display,
-                    fontSize = 18.sp,
-                    color = ONTColors.brandInk(theme),
-                    modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
-                )
-
-                is Block.Paragraph -> Text(
-                    ONTTextRenderer.compose(
-                        bloc.nodes, typo,
-                        showGloss = preferences.showGloss,
-                        showLevel3 = preferences.showLevel3,
-                    ),
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-
-                else -> Unit
-            }
+            BlocDeFiche(
+                bloc = bloc,
+                typo = typo,
+                showGloss = preferences.showGloss,
+                showLevel3 = preferences.showLevel3,
+                titresPleins = true,
+            )
         }
     }
 }
