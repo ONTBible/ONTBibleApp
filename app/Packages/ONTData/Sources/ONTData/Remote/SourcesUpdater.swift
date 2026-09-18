@@ -280,7 +280,7 @@ public actor SourcesUpdater {
                 to: candidat.appendingPathComponent("estampille.txt"),
                 atomically: true, encoding: .utf8)
         } catch {
-            return .generationIncomplete(motif: String(describing: error))
+            return .generationIncomplete(motif: Self.enClair(error))
         }
 
         // **La bascule, d'un seul geste.** `replaceItemAt` échange les deux
@@ -293,7 +293,7 @@ public actor SourcesUpdater {
                 try FileManager.default.moveItem(at: candidat, to: actif)
             }
         } catch {
-            return .basculeRefusee(motif: String(describing: error))
+            return .basculeRefusee(motif: Self.enClair(error))
         }
         return .installee(fichiers: annonces.count)
     }
@@ -378,22 +378,76 @@ public actor SourcesUpdater {
         return (manifeste, octets)
     }
 
+    /// Ce qu'un fichier reçu a de faux — **avec ses nombres**.
+    ///
+    /// Le premier jet jetait des `URLError` : `.dataLengthExceedsMaximum` pour
+    /// une taille inattendue, `.badServerResponse` pour tout le reste. Le
+    /// commentaire de la garde promettait pourtant l'inverse — « 1 204 octets
+    /// au lieu de 502 186 dit quoi chercher, là où *empreinte fausse* ne dit
+    /// rien » — et `generationIncomplete(motif:)` portait ce motif au journal.
+    ///
+    /// **La promesse était dans le commentaire et pas dans le code.** Le motif
+    /// rendait le nom d'une erreur de Foundation : sans le fichier, sans les
+    /// deux tailles, et sans distinguer un serveur muet d'un contenu faux —
+    /// deux causes que `.badServerResponse` confondait.
+    ///
+    /// Ces nombres tranchent une question que personne ne peut trancher
+    /// depuis la liseuse, et la session du vault l'a mesurée le 18 septembre
+    /// 2026 :
+    ///
+    ///     annoncés ≫ reçus    troncature, mauvais fichier, transfert coupé
+    ///     annoncés ≪ reçus    génération construite avec `ONT_PRETTY` armé —
+    ///                         le pipeline calcule `octets` et `sha256` sur la
+    ///                         forme compacte et écrit la forme indentée
+    ///
+    /// Sans les deux nombres au journal, les deux cas se lisent pareil — et
+    /// l'un se répare en retentant, l'autre en republiant.
+    enum Reception: LocalizedError, Equatable {
+        case statut(chemin: String, code: Int)
+        case tailleInattendue(chemin: String, annonces: Int, recus: Int)
+        case empreinteFausse(chemin: String, octets: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .statut(let chemin, let code):
+                "\(chemin) : le serveur a répondu \(code)"
+            case .tailleInattendue(let chemin, let annonces, let recus):
+                "\(chemin) : \(recus) octets reçus, \(annonces) annoncés"
+            case .empreinteFausse(let chemin, let octets):
+                "\(chemin) : empreinte fausse sur \(octets) octets — la taille "
+                    + "est juste, le contenu non"
+            }
+        }
+    }
+
+    /// Le motif qu'on porte au journal, dans la langue de qui le lira.
+    ///
+    /// `String(describing:)` sur une erreur de Foundation rend son nom de cas
+    /// et rien d'autre ; sur une `Reception`, il rendrait la forme Swift avec
+    /// ses étiquettes. Ni l'un ni l'autre ne se lit à trois heures du matin :
+    /// `errorDescription` est écrit pour ça, quand il existe.
+    static func enClair(_ erreur: any Error) -> String {
+        (erreur as? LocalizedError)?.errorDescription ?? String(describing: erreur)
+    }
+
     private func telecharger(_ fichier: ONTSources.Fichier) async throws -> Data {
         let (octets, reponse) = try await session.data(
             from: origine.appendingPathComponent(fichier.chemin))
-        guard (reponse as? HTTPURLResponse)?.statusCode == 200 else {
-            throw URLError(.badServerResponse)
+        let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else {
+            throw Reception.statut(chemin: fichier.chemin, code: code)
         }
-        // La taille d'abord, pour le diagnostic — « 1 204 octets au lieu de
-        // 502 186 » dit quoi chercher, là où « empreinte fausse » ne dit rien.
+        // La taille d'abord, pour le diagnostic — voir `Reception` : c'est
+        // l'écart, et son sens, qui disent quoi chercher.
         guard octets.count == fichier.octets else {
-            throw URLError(.dataLengthExceedsMaximum)
+            throw Reception.tailleInattendue(
+                chemin: fichier.chemin, annonces: fichier.octets, recus: octets.count)
         }
         // **L'empreinte, sur les octets reçus** (A09) — pleine, 64 signes,
         // celle que le pipeline a posée. Un contenu faux de même taille ne
         // doit jamais passer pour bon.
         guard Self.empreinte(octets) == fichier.sha256 else {
-            throw URLError(.badServerResponse)
+            throw Reception.empreinteFausse(chemin: fichier.chemin, octets: octets.count)
         }
         return octets
     }
