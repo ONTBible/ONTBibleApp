@@ -8,11 +8,41 @@ en page iPad, et sont restées en vitrine.
 | dossier | contenu | committé |
 |---|---|---|
 | `brut/` | ce que rend le simulateur | non, régénérable |
+| `mac/` | les affiches, 2880 × 1800 | **oui** |
 | `iphone-6.9/` | les affiches, 1320 × 2868 | **oui**, c'est ce qu'on téléverse |
 | `ipad-13/` | les affiches, 2064 × 2752 | **oui** |
 
-Les deux tailles sont **obligatoires**, l'app visant iPhone et iPad ; Apple
-redimensionne pour les écrans plus petits.
+Les deux tailles d'iOS sont **obligatoires**, l'app visant iPhone et iPad ;
+Apple redimensionne pour les écrans plus petits.
+
+## La règle, et ce qui la tient
+
+> **La vitrine montre l'app qui existe.** Un jeu de captures pris avant le
+> dernier changement d'interface n'est pas réputé juste — il est réputé
+> inconnu, et il se refait avant de partir chez Apple.
+
+Le paragraphe d'ouverture disait déjà **comment** les produire ; il ne disait
+pas **quand**, et rien ne le vérifiait. Trois récidives en sont sorties, la
+même à chaque fois :
+
+    13 août 2026   survivent à deux refontes de la mise en page iPad
+    19 août 2026   les jeux iPhone et iPad y restent un mois — la vitrine de
+                   la 1.0.6 montre quatre onglets pour une app qui en a cinq
+    31 août 2026   ceux du Mac traversent la refonte entière
+
+Trois fois, c'est le signe qu'on réparait la manifestation — refaire les
+images — et jamais la règle. **Une capture périmée n'est pas une négligence :
+c'est ce que produit une chaîne où rien ne peut rougir.** La garde de
+`soumettre.py` refuse une version **sans** captures ; personne ne refusait une
+version aux captures **fausses**.
+
+`scripts/eprouver-la-fraicheur-des-captures.sh` tient cette règle, et `tests`
+le lance à chaque proposition. Il compare deux dates que git tient de
+lui-même : il ne déclare rien, donc il ne peut pas mentir. Son en-tête dit ce
+qu'il n'attrape pas — **une scène cassée par la donnée**, comme la quatrième
+du Mac qui visait `ont://term/elohim`, clé morte depuis que le demi-anneau est
+signifiant : la vitrine a montré « Terme non documenté » sans qu'une ligne
+d'interface ait bougé.
 
 ## Pourquoi une affiche et pas la capture
 
