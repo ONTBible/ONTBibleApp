@@ -179,6 +179,29 @@ impl Cible {
         }
     }
 
+    /// **Deux cibles se recouvrent-elles ?**
+    ///
+    /// Distincte de `couvre` : celle-ci compare deux *prétentions*, là où
+    /// `couvre` confronte une prétention à un chemin. C'est exactement la
+    /// différence entre « chaque élément contre l'ensemble » et « les éléments
+    /// entre eux », et c'est pour ça qu'elle manquait.
+    /// Elle ne sert qu'à l'épreuve, et c'est exact : le recouvrement est une
+    /// propriété de la **table**, pas du build. La marquer évite qu'elle
+    /// paraisse morte à la bibliothèque compilée sans `cfg(test)` — c'est ce
+    /// que clippy a relevé, et il a raison.
+    #[cfg(test)]
+    fn recouvre(self, autre: Cible) -> bool {
+        match (self, autre) {
+            (Cible::Exact(a), Cible::Exact(b)) => a == b,
+            (Cible::Exact(c), Cible::Sous(p)) | (Cible::Sous(p), Cible::Exact(c)) => {
+                c.starts_with(p)
+            }
+            // Deux préfixes se recouvrent dès que l'un ouvre l'autre — et un
+            // préfixe s'ouvre lui-même.
+            (Cible::Sous(a), Cible::Sous(b)) => a.starts_with(b) || b.starts_with(a),
+        }
+    }
+
     fn couvre(self, chemin: &str) -> bool {
         match self {
             Cible::Exact(c) => chemin == c,
@@ -410,13 +433,7 @@ pub const ARTEFACTS: &[Artefact] = &[
         jetons: &["prononciation.json"],
         lectures: &[
             (Liseuse::Ios, Lecture::Lit),
-            (
-                Liseuse::Android,
-                Lecture::Ignore(
-                    "exclu de `copierLesDonnees` en connaissance de cause — voir la raison \
-                     écrite dans `android/app/build.gradle.kts`",
-                ),
-            ),
+            (Liseuse::Android, Lecture::Lit),
             (
                 Liseuse::Site,
                 Lecture::Lacune("la feuille de prononciation n'a pas de page sur le site"),
@@ -424,41 +441,35 @@ pub const ARTEFACTS: &[Artefact] = &[
         ],
     },
     Artefact {
-        cible: Cible::Exact("sources/manifeste.json"),
-        emission: Emission::Facultative("la couche des langues sources est facultative"),
-        plancher: None,
-        // **`manifeste.json` seul serait un faux positif.** iOS porte ce nom
-        // pour un tout autre fichier — le manifeste du corpus publié, servi par
-        // `corpus-publie.py`. Le jeton doit donc porter son dossier.
-        jetons: &["sources/manifeste.json"],
-        lectures: &[
-            (
-                Liseuse::Ios,
-                // **iOS lit la couche des sources depuis le 11 septembre
-                // 2026.** La feuille du verset d'origine l'ouvre sur un appui
-                // long : le verset hébreu mot à mot, chaque mot touchable.
-                //
-                // La lacune disait vrai la veille et fausse le lendemain, et
-                // c'est le contrôle qui l'a dit — il a refusé le build à la
-                // première régénération du corpus après la fusion. C'est
-                // exactement ce pour quoi il existe.
-                Lecture::Lit,
-            ),
-            (
-                Liseuse::Android,
-                Lecture::Lacune("Android suit iOS sur ce chantier"),
-            ),
-            (
-                Liseuse::Site,
-                Lecture::Lacune("le site n'expose pas encore les langues sources"),
-            ),
-        ],
-    },
-    Artefact {
         cible: Cible::Sous("sources/"),
         emission: Emission::Facultative("la couche des langues sources est facultative"),
         plancher: None,
-        jetons: &["dist/sources", "sources/he-", "sources/gr-"],
+        // **Une seule ligne pour toute la couche**, manifeste compris.
+        //
+        // Il y en avait deux : `Cible::Exact("sources/manifeste.json")` à côté
+        // de ce `Cible::Sous("sources/")`, qui couvre le même fichier. Elles
+        // s'accordaient sur tout — même émission, même plancher, mêmes
+        // lectures —, donc le recouvrement ne coûtait rien. Le piège était
+        // posé pour plus tard : le jour où l'une passerait en
+        // `Emission::ApresLeReleve`, qui fait `continue`, elle aurait masqué
+        // en silence ce que l'autre promettait.
+        //
+        // Les fondre plutôt que les disjoindre, parce que la table disait
+        // elle-même qu'elles ne se distinguaient pas : trois lectures
+        // identiques sur les trois liseuses. Le jour où iOS lira le manifeste
+        // sans lire les témoins, la ligne se scindera — et
+        // `le_tableau_est_complet_et_sans_doublon` exigera que la scission
+        // soit franche.
+        //
+        // `sources/manifeste.json` et non `manifeste.json` : iOS porte ce nom
+        // pour un tout autre fichier — le manifeste du corpus publié, servi par
+        // `corpus-publie.py`. Le jeton doit porter son dossier.
+        jetons: &[
+            "dist/sources",
+            "sources/manifeste.json",
+            "sources/he-",
+            "sources/gr-",
+        ],
         lectures: &[
             (
                 Liseuse::Ios,
@@ -1090,6 +1101,36 @@ mod tests {
                     "`{}` doit dire exactement une fois ce que fait {}",
                     artefact.cible.dit(),
                     liseuse.nom()
+                );
+            }
+        }
+
+        // **« Sans doublon » portait sur les liseuses, jamais sur les cibles.**
+        //
+        // Le nom du test promettait plus que son corps. `rapprocher` confronte
+        // chaque fichier au tableau et chaque ligne au source ; il ne compare
+        // **jamais deux `Cible` entre elles**. Deux lignes qui couvrent le même
+        // fichier passaient donc sans un mot.
+        //
+        // Et ce n'était pas théorique : `Cible::Exact("sources/manifeste.json")`
+        // et `Cible::Sous("sources/")` cohabitaient dans ce tableau, la seconde
+        // couvrant le fichier de la première. Elles s'accordaient sur tout sauf
+        // leurs jetons, donc le recouvrement ne coûtait rien — jusqu'au jour où
+        // l'une d'elles passerait en `Emission::ApresLeReleve`, qui fait
+        // `continue` : elle aurait masqué en silence ce que l'autre promettait.
+        //
+        // C'est la forme que la session du vault a nommée le 16 septembre 2026 :
+        // **un contrôle qui compare chaque élément à l'ensemble ne voit pas deux
+        // éléments qui se percutent entre eux.**
+        for (i, a) in ARTEFACTS.iter().enumerate() {
+            for b in ARTEFACTS.iter().skip(i + 1) {
+                assert!(
+                    !a.cible.recouvre(b.cible),
+                    "`{}` et `{}` couvrent le même chemin — la seconde ligne \
+                     peut masquer ce que la première promet, sans que rien ne \
+                     le dise",
+                    a.cible.dit(),
+                    b.cible.dit()
                 );
             }
         }

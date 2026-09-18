@@ -247,13 +247,19 @@ pub struct FichierPublie {
     pub sha256: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// **Relisible, et pas seulement écrivable.**
+///
+/// `Deserialize` sert `bin/departager`, qui reprend ce que le pipeline vient
+/// d'écrire pour présenter les mots qu'il n'a pas su départager. Un format
+/// publié qu'on ne sait pas relire est un format qu'on ne peut pas vérifier —
+/// et l'outil ne réécrit pas la lecture, il emploie la structure même.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivreSources {
     pub temoin: String,
     pub unites: BTreeMap<String, Vec<VersetPublie>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersetPublie {
     /// Le numéro **à afficher**. Pas une clé — voir l'en-tête du module.
     pub n: u32,
@@ -272,7 +278,7 @@ pub struct VersetPublie {
 }
 
 /// Un mot du texte source, et la fiche qu'il ouvre quand il en ouvre une.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotPublie {
     /// La forme telle qu'elle est écrite, voyelles et cantillation comprises.
     pub t: String,
@@ -395,6 +401,56 @@ pub struct LiaisonDesMots {
     vocalisees: HashMap<String, CibleDuNiveauTrois>,
     /// Squelette → fiche, **seulement quand il n'en désigne qu'une**.
     consonantiques: HashMap<String, CibleDuNiveauTrois>,
+
+    /// **Les clés que plusieurs fiches revendiquent, avec leurs prétendants.**
+    ///
+    /// Elles étaient jetées, et pire : sur deux des trois tables elles ne
+    /// l'étaient même pas — un `insert` nu laissait la dernière fiche lue
+    /// écraser la précédente, et le mot ouvrait celle que l'ordre du glossaire
+    /// avait mise en dernier. Mesuré sur Bereshit : **146 mots** tombaient
+    /// ainsi sur quatre paires, et ouvraient une fiche tirée au sort.
+    ///
+    /// Les garder permet de les départager par ce que le témoin montre — voir
+    /// `arbitrer`. Ce qu'on ne peut pas départager reste inerte, ce qui est la
+    /// règle de la maison : un mot sans fiche se lit comme un mot sans fiche,
+    /// un mot qui ouvre la fiche d'un autre se lit comme la vérité.
+    disputes: HashMap<Cle, Vec<String>>,
+    /// **Ce que chaque fiche déclare : sa forme vocalisée, et son squelette.**
+    ///
+    /// Les deux, parce que l'arbitrage a besoin des deux étages. `qadash`
+    /// déclare `קָדַשׁ` et `qodesh` déclare `קֹדֶשׁ` : mêmes consonnes, voyelles
+    /// différentes. Un arbitre qui ne regarde que le squelette les tient pour
+    /// indiscernables et les laisse tous deux inertes — alors que le témoin
+    /// vocalise, et que la réponse est écrite des deux côtés.
+    hebreu_de: HashMap<String, (String, String)>,
+}
+
+/// Par quelle table une clé disputée est arrivée.
+///
+/// Le type existe pour que les trois disputes vivent dans **une** table sans se
+/// confondre : `430` le numéro de Strong et `430` une forme hébraïque n'ont
+/// aucune raison de se rencontrer, et une clé nue les mêlerait.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Cle {
+    Strong(String),
+    Vocalisee(String),
+    Consonantique(String),
+}
+
+/// Ce que la jointure a fait des mots que plusieurs fiches revendiquaient.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct BilanDesDisputes {
+    /// Mots tombant sur une clé que plusieurs fiches revendiquent.
+    pub disputes: u32,
+    /// Ceux qu'une forme déclarée de part et d'autre a départagés.
+    pub tranches: u32,
+}
+
+impl BilanDesDisputes {
+    /// Ceux qu'on a laissés inertes faute de pouvoir trancher.
+    pub fn inertes(&self) -> u32 {
+        self.disputes.saturating_sub(self.tranches)
+    }
 }
 
 /// Ce qu'une fiche déclare d'elle-même, pour la jointure.
@@ -408,12 +464,14 @@ pub struct FichePourLaJointure<'a> {
 
 impl LiaisonDesMots {
     pub fn nouvelle<'a>(fiches: impl IntoIterator<Item = FichePourLaJointure<'a>>) -> Self {
-        let mut strongs = HashMap::new();
-        let mut strong_de = HashMap::new();
-        let mut vocalisees = HashMap::new();
+        let mut par_strong: HashMap<String, Vec<String>> = HashMap::new();
+        let mut par_vocalisee: HashMap<String, Vec<String>> = HashMap::new();
         let mut par_squelette: HashMap<String, Vec<String>> = HashMap::new();
+        let mut strong_de: HashMap<String, Vec<String>> = HashMap::new();
+        let mut hebreu_de: HashMap<String, (String, String)> = HashMap::new();
+
         for fiche in fiches {
-            let lemme = fiche.lemme;
+            let lemme = fiche.lemme.to_string();
             if let Some(strong) = fiche.strong {
                 // **Un construit déclare deux numéros, joints par un `+`.**
                 //
@@ -422,62 +480,45 @@ impl LiaisonDesMots {
                 // l'auteur : un construit hébreu est **deux mots** que le
                 // témoin segmente, et lui donner un seul numéro serait en
                 // taire un.
-                //
-                // Sans cette lecture, la chaîne entière servait de clé et ne
-                // correspondait à rien. Le mot n'aurait pas été mal joint — il
-                // n'aurait simplement jamais été joint, et la Source de ces
-                // huit fiches n'aurait rien servi. Un échec silencieux de plus,
-                // et celui-là je l'ai évité parce que la session du vault m'a
-                // prévenu avant de pousser.
                 let numeros: Vec<String> = strong.split('+').map(numero_nu).collect();
                 for nu in &numeros {
-                    strongs.insert(
-                        nu.clone(),
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemme.to_string(),
-                        },
-                    );
+                    pretendre(&mut par_strong, nu.clone(), &lemme);
                 }
-                strong_de.insert(lemme.to_string(), numeros);
+                strong_de.insert(lemme.clone(), numeros);
             }
             let Some(hebreu) = fiche.hebreu else { continue };
             let vocalisee = sans_cantillation(hebreu);
             if vocalisee.is_empty() {
                 continue;
             }
-            vocalisees.insert(
-                vocalisee.clone(),
-                CibleDuNiveauTrois::Term {
-                    lemma: lemme.to_string(),
-                },
-            );
-            par_squelette
-                .entry(consonnes(&vocalisee))
-                .or_default()
-                .push(lemme.to_string());
+            hebreu_de.insert(lemme.clone(), (vocalisee.clone(), consonnes(&vocalisee)));
+            pretendre(&mut par_squelette, consonnes(&vocalisee), &lemme);
+            pretendre(&mut par_vocalisee, vocalisee, &lemme);
         }
-        let consonantiques = par_squelette
-            .into_iter()
-            .filter_map(|(squelette, mut lemmes)| {
-                lemmes.sort();
-                lemmes.dedup();
-                // **Un seul prétendant, sinon rien.** Voir l'en-tête du type.
-                (lemmes.len() == 1).then(|| {
-                    (
-                        squelette,
-                        CibleDuNiveauTrois::Term {
-                            lemma: lemmes.remove(0),
-                        },
-                    )
-                })
-            })
-            .collect();
+
+        // **Les trois tables passent par la même porte.**
+        //
+        // Avant, elles en avaient trois : `consonantiques` accumulait pour
+        // pouvoir refuser, `strongs` et `vocalisees` écrasaient. La garde était
+        // écrite une fois et posée sur un seul étage — et sur celui que 1 529
+        // mots sur 1 530 ne franchissent jamais, puisque le numéro de Strong
+        // répond en premier.
+        //
+        // C'est la leçon de `table_sure`, à laquelle ce code n'avait pas été
+        // soumis : deux écritures de la même garde finissent par diverger.
+        let mut disputes = HashMap::new();
+        let strongs = trier(par_strong, Cle::Strong, &mut disputes);
+        let vocalisees = trier(par_vocalisee, Cle::Vocalisee, &mut disputes);
+        let consonantiques = trier(par_squelette, Cle::Consonantique, &mut disputes);
+
         Self {
             strongs,
             strong_de,
             strong_atteste: HashMap::new(),
             vocalisees,
             consonantiques,
+            disputes,
+            hebreu_de,
         }
     }
 
@@ -518,20 +559,143 @@ impl LiaisonDesMots {
         }
     }
 
+    /// **Départager deux fiches qui revendiquent la même clé, sans rien
+    /// deviner.**
+    ///
+    /// Les deux côtés déclarent une forme hébraïque : la fiche dans son §3, le
+    /// témoin dans son texte. Quand une seule des candidates déclare celle que
+    /// le mot porte, c'est elle — et ce n'est pas une déduction, c'est une
+    /// coïncidence attestée de part et d'autre.
+    ///
+    /// **Mesuré sur Bereshit :** des 146 mots tombant sur une paire disputée,
+    /// 79 se tranchent ainsi. Les 66 autres sont des formes fléchies —
+    /// `וַיַּרְא` ne ressemble ni à `רָאָה` ni à `רֹאֶה` —, et les départager
+    /// demanderait de savoir laquelle des deux fiches est un verbe et laquelle
+    /// est un nom. **Rien ne le déclare.** Une règle morphologique inventée ici
+    /// rendrait le mot touchable vers la mauvaise fiche, et le lecteur ne
+    /// pourrait pas le voir : c'est exactement le défaut qu'on répare.
+    ///
+    /// Ceux-là restent inertes, et `bin/departager` les présente au vault pour
+    /// qu'il tranche **une fois**, au lieu que le pipeline devine à chaque
+    /// build.
+    fn arbitrer(
+        &self,
+        cle: &Cle,
+        vocalisee: &str,
+        lem: Option<&str>,
+    ) -> Option<CibleDuNiveauTrois> {
+        let pretendants = self.disputes.get(cle)?;
+        let squelette = consonnes(vocalisee);
+        // **Le témoin déclare ses préfixes ; on ne les devine pas.**
+        //
+        // `l/3068` dit « un lamed, puis le mot 3068 ». La forme du mot est
+        // alors `לַיהוָה`, qui ne ressemble à aucune forme citée — et
+        // `יְהוָה` restait inerte sous préfixe alors qu'il se tranchait nu.
+        //
+        // Comparer la **fin** du squelette est donc licite ici, et seulement
+        // ici : la segmentation vient du témoin, pas d'une règle. Sans cette
+        // condition, `ראה` se dirait la fin de `מראה` et l'on inventerait une
+        // morphologie.
+        let prefixe_declare = lem.is_some_and(|l| l.contains('/'));
+        // **La vocalisée d'abord, le squelette ensuite.** Le premier étage
+        // sépare ce que le second confond — `קָדַשׁ` de `קֹדֶשׁ` —, et le second
+        // rattrape les formes que la cantillation seule distinguait.
+        seul(pretendants, |l| {
+            self.hebreu_de.get(l).is_some_and(|(v, _)| v == vocalisee)
+        })
+        .or_else(|| {
+            seul(pretendants, |l| {
+                self.hebreu_de.get(l).is_some_and(|(_, c)| *c == squelette)
+            })
+        })
+        .or_else(|| {
+            prefixe_declare.then(|| {
+                seul(pretendants, |l| {
+                    self.hebreu_de
+                        .get(l)
+                        .is_some_and(|(_, c)| !c.is_empty() && squelette.ends_with(c.as_str()))
+                })
+            })?
+        })
+        .map(|lemma| CibleDuNiveauTrois::Term { lemma })
+    }
+
+    /// **Les fiches qui se disputaient ce mot, quand il est resté inerte.**
+    ///
+    /// Sert `bin/departager` et rien d'autre. Rendre les prétendants plutôt que
+    /// la table entière garde `Cle` privée : l'outil n'a pas à savoir par
+    /// quelle porte la dispute est arrivée, seulement qui se disputait.
+    ///
+    /// Vide quand le mot n'est disputé par personne — un mot sans fiche est le
+    /// cas ordinaire, pas un cas à examiner.
+    pub fn pretendants(&self, mot: &str, lem: Option<&str>) -> &[String] {
+        let vocalisee = sans_cantillation(mot);
+        let cles = [
+            lem.map(|l| Cle::Strong(numero_nu(l))),
+            Some(Cle::Vocalisee(vocalisee.clone())),
+            Some(Cle::Consonantique(consonnes(&vocalisee))),
+        ];
+        for cle in cles.into_iter().flatten() {
+            if let Some(p) = self.disputes.get(&cle) {
+                return p;
+            }
+        }
+        &[]
+    }
+
+    /// La forme hébraïque qu'une fiche déclare — pour la montrer à côté du mot.
+    pub fn hebreu_declare(&self, lemme: &str) -> Option<&str> {
+        self.hebreu_de.get(lemme).map(|(v, _)| v.as_str())
+    }
+    /// **Ici vivait une règle du participe, et elle était fausse.**
+    ///
+    /// Elle rangeait « participe → la fiche du nom `roʿeh`, le reste → le verbe
+    /// `raʾah` », sur la foi d'une mesure qui disait le témoin n'employant
+    /// jamais 7203, le numéro du voyant.
+    ///
+    /// **La mesure portait sur Bereshit seul.** Le témoin emploie 7203 six fois
+    /// dans le WLC — quatre en 1 Samuel 9, une en Ésaïe 28 —, et ce sont
+    /// exactement les versets où le voyant paraît, dont celui que le §2.5 cite
+    /// pour fonder la fiche. Le bon dénominateur disait le contraire du mauvais.
+    ///
+    /// Et la règle se trompait aussi de sens : **un participe de *raʾah* reste
+    /// le verbe.** Les trois qu'elle a rangés sont « la terre que tu vois »,
+    /// « qui me voit », et un **niphal** — *nirʾah*, « qui lui apparut ». Trois
+    /// sur trois vers la mauvaise fiche, et plausibles puisque c'est la même
+    /// racine : le défaut même qu'on venait de fermer.
+    ///
+    /// La distinction n'a pas besoin d'une règle : elle est **déjà dans le
+    /// témoin**, sous forme de deux numéros. C'est à la fiche `roʿeh` de
+    /// déclarer 7203, et la dispute disparaît sans qu'on arbitre rien.
+    ///
+    /// Relevé par la session du vault, qui a mesuré sur tout le WLC là où je
+    /// n'avais regardé qu'un livre.
     fn cible(&self, mot: &str, lem: Option<&str>) -> Option<CibleDuNiveauTrois> {
         let numero = lem.map(numero_nu);
+
+        let vocalisee = sans_cantillation(mot);
 
         // **Le numéro d'abord**, parce qu'il est le seul vérifiable.
         if let Some(c) = numero.as_ref().and_then(|n| self.strongs.get(n)) {
             return Some(c.clone());
         }
+        // Et s'il est disputé, on demande au témoin de trancher.
+        if let Some(c) = numero
+            .as_ref()
+            .and_then(|n| self.arbitrer(&Cle::Strong(n.clone()), &vocalisee, lem))
+        {
+            return Some(c);
+        }
 
-        let vocalisee = sans_cantillation(mot);
         let par_la_forme = self
             .vocalisees
             .get(&vocalisee)
             .or_else(|| self.consonantiques.get(&consonnes(&vocalisee)))
-            .cloned()?;
+            .cloned()
+            .or_else(|| self.arbitrer(&Cle::Vocalisee(vocalisee.clone()), &vocalisee, lem))
+            .or_else(|| {
+                self.arbitrer(&Cle::Consonantique(consonnes(&vocalisee)), &vocalisee, lem)
+            })?;
 
         // **Et le numéro a aussi un droit de veto.**
         //
@@ -760,6 +924,56 @@ impl BilanDesTranslitterations {
     pub fn total(&self) -> u32 {
         self.couverts() + self.sans
     }
+}
+
+/// Le seul prétendant qui satisfait le critère — ou rien.
+///
+/// Deux fiches qui déclarent la **même** forme ne se départagent pas davantage
+/// que deux qui n'en déclarent aucune. La règle ne change pas d'un étage à
+/// l'autre, et elle s'écrit donc une seule fois.
+fn seul(pretendants: &[String], convient: impl Fn(&str) -> bool) -> Option<String> {
+    let mut gagnants = pretendants.iter().filter(|l| convient(l));
+    let premier = gagnants.next()?;
+    if gagnants.next().is_some() {
+        return None;
+    }
+    Some(premier.clone())
+}
+
+/// Inscrit un prétendant, sans doublon.
+fn pretendre(table: &mut HashMap<String, Vec<String>>, cle: String, lemme: &str) {
+    let e = table.entry(cle).or_default();
+    if !e.iter().any(|l| l == lemme) {
+        e.push(lemme.to_string());
+    }
+}
+
+/// Sépare ce qui est sûr de ce qui est disputé.
+///
+/// **La différence avec `table_sure` tient en un mot : celle-ci ne jette pas.**
+/// Une clé que deux fiches revendiquent n'est pas perdue, elle est mise de côté
+/// avec ses prétendants — c'est ce qui permet de la départager plus tard par ce
+/// que le témoin montre, au lieu de la trancher au hasard ou de l'abandonner.
+fn trier(
+    brut: HashMap<String, Vec<String>>,
+    quelle: fn(String) -> Cle,
+    disputes: &mut HashMap<Cle, Vec<String>>,
+) -> HashMap<String, CibleDuNiveauTrois> {
+    let mut surs = HashMap::new();
+    for (cle, mut lemmes) in brut {
+        if lemmes.len() == 1 {
+            surs.insert(
+                cle,
+                CibleDuNiveauTrois::Term {
+                    lemma: lemmes.remove(0),
+                },
+            );
+        } else {
+            lemmes.sort();
+            disputes.insert(quelle(cle), lemmes);
+        }
+    }
+    surs
 }
 
 /// La règle « un seul prétendant, sinon rien », appliquée à une liste.
@@ -1072,6 +1286,15 @@ fn deplier(reference: &str, versets_par_chapitre: &BTreeMap<u32, u32>) -> Option
 /// `Vec<String>` porte les écarts et lequel porte les relevés.
 pub struct Preparation {
     pub manifeste: ManifesteSources,
+    /// **Le bilan des mots que deux fiches se disputaient.**
+    ///
+    /// Il voyage jusqu'à `stdout` parce qu'un compte sans son dénominateur ne
+    /// dit rien : « 144 inertes » se lit comme une panne, « 144 inertes sur
+    /// 1 600 disputés, 87 tranchés » se lit comme un état du lexique.
+    ///
+    /// `bin/departager` en donne le détail ; cette ligne dit seulement s'il y a
+    /// lieu de le lancer.
+    pub disputes: BilanDesDisputes,
     /// `(chemin relatif, contenu)` pour chaque livre × témoin.
     pub fichiers: Vec<(String, LivreSources)>,
     /// Les fichiers frères des divergences d'éditions.
@@ -1193,6 +1416,7 @@ pub fn preparer(
     let mut sautees: Vec<String> = Vec::new();
     // Ce qui mérite l'œil de l'auteur sans rien empêcher.
     let mut releves: Vec<String> = Vec::new();
+    let mut disputes = BilanDesDisputes::default();
     let mut editions_par_livre: BTreeMap<String, FichierPublie> = BTreeMap::new();
     let mut fichiers_editions: Vec<(String, EditionsComparees)> = Vec::new();
     let mut livres: BTreeMap<String, LivrePublie> = BTreeMap::new();
@@ -1428,6 +1652,22 @@ pub fn preparer(
                         mot.translit =
                             translitterations.a_l_occurrence(&u.id, i, &mot.t, &mut bilan);
                     }
+                    // **On compte à l'émission, pas à la lecture.**
+                    //
+                    // Le `.jsonl` d'un témoin porte tout le livre biblique ;
+                    // les unités ONT n'en reprennent qu'une part. Compter au
+                    // moment de lire donnait 12 114 mots disputés sur un corpus
+                    // qui n'en publie que 6 185 — un dénominateur qui n'est
+                    // celui de personne, et un chiffre que le lecteur ne peut
+                    // pas rapprocher de ce qu'il a sous les yeux.
+                    for m in mots_par_ref.get(cle_ref).into_iter().flatten() {
+                        if !liaison.pretendants(&m.t, m.lem.as_deref()).is_empty() {
+                            disputes.disputes += 1;
+                            if m.cible.is_some() {
+                                disputes.tranches += 1;
+                            }
+                        }
+                    }
                     sortie.push(VersetPublie {
                         n: numeros.get(i).copied().unwrap_or((i + 1) as u32),
                         t: texte.clone(),
@@ -1480,7 +1720,7 @@ pub fn preparer(
                         temoin: cle.clone(),
                         unites: divergences,
                     };
-                    let corps_app = serde_json::to_string(&rendu_app).map_err(|e| e.to_string())?;
+                    let corps_app = corps_json(&rendu_app).map_err(|e| e.to_string())?;
                     let relatif_app = format!("sources/{cle}/{}-editions.json", meta.slug);
                     editions_par_livre.insert(
                         meta.slug.clone(),
@@ -1498,7 +1738,8 @@ pub fn preparer(
                 temoin: cle.clone(),
                 unites: unites_publiees,
             };
-            let corps = serde_json::to_string(&rendu).map_err(|e| e.to_string())?;
+            // Les mêmes octets que `write_json` posera sur le disque.
+            let corps = corps_json(&rendu).map_err(|e| e.to_string())?;
             let relatif = format!("sources/{cle}/{}.json", meta.slug);
             livres
                 .entry(meta.slug.clone())
@@ -1551,6 +1792,7 @@ pub fn preparer(
     }
 
     Ok(Some(Preparation {
+        disputes,
         manifeste: ManifesteSources {
             schema: 1,
             genere: genere.to_string(),
@@ -1570,6 +1812,112 @@ pub fn preparer(
             .collect(),
         translitterations: bilan,
     }))
+}
+
+/// **Ce que le manifeste affirme de `dist/`, demandé à `dist/`.**
+///
+/// Le manifeste promet à chaque client une taille et une empreinte par
+/// fichier. Rien ne les confrontait aux fichiers réellement écrits : `sha256`
+/// n'était appelé qu'au moment de *composer* la promesse, jamais pour la
+/// vérifier. Un manifeste ne pouvait donc mentir qu'en silence.
+///
+/// C'est la forme que ce dépôt retire partout — **une affirmation sur une
+/// chose, jamais confrontée à la chose**. Elle est la même que la fiche du
+/// vault qui déclarait un numéro absent du témoin, et que le contrôle qui
+/// comparait chaque élément à l'ensemble sans jamais comparer deux éléments
+/// entre eux.
+///
+/// Le cas qui l'a fait écrire est `ONT_PRETTY`, désormais impossible par
+/// construction. Ce contrôle ne le vise pas : il vise **tout ce qui écrira un
+/// fichier après que le manifeste a parlé de lui** — une réécriture, une
+/// troncature, une seconde passe. Le remède d'aujourd'hui ferme une cause ;
+/// celui-ci ferme la famille.
+///
+/// Rend les écarts, un par ligne. Le silence est la seule sortie acceptable.
+pub fn confronter_le_manifeste(manifeste: &ManifesteSources, sortie: &Path) -> Vec<String> {
+    let mut ecarts = Vec::new();
+    let mut verifier = |f: &FichierPublie| {
+        let chemin = sortie.join(&f.chemin);
+        match fs::read(&chemin) {
+            Err(e) => ecarts.push(format!(
+                "{} — annoncé par le manifeste, illisible sur le disque : {e}",
+                f.chemin
+            )),
+            Ok(octets) => {
+                // **La taille d'abord, parce qu'elle nomme la cause.**
+                //
+                // Annoncés bien plus petits que reçus, c'est une sortie
+                // indentée ; bien plus grands, une écriture tronquée. L'écart
+                // tranche entre les deux, là où l'empreinte seule dirait
+                // seulement « ce n'est pas le même fichier ». La session macOS
+                // a bâti son diagnostic de `SourcesUpdater` sur exactement
+                // cette distinction.
+                if octets.len() != f.octets {
+                    ecarts.push(format!(
+                        "{} — le manifeste annonce {} octets, le fichier en porte {}",
+                        f.chemin,
+                        f.octets,
+                        octets.len()
+                    ));
+                }
+                let reelle = sha256(&octets);
+                if reelle != f.sha256 {
+                    ecarts.push(format!(
+                        "{} — empreinte annoncée {}, empreinte réelle {}",
+                        f.chemin, f.sha256, reelle
+                    ));
+                }
+            }
+        }
+    };
+    for livre in manifeste.livres.values() {
+        for f in livre.temoins.values() {
+            verifier(f);
+        }
+        if let Some(f) = &livre.editions {
+            verifier(f);
+        }
+    }
+    ecarts
+}
+
+/// **Les octets d'un fichier publié — une seule écriture pour deux lecteurs.**
+///
+/// Compact par défaut : ces fichiers sont embarqués dans un binaire d'app, pas
+/// lus par un humain. `search.json` seul gagne 40 % à ne pas être indenté.
+/// `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
+/// seule façon de regarder un arbre d'inline sans passer par `jq`.
+///
+/// **Pourquoi une fonction et non deux appels à `serde_json`.** Le manifeste
+/// des sources calculait sa taille et son empreinte avec `to_string`, donc
+/// toujours compact, pendant que le fichier partait par `write_json`, qui
+/// honore `ONT_PRETTY`. Sous ce réglage, le manifeste annonçait une taille et
+/// une empreinte **compactes pour un fichier indenté** — les deux fausses
+/// ensemble, et d'accord entre elles, ce qui est la pire des combinaisons.
+///
+/// Le commentaire qui vivait ici disait déjà « la sortie indentée ne doit
+/// jamais être livrée ». Il interdisait, et rien n'empêchait : c'est la forme
+/// qu'on retire du dépôt depuis dix jours. Une seule source d'octets rend la
+/// divergence impossible au lieu de la déconseiller — le même geste que
+/// `Translitterations::table_sure` et que la garde des fiches qui se disputent
+/// un mot.
+///
+/// Relevé par la session macOS, dont le `SourcesUpdater` refusait la
+/// génération entière sans que rien ne dise pourquoi côté publication.
+///
+/// **Ici et non dans `build`, qui serait pourtant sa place.** `build` vit
+/// derrière la feature `parsers` ; `sources` n'y est pas, et c'est lui qui
+/// doit hacher exactement les octets écrits. Posée là-bas, la fonction
+/// rendait `sources` incompilable sans la feature — vert en local, rouge en
+/// CI, parce que les deux ne compilent pas la même chose. Le dépôt connaît
+/// déjà cette forme sous « le vert local ne prédit pas la CI » ; elle vaut
+/// aussi entre deux jeux de features du même paquet.
+pub fn corps_json<T: Serialize>(data: &T) -> Result<String, serde_json::Error> {
+    if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
+        serde_json::to_string_pretty(data)
+    } else {
+        serde_json::to_string(data)
+    }
 }
 
 /// L'empreinte, en hexadécimal minuscule — la forme que vérifient les clients.
@@ -2011,6 +2359,301 @@ mod tests {
         assert_eq!(liaison.cible("ט֥וֹב", Some("2897")), None);
     }
 
+    /// **Deux fiches au même numéro ne se tranchent pas au hasard.**
+    ///
+    /// Le défaut que cette épreuve garde : `strongs` et `vocalisees` étaient
+    /// des `insert` nus, et la seconde fiche lue écrasait la première. Le mot
+    /// ouvrait celle que l'ordre du glossaire avait mise en dernier — mesuré
+    /// sur Bereshit, **231 mots** tombaient ainsi sur quatre paires.
+    ///
+    /// Contre le code d'avant, cette épreuve rougit deux fois : `roeh`
+    /// écraserait `raah`, et les deux mots ouvriraient `roeh`.
+    /// **Le contrôle du manifeste rougit — éprouvé contre les trois écarts.**
+    ///
+    /// Un contrôle qu'on n'a pas vu échouer ne mesure rien. Celui-ci est
+    /// retourné contre les trois états qu'il doit refuser : un fichier absent,
+    /// une taille qui ment, une empreinte qui ment. Et contre celui qu'il doit
+    /// laisser passer, sans quoi il barrerait tous les builds.
+    #[test]
+    fn le_manifeste_est_confronte_a_ce_qui_est_ecrit() {
+        let dossier = std::env::temp_dir().join(format!(
+            "ont-manifeste-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(dossier.join("sources/he-wlc")).expect("dossier d'épreuve");
+        let corps = br#"{"temoin":"he-wlc","unites":{}}"#;
+        let relatif = "sources/he-wlc/bereshit.json";
+        fs::write(dossier.join(relatif), corps).expect("écriture d'épreuve");
+
+        let manifeste = |f: FichierPublie| ManifesteSources {
+            schema: 1,
+            genere: "2026-09-18T00:00:00Z".into(),
+            temoins: BTreeMap::new(),
+            livres: BTreeMap::from([(
+                "bereshit".to_string(),
+                LivrePublie {
+                    temoins: BTreeMap::from([("he-wlc".to_string(), f)]),
+                    transmission: None,
+                    editions: None,
+                    cause: None,
+                },
+            )]),
+        };
+        let juste = FichierPublie {
+            chemin: relatif.into(),
+            octets: corps.len(),
+            sha256: sha256(corps),
+        };
+
+        // Ce qui doit passer, et qui doit passer **en silence**.
+        assert!(confronter_le_manifeste(&manifeste(juste.clone()), &dossier).is_empty());
+
+        // Une taille qui ment. L'écart doit nommer les deux nombres : c'est
+        // leur sens qui tranche entre « sortie indentée » et « écriture
+        // tronquée », et un contrôle qui dirait seulement « faux » enverrait
+        // chercher au mauvais endroit.
+        let taille = FichierPublie {
+            octets: juste.octets + 40,
+            ..juste.clone()
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(taille), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("octets"), "{}", ecarts[0]);
+
+        // Une empreinte qui ment, la taille restant juste — le cas qu'aucune
+        // comparaison de longueur ne peut voir.
+        let empreinte = FichierPublie {
+            sha256: "0".repeat(64),
+            ..juste.clone()
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(empreinte), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("empreinte"), "{}", ecarts[0]);
+
+        // Un fichier annoncé qui n'existe pas. Le manifeste promet alors un
+        // téléchargement que le client ne pourra pas faire.
+        let absent = FichierPublie {
+            chemin: "sources/he-wlc/nulle-part.json".into(),
+            ..juste
+        };
+        let ecarts = confronter_le_manifeste(&manifeste(absent), &dossier);
+        assert_eq!(ecarts.len(), 1, "{ecarts:?}");
+        assert!(ecarts[0].contains("illisible"), "{}", ecarts[0]);
+
+        fs::remove_dir_all(&dossier).ok();
+    }
+
+    /// **Les trois questions du vault sur `roʿeh`, éprouvées et non déduites.**
+    ///
+    /// Le témoin écrit `d/7203 a` et `7203 b`, jamais `7203` nu ; et il range
+    /// le même office sous deux numéros — 1 Samuel en `7203 a`, les Chroniques
+    /// en `d/7200`. Trois questions en découlaient, auxquelles seule la liseuse
+    /// pouvait répondre. Les voici tenues par une épreuve.
+    #[test]
+    fn ce_que_la_garde_fait_des_trois_graphies_de_roeh() {
+        let avec = |strong_roeh: &str| {
+            LiaisonDesMots::nouvelle([
+                FichePourLaJointure {
+                    lemme: "raah",
+                    hebreu: Some("רָאָה"),
+                    strong: Some("7200"),
+                },
+                FichePourLaJointure {
+                    lemme: "roeh",
+                    hebreu: Some("רֹאֶה"),
+                    strong: Some(strong_roeh),
+                },
+            ])
+        };
+        let roeh = Some(CibleDuNiveauTrois::Term {
+            lemma: "roeh".into(),
+        });
+        let raah = Some(CibleDuNiveauTrois::Term {
+            lemma: "raah".into(),
+        });
+
+        // **1. L'article n'est ôté par aucune normalisation.** `sans_cantillation`
+        // garde les voyelles, `consonnes` ôte les voyelles — le hé de l'article
+        // est une consonne et survit aux deux. `הָרֹאֶה` ne vaut donc jamais
+        // `רֹאֶה`, et les cinq emplois du titre en Chroniques restent inertes :
+        // le préfixe déclaré ouvre le test de fin, et `הראה` se termine par
+        // `ראה` pour **les deux** fiches à la fois.
+        let liaison = avec("7200");
+        assert_eq!(liaison.cible("הָרֹאֶ֑ה", Some("d/7200")), None);
+
+        // **2. Le participe qal nu, lui, ouvre `roʿeh` — par égalité de forme.**
+        // C'est le seul des quarante-et-un mots de Bereshit qui se tranche, et
+        // il se tranche vers la fiche du Voyant alors que le sens est « qui
+        // voit ». Certain dans la forme, pas dans le sens : la garde ne peut
+        // pas faire mieux tant qu'une seule fiche déclare cette graphie.
+        assert_eq!(liaison.cible("רֹאֶ֖ה", Some("7200")), roeh);
+
+        // **3. `7203` nu ne joindrait rien**, parce que `numero_nu` garde la
+        // lettre augmentée : le témoin porte `7203 a`, jamais `7203`.
+        let nu = avec("7203");
+        assert_eq!(nu.cible("הָרֹאֶ֑ה", Some("d/7203 a")), None);
+        // Et 7200 n'ayant plus qu'une prétendante, les fléchies se rangent.
+        assert_eq!(nu.cible("וַיַּ֥רְא", Some("7200")), raah);
+
+        // **4. Avec la lettre, la jointure se fait — le préfixe `d/` est ôté.**
+        let lettre = avec("7203 a");
+        assert_eq!(lettre.cible("הָרֹאֶ֑ה", Some("d/7203 a")), roeh);
+        // Et les quarante inertes de 7200 se rangent sur le verbe.
+        assert_eq!(lettre.cible("וַיַּ֥רְא", Some("7200")), raah);
+
+        // **5. Les deux numéros ensemble laissent la dispute entière.**
+        // `7200` garde deux prétendantes, donc les fléchies restent inertes —
+        // le gain des quarante mots est perdu, et seul 1 Samuel est rattrapé.
+        let deux = avec("7200 + 7203 a");
+        assert_eq!(deux.cible("הָרֹאֶ֑ה", Some("d/7203 a")), roeh);
+        assert_eq!(deux.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
+    #[test]
+    fn deux_fiches_au_meme_numero_se_departagent_par_la_forme() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "raah",
+                hebreu: Some("רָאָה"),
+                strong: Some("7200"),
+            },
+            FichePourLaJointure {
+                lemme: "roeh",
+                hebreu: Some("רֹאֶה"),
+                strong: Some("7200"),
+            },
+        ]);
+
+        // Chacune ouvre la sienne : les deux côtés déclarent la même forme.
+        assert_eq!(
+            liaison.cible("רָאָ֣ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "raah".into()
+            })
+        );
+        assert_eq!(
+            liaison.cible("רֹאֶ֖ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "roeh".into()
+            })
+        );
+
+        // **Et une forme fléchie n'ouvre rien.** `וַיַּרְא` ne ressemble à
+        // aucune des deux formes citées ; les départager demanderait de savoir
+        // laquelle des fiches est le verbe, et rien ne le déclare. Mieux vaut
+        // inerte que plausible.
+        assert_eq!(liaison.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
+    /// **Un préfixe déclaré par le témoin ne fait pas perdre la fiche.**
+    ///
+    /// `לַיהוָה` est un lamed puis le nom divin, et le témoin le dit —
+    /// `l/3068`. Sans cette lecture, le nom se tranchait nu et restait inerte
+    /// dès qu'une préposition s'y collait : onze fois sur Bereshit, sept cent
+    /// soixante fois sur le Tanakh selon le relevé du vault.
+    ///
+    /// Le suffixe n'est comparé **que** si le témoin déclare un préfixe. Sans
+    /// cette condition, `ראה` se dirait la fin de `מראה` et l'on aurait inventé
+    /// une morphologie — exactement ce qu'on refuse.
+    #[test]
+    fn un_prefixe_declare_par_le_temoin_ne_perd_pas_la_fiche() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "yhwh",
+                hebreu: Some("יְהוָה"),
+                strong: Some("3068"),
+            },
+            FichePourLaJointure {
+                lemme: "yhwh-elohim",
+                hebreu: Some("יְהוָה אֱלֹהִים"),
+                strong: Some("3068 + 430"),
+            },
+        ]);
+        let yhwh = Some(CibleDuNiveauTrois::Term {
+            lemma: "yhwh".into(),
+        });
+        // Nu : la forme tranche.
+        assert_eq!(liaison.cible("יְהוָ֔ה", Some("3068")), yhwh);
+        // Préfixé, et le témoin le déclare : la fin du mot tranche.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("l/3068")), yhwh);
+        // **Sans préfixe déclaré, aucune comparaison de fin.** Le mot ne
+        // ressemble à rien de cité, et rien ne dit qu'il porte un préfixe.
+        assert_eq!(liaison.cible("לַֽיהוָ֖ה", Some("3068")), None);
+    }
+
+    /// **La règle du participe a existé une heure, et elle envoyait trois mots
+    /// sur trois vers la mauvaise fiche.**
+    ///
+    /// Cette épreuve garde ce qu'il en reste : la distinction entre le verbe et
+    /// le nom **ne s'arbitre pas**, parce qu'elle est déjà déclarée. `roʿeh`
+    /// doit porter 7203, que le témoin emploie six fois dans le WLC — là où le
+    /// voyant paraît, 1 Samuel 9 et Ésaïe 28.
+    ///
+    /// Tant que les deux fiches portent 7200, le mot reste inerte. C'est le
+    /// bon état : un mot sans fiche se lit comme un mot sans fiche.
+    #[test]
+    fn le_verbe_et_son_nom_ne_s_arbitrent_pas() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "raʾah",
+                hebreu: Some("רָאָה"),
+                strong: Some("7200"),
+            },
+            FichePourLaJointure {
+                lemme: "roʿeh",
+                hebreu: Some("רֹאֶה"),
+                strong: Some("7200"),
+            },
+        ]);
+        // **Un niphal n'ouvre rien.** `הַנִּרְאֶה` est *nirʾah*, « qui lui
+        // apparut » — la règle retirée l'envoyait vers le voyant.
+        assert_eq!(liaison.cible("הַנִּרְאֶ֥ה", Some("d/7200")), None);
+        // **Un participe suffixé non plus.** `רֹאִי`, « qui me voit ».
+        assert_eq!(liaison.cible("רֹאִֽי", Some("7200")), None);
+
+        // **Ce que cette épreuve ne garde pas, et qui reste à faire.**
+        //
+        // `רֹאֶה` nu tombe exactement sur la forme que `roʿeh` déclare, donc la
+        // jointure par la forme l'y envoie — et le faisait **avant** la règle
+        // du participe. Or ce mot-là est verbal : « toute la terre que tu
+        // vois ».
+        //
+        // Ce n'est pas une jointure à corriger, c'est une fiche à déclarer : le
+        // témoin distingue déjà le verbe (7200) du voyant (7203), et tant que
+        // `roʿeh` porte 7200, aucune mécanique ne peut les séparer sans
+        // inventer. Le jour où elle portera 7203, le veto du numéro refusera ce
+        // mot de lui-même — sans une ligne de plus ici.
+        assert_eq!(
+            liaison.cible("רֹאֶ֖ה", Some("7200")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "roʿeh".into()
+            })
+        );
+    }
+
+    /// La même règle sur la forme, quand aucune des deux ne déclare de numéro.
+    #[test]
+    fn deux_fiches_a_la_meme_forme_ne_tranchent_pas_non_plus() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "davar",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+            FichePourLaJointure {
+                lemme: "dibber",
+                hebreu: Some("דָּבָר"),
+                strong: None,
+            },
+        ]);
+        // Deux fiches qui déclarent **la même** forme ne se départagent par
+        // rien : l'arbitre est muet quand les deux disent pareil.
+        assert_eq!(liaison.cible("דָּבָ֣ר", None), None);
+    }
+
     /// Le numéro du témoin porte le préfixe de segmentation ; le lemme non.
     #[test]
     fn le_prefixe_du_temoin_ne_fait_pas_partie_du_lemme() {
@@ -2018,6 +2661,14 @@ mod tests {
         assert_eq!(numero_nu("c/d/776"), "776");
         assert_eq!(numero_nu("1254 a"), "1254 a");
         assert_eq!(numero_nu("430"), "430");
+        // **Le préfixe ET la lettre augmentée, ensemble.** Les deux au-dessus
+        // les éprouvent séparément ; le témoin, lui, écrit `d/7203 a` — les
+        // cinq emplois du Voyant en 1 Samuel 9 n'ont jamais d'autre graphie.
+        // Un `replace(" ", "")` bien intentionné dans cette fonction ferait
+        // retomber la clé sur `7203`, que le témoin n'écrit nulle part, et la
+        // fiche du Voyant ne joindrait plus rien — sans que rien ne rougisse
+        // ailleurs. Cas rapporté par les langues sources.
+        assert_eq!(numero_nu("d/7203 a"), "7203 a");
     }
 
     /// **L'estampille des sources suit celle du corpus, ou reste vide.**

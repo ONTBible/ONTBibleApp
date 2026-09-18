@@ -139,7 +139,16 @@ struct SourcesDuBundleTests {
         #expect(bara.texte == "בָּרָ֣א")
         #expect(bara.lemme == "1254 a")
         #expect(bara.morphologie == "HVqp3ms")
-        #expect(bara.cible == .term(lemma: "bara"))
+        // **`baraʾ` et non `bara` depuis le 12 septembre 2026.** Le demi-anneau
+        // `ʾ` (U+02BE, l'alef) est une consonne, et `slugify` cessait de la
+        // porter : `malʾakh` l'envoyé et `malakh` régner tombaient sur la même
+        // clé, et la fiche du verbe ne pouvait pas être écrite.
+        //
+        // Cette ligne exigeait l'ancienne forme, donc elle gardait exactement
+        // ce qu'on change. Réécrite, pas retirée : elle mesure toujours que la
+        // jointure **aboutit** — le mot le plus fréquent du premier verset
+        // ouvre une fiche, et laquelle.
+        #expect(bara.cible == .term(lemma: "baraʾ"))
 
         // `אֵ֥ת` — la particule de l'accusatif. Elle est étiquetée (Strong 853)
         // mais **n'ouvre rien** : aucune fiche ONT ne lui correspond, et un mot

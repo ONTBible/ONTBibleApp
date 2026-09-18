@@ -33,6 +33,18 @@ on:
         description: "Téléverser aussi les captures"
         type: boolean
         default: true
+      # **Sans elle, la fiche du Mac était impossible à pousser d'ici.**
+      # `fiche.py` lit `PLATEFORME` et retombe sur `IOS` — ce workflow ne la
+      # posait jamais, donc un dispatch ne remplissait que la fiche iOS, et
+      # la garde de `soumettre.py` (« refuser avant de dépenser s'il manque
+      # ses captures ») renvoyait vers un workflow qui ne savait pas faire
+      # ce qu'elle lui demandait. Relevé le 17 septembre 2026, en fermant la
+      # dernière marche du Mac vers l'App Store.
+      plateforme:
+        description: "Quelle fiche pousser"
+        type: choice
+        options: [IOS, MAC_OS]
+        default: IOS
 
 permissions:
   contents: read
@@ -61,6 +73,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          PLATEFORME: ${{ inputs.plateforme }}
         run: |
           set -euo pipefail
           cd .github/scripts

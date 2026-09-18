@@ -5435,3 +5435,247 @@ La fixture des épreuves est le fichier **émis par le pipeline d'après #284 et
 que le pipeline n'émettait plus ; c'est la session iOS qui l'a vu, en
 comparant deux nombres. Cinquième forme du motif du jour : la mesure exacte
 sur l'objet qui n'est pas le bon.
+
+---
+
+## 16 septembre 2026 — la garde était écrite, et posée sur la porte que personne ne franchit
+
+La session du vault a nommé une forme de défaut et l'a proposée aux trois
+dépôts :
+
+> Un contrôle qui compare chaque élément à l'ensemble ne voit pas deux éléments
+> qui se percutent **entre eux**.
+
+Elle mordait ici, et elle mordait à l'écran.
+
+### Trois tables, une garde, et la mauvaise porte
+
+`LiaisonDesMots` relie un mot hébreu du témoin à sa fiche ONT. Elle range les
+fiches dans **trois** tables : par numéro de Strong, par forme vocalisée, par
+squelette consonantique.
+
+La troisième portait une garde soignée — « un seul prétendant, sinon rien » —,
+avec son commentaire, ses trois cas d'ambiguïté nommés, et sa raison écrite.
+Les deux autres étaient des `insert` nus : ==la seconde fiche lue écrasait la
+première, en silence==.
+
+Et la garde était posée sur l'étage que **1 529 mots sur 1 530** ne franchissent
+jamais, puisque le numéro de Strong répond en premier. Elle protégeait une porte
+que presque personne n'emprunte.
+
+**240 mots de Bereshit** ouvraient donc une fiche tirée par l'ordre du
+glossaire. `וַיַּרְא`, « et il vit », pouvait ouvrir `roʿeh`, « le voyant ». Le
+lecteur ne pouvait pas le voir : la fiche est plausible, elle parle de la même
+racine.
+
+C'est la leçon de `table_sure`, à laquelle ce code n'avait pas été soumis :
+==deux écritures de la même garde finissent par diverger==. Les trois tables
+passent désormais par une seule porte.
+
+### Le même défaut, un étage plus haut
+
+`ARTEFACTS`, le tableau qui dit quel fichier de `dist/` chaque liseuse lit,
+portait deux lignes couvrant le même chemin — `Cible::Exact("sources/manifeste.json")`
+et `Cible::Sous("sources/")`. Elles s'accordaient sur tout, donc le
+recouvrement ne coûtait rien ; le piège était posé pour le jour où l'une
+passerait en `ApresLeReleve`, qui fait `continue`, et masquerait en silence ce
+que l'autre promettait.
+
+Le test qui les garde **porte « sans doublon » dans son nom** et ne vérifiait
+que l'unicité des liseuses par ligne. Il compare maintenant les cibles entre
+elles — et il a trouvé le recouvrement au premier passage.
+
+### Ce qui remplace le hasard : ne comparer que ce que le témoin déclare
+
+La règle s'est construite en quatre étages, et **aucun n'invente** :
+
+1. **la forme déclarée de part et d'autre.** La fiche déclare son hébreu, le
+   témoin donne celui du mot ; quand une seule candidate porte la forme du mot,
+   c'est elle ;
+2. **le champ que je ne lisais pas.** `hebrew` vient de la puce du §2.5,
+   `hebreu_de_la_fiche` de la section `## Source` — et la puce de YHWH est
+   *volontairement nue*, le §7 réservant son traitement. Quatorze fiches sur
+   cent cinquante-huit sont dans ce cas ;
+3. **le préfixe que le témoin segmente.** `לַיהוָה` porte `l/3068` : un lamed,
+   puis le nom divin. La fin du squelette n'est comparée **que** si un préfixe
+   est déclaré — sans quoi `ראה` se dirait la fin de `מראה` ;
+**Un quatrième étage a existé une heure, et il était faux.** Il rangeait
+« participe → la fiche du nom `roʿeh` », sur la foi d'une mesure disant que le
+témoin n'emploie jamais 7203, le numéro du voyant.
+
+==La mesure portait sur Bereshit seul.== Le témoin emploie 7203 **six fois**
+dans le WLC — quatre en 1 Samuel 9, une en Ésaïe 28 —, et ce sont exactement
+les versets où le voyant paraît, dont celui que le §2.5 cite pour fonder la
+fiche. Le bon dénominateur disait le contraire du mauvais.
+
+Et la règle se trompait aussi de sens : **un participe de *raʾah* reste le
+verbe.** Les trois mots qu'elle a rangés sont « la terre que tu vois », « qui
+me voit », et un **niphal** — *nirʾah*, « qui lui apparut ». Trois sur trois
+vers la mauvaise fiche, et plausibles puisque c'est la même racine : le défaut
+même que l'entrée ci-dessus décrit. Relevé par la session du vault, qui a
+mesuré sur tout le WLC là où je n'avais regardé qu'un livre.
+
+La distinction n'avait pas besoin d'une règle : elle est **déjà dans le
+témoin**, sous forme de deux numéros. C'est à la fiche `roʿeh` de déclarer
+7203, et la dispute disparaît sans qu'on arbitre rien.
+
+| | départ | arrivée |
+|---|---|---|
+| mots touchables | 1 530 | **1 555** |
+| dont choisis par l'ordre d'insertion | **240** | **0** |
+| disputes laissées inertes | — | 45 |
+
+« Chaîne attestée » est la seule vérification qui vaille : chaque mot ouvre une
+fiche **qui déclare son numéro**.
+
+Et un mot pointe encore le voyant — `רֹאֶה` en *Bereshit* 13:15, « toute la
+terre que tu vois ». Il tombe exactement sur la forme que `roʿeh` déclare, donc
+la jointure par la forme l'y envoie, et le faisait **avant** la règle retirée.
+Ce n'est pas une jointure à corriger, c'est une fiche à déclarer.
+
+### Trois fois j'ai demandé qu'on écrive ce qui était écrit
+
+Et la troisième fois, ==ma prémisse elle-même était fausse== : j'allais faire
+corriger le numéro de Strong de `roʿeh`, qui était déjà juste — le témoin
+n'emploie jamais 7203, et la fiche avait été corrigée la veille pour
+exactement cette raison. La session du vault a vérifié avant d'obéir.
+
+**La règle qui en sort, et elle vaut pour les trois dépôts :** avant de demander
+une déclaration, chercher si la donnée est déjà attestée quelque part — et
+==vérifier la prémisse d'une demande comme on vérifie le reste==. Une demande
+bien formée adressée à un fait faux coûte plus cher qu'une absence de demande.
+
+### Et une leçon sur les instruments, pour la sixième fois de la semaine
+
+Ma vérification du remède était fausse au premier jet : elle exigeait que la
+fiche porte la **forme exacte** du mot, ce qui accusait à tort les construits —
+dont chaque moitié ouvre légitimement la fiche entière. Elle rendait « 5 fautes »
+sur un corpus qui n'en portait aucune.
+
+Et mes mesures en Python conflaient voyelles et cantillation, la plage
+`֑-ֽ` incluant les points-voyelles — le Rust, lui, les énumère. Deux
+chiffres identiques que je croyais indépendants ne l'étaient pas.
+
+### Où un modèle a sa place, et où il n'en a pas
+
+Gloire a demandé si un petit modèle local pourrait départager les cas restants.
+La réponse tient en une ligne et ne concerne pas que ce cas :
+
+==Le modèle propose à un humain ; il ne décide pas dans un artefact.==
+
+La CI construit le corpus — `macos-15`, `ubuntu-latest` — et n'a aucun modèle.
+Un pipeline qui en appelle un rend deux corpus différents pour le même vault
+selon la machine. **Ce qui entre dans `dist/` doit être reproductible par
+quiconque a le vault et le dépôt.**
+
+D'où `bin/departager` : il présente les cas — le verset, la forme, la
+morphologie, ce que chaque prétendante déclare — et ne propose rien. Sa sortie
+sert à **déclarer une fois dans le vault**, jamais à deviner à chaque build.
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — aucune forme JSON ne change, `cible` reste
+  `Option<CibleDuNiveauTrois>`. Le pipeline **ne lit aucun code morphologique** :
+  la règle qui en lisait un est retirée, et sa trace est gardée à l'endroit
+  qu'elle occupait.
+- **Android et le site** — rien à porter. Moins de mots portent une cible, plus
+  aucun n'en porte une fausse.
+- **ONTBibleTranslation** — une chose à déclarer, et une seule : que `roʿeh`
+  porte **7203**, le numéro que le témoin emploie pour le voyant. Les quarante
+  mots de *Bereshit* se rangeront alors sur `raʾah` par le simple veto du
+  numéro, sans une ligne de plus côté pipeline. Restent après ça quarante-cinq
+  mots sur des construits, qui coûtent moins qu'une règle de plus.
+
+### Mesuré et laissé
+
+Trois autres pistes de la même forme, toutes vérifiées sans morsure aujourd'hui :
+les formes slugifiées qui se percutent (**0** échappe aux deux filtres de
+`reference.rs` et `build.rs`), deux unités déclarant la même plage (**0**
+recouvrement sur 22), deux livres au même nom affiché (**0** parmi les cinq
+écrits). `renvois::Index` reçoit le commentaire que `build::declarer_les_livres`
+portait déjà pour la même double indexation — `Amos`, `Ruth`, `Esther` et
+`Daniel` s'écrivent pareil dans les deux langues, et « le jour où l'un d'eux
+sera traduit, il lui faudra une marque ».
+
+## 18 septembre 2026 — la vitrine dépendait de la machine, et personne ne pouvait le dire
+
+La chaîne du Mac vers l'App Store s'arrêtait à sa dernière marche : le build
+montait, il n'était jamais rattaché à une version ni soumis. En la montant à la
+main, quatre maillons ont manqué l'un après l'autre — et aucun n'était visible
+autrement qu'en la montant.
+
+    fiche.yml ne posait jamais PLATEFORME   un dispatch ne poussait que la fiche iOS
+    les captures dataient du 31 août        d'avant la refonte entière
+    la scène 1 suivait l'onglet restauré    la vitrine a montré Chuqqot, vide
+    la scène 4 visait une clé morte         « Terme non documenté » depuis le demi-anneau
+
+### Ce qui traverse, et c'est l'essentiel de la journée
+
+**La vitrine ne doit dépendre d'aucun état de la machine.** Trois correctifs
+séparés — `-tab bible` au lancement du Mac, la barre latérale imposée ouverte
+en mode capture, l'apparence forcée dans `serie()` côté iOS — disaient la même
+chose sans le savoir. La formule est de la session iOS, et elle va plus loin
+que la liste : ==le remède n'est pas de remettre chaque réglage, c'est
+d'effacer ce qui les porte==.
+
+**Mais l'énoncé portait une prémisse qu'il ne disait pas**, et elle ne traverse
+pas : « effacer » tient sur simulateur **parce que la machine y est jetable**.
+Sur le Mac, le même conteneur porte `lecteur.json` — les surlignages de
+l'auteur, ses notes, sa position. Le même geste y devient une destruction. Le
+Mac ferme donc la famille autrement : en **pointant le store ailleurs** plutôt
+qu'en effaçant. ==Un remède qui marche d'un côté et détruit de l'autre a l'air
+d'une cohérence, et c'est ce qui le rend dangereux.==
+
+**Et sa sœur, apprise sur la garde de campagne d'iOS** : un instrument qui
+mesure une propriété en croyant en mesurer une autre ne rougit jamais sur le
+cas réel. Celle-là refusait une luminance basse en croyant refuser un écran non
+rendu — donc elle rejetait un iPad sombre parfaitement rendu, et acceptait un
+aplat crème. Le thème de l'auteur étant sombre, **elle ne pouvait échouer que
+sur sa configuration à lui**.
+
+### La forme du jour, nommée par la session Android
+
+> Une métadonnée exacte qui répond à côté est plus dangereuse qu'une donnée
+> absente, parce qu'une absence se remarque et qu'une réponse à côté se lit
+> comme une réponse.
+
+Quatre fois en une journée, quatre instruments différents, et aucun n'a
+échoué — tous ont rendu une réponse bien formée :
+
+    une date de commit        → j'en ai déduit un CONTENU d'image (faux)
+    un « started 11s ago »    → j'en ai déduit un REDÉMARRAGE (c'était un renommage)
+    git merge --no-commit     → mon contrôle lisait git log, pas l'arbre de travail
+    la luminance moyenne      → la garde d'iOS croyait mesurer le rendu
+
+L'aggravant, sur le premier : **la conclusion tenait** — les captures étaient
+bien périmées. Une conclusion fausse se discute ; une preuve fausse se relit
+comme vérifiée, et voyage. Celle-ci avait atteint cinq messages et un énoncé
+gravé avant qu'iOS n'ouvre les images.
+
+### Ce qui est posé, et pour les trois dépôts
+
+- `scripts/eprouver-la-fraicheur-des-captures.sh`, lancé par `tests` à chaque
+  proposition, sur décision de l'auteur. **Grossier par choix** : il compare
+  deux dates que git tient de lui-même, ne déclare rien, donc ne peut pas
+  mentir. Un manifeste par scène serait précis, silencieux et falsifiable ;
+- l'énoncé qu'il tient est écrit dans `app/Captures/LISEZ-MOI.md`, avec ses
+  trois récidives datées. **Une garde sans énoncé est une règle orpheline** —
+  elle tient jusqu'au jour où quelqu'un la trouve bruyante et ne voit nulle
+  part pourquoi elle existe ;
+- `SourcesUpdater` nomme désormais ce qu'un fichier reçu a de faux, **avec ses
+  nombres** : l'écart tranche la cause là où le seul échec ne disait rien —
+  annoncés ≫ reçus est une troncature, annoncés ≪ reçus une génération
+  construite avec `ONT_PRETTY` armé. La mesure vient du vault, la garde du
+  pipeline reste à écrire dans son couloir ;
+- **le site** : rien à porter. **Le vault** : rien à porter — `pont-septante`
+  reste hors des manifestes, et trois barrières indépendantes l'ont confirmé,
+  mesurées et non crues. **Android** : rien à porter, il ne compile aucun
+  Xcode ; sa dette d'aiguillage JDK/SDK reste chez lui.
+
+### Ce qui attend l'auteur
+
+La fiche montre « Parashiot » côté Mac et « Chapitres » côté iPhone — ce n'est
+pas un défaut de fraîcheur mais le réglage « français reçu », hérité de la
+machine de capture. **La question est à lui**, elle porte sur les deux
+plateformes, et iOS la tient ; elle la posera avec les deux affiches et le coût
+de chaque réponse, qui n'est pas le même selon la plateforme.

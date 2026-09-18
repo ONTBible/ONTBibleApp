@@ -32,6 +32,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# La stable compile, la bêta reste sélectionnée — voir ce fichier.
+. "$(dirname "$0")/xcode-de-la-chaine.sh"
 vert=$'\033[32m'; rouge=$'\033[31m'; gris=$'\033[90m'; fin=$'\033[0m'
 echec() { printf '%s✗%s %s\n' "$rouge" "$fin" "$1" >&2; exit 1; }
 
@@ -53,7 +56,11 @@ ECRANS=(
   ""                                # le corpus, les 70 livres
   "ont://read/bereshit/bereshit-3"  # la lecture, les trois niveaux
   "ont://read/bereshit"             # la table d'un livre
-  "ont://term/elohim"               # une fiche d'intraduisible — en dernier
+  # Le demi-anneau est signifiant depuis le 16 septembre 2026 : la clé du
+  # glossaire est « ʾelohim », plus « elohim » — l'ancienne URL ouvrait la
+  # feuille « Terme non documenté », et la vitrine l'a montrée sans rougir.
+  # U+02BE s'écrit %CA%BE dans une URL.
+  "ont://term/%CA%BEelohim"         # une fiche d'intraduisible — en dernier
 )
 
 TRAVAIL=$(mktemp -d)
@@ -110,7 +117,16 @@ pkill -f "La Bible ONT" 2>/dev/null || true
 sleep 2
 rm -rf "$SORTIE" && mkdir -p "$SORTIE"
 
-open -a "$APP" --args -tailleDeCapture "$TAILLE"
+# **`-tab bible` : la première scène ne dépend plus de l'onglet restauré.**
+#
+# La scène 1 n'a pas de cible `ont://` — elle montre le corpus, c'est-à-dire
+# l'onglet Bible au repos. Or l'app restaure le dernier onglet quitté
+# (`UserDefaults`, clé `tab`) : le 17 septembre 2026, la vitrine a montré le
+# squelette de Chuqqot, vide, parce que c'était le dernier écran d'une session
+# de travail. `UserDefaults.standard` lit les arguments de lancement comme
+# domaine prioritaire — le même mécanisme que `-tailleDeCapture` — donc la
+# clé se force ici, sans toucher ni au code ni aux préférences du bac à sable.
+open -a "$APP" --args -tailleDeCapture "$TAILLE" -tab bible
 LIGNE=$(attendre_la_fenetre) || echec "la fenêtre n'atteint pas $TAILLE — Stage Manager l'a peut-être garée"
 
 # **L'écran de lancement doit avoir fini.** La fenêtre atteint sa taille avant

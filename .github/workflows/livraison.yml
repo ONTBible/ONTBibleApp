@@ -122,6 +122,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée** — voir `tests.yml` pour le raisonnement
+          # complet. Sans `ref:`, `actions/checkout` prend la branche par
+          # défaut du dépôt cloné : une dépendance non déclarée, correcte
+          # jusqu'au jour où la valeur par défaut change.
+          #
+          # Ici l'enjeu est plus lourd que pour les épreuves : **c'est le
+          # corpus qui entre dans le binaire livré.** Un vault dont la branche
+          # par défaut bascule changerait ce que les testeurs et Apple
+          # reçoivent, sans qu'aucun fichier de ce dépôt n'ait bougé.
+          ref: main
           path: ONTBibleTranslation
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -519,6 +529,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée** — voir `tests.yml` pour le raisonnement
+          # complet. Sans `ref:`, `actions/checkout` prend la branche par
+          # défaut du dépôt cloné : une dépendance non déclarée, correcte
+          # jusqu'au jour où la valeur par défaut change.
+          #
+          # Ici l'enjeu est plus lourd que pour les épreuves : **c'est le
+          # corpus qui entre dans le binaire livré.** Un vault dont la branche
+          # par défaut bascule changerait ce que les testeurs et Apple
+          # reçoivent, sans qu'aucun fichier de ce dépôt n'ait bougé.
+          ref: main
           path: ONTBibleTranslation
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -661,11 +681,49 @@ jobs:
           "$RUNNER_TEMP/venv/bin/python" beta.py
 
   # ── La revue de l'App Store ───────────────────────────────────────────────
+  # **Les deux plateformes, et non la seule qui allait de soi.**
+  #
+  # Ce job portait `PLATEFORME: IOS` en dur. Le build macOS montait donc à
+  # chaque promotion vers `app-store` — le job `mac` réussit depuis le 31 août —
+  # et **rien ne le rattachait à une version ni ne le soumettait**. Mesuré sur
+  # l'API publique le 12 septembre 2026, sans clé ASC :
+  #
+  #     itunes.apple.com/lookup?bundleId=com.labibleont.ONT&entity=macSoftware
+  #     → 1 résultat, kind: software, appareils iPhone/iPad, aucun mac-software
+  #
+  # La 1.0.6 approuvée par Apple est donc **iOS seulement**, et la chaîne
+  # s'arrêtait à la dernière marche : plateforme ajoutée à la fiche, captures
+  # produites en 2880 × 1800, build signé, téléversé, distribué à TestFlight —
+  # et jamais soumis.
+  #
+  # C'est la forme que l'on rencontre le plus souvent ici : **une chaîne
+  # complète sauf son dernier anneau, et chaque anneau vert.** Rien ne rougit
+  # pour signaler une étape qui n'existe pas.
+  #
+  # ## La matrice plutôt qu'un second job
+  #
+  # `fail-fast: false` : un refus côté Mac ne doit pas empêcher iOS d'être
+  # soumis, ni l'inverse. Les deux plateformes ont leurs propres captures, leur
+  # propre version et leur propre revue — ce sont deux soumissions, pas une.
+  #
+  # `max-parallel: 1` : les deux écrivent dans la **même** fiche App Store
+  # Connect, et `soumettre.py` crée la version quand elle manque. En parallèle,
+  # les deux pourraient créer la leur au même instant et l'API n'a pas de
+  # verrou à offrir. Le script filtre déjà par plateforme — c'est la leçon du
+  # 31 août, quand `modifiables[0]` aurait rendu la version du Mac à une
+  # livraison iPhone — mais filtrer une liste ne protège pas d'une écriture
+  # concurrente.
   soumettre:
     needs: livrer
     if: needs.livrer.outputs.canal == 'appstore'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        plateforme: [IOS, MAC_OS]
+    name: soumettre (${{ matrix.plateforme }})
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Les dépendances de soumission
@@ -679,7 +737,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           BUILD: ${{ needs.livrer.outputs.build }}
-          PLATEFORME: IOS
+          PLATEFORME: ${{ matrix.plateforme }}
           ASC_CONTACT_EMAIL: ${{ secrets.ASC_CONTACT_EMAIL }}
           ASC_CONTACT_TELEPHONE: ${{ secrets.ASC_CONTACT_TELEPHONE }}
         run: |

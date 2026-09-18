@@ -63,6 +63,21 @@ fn main() {
                 "Plages     {} à cheval confrontées au témoin, {} non mesurées",
                 r.plages_mesurees, r.plages_non_mesurees
             );
+            // **Les mots que deux fiches se disputaient.**
+            //
+            // Muet quand il n'y en a aucun : une ligne de zéros chaque jour
+            // finit par ne plus se lire, et c'est le jour où elle compte qu'on
+            // ne la verra pas.
+            if r.disputes.disputes > 0 {
+                println!(
+                    "Disputes   {} mots revendiqués par plusieurs fiches — \
+                     {} tranchés par la forme, {} laissés inertes \
+                     (`cargo run --bin departager` pour le détail)",
+                    r.disputes.disputes,
+                    r.disputes.tranches,
+                    r.disputes.inertes()
+                );
+            }
             println!("Sortie     {} Ko", r.bytes / 1024);
         }
         Err(message) => {

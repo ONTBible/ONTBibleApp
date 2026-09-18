@@ -123,6 +123,22 @@ impl Index {
         for corpus in corpora {
             for mode in &corpus.modes {
                 for livre in &mode.books {
+                    // **Un livre entre ici deux fois, et le second nom
+                    // l'emporte.**
+                    //
+                    // C'est la même double indexation que `build::declarer_les_livres`,
+                    // sur les mêmes données — et là-bas elle porte sa raison :
+                    // quatre livres du corpus, `Amos`, `Ruth`, `Esther` et
+                    // `Daniel`, s'écrivent pareil dans les deux langues, et le
+                    // français posé en second gagne. « Le jour où l'un d'eux
+                    // sera traduit, il lui faudra une marque. »
+                    //
+                    // Ici, rien ne le disait. Mesuré le 16 septembre 2026 :
+                    // **aucune collision** parmi les cinq livres écrits — le
+                    // piège est intact, pas armé. Ce commentaire est donc tout
+                    // ce qu'il y a à faire : la prochaine lecture de ce module
+                    // n'aura pas à redécouvrir ce que le module voisin sait
+                    // déjà.
                     livres.insert(livre.title.clone(), livre.id.clone());
                     // Le pont français aussi : une glose peut écrire
                     // « Genèse 1:4 » comme « Bereshit 1:4 ».

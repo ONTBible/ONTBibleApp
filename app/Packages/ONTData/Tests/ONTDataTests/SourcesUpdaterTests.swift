@@ -60,7 +60,7 @@ struct SourcesUpdaterTests {
 
         // La fixture porte aussi six livres à `temoins` vides : leur absence
         // est déclarée, la complétude ne les attend pas.
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
 
         let actif = dossier.appendingPathComponent("actif")
         #expect(
@@ -87,9 +87,9 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
         // La même publication, resservie : l'actif la porte déjà.
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
         _ = dossier
     }
 
@@ -104,7 +104,47 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, abime),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        // Le candidat est jeté, et la cause est nommée — pas un « 0 ».
+        let issue = try await updater.synchroniser()
+        #expect(issue.fichiers == 0)
+        guard case .generationIncomplete(let motif) = issue else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+            return
+        }
+        // **Et le motif nomme le fichier et sa taille**, parce que c'est ce
+        // qu'un lecteur du journal a besoin de savoir. Le premier jet rendait
+        // « dataLengthExceedsMaximum » : exact, et muet sur ce qu'il faut
+        // chercher.
+        #expect(motif.contains("he-wlc/bereshit.json"))
+        #expect(motif.contains("empreinte fausse"))
+        #expect(motif.contains("\(abime.count)"), "la taille reçue doit être dite")
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
+    @Test("une taille inattendue porte les deux nombres — l'écart dit la cause")
+    func uneTailleInattenduePorteLesDeuxNombres() async throws {
+        // Deux sens, deux causes distinctes — mesurées avec la session du
+        // vault le 18 septembre 2026 :
+        //
+        //     annoncés ≫ reçus   troncature, mauvais fichier, transfert coupé
+        //     annoncés ≪ reçus   génération construite avec `ONT_PRETTY` armé
+        //
+        // Sans les deux nombres au journal, les deux cas se lisent pareil —
+        // et l'un se répare en retentant, l'autre en republiant.
+        let entier = Self.fixture("he-wlc/bereshit.json")
+        let tronque = entier.prefix(1204)
+        let (updater, dossier) = Self.updater(plancher: "2026-09-10T00:00:00Z")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
+            "/sources/he-wlc/bereshit.json": (200, Data(tronque)),
+        ]
+        let issue = try await updater.synchroniser()
+        guard case .generationIncomplete(let motif) = issue else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+            return
+        }
+        #expect(motif.contains("1204 octets reçus"))
+        #expect(motif.contains("\(entier.count) annoncés"))
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -115,7 +155,11 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z"))
             // bereshit.json : 404
         ]
-        #expect(try await updater.synchroniser() == 0)
+        let issue = try await updater.synchroniser()
+        #expect(issue.fichiers == 0)
+        if case .generationIncomplete = issue {} else {
+            Issue.record("attendu generationIncomplete, obtenu \(issue)")
+        }
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -132,7 +176,10 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, try JSONSerialization.data(withJSONObject: objet)),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        // **Le cas qui était confondu avec le repos.** Un publieur qui
+        // omet `genere` ne livrera jamais rien ; avant, il rendait la
+        // même valeur que « rien n'a changé ».
+        #expect(try await updater.synchroniser() == .dateIndecidable)
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -143,7 +190,79 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
+    @Test("deux annonces sur le même chemin se percutent — refusées avant tout octet")
+    func deuxAnnoncesSurLeMemeChemin() async throws {
+        // Chaque garde compare un fichier à SON entrée ; celle-ci compare les
+        // entrées ENTRE ELLES. Deux chemins identiques : un seul fichier
+        // écrit, dernier gagnant, la preuve du premier annulée en silence.
+        // Question posée par le vault le 16 septembre — même famille que les
+        // `n` en double de bereshit-7.
+        var objet = try JSONSerialization.jsonObject(with: Self.fixture("manifeste.json"))
+            as! [String: Any]
+        objet["genere"] = "2026-09-16T00:00:00Z"
+        var livres = objet["livres"] as! [String: Any]
+        // Un second livre annonce LE chemin de bereshit, sous une autre empreinte.
+        livres["doublon"] = [
+            "temoins": [
+                "he-wlc": [
+                    "chemin": "sources/he-wlc/bereshit.json",
+                    "octets": 3, "sha256": String(repeating: "a", count: 64),
+                ]
+            ]
+        ]
+        objet["livres"] = livres
+        let (updater, dossier) = Self.updater(plancher: "2026-09-10T00:00:00Z")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, try JSONSerialization.data(withJSONObject: objet)),
+            "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
+        ]
+        let resultat = try await updater.synchroniser()
+        guard case .generationIncomplete(let motif) = resultat else {
+            Issue.record("attendu generationIncomplete, reçu \(resultat)")
+            return
+        }
+        #expect(motif.contains("deux fois"))
+        #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
+    }
+
+    @Test("un chemin réservé ou évadé est une percussion, pas un fichier")
+    func unCheminReserveOuEvade() {
+        func annonce(_ chemin: String) -> [ONTSources.Fichier] {
+            let json = """
+                {"chemin": "\(chemin)", "octets": 1, "sha256": "\(String(repeating: "a", count: 64))"}
+                """
+            return [try! JSONDecoder().decode(ONTSources.Fichier.self, from: Data(json.utf8))]
+        }
+        // Réservés : l'updater écrit lui-même ces deux noms — une annonce qui
+        // les vise écraserait ou serait écrasée, selon l'ordre.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/manifeste.json")) != nil)
+        #expect(SourcesUpdater.percussionDesChemins(annonce("estampille.txt")) != nil)
+        // Évadés : la bascule n'emporte que le candidat.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/../../evade.json")) != nil)
+        #expect(SourcesUpdater.percussionDesChemins(annonce("/tmp/absolu.json")) != nil)
+        // Et le chemin légitime passe — la garde discrimine, elle ne bloque pas.
+        #expect(SourcesUpdater.percussionDesChemins(annonce("sources/he-wlc/bereshit.json")) == nil)
+    }
+
+    @Test("un plancher illisible se nomme — il n'est pas le repos")
+    func unPlancherIllisible() async throws {
+        // Un bundle sans estampille lisible : `Estampille("pas-une-date")`
+        // rend nil, exactement comme un `manifest.json` absent ou vide. La
+        // #296 rangeait ce cas dans `rienDeNeuf` — le gel de TOUTES les
+        // synchronisations à venir, rendu comme le repos. Cette épreuve tient
+        // la distinction : défaut du build, pas absence de nouveauté.
+        let (updater, dossier) = Self.updater(plancher: "pas-une-date")
+        ReseauFige.reponses = [
+            "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
+            "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
+        ]
+        let resultat = try await updater.synchroniser()
+        #expect(resultat == .plancherIllisible)
+        #expect(resultat.estUnRefus, "un gel programmé doit se lire comme un refus")
         #expect(!FileManager.default.fileExists(atPath: dossier.appendingPathComponent("actif").path))
     }
 
@@ -156,11 +275,11 @@ struct SourcesUpdaterTests {
             "/sources/manifeste.json": (200, Self.manifeste(genere: "2026-09-11T17:23:15Z")),
             "/sources/he-wlc/bereshit.json": (200, Self.fixture("he-wlc/bereshit.json")),
         ]
-        #expect(try await updater.synchroniser() == 1)
+        #expect(try await updater.synchroniser() == .installee(fichiers: 1))
 
         ReseauFige.reponses["/sources/manifeste.json"] =
             (200, Self.manifeste(genere: "2026-09-05T00:00:00Z"))
-        #expect(try await updater.synchroniser() == 0)
+        #expect(try await updater.synchroniser() == .rienDeNeuf)
         #expect(
             try String(
                 contentsOf: dossier.appendingPathComponent("actif/estampille.txt"),

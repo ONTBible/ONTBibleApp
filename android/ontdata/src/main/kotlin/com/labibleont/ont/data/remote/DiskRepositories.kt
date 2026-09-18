@@ -3,6 +3,7 @@ package com.labibleont.ont.data.remote
 import android.content.Context
 import com.labibleont.ont.data.bundle.AssetCorpusRepository
 import com.labibleont.ont.data.bundle.AssetGlossaryRepository
+import com.labibleont.ont.data.bundle.AssetLoader
 import com.labibleont.ont.data.bundle.AssetSearchIndex
 import com.labibleont.ont.data.bundle.AssetShemotRepository
 import com.labibleont.ont.data.bundle.versDomaine
@@ -10,6 +11,7 @@ import com.labibleont.ont.data.schema.Book as DtoBook
 import com.labibleont.ont.data.schema.CorpusFile
 import com.labibleont.ont.data.schema.GlossaryFile
 import com.labibleont.ont.data.schema.OccurrencesFile
+import com.labibleont.ont.data.schema.PrononciationFile
 import com.labibleont.ont.data.schema.SearchFile
 import com.labibleont.ont.data.schema.ShemotFile
 import com.labibleont.ont.kit.corpus.Book
@@ -17,8 +19,10 @@ import com.labibleont.ont.kit.corpus.Corpus
 import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.glossary.GlossaryEntry
 import com.labibleont.ont.kit.glossary.Occurrence
+import com.labibleont.ont.kit.ports.FeuilleDePrononciation
 import com.labibleont.ont.kit.ports.CorpusRepository
 import com.labibleont.ont.kit.ports.GlossaryRepository
+import com.labibleont.ont.kit.ports.PrononciationRepository
 import com.labibleont.ont.kit.ports.SearchIndex
 import com.labibleont.ont.kit.ports.ShemotRepository
 import com.labibleont.ont.kit.search.SearchRecord
@@ -172,4 +176,65 @@ public class DiskShemotRepository(
 
     override fun fiche(lemma: String): ShemEntry? =
         duDisque?.get(lemma) ?: bundle.fiche(lemma)
+}
+
+/**
+ * La feuille de prononciation, du disque quand elle y est, du bundle sinon.
+ *
+ * ## Le défaut que ça ferme — #263
+ *
+ * Le pipeline émet `dist/prononciation.json`, iOS le lit dans sept fichiers, et
+ * **Android ne l'ouvrait nulle part**. Le fichier était donc *exclu de la copie*
+ * vers les ressources, avec un commentaire disant que c'était un écart de parité
+ * et non une décision. Cette classe est ce qui permet de retirer l'exclusion.
+ *
+ * ## Pourquoi une seule classe et non deux
+ *
+ * Les autres ports d'ici ont un dépôt bundle et un dépôt disque qui l'enveloppe.
+ * Celui-ci suit iOS, où `DiskPrononciationRepository` fait les deux : la feuille
+ * est **un seul document**, sans clé ni index, donc il n'y a rien à composer
+ * entre les deux sources. Le disque gagne s'il porte le fichier, le bundle
+ * répond sinon.
+ *
+ * ## L'absence est un état, pas un échec
+ *
+ * `null` quand ni le disque ni le bundle ne portent la feuille : le pipeline
+ * n'écrit rien quand le vault ne la porte pas. C'est à l'écran de dire ce qu'il
+ * attend, pas à ce lecteur de fabriquer un titre vide — ce qui ferait croire à
+ * une panne.
+ *
+ * `by lazy` mémorise aussi l'absence, et c'est voulu : sans ça, chaque ouverture
+ * de l'onglet retenterait deux lectures de fichier pour rien.
+ *
+ * ## Ce qui reste ouvert, et qui n'est pas d'ici
+ *
+ * iOS porte un `oublier()` qui vide le cache après une mise à jour du corpus.
+ * **Aucun dépôt disque d'Android n'en a** — `DiskGlossaryRepository`,
+ * `DiskShemotRepository` et `DiskSearchIndex` mémorisent tous par `by lazy` sans
+ * invalidation. Une feuille corrigée n'apparaît donc qu'au prochain lancement.
+ * Ajouter l'invalidation ici seulement rendrait ce port incohérent avec ses
+ * quatre voisins ; c'est un chantier à part, et il se décide en une fois.
+ */
+public class DiskPrononciationRepository(
+    private val context: Context,
+    private val dossier: File = CorpusUpdater.dossierParDefaut(context),
+) : PrononciationRepository {
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private val feuille: FeuilleDePrononciation? by lazy {
+        val dto = duDisque() ?: duBundle()
+        dto?.let { FeuilleDePrononciation(titre = it.title, blocs = it.blocks.map { b -> b.versDomaine() }) }
+    }
+
+    private fun duDisque(): PrononciationFile? = runCatching {
+        val f = File(dossier, "prononciation.json")
+        if (!f.exists()) null else json.decodeFromString<PrononciationFile>(f.readText())
+    }.getOrNull()
+
+    private fun duBundle(): PrononciationFile? = runCatching {
+        AssetLoader.decode<PrononciationFile>(context, "data/prononciation.json")
+    }.getOrNull()
+
+    override fun feuille(): FeuilleDePrononciation? = feuille
 }
