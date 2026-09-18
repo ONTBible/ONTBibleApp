@@ -2261,6 +2261,72 @@ mod tests {
     ///
     /// Contre le code d'avant, cette épreuve rougit deux fois : `roeh`
     /// écraserait `raah`, et les deux mots ouvriraient `roeh`.
+    /// **Les trois questions du vault sur `roʿeh`, éprouvées et non déduites.**
+    ///
+    /// Le témoin écrit `d/7203 a` et `7203 b`, jamais `7203` nu ; et il range
+    /// le même office sous deux numéros — 1 Samuel en `7203 a`, les Chroniques
+    /// en `d/7200`. Trois questions en découlaient, auxquelles seule la liseuse
+    /// pouvait répondre. Les voici tenues par une épreuve.
+    #[test]
+    fn ce_que_la_garde_fait_des_trois_graphies_de_roeh() {
+        let avec = |strong_roeh: &str| {
+            LiaisonDesMots::nouvelle([
+                FichePourLaJointure {
+                    lemme: "raah",
+                    hebreu: Some("רָאָה"),
+                    strong: Some("7200"),
+                },
+                FichePourLaJointure {
+                    lemme: "roeh",
+                    hebreu: Some("רֹאֶה"),
+                    strong: Some(strong_roeh),
+                },
+            ])
+        };
+        let roeh = Some(CibleDuNiveauTrois::Term {
+            lemma: "roeh".into(),
+        });
+        let raah = Some(CibleDuNiveauTrois::Term {
+            lemma: "raah".into(),
+        });
+
+        // **1. L'article n'est ôté par aucune normalisation.** `sans_cantillation`
+        // garde les voyelles, `consonnes` ôte les voyelles — le hé de l'article
+        // est une consonne et survit aux deux. `הָרֹאֶה` ne vaut donc jamais
+        // `רֹאֶה`, et les cinq emplois du titre en Chroniques restent inertes :
+        // le préfixe déclaré ouvre le test de fin, et `הראה` se termine par
+        // `ראה` pour **les deux** fiches à la fois.
+        let liaison = avec("7200");
+        assert_eq!(liaison.cible("הָרֹאֶ֑ה", Some("d/7200")), None);
+
+        // **2. Le participe qal nu, lui, ouvre `roʿeh` — par égalité de forme.**
+        // C'est le seul des quarante-et-un mots de Bereshit qui se tranche, et
+        // il se tranche vers la fiche du Voyant alors que le sens est « qui
+        // voit ». Certain dans la forme, pas dans le sens : la garde ne peut
+        // pas faire mieux tant qu'une seule fiche déclare cette graphie.
+        assert_eq!(liaison.cible("רֹאֶ֖ה", Some("7200")), roeh);
+
+        // **3. `7203` nu ne joindrait rien**, parce que `numero_nu` garde la
+        // lettre augmentée : le témoin porte `7203 a`, jamais `7203`.
+        let nu = avec("7203");
+        assert_eq!(nu.cible("הָרֹאֶ֑ה", Some("d/7203 a")), None);
+        // Et 7200 n'ayant plus qu'une prétendante, les fléchies se rangent.
+        assert_eq!(nu.cible("וַיַּ֥רְא", Some("7200")), raah);
+
+        // **4. Avec la lettre, la jointure se fait — le préfixe `d/` est ôté.**
+        let lettre = avec("7203 a");
+        assert_eq!(lettre.cible("הָרֹאֶ֑ה", Some("d/7203 a")), roeh);
+        // Et les quarante inertes de 7200 se rangent sur le verbe.
+        assert_eq!(lettre.cible("וַיַּ֥רְא", Some("7200")), raah);
+
+        // **5. Les deux numéros ensemble laissent la dispute entière.**
+        // `7200` garde deux prétendantes, donc les fléchies restent inertes —
+        // le gain des quarante mots est perdu, et seul 1 Samuel est rattrapé.
+        let deux = avec("7200 + 7203 a");
+        assert_eq!(deux.cible("הָרֹאֶ֑ה", Some("d/7203 a")), roeh);
+        assert_eq!(deux.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
     #[test]
     fn deux_fiches_au_meme_numero_se_departagent_par_la_forme() {
         let liaison = LiaisonDesMots::nouvelle([
@@ -2410,6 +2476,14 @@ mod tests {
         assert_eq!(numero_nu("c/d/776"), "776");
         assert_eq!(numero_nu("1254 a"), "1254 a");
         assert_eq!(numero_nu("430"), "430");
+        // **Le préfixe ET la lettre augmentée, ensemble.** Les deux au-dessus
+        // les éprouvent séparément ; le témoin, lui, écrit `d/7203 a` — les
+        // cinq emplois du Voyant en 1 Samuel 9 n'ont jamais d'autre graphie.
+        // Un `replace(" ", "")` bien intentionné dans cette fonction ferait
+        // retomber la clé sur `7203`, que le témoin n'écrit nulle part, et la
+        // fiche du Voyant ne joindrait plus rien — sans que rien ne rougisse
+        // ailleurs. Cas rapporté par les langues sources.
+        assert_eq!(numero_nu("d/7203 a"), "7203 a");
     }
 
     /// **L'estampille des sources suit celle du corpus, ou reste vide.**
