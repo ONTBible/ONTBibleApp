@@ -5684,6 +5684,37 @@ pas de regarder si on vient de le violer soi-même ailleurs==. Une règle qu'on
 vient d'écrire est précisément celle qu'on croit tenir, donc celle qu'on ne
 vérifie plus.
 
+### Un énoncé coupe dans les deux sens — en appliquer la moitié, c'est croire le tenir
+
+Relevé par la session du vault, sur elle-même, une heure après avoir transmis
+la présente consigne.
+
+L'énoncé est celui du §2.5 ter : ==`1254 a` n'est pas `1254 b`==. Elle l'avait
+lu comme ==« écris la lettre »==, et c'est vrai. Mais il dit aussi l'inverse :
+==ne revendique pas une lettre qui n'est pas ton mot==.
+
+La fiche de `roʿeh` a déclaré un moment `7203 a + 7203 b`. Or les deux ne sont
+pas le même mot, et le témoin le montre par la préposition :
+
+    שָׁגוּ    בַּיַּיִן        b/3196        ils ont erré dans le vin
+             וּבַשֵּׁכָר      c/b/7941      et dans la boisson forte
+    שָׁגוּ    בָּרֹאֶה         b/7203 b      ils ont erré ba-roʾeh
+                              Rd/Ncmsa
+
+Le `b/` range `7203 b` ==dans la même série que le vin et la boisson forte==,
+et son étiquette est un ==nom==, non le participe des cinq de *1 Shemuel* 9.
+C'est ==la chose vue==, pas celui qui voit. Une fiche du Voyant qui le
+revendiquerait enverrait le lecteur ==vers l'égarement des ivrognes== — le mode
+d'échec exact que le §2.5 ter existe pour fermer.
+
+**D'où la clause, et elle est la plus coûteuse des trois à tenir :** ==une
+moitié d'énoncé appliquée est une règle qu'on croit tenir==. Elle ne se signale
+pas comme un manque — elle se signale comme une conformité.
+
+La fiche déclare désormais `7203 a` seul, et elle ==nomme== `7203 b` pour dire
+qu'elle ne le revendique pas, ==plutôt que de le taire== : une absence déclarée
+se relit, un silence non.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
