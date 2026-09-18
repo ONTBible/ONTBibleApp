@@ -38,8 +38,38 @@ c'est ce que produit une chaîne où rien ne peut rougir.** La garde de
 `soumettre.py` refuse une version **sans** captures ; personne ne refusait une
 version aux captures **fausses**.
 
-`scripts/eprouver-la-fraicheur-des-captures.sh` tient cette règle, et `tests`
-le lance à chaque proposition. Il compare deux dates que git tient de
+## Une vitrine ne dépend d'aucun état de la machine
+
+> Ni l'onglet retenu, ni le thème de la dernière séance, ni la barre repliée,
+> ni l'apparence du simulateur. **Le remède n'est pas de remettre chaque
+> réglage : c'est d'effacer ce qui les porte.**
+
+Formulé par la session iOS le 18 septembre 2026, après que trois correctifs
+séparés eurent dit la même chose sans le savoir : `-tab bible` au lancement du
+Mac, la barre latérale imposée ouverte en mode capture, l'apparence forcée dans
+`serie()`. Trois clés remises à la main — et la quatrième aurait été oubliée.
+
+Sa reprise a montré pourquoi la liste ne suffit pas. Le thème sombre de l'iPad
+ne venait **pas** de l'apparence du système : `simctl ui appearance light` ne
+l'atteignait pas, parce que le thème de lecture est une préférence de l'app et
+qu'`install` par-dessus garde le conteneur de données. La désinstallation avant
+installation ferme la famille entière d'un coup — thème, onglet, position de
+lecture — et couvre la prochaine préférence sans qu'on y pense.
+
+**Sa sœur, apprise sur la garde de la campagne elle-même :**
+
+> Un instrument qui mesure une propriété en croyant en mesurer une autre **ne
+> rougit jamais sur le cas réel.**
+
+La garde refusait une capture dont la luminance moyenne était basse, en croyant
+refuser un écran non rendu. Un iPad en thème sombre, parfaitement rendu, était
+donc rejeté — et un aplat crème, accepté. Comme le thème de Gloire est sombre,
+elle ne pouvait échouer que sur sa configuration à lui. Elle compare désormais
+l'**écart-type** : un écran vide est uniforme quelle que soit sa couleur, un
+écran rendu porte du texte et des bords.
+
+`scripts/eprouver-la-fraicheur-des-captures.sh` tient la règle de fraîcheur, et
+`tests` le lance à chaque proposition. Il compare deux dates que git tient de
 lui-même : il ne déclare rien, donc il ne peut pas mentir. Son en-tête dit ce
 qu'il n'attrape pas — **une scène cassée par la donnée**, comme la quatrième
 du Mac qui visait `ont://term/elohim`, clé morte depuis que le demi-anneau est
