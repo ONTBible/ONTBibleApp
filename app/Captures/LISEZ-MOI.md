@@ -49,6 +49,25 @@ séparés eurent dit la même chose sans le savoir : `-tab bible` au lancement d
 Mac, la barre latérale imposée ouverte en mode capture, l'apparence forcée dans
 `serie()`. Trois clés remises à la main — et la quatrième aurait été oubliée.
 
+**Et le remède n'est pas le même des deux côtés, parce qu'il porte une
+prémisse qu'il ne dit pas.** « Effacer ce qui les porte » tient sur simulateur
+**parce que la machine y est jetable** : le conteneur ne contient rien qui
+appartienne à quelqu'un. Sur le Mac, le même conteneur est le **vrai** lecteur
+de l'auteur — `lecteur.json` d'Application Support y tient ses surlignages, ses
+notes, sa position, et le réglage « français reçu » avec eux. Le même geste y
+devient une destruction.
+
+Le Mac fait donc autrement : `-tailleDeCapture` et `-tab bible` passent par le
+**domaine des arguments de lancement**, que `UserDefaults` lit en priorité — ce
+qui n'atteint pas ce qui vient d'un JSON. Pour cette famille-là, le geste juste
+n'est pas d'effacer mais de **pointer ailleurs** : détourner le dossier du
+store vers un emplacement jetable, le temps de la campagne. Même effet, sans
+toucher à ce qui n'est pas à nous.
+
+**Ne pas transposer par symétrie.** Un remède qui marche sur une plateforme et
+détruit sur l'autre a l'air d'une cohérence, et c'est ce qui le rend
+dangereux — sa prémisse était vraie là-bas, pas ici.
+
 Sa reprise a montré pourquoi la liste ne suffit pas. Le thème sombre de l'iPad
 ne venait **pas** de l'apparence du système : `simctl ui appearance light` ne
 l'atteignait pas, parce que le thème de lecture est une préférence de l'app et
