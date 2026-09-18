@@ -5596,3 +5596,244 @@ recouvrement sur 22), deux livres au même nom affiché (**0** parmi les cinq
 portait déjà pour la même double indexation — `Amos`, `Ruth`, `Esther` et
 `Daniel` s'écrivent pareil dans les deux langues, et « le jour où l'un d'eux
 sera traduit, il lui faudra une marque ».
+
+## 18 septembre 2026 — le dépôt a ses chuqqot, et on répare depuis elles
+
+**Consigne de l'auteur**, portée aux sept sessions. Ses mots :
+
+> « au final le projet ONT lui même a ses propre chuqqot les choses graver qui
+> regisse le reste, et les manifestation qui en decoule »
+
+> « toujours se fier aux ONT's chuqqot pour construire et toujours reparer a
+> partir d'elles »
+
+**Ce que sont les chuqqot du dépôt.** Des énoncés qu'on ==n'argumente plus== et
+qu'on ==invoque pour trancher autre chose== : `**...**` est exclusivement
+l'intraduisible ; le témoin fait foi ; on restitue l'ambiguïté au lieu de la
+trancher (§4.11) ; aucune catégorie extérieure n'entre (§4.7) ; une seule source
+par fait ; `1254 a` n'est pas `1254 b`.
+
+Elles se sont écrites ==comme celles du corpus : après coup, sur une pratique==.
+Le §2.9 le déclare de lui-même — *« c'est le relevé de ce qu'il fait déjà, rendu
+opposable »*. L'écriture n'a pas produit la règle ; elle a produit que ==la
+divergence devienne visible==. Une pratique non écrite ne se compare à rien,
+donc elle ne peut pas diverger visiblement.
+
+### Les deux gestes
+
+**Construire à partir d'elles.** Avant d'écrire, chercher ==quel énoncé
+gouverne== ce qu'on va faire. Ne pas inventer une règle locale pour un cas
+local : presque toujours l'énoncé existe, et il décide.
+
+**Réparer à partir d'elles.** Un défaut n'est pas un accident, c'est ==une
+manifestation==. On ne rustine pas : on remonte à l'énoncé qu'il contredit, et
+on répare là.
+
+### La preuve, sur une seule journée
+
+Quatre défauts du 18 septembre, quatre manifestations d'un énoncé gravé :
+
+    un contrôle barrait [[Yosef]]      contre « des marques de travail à faire,
+                                       pas des erreurs » (CLAUDE.md, inline.rs)
+    deux fiches réclamaient 7200       contre « une seule source par fait »
+    l'option « 7203 » écrite nue       contre « 1254 a n'est pas 1254 b »
+    trois gras d'emphase               contre « le gras est EXCLUSIVEMENT
+                                       l'intraduisible » (§2.5)
+
+==Aucun n'a été attrapé par plus de rigueur.== Tous par une contradiction entre
+ce qu'on faisait et ce qui était gravé. Et chacun pouvait être « réparé » par un
+cas particulier — une exception dans le contrôle, une règle morphologique pour
+départager, un gras toléré « juste ici ». ==Chaque rustine aurait ajouté une
+règle de plus==, qui aurait divergé à son tour.
+
+### La nuance sans laquelle la consigne devient un dogme
+
+Remonter à l'énoncé ==ne veut pas dire que l'énoncé a raison==. Parfois c'est
+lui qui doit être corrigé : le §13.2 l'a fait — les « vingt-deux marqueurs
+déséquilibrés » n'existaient pas —, et la fiche de `moreh` l'a fait cette
+semaine, qui déclarait un numéro que le témoin ne lui donne pas.
+
+    remonter à l'énoncé              TOUJOURS
+    puis décider lequel est faux     la manifestation, ou l'énoncé
+
+Ce qui est interdit, c'est de rustiner ==sans être remonté==. Un correctif qui
+n'est rattaché à aucun énoncé est ==une règle orpheline==, et le projet en a
+déjà payé plusieurs.
+
+### Le même défaut ne se reconnaît pas quand il change d'échelle
+
+Relevé par la session des langues sources, le même jour, sur elle-même :
+
+> J'ai passé la matinée à mesurer une chose, et l'après-midi à la commettre
+> ailleurs.
+
+Le matin, elle déclarait une limite du pont Septante : il écrit `2617` là où le
+témoin écrit `2617 a`. L'après-midi, elle proposait qu'une fiche déclare `7203`
+là où le témoin écrit `7203 a`. ==Le même énoncé violé deux fois en un jour, à
+deux étages du projet==, par la personne qui venait de l'inscrire.
+
+    le pont écrit 2617    là où le témoin écrit 2617 a    → limite déclarée
+    une fiche écrirait 7203   là où le témoin écrit 7203 a  → rien ne joindrait
+
+**Et le second cas est muet**, ce qui le rend pire : `7203` nu n'existe pas dans
+le témoin — ==zéro occurrence==. Une fiche qui le déclarerait ne joindrait pas
+« moins », elle ne joindrait ==rien==, sans qu'aucun contrôle ne s'en plaigne.
+
+D'où la clause qui manquait aux deux gestes : ==remonter à un énoncé ne dispense
+pas de regarder si on vient de le violer soi-même ailleurs==. Une règle qu'on
+vient d'écrire est précisément celle qu'on croit tenir, donc celle qu'on ne
+vérifie plus.
+
+### Un énoncé coupe dans les deux sens — en appliquer la moitié, c'est croire le tenir
+
+Relevé par la session du vault, sur elle-même, une heure après avoir transmis
+la présente consigne.
+
+L'énoncé est celui du §2.5 ter : ==`1254 a` n'est pas `1254 b`==. Elle l'avait
+lu comme ==« écris la lettre »==, et c'est vrai. Mais il dit aussi l'inverse :
+==ne revendique pas une lettre qui n'est pas ton mot==.
+
+La fiche de `roʿeh` a déclaré un moment `7203 a + 7203 b`. Or les deux ne sont
+pas le même mot, et le témoin le montre par la préposition :
+
+    שָׁגוּ    בַּיַּיִן        b/3196        ils ont erré dans le vin
+             וּבַשֵּׁכָר      c/b/7941      et dans la boisson forte
+    שָׁגוּ    בָּרֹאֶה         b/7203 b      ils ont erré ba-roʾeh
+                              Rd/Ncmsa
+
+Le `b/` range `7203 b` ==dans la même série que le vin et la boisson forte==,
+et son étiquette est un ==nom==, non le participe des cinq de *1 Shemuel* 9.
+C'est ==la chose vue==, pas celui qui voit. Une fiche du Voyant qui le
+revendiquerait enverrait le lecteur ==vers l'égarement des ivrognes== — le mode
+d'échec exact que le §2.5 ter existe pour fermer.
+
+**D'où la clause, et elle est la plus coûteuse des trois à tenir :** ==une
+moitié d'énoncé appliquée est une règle qu'on croit tenir==. Elle ne se signale
+pas comme un manque — elle se signale comme une conformité.
+
+La fiche déclare désormais `7203 a` seul, et elle ==nomme== `7203 b` pour dire
+qu'elle ne le revendique pas, ==plutôt que de le taire== : une absence déclarée
+se relit, un silence non.
+
+### Un tube avale le code de sortie — et fabrique une réussite
+
+Relevé le 18 septembre 2026 par la session du vault, sur ses propres commandes,
+après un accident de la manageuse.
+
+    bash -c 'set -e; false | tail -1; echo ATTEINT'    →  ATTEINT
+    bash -c 'set -e; false; echo jamais'               →  arrêté
+
+==Une commande dont la sortie passe dans un tube n'est plus protégée par
+`set -e`== : c'est le statut du ==dernier maillon== qui compte, et `tail` réussit
+toujours.
+
+**Ce que ça a produit, et ce que ça aurait pu produire :**
+
+- un enchaînement de la manageuse a commité ==dans l'arbre partagé== : le
+  `worktree add` avait échoué, son échec a été avalé, le `cd` suivant a échoué à
+  son tour, et `add`/`commit`/`push` se sont exécutés dans le dossier courant.
+  ==Sans dégât par hasard== — l'arbre se trouvait sur la bonne branche ;
+- le vault écrivait `git push --quiet 2>&1 | tail -1` ==sur chaque PR de la
+  journée==. Si une poussée avait échoué — distant en avance, jeton expiré,
+  branche protégée —, ==le tube aurait avalé le code et la poussée aurait été
+  annoncée réussie à l'auteur==.
+
+**C'est le motif du 25 août sous une forme qu'on n'avait pas vue** : *le format
+de sortie survit à l'absence de mesure*. Ici ==le tube fabrique le format==. La
+ligne rendue est bien formée, elle ressemble à un succès, et rien n'a été mesuré.
+
+**Les trois remèdes, et ils ne coûtent rien :**
+
+    git -C <chemin> …          plutôt que `cd` puis `git` — ne dépend d'aucun
+                               dossier courant, donc aucun `cd` à réussir
+    pas de tube                sur ce dont l'échec doit arrêter le script
+    vérifier par les SHA       `rev-parse <branche>` contre
+                               `rev-parse origin/<branche>` — un push n'a pas
+                               de `set -e` pour le protéger en interactif
+
+==Le dernier est le seul qui mesure l'atterrissage== au lieu de lire ce que la
+commande a bien voulu dire. Les trois branches de cette entrée ont été
+vérifiées ainsi avant d'être annoncées.
+
+**Et une règle d'arbre partagé, du même accident** : ==ne jamais annoncer de
+mémoire la branche d'un arbre que six sessions lisent==. `git branch
+--show-current` coûte une commande ; l'inexactitude qui l'a remplacée a failli
+faire commiter un tiers sur `main`.
+
+### La forme négative : « je ne vois pas » devenu « il n'y a pas »
+
+Relevée par la session macOS sur elle-même, le 18 septembre au soir, et c'est
+==la plus sournoise des cinq==.
+
+Les quatre précédentes sont des conclusions ==positives== tirées du mauvais
+champ : un compte bien formé sur une question voisine. Celle-ci ne lit
+==aucun== champ — elle transforme *je ne vois pas* en *il n'y a pas*.
+
+Deux sessions ont affirmé ne pas voir leur place dans Herdr. L'une a écrit
+*« ni mon environnement, ni mes outils, ni aucun fichier de mon périmètre ne le
+portent »* — ==sans avoir lancé `env`==, qui portait sa place exacte.
+
+**Et elle se déguise en rigueur**, ce qui la rend difficile à attraper de
+l'intérieur : *« je ne peux pas le confirmer »* ==sonne comme de la prudence==,
+alors que la prudence aurait été de chercher. Une réponse qui s'abstient a
+l'air plus sage qu'une réponse qui affirme ; elle ne l'est que si l'abstention
+vient après la mesure.
+
+    ✗  X ne porte pas Y
+    ✓  j'ai cherché Y dans X, il n'y est pas
+    ✓  je n'ai pas cherché
+
+==La règle : ne jamais écrire « X ne porte pas Y » sans avoir lancé la commande
+qui chercherait==, et distinguer dans la phrase **« je n'ai pas cherché »** de
+**« j'ai cherché et il n'y a rien »**. Les deux sont honnêtes ; les confondre ne
+l'est pas.
+
+### Un contrôle vert est une affirmation sur l'instant où il a tourné
+
+Relevé par la session du site le 18 septembre au soir, et c'est ==la seule des
+six qui porte sur le temps== plutôt que sur la mesure.
+
+    #149  pass  8m36s   tourné AVANT l'arrivée des demi-anneaux
+    #150  pass  7m55s   idem
+    #151  fail  2m13s   tourné APRÈS — deux fiches sans définition
+
+Les trois disent la vérité. ==Les deux premières la disent d'un dépôt qui
+n'existe plus== : cinquante-deux clés du lexique ont changé entre-temps.
+
+**Fusionner sur un vert périmé ne casse pas seulement la branche**, et c'est ce
+qui le rend coûteux : ==la PR suivante porte le chapeau== d'un défaut qui n'est
+pas le sien. C'est exactement ce qui a tenu le corpus publié huit jours en
+arrière — le site a servi un texte du 10 septembre jusqu'au 18, et les deux
+gardes qui ont fini par voir la panne étaient ==externes==, ni l'une ni l'autre
+ne cherchant cela.
+
+==Le vert n'est pas un état, c'est un horodatage.== Avant de fusionner, regarder
+non pas *si* le contrôle est vert, mais ==quand il l'est devenu== — et ce qui a
+bougé depuis.
+
+**Et un corollaire que la journée a donné deux fois** : un espace où travaille
+==un seul agent n'a pas de témoin==. Le défaut qui bloquait le site était chez
+le seul qui y travaillait, donc personne ne pouvait le voir de l'intérieur.
+
+### Le motif de fond
+
+La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
+s'habite==. Personne n'a jamais *appris* le §2.5 : on s'y cogne. Ce n'est pas de
+la **binah** — on ne cartographie pas ces règles depuis le dehors, on travaille
+dedans, et c'est ==en en sortant== qu'on s'en aperçoit.
+
+Conséquence pratique, et c'est elle qui change une habitude de session : ==le
+`CLAUDE.md` n'est pas une documentation qu'on consulte en cas de doute==. Il
+n'est pas la carte du vault, il est ==le dedans où l'on travaille==. Une session
+qui ne l'ouvre que bloquée s'en sert mal — et c'est le même défaut que la base
+de connaissances a révélé le 16 : *l'outil ne dort pas parce qu'il serait
+mauvais, il dort parce que le réflexe n'est pas installé*.
+
+**Ce qu'ils partagent avec les chuqqot du corpus est la forme, non le rang.**
+Les énoncés du corpus sont ceux d'une ontologie ancienne ; ceux du document de
+référence ne sont que les conventions d'un projet. L'observation vaut par sa
+structure — ce qui est gravé régit, et le reste en découle —, et elle ne tire
+aucune gloire de la comparaison.
+
+*Porté dans `brouillons/chuqqot/chuqqot-0-intro.md` par le vault (PR #109),
+section « Le dépôt qui les porte en a aussi ».*
