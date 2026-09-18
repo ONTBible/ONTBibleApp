@@ -5596,3 +5596,86 @@ recouvrement sur 22), deux livres au même nom affiché (**0** parmi les cinq
 portait déjà pour la même double indexation — `Amos`, `Ruth`, `Esther` et
 `Daniel` s'écrivent pareil dans les deux langues, et « le jour où l'un d'eux
 sera traduit, il lui faudra une marque ».
+
+## 18 septembre 2026 — la vitrine dépendait de la machine, et personne ne pouvait le dire
+
+La chaîne du Mac vers l'App Store s'arrêtait à sa dernière marche : le build
+montait, il n'était jamais rattaché à une version ni soumis. En la montant à la
+main, quatre maillons ont manqué l'un après l'autre — et aucun n'était visible
+autrement qu'en la montant.
+
+    fiche.yml ne posait jamais PLATEFORME   un dispatch ne poussait que la fiche iOS
+    les captures dataient du 31 août        d'avant la refonte entière
+    la scène 1 suivait l'onglet restauré    la vitrine a montré Chuqqot, vide
+    la scène 4 visait une clé morte         « Terme non documenté » depuis le demi-anneau
+
+### Ce qui traverse, et c'est l'essentiel de la journée
+
+**La vitrine ne doit dépendre d'aucun état de la machine.** Trois correctifs
+séparés — `-tab bible` au lancement du Mac, la barre latérale imposée ouverte
+en mode capture, l'apparence forcée dans `serie()` côté iOS — disaient la même
+chose sans le savoir. La formule est de la session iOS, et elle va plus loin
+que la liste : ==le remède n'est pas de remettre chaque réglage, c'est
+d'effacer ce qui les porte==.
+
+**Mais l'énoncé portait une prémisse qu'il ne disait pas**, et elle ne traverse
+pas : « effacer » tient sur simulateur **parce que la machine y est jetable**.
+Sur le Mac, le même conteneur porte `lecteur.json` — les surlignages de
+l'auteur, ses notes, sa position. Le même geste y devient une destruction. Le
+Mac ferme donc la famille autrement : en **pointant le store ailleurs** plutôt
+qu'en effaçant. ==Un remède qui marche d'un côté et détruit de l'autre a l'air
+d'une cohérence, et c'est ce qui le rend dangereux.==
+
+**Et sa sœur, apprise sur la garde de campagne d'iOS** : un instrument qui
+mesure une propriété en croyant en mesurer une autre ne rougit jamais sur le
+cas réel. Celle-là refusait une luminance basse en croyant refuser un écran non
+rendu — donc elle rejetait un iPad sombre parfaitement rendu, et acceptait un
+aplat crème. Le thème de l'auteur étant sombre, **elle ne pouvait échouer que
+sur sa configuration à lui**.
+
+### La forme du jour, nommée par la session Android
+
+> Une métadonnée exacte qui répond à côté est plus dangereuse qu'une donnée
+> absente, parce qu'une absence se remarque et qu'une réponse à côté se lit
+> comme une réponse.
+
+Quatre fois en une journée, quatre instruments différents, et aucun n'a
+échoué — tous ont rendu une réponse bien formée :
+
+    une date de commit        → j'en ai déduit un CONTENU d'image (faux)
+    un « started 11s ago »    → j'en ai déduit un REDÉMARRAGE (c'était un renommage)
+    git merge --no-commit     → mon contrôle lisait git log, pas l'arbre de travail
+    la luminance moyenne      → la garde d'iOS croyait mesurer le rendu
+
+L'aggravant, sur le premier : **la conclusion tenait** — les captures étaient
+bien périmées. Une conclusion fausse se discute ; une preuve fausse se relit
+comme vérifiée, et voyage. Celle-ci avait atteint cinq messages et un énoncé
+gravé avant qu'iOS n'ouvre les images.
+
+### Ce qui est posé, et pour les trois dépôts
+
+- `scripts/eprouver-la-fraicheur-des-captures.sh`, lancé par `tests` à chaque
+  proposition, sur décision de l'auteur. **Grossier par choix** : il compare
+  deux dates que git tient de lui-même, ne déclare rien, donc ne peut pas
+  mentir. Un manifeste par scène serait précis, silencieux et falsifiable ;
+- l'énoncé qu'il tient est écrit dans `app/Captures/LISEZ-MOI.md`, avec ses
+  trois récidives datées. **Une garde sans énoncé est une règle orpheline** —
+  elle tient jusqu'au jour où quelqu'un la trouve bruyante et ne voit nulle
+  part pourquoi elle existe ;
+- `SourcesUpdater` nomme désormais ce qu'un fichier reçu a de faux, **avec ses
+  nombres** : l'écart tranche la cause là où le seul échec ne disait rien —
+  annoncés ≫ reçus est une troncature, annoncés ≪ reçus une génération
+  construite avec `ONT_PRETTY` armé. La mesure vient du vault, la garde du
+  pipeline reste à écrire dans son couloir ;
+- **le site** : rien à porter. **Le vault** : rien à porter — `pont-septante`
+  reste hors des manifestes, et trois barrières indépendantes l'ont confirmé,
+  mesurées et non crues. **Android** : rien à porter, il ne compile aucun
+  Xcode ; sa dette d'aiguillage JDK/SDK reste chez lui.
+
+### Ce qui attend l'auteur
+
+La fiche montre « Parashiot » côté Mac et « Chapitres » côté iPhone — ce n'est
+pas un défaut de fraîcheur mais le réglage « français reçu », hérité de la
+machine de capture. **La question est à lui**, elle porte sur les deux
+plateformes, et iOS la tient ; elle la posera avec les deux affiches et le coût
+de chaque réponse, qui n'est pas le même selon la plateforme.
