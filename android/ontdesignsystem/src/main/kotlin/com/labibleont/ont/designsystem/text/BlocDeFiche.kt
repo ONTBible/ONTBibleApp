@@ -113,15 +113,32 @@ public fun BlocDeFiche(
             // valaient `textSize * 1.1f` — et le brancher ici sans ce correctif
             // aurait cassé la seule chose qui marchait.
             //
-            // Les rapports reprennent l'échelle d'iOS, où les styles sont
-            // relatifs par construction : `title3` et `headline` en régime plein,
+            // Les rapports sont ceux d'iOS au chiffre près, relevés dans
+            // `BlocDeFiche.swift:86-93` : `title3` et `headline` en régime plein,
             // `subheadline` et `footnote` en resserré.
+            //
+            // ## Un titre resserré est plus petit que sa propre prose
+            //
+            // `0.88` et `0.76` sont bien **sous** le corps, et c'est délibéré. Ce
+            // qui tient ces titres n'est pas la taille — c'est le demi-gras et la
+            // couleur. La taille est cédée volontairement, parce qu'un `##` de
+            // fiche est déjà sous un en-tête de section : lui donner une taille de
+            // titre le ferait rivaliser avec le bloc qui le contient.
+            //
+            // **Le demi-gras et la couleur ne sont donc pas décoratifs : ils sont
+            // la moitié du mécanisme.** Les retirer ne rendrait pas le titre plus
+            // discret, il cesserait d'être un titre — une phrase en retrait.
+            //
+            // Le principe vient d'iOS et il est documenté là-bas. Il est remonté à
+            // l'auteur le 18 septembre 2026, parce qu'un titre plus petit que son
+            // corps dans une app dont l'auteur monte le curseur mérite qu'il l'ait
+            // vu. S'il le renverse, c'est l'échelle qui changera — pas le régime.
             fontSize = (
                 corps * when {
-                    titresPleins && bloc.level <= 2 -> 1.2f
-                    titresPleins -> 1.05f
-                    bloc.level <= 2 -> 0.9f
-                    else -> 0.8f
+                    titresPleins && bloc.level <= 2 -> 1.18f // title3   20/17
+                    titresPleins -> 1.00f // headline    17/17
+                    bloc.level <= 2 -> 0.88f // subheadline 15/17
+                    else -> 0.76f // footnote    13/17
                 }
                 ).sp,
             fontWeight = FontWeight.SemiBold,
