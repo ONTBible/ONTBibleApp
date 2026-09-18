@@ -6269,6 +6269,48 @@ Les deux se périment séparément, et aucun tableau n'affiche l'état du dépô
 voisin au moment où le contrôle a tourné. D'où la règle courte, qui est d'elle :
 ==un `fetch` met à jour ce qu'on voit, pas ce qu'on lit.==
 
+### Deux instruments justes peuvent couvrir le même angle
+
+Relevée par la session du vault le 18 septembre au soir, contre ==sa propre
+vérification et la mienne==, toutes deux exactes.
+
+Un agent Codex venait de commiter cinq fichiers qu'il avait laissés non commités
+dans l'arbre partagé. ==Deux sessions ont vérifié la sauvegarde== avant de
+laisser restaurer l'arbre : l'une par empreinte SHA-256, l'autre octet par
+octet. Les cinq fichiers identiques des deux côtés, deux fois.
+
+**Et les deux posaient la même question** — *le contenu du commit égale-t-il
+celui de l'arbre ?* Personne n'a posé l'autre : ==ce travail est-il durable ?==
+
+    ls-remote --heads origin <branche>     0
+    branch -r --contains <commit>          aucune
+    branch -a --contains <commit>          la branche locale, seule
+
+==Une branche locale, un seul disque, aucune copie serveur.== Mieux qu'un arbre
+sale — un commit ne s'efface pas par un `switch` — mais ce n'est pas ce que
+« sauvegardé » veut dire, et c'est ce que deux sessions lui avaient laissé
+croire.
+
+**Le motif, et il est plus utile que le cas :** ==on mesure ce qui vient d'être
+nommé==, parce que c'est la question fraîche, et non ce que la manœuvre engage
+vraiment.
+
+> ==Deux vérifications ne valent que si elles peuvent échouer pour des raisons
+> différentes.== Deux instruments justes qui couvrent le même angle laissent
+> l'autre entier.
+
+**Et c'est le même défaut que le 25 août par l'autre bout.** Ce jour-là, *trois
+instruments, trois fautes indépendantes, la même conclusion à chaque fois ; la
+concordance n'a rien prouvé*. Ici, deux instruments ==justes== qui concordent, et
+la concordance ne prouve pas davantage. ==Ce n'est donc pas la justesse des
+instruments qui est en cause, c'est qu'ils ne pouvaient pas se contredire.==
+
+**Le corollaire tient pour les sauvegardes comme pour les mesures.** Le filet
+gardé par la session qui avait alerté vivait dans `/tmp` — et le dépôt porte
+déjà la phrase qui le condamne : *« un redémarrage a purgé `/tmp` et emporté
+tous les fichiers de travail »*. ==Deux copies qui meurent ensemble ne font pas
+deux copies.==
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
