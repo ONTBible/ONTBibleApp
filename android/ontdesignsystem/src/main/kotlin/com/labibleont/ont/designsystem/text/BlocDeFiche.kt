@@ -142,7 +142,20 @@ public fun BlocDeFiche(
                 }
                 ).sp,
             fontWeight = FontWeight.SemiBold,
-            color = ONTColors.brandInk(theme),
+            // ## `accent`, et non `brandInk` — arbitrage iOS du 18 septembre 2026
+            //
+            // Les deux tokens sont identiques en sombre et **divergent en clair** :
+            // `accent` rend goldDeep, `brandInk` rend burgundy. iOS emploie
+            // `theme.accent` pour les trois — titre, puce de liste, barre de
+            // citation —, et son `ONTColors.swift` porte la phrase qui tranche :
+            // « pour de l'encre, ce rôle ; pour un accent doré, `accent(_:)` ».
+            //
+            // Un titre de fiche n'est pas de l'encre. C'est un accent, et c'est
+            // même l'essentiel de ce qui le tient : au régime resserré il est plus
+            // petit que sa prose, donc seuls le demi-gras et la couleur le
+            // distinguent. J'avais écrit `brandInk` par réflexe de marque — juste
+            // dans le principe, à un cran dans la teinte.
+            color = ONTColors.accent(theme),
             // Un titre est un en-tête pour TalkBack, sans quoi il se lit comme
             // une phrase de plus dans le flot.
             modifier = modifier
@@ -155,7 +168,7 @@ public fun BlocDeFiche(
         is Block.List -> Column(modifier = modifier.padding(bottom = 10.dp)) {
             for (item in bloc.items) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Text("·", color = ONTColors.brandInk(theme))
+                    Text("·", color = ONTColors.accent(theme))
                     Spacer(Modifier.width(8.dp))
                     Text(rendu(item))
                 }
@@ -166,7 +179,7 @@ public fun BlocDeFiche(
         is Block.Quote -> Row(modifier = modifier.padding(bottom = 10.dp)) {
             HorizontalDivider(
                 modifier = Modifier.width(2.dp).height(20.dp),
-                color = ONTColors.brandInk(theme).copy(alpha = 0.4f),
+                color = ONTColors.accent(theme).copy(alpha = 0.4f),
             )
             Spacer(Modifier.width(10.dp))
             Text(rendu(bloc.nodes), fontStyle = FontStyle.Italic)
