@@ -1449,9 +1449,36 @@ private struct FlowingVerses: View {
     }
 
     /// En combien de morceaux rendre ce bloc — calibré sur la hauteur mesurée.
+    /// **La hauteur visée par morceau, et pourquoi ce n'est plus le tampon.**
+    ///
+    /// Le premier découpage se calait sur `plafondDuTampon` — la limite de
+    /// rastérisation, 8192 px sur simulateur et **16384 sur un téléphone**. Le
+    /// même chapitre était donc coupé en six chez moi et en **trois** chez
+    /// l'auteur : il remettait en page deux fois plus de texte à chaque appui
+    /// que ce que je mesurais. Mes chiffres étaient justes et ne décrivaient
+    /// pas son app.
+    ///
+    /// Le tampon ne concerne que le moteur de rendu, et le moteur ne sert plus
+    /// ici : au-dessus de sa limite il ne dessine rien, et c'est justement le
+    /// cas de toute unité réelle. Ce qui décide de la taille d'un morceau est
+    /// donc le **coût de sa mise en page**, qui ne dépend d'aucune plateforme.
+    ///
+    /// 1 800 points, soit trois à quatre versets. Mesuré sur `bereshit-17` :
+    ///
+    /// ```text
+    /// une seule pièce     1 233 ms      aucune césure
+    /// morceaux de 2 300     805 ms      5 césures sur 27 versets
+    /// morceaux de   700     507 ms      ~20 césures — la prose suivie n'existe plus
+    /// ```
+    ///
+    /// Le choix n'est pas technique : un morceau plus petit est plus rapide et
+    /// coupe la prose plus souvent. 1 800 garde la lecture suivie lisible —
+    /// une césure tous les trois ou quatre versets se lit comme un paragraphe.
+    private static let hauteurVisee: CGFloat = 1_800
+
     private var morceaux: Int {
-        guard hauteur > plafondDuTampon, plafondDuTampon > 0 else { return 1 }
-        return Int((hauteur / plafondDuTampon).rounded(.up))
+        guard hauteur > Self.hauteurVisee else { return 1 }
+        return Int((hauteur / Self.hauteurVisee).rounded(.up))
     }
 
     /// Les versets répartis en morceaux d'égale hauteur, au prorata des signes.
