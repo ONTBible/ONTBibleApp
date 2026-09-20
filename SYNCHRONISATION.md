@@ -5866,3 +5866,85 @@ Chroniques, le mot ne s'allume pas quand on le touche »*.
 
 D'où le signal, qui se lit après coup et ne trompe pas : **quand il délègue au
 lieu de trancher, c'est presque toujours la question qui était mal posée.**
+## 18 septembre 2026 au soir — trois défauts trouvés en mesurant autre chose
+
+Le chantier visait à décrire une divergence : `ShemSheet` gardait son rendu de
+blocs propre, là où `TermSheet` et `PrononciationSheet` employaient le composant
+partagé. Il fallait dire pourquoi, pour que la session iOS arbitre.
+
+**Aucun des trois défauts trouvés n'était celui qu'on cherchait.**
+
+### Les titres de fiche ne suivaient pas le réglage du lecteur
+
+`BlocDeFiche` fixait ses corps en points — 20, 17, 15, 13 sp — quand le corps
+d'une fiche suit `preferences.textSize`.
+
+    curseur à 16    titre plein 20  >  corps 16     juste
+    curseur à 22    titre plein 20  <  corps 22     le titre passe SOUS son texte
+    curseur à 26    titre plein 20  <  corps 26
+
+==Ce n'est pas un réglage d'esthétique : c'est le curseur que monte celui qui
+voit mal.== Le défaut frappait exactement qui en dépend le plus, et il était
+**invisible au réglage par défaut** — la seule position où personne n'en a
+besoin.
+
+La cause était dans la signature : `BlocDeFiche` recevait `showGloss` et
+`showLevel3`, deux booléens extraits de `ReadingPreferences`. Il lui manquait
+`textSize`, et rien ne le disait. **Passer un objet par ses parties fait qu'on
+oublie celle qu'on n'a pas encore employée.**
+
+### La teinte était à un cran
+
+    accent     sombre : gold   ·  clair : goldDeep
+    brandInk   sombre : gold   ·  clair : burgundy
+
+Android rendait ses titres de fiche en bordeaux là où iOS les rend en or sombre.
+**L'écart ne se voyait pas en thème sombre** — celui de l'auteur. La moitié des
+cas où personne ne pouvait le remarquer.
+
+Et la teinte n'est pas une finition ici : au régime resserré, le titre est plus
+petit que sa prose, donc **seuls le demi-gras et la couleur le tiennent**.
+
+### La chaîne Android n'avait aucun script
+
+Le dépôt porte `lancer-sur-iphone.sh` et `lancer-sur-le-mac.sh`. Android n'avait
+rien, et deux pannes de machine tuaient `./gradlew` **avant** qu'il démarre :
+`jenv` réclamant un JDK absent, et `local.properties` manquant d'un arbre neuf.
+Aucune ne ressemble à sa cause.
+
+`scripts/gradle-de-la-chaine.sh` est le pendant de `xcode-de-la-chaine.sh` —
+même forme, mêmes replis, et il vise **temurin-21** parce que c'est ce que la CI
+emploie. `scripts/lancer-sur-android.sh` le source.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `BlocDeFiche` rend les cinq formes de blocs que le vault
+autorise, avec des tailles dérivées du réglage ; les trois feuilles s'y branchent
+(#307, #316). Deux scripts neufs dans `scripts/` (#320).
+
+**ONTBibleTranslation** — rien à changer. Mais la décision du 30 août qui
+autorise listes, citations et filets dans les fiches est désormais **tenue par du
+code** côté Android, et plus seulement déclarée.
+
+**ONTBibleWebapp** — le site rend des fiches lui aussi. Deux questions qu'il est
+seul à pouvoir trancher : ses titres de fiche suivent-ils le réglage de taille du
+lecteur, et emploie-t-il l'accent doré plutôt que l'encre de marque ?
+
+### Le motif de la journée
+
+Cinq instruments ont rendu un résultat exact pour une question qu'ils ne posaient
+pas : un `grep` mesurant « lancé en une ligne » et non « lancé », un `cd` vers un
+worktree démonté qui a échoué en silence, un `cargo test` dont le « 0 passed »
+était le dernier crate, un `class BlocDeFiche` cherchant une classe là où il y a
+une fonction, et un sourcing derrière un `| sed` — donc dans un sous-shell où les
+exports meurent.
+
+> ==Une métadonnée exacte qui répond à côté est plus dangereuse qu'une donnée
+> absente, parce qu'une absence se remarque et qu'une réponse à côté se lit comme
+> une réponse.==
+
+Et sa forme la plus coûteuse, payée le même jour : `herdr workspace close` sur un
+espace vérifié vide a emporté un autre espace et ses trois onglets. Les trois
+mesures faites avant étaient justes — elles portaient sur **la cible**, quand la
+question était **l'effet**. Rien n'a été perdu : les worktrees étaient intacts,
+les sessions reprises depuis leurs transcripts.
