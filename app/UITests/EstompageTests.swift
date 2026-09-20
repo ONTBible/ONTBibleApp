@@ -56,6 +56,29 @@ final class EstompageTests: XCTestCase {
         return Double(franche.count) / Double(encre.count)
     }
 
+    /// **La part de la page qui porte de l'encre**, franche ou baissée.
+    ///
+    /// L'autre mesure dit « ce texte est-il plein ou baissé ». Celle-ci dit
+    /// « y a-t-il du texte ». Sans elle, perdre le dessin du moteur — ce qui
+    /// blanchit la page — se lit comme un estompage parfait.
+    private func quantiteDEncre() -> Double {
+        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return -1 }
+        let l = image.width, h = image.height
+        var octets = [UInt8](repeating: 0, count: l * h)
+        guard let ctx = CGContext(data: &octets, width: l, height: h, bitsPerComponent: 8,
+                                  bytesPerRow: l, space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: 0) else { return -1 }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: l, height: h))
+        var e: [Int] = []
+        for y in stride(from: Int(Double(h) * 0.20), to: Int(Double(h) * 0.50), by: 2) {
+            for x in stride(from: Int(Double(l) * 0.06), to: Int(Double(l) * 0.94), by: 2) {
+                e.append(Int(octets[y * l + x]))
+            }
+        }
+        let fond = e.sorted()[e.count / 2]
+        return Double(e.filter { abs($0 - fond) > 25 }.count) / Double(e.count)
+    }
+
     /// Sans sélection, la page est à pleine encre.
     /// Avec, l'essentiel doit être baissé.
     func testDesignerUnVersetBaisseLeReste() {
@@ -83,7 +106,21 @@ final class EstompageTests: XCTestCase {
         let designee = partDEncreFranche()
         print("ONT-ESTOMPE part franche : sans selection \(pleine), voisins avec \(designee)")
 
+        // **Une page vide passerait tous les seuils qui suivent.**
+        //
+        // Le 20 septembre, un correctif a fait perdre son dessin au moteur : la
+        // page est devenue blanche, et cette épreuve a rendu 0,019 contre
+        // 0,778 — donc « vert », puisqu'elle ne demandait qu'une baisse. Le
+        // `-0.5` ci-dessous n'attrape que l'absence totale de mesure, pas une
+        // page qui s'est vidée de son texte en gardant son fond.
+        //
+        // On compte donc l'encre elle-même, et pas seulement sa part franche.
         XCTAssertGreaterThan(designee, -0.5, "la page s'est vidée en désignant un verset")
+        XCTAssertGreaterThan(
+            quantiteDEncre(), 0.02,
+            "la page ne porte presque plus d'encre : le texte a disparu, et une "
+            + "page blanche satisferait tous les seuils de cette épreuve"
+        )
         XCTAssertLessThan(
             designee, pleine * 0.6,
             "le reste de la page n'est pas baissé — part d'encre franche \(pleine) puis \(designee)"
