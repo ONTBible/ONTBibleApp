@@ -79,13 +79,49 @@ final class EstompageTests: XCTestCase {
         return Double(e.filter { abs($0 - fond) > 25 }.count) / Double(e.count)
     }
 
+    /// **Attendre que la page porte de l'encre, au lieu de compter jusqu'à
+    /// quatre.**
+    ///
+    /// L'épreuve dormait quatre secondes puis mesurait. Après une installation
+    /// neuve, l'app analyse le corpus à son premier lancement et la page n'est
+    /// pas encore peinte : la mesure rendait alors **0,004** au lieu de 0,9, et
+    /// l'épreuve rougissait pour une raison qui n'a rien à voir avec ce qu'elle
+    /// garde.
+    ///
+    /// Elle m'a trompée dans les deux sens le 20 septembre : rouge sur un
+    /// correctif juste, verte sur une page blanche. Un délai fixe mesure la
+    /// patience de qui l'a écrit, pas l'état de la page.
+    /// **Stable, et pas seulement non vide.**
+    ///
+    /// Un premier jet rendait la main dès qu'un peu d'encre paraissait. La page
+    /// n'était alors qu'à moitié peinte — 0,21 au lieu de 0,90 — et l'épreuve
+    /// comparait deux états de peinture au lieu de deux états de sélection.
+    /// « Il y a de l'encre » n'est pas « la page est prête ».
+    @discardableResult
+    private func attendreQueLaPagePorteDeLEncre(_ limite: TimeInterval = 30) -> Bool {
+        let fin = Date().addingTimeInterval(limite)
+        var precedent = -1.0
+        while Date() < fin {
+            let mesure = quantiteDEncre()
+            // Deux relevés identiques à un centième près, et de l'encre : la
+            // page ne bouge plus.
+            if mesure > 0.05, abs(mesure - precedent) < 0.01 { return true }
+            precedent = mesure
+            Thread.sleep(forTimeInterval: 0.6)
+        }
+        return false
+    }
+
     /// Sans sélection, la page est à pleine encre.
     /// Avec, l'essentiel doit être baissé.
     func testDesignerUnVersetBaisseLeReste() {
         // Bereshit 19 : ses sections dépassent le plafond du simulateur, et
         // c'est exactement là que la parade se voyait.
         app.open(URL(string: "ont://read/bereshit/bereshit-19")!)
-        Thread.sleep(forTimeInterval: 4)
+        XCTAssertTrue(
+            attendreQueLaPagePorteDeLEncre(),
+            "la page n'a jamais porté d'encre — rien à mesurer"
+        )
         let pleine = partDEncreFranche()
         XCTAssertGreaterThan(pleine, 0, "page de départ illisible")
 

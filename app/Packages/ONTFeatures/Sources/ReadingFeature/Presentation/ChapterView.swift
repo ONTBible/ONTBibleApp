@@ -1448,6 +1448,36 @@ private struct FlowingVerses: View {
         !selection.isEmpty && hauteur > 0 && hauteur <= plafondDuTampon
     }
 
+    /// En combien de morceaux rendre ce bloc — calibré sur la hauteur mesurée.
+    private var morceaux: Int {
+        guard hauteur > plafondDuTampon, plafondDuTampon > 0 else { return 1 }
+        return Int((hauteur / plafondDuTampon).rounded(.up))
+    }
+
+    /// Les versets répartis en morceaux d'égale hauteur, au prorata des signes.
+    private var versetsParMorceau: [[Verse]] {
+        let n = morceaux
+        guard n > 1 else { return [verses] }
+        let poids = parts.map(\.part)
+        let total = poids.reduce(0, +)
+        guard total > 0 else { return [verses] }
+        let cible = total / CGFloat(n)
+        var groupes: [[Verse]] = []
+        var courant: [Verse] = []
+        var cumul: CGFloat = 0
+        for (i, verse) in verses.enumerated() {
+            courant.append(verse)
+            cumul += poids[i]
+            if cumul >= cible, groupes.count < n - 1 {
+                groupes.append(courant)
+                courant = []
+                cumul = 0
+            }
+        }
+        if !courant.isEmpty { groupes.append(courant) }
+        return groupes
+    }
+
     /// Les surlignages de ce bloc, relevés une fois.
     ///
     /// En table plutôt qu'en fermeture : une fermeture n'est pas comparable,
@@ -1462,17 +1492,19 @@ private struct FlowingVerses: View {
     }
 
     var body: some View {
-        Prose(
-            verses: verses,
-            theme: theme,
-            surlignages: surlignages,
-            // Le moteur d'abord ; les attributs seulement s'il ne peut pas.
-            designation: peutEstomper || selection.isEmpty ? nil : selectionLocale
-        )
-        // `.equatable()` protège la **composition**. Le texte ne dépendant plus
-        // de la sélection, ce corps n'est plus réévalué pour un appui — et la
-        // mise en page du bloc a donc lieu une seule fois, à son apparition.
-        .equatable()
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(versetsParMorceau.enumerated()), id: \.offset) { _, groupe in
+                Prose(
+                    verses: groupe,
+                    theme: theme,
+                    surlignages: surlignages,
+                    designation: peutEstomper || selection.isEmpty
+                        ? nil
+                        : selection.intersection(groupe.map(\.n))
+                )
+                .equatable()
+            }
+        }
         // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
         // ici : on lit la hauteur du doigt et on la convertit avec la même
         // répartition que le repérage du défilement.
