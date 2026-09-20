@@ -5680,6 +5680,192 @@ machine de capture. **La question est à lui**, elle porte sur les deux
 plateformes, et iOS la tient ; elle la posera avec les deux affiches et le coût
 de chaque réponse, qui n'est pas le même selon la plateforme.
 
+## 18 septembre 2026 — trois instruments ont rendu une réponse bien formée et fausse
+
+Aucun n'a échoué. Une garde a refusé une capture parfaite, un compte a annoncé
+2 876 mots cassés qui n'existaient pas, un manifeste a promis une empreinte
+qu'aucun fichier ne portait. Les trois ont rendu un résultat propre, et c'est
+ce qui les rend difficiles : **ils ressemblent à du travail fait.**
+
+On ne les attrape pas en mettant plus de soin dans le même geste. Il faut une
+contradiction — quelqu'un qui regarde l'image, quelqu'un qui compte autrement,
+quelqu'un qui relit le fichier.
+
+### Le compte que quatre phrases affirmaient
+
+La vitrine de l'App Store annonçait « **Trois livres sur soixante-dix** ». Il y
+en a cinq depuis le 11 septembre. Le nombre était écrit à la main à quatre
+endroits — `fiche.py`, `soumettre.py` deux fois dont la note au relecteur
+d'Apple, et `vitrine.py`, qui le grave dans l'affiche.
+
+L'ironie est dans la phrase elle-même :
+
+> Le compte est public, et il est tenu par le corpus lui-même.
+
+Il l'était partout sauf là où on l'annonçait.
+
+Corriger les quatre phrases aurait rendu le nombre juste jusqu'au sixième
+livre. `scripts/compte_du_corpus.py` leur **retire le droit de le dire** : il
+lit `corpus.json` et compte les livres dont le drapeau `empty` est faux — le
+même drapeau que la liseuse emploie pour décider si une ligne du sommaire est
+cliquable. Compter autrement ferait diverger la vitrine de ce que le lecteur
+voit.
+
+### La garde qui mesurait le thème en croyant mesurer le rendu
+
+La campagne de captures s'est arrêtée sur `ipad-13/01.png ✗ ÉCRAN NOIR`.
+
+La capture était **parfaitement rendue**. En thème sombre : luminance moyenne
+22,2, pour un seuil qui exigeait 100.
+
+La garde croyait vérifier qu'une app avait fini de charger. Elle vérifiait que
+le fond était clair — et le thème sombre est celui que l'auteur emploie. **Elle
+ne pouvait rougir que sur la configuration réelle.**
+
+Elle compare désormais l'écart-type : un écran vide est uniforme quelle que
+soit sa couleur, un écran rendu porte du texte, des cartes, des bords.
+Éprouvée contre quatre cas, dont deux qu'elle doit refuser :
+
+    iPad sombre, rendu     contraste  18,2   accepté
+    aplat noir             contraste   0,0   refusé
+    aplat crème            contraste   0,0   refusé
+    affiche en place       contraste 105,9   accepté
+
+Le troisième est celui qui compte : l'ancienne garde acceptait un aplat crème
+sans broncher. **Elle ne pouvait pas rougir sur un écran vide clair.**
+
+### Et la vitrine dépendait encore de la machine, trois fois
+
+Le récit et ce qu'il engage pour les trois dépôts sont dans l'entrée voisine
+de la session macOS — « la vitrine dépendait de la machine, et personne ne
+pouvait le dire ». Trois correctifs séparés y disaient la même chose sans le
+savoir, et l'énoncé qui en sort porte sa prémisse, sans laquelle il devient un
+remède destructeur sur l'autre plateforme.
+
+Ce qui reste ici est l'instrument, pas la vitrine : la garde ci-dessus et
+celle du manifeste ci-dessous sont deux mesures qui répondaient à côté.
+
+### Le manifeste pouvait mentir, et ne mentait qu'en silence
+
+`sources.rs` calculait taille et empreinte avec `to_string` — toujours compact
+— pendant que `build.rs` écrivait par `write_json`, qui honore `ONT_PRETTY`.
+Sous ce réglage, le manifeste annonçait une taille et une empreinte **compactes
+pour un fichier indenté** : les deux fausses ensemble, et d'accord entre elles.
+
+    sources/he-wlc/bereshit.json  annoncé 547 237 octets, écrit 1 079 723
+                                  empreinte 1bb38bf2…, réelle afadf577…
+
+Le commentaire de `write_json` disait déjà « la sortie indentée ne doit jamais
+être livrée ». Il interdisait, et rien n'empêchait.
+
+Deux moitiés, parce que la cause et la famille ne se ferment pas pareil :
+
+- **la cause** — `corps_json` est la seule source d'octets, et les deux lecteurs
+  la partagent. La divergence devient impossible au lieu d'être déconseillée ;
+  c'est le geste de `Translitterations::table_sure`, pour la troisième fois ;
+- **la famille** — `confronter_le_manifeste` relit `dist/` après l'écriture et
+  oppose à chaque promesse le fichier qui la porte. Jusqu'ici `sha256` n'était
+  appelé que pour **composer** la promesse, jamais pour la vérifier.
+
+La taille est vérifiée avant l'empreinte parce qu'elle **nomme la cause** :
+annoncés ≪ reçus, c'est une sortie indentée ; annoncés ≫ reçus, une écriture
+tronquée. L'empreinte seule dirait « ce n'est pas le même fichier » et
+enverrait chercher partout. Le diagnostic vient de la session macOS, dont le
+`SourcesUpdater` refusait la génération entière sans que rien ne dise pourquoi
+côté publication.
+
+### Mon propre faux, et il est le plus instructif des trois
+
+J'ai annoncé **2 876 mots touchables cassés** par la migration des demi-anneaux.
+
+Le texte porte deux espèces de nœuds : `term` pour un intraduisible, `shem`
+pour un nom propre. Ils se résolvent sur **deux index différents** —
+`glossary.json` et `shemot.json`. J'ai jugé les noms propres sur le glossaire,
+où ils n'ont jamais eu à être.
+
+    term   3 743 mots · 126 lemmes   tous résolus
+    shem   2 874 mots · 216 lemmes   tous résolus
+
+Zéro mot cassé, avant comme après. Le « Terme non documenté » qu'avait vu la
+session macOS venait d'une **URL écrite à la main dans un script de captures**,
+pas d'une clé morte du corpus.
+
+> Mesurer contre le mauvais référentiel produit exactement le même faux que ne
+> pas mesurer du tout, et c'est moins visible : on a un chiffre.
+
+### Ce que l'arbitrage du vault a rendu
+
+L'entrée du 16 septembre finissait par une demande : que `roʿeh` déclare le
+numéro que le témoin emploie pour le voyant. C'est fait, et mesuré au build :
+
+    16 septembre   240 mots choisis par l'ordre d'insertion,  45 inertes
+    18 septembre     0 choisi par l'ordre,                    11 inertes
+
+Trois sessions y ont travaillé. Les langues sources ont relevé que le témoin
+écrit **`7203 a`**, jamais `7203` nu — une fiche portant le numéro sans sa
+lettre n'aurait rien joint **et** n'aurait pas résolu la collision. Et une
+épreuve montre que la forme « une fiche, deux numéros », juste pour `moreh`,
+aurait ici **coûté les quarante mots** : tant que 7200 garde deux prétendantes,
+l'arbitrage rejoue.
+
+Restent cinq emplois du titre en Chroniques, inertes sous toutes les options :
+le témoin les range sous 7200 en les étiquetant *noms*, là où il range 1 Samuel
+sous 7203 a en les étiquetant *participes*. **L'étiquette morphologique dit
+l'inverse du numéro**, de façon régulière. Les langues sources l'ont déclaré
+dans `sources/README.md` plutôt que de corriger l'OSHB : `MANIFEST.json` engage
+le commit amont, et un dépôt qui livre autre chose que ce qu'il déclare ment
+sur sa provenance avant de mentir sur son contenu.
+
+### Ce que ça change pour chaque dépôt
+
+- **ONTBibleApp** — aucune forme JSON ne change. `corps_json` et
+  `confronter_le_manifeste` sont internes au pipeline ; la vitrine et les
+  captures ne touchent que `scripts/` et `.github/scripts/`. Le corpus embarqué
+  est régénéré et capte les arbitrages du vault de la journée.
+- **Android** — `BlocDeFiche` passe de `brandInk` à `accent`, et `ShemSheet`
+  adopte le régime resserré à deux crans. L'écart ne se voyait **pas en thème
+  sombre**, celui de l'auteur : invisible exactement là où on regarde. Les
+  rapports au corps remplacent des tailles fixes, qui passaient sous la prose
+  dès que le lecteur montait le curseur — le défaut frappait précisément qui en
+  dépend le plus.
+- **Le site** — rien à porter, mais il sert un corpus d'avant la migration
+  parce que `deployer.yml` sort ce dépôt à `ref: dev` et que `device` n'y est
+  pas encore promu. Les 404 sur les clés neuves viennent de là, pas de
+  l'encodage : les clés neuves **sans** demi-anneau rendent 404 aussi.
+- **ONTBibleTranslation** — rien à faire, l'arbitrage est fusionné.
+
+### Et une quatrième, une heure après avoir écrit les trois
+
+Une session cartographiait la flotte et m'a demandé mon identifiant dans
+l'outil qui la pilote. J'ai répondu ne pas le voir, et j'ai argumenté :
+« la carte ne peut pas être durable si elle repose sur un champ que l'agent
+lui-même ne peut pas lire ».
+
+Elle m'a demandé de lancer `env | grep HERDR` plutôt que de répondre. Les six
+variables étaient là.
+
+J'avais regardé ce que mon contexte me donne, je n'y avais pas trouvé
+l'étiquette, et j'en avais conclu qu'elle n'existait pas. **Une absence dans ce
+qu'on voit n'est pas une absence.** La réponse était bien tournée, cohérente,
+et fausse — la même espèce que les trois autres, une heure après les avoir
+décrites.
+
+Rien dans cette réponse ne clochait de l'intérieur. Il a fallu que quelqu'un
+demande la commande au lieu de la réponse.
+
+### Une règle sur les questions, qui n'est pas une règle de style
+
+Une session a soumis l'arbitrage à l'auteur en écrivant `d/7200` contre
+`d/7203 a` et des codes morphologiques. Réponse : « j'ai rien compris mais
+demande au vault de s'en occuper ». Le sélecteur était bien employé ; c'est son
+**contenu** qui était inatteignable, et l'auteur a délégué une décision qui
+était la sienne.
+
+La même question posée autrement se tranchait seule : *« cinq fois dans les
+Chroniques, le mot ne s'allume pas quand on le touche »*.
+
+D'où le signal, qui se lit après coup et ne trompe pas : **quand il délègue au
+lieu de trancher, c'est presque toujours la question qui était mal posée.**
 ## 18 septembre 2026 au soir — trois défauts trouvés en mesurant autre chose
 
 Le chantier visait à décrire une divergence : `ShemSheet` gardait son rendu de
