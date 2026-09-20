@@ -1043,6 +1043,30 @@ pub struct ShemEntry {
     pub title: String,
     /// Le corps de la fiche, titres de section compris.
     pub definition: Vec<Block>,
+    /// **Le numéro de Strong que la fiche déclare**, quand elle le déclare.
+    ///
+    /// Écrit dans la section `## Source` du vault — **178 des 220 fiches de
+    /// Shem publiées** la portent — et personne ne le recevait : ce champ
+    /// n'existait pas, donc le numéro s'arrêtait au pipeline. Sur *Bereshit*,
+    /// **562 noms propres de plus** ouvrent leur fiche depuis qu'il existe.
+    ///
+    /// (Un premier relevé annonçait 119, mesuré par une expression régulière
+    /// plus stricte que le lecteur du pipeline. Le chiffre ci-dessus est celui
+    /// du corpus émis, qui est le seul qui décide.)
+    ///
+    /// C'est la troisième fois que ce dépôt trouve cette forme — après les
+    /// `## Formes` (164 écrites, zéro effet) et la `## Source` des entrées de
+    /// glossaire (216 écrites, personne ne les lisait). Elle se reconnaît au
+    /// même signe : **une donnée que l'auteur écrit et qu'aucun lecteur n'a
+    /// appris à lire.**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strong: Option<String>,
+    /// La forme absolue en hébreu, du même `## Source`.
+    ///
+    /// Sert la jointure quand le numéro manque ou qu'il est disputé, comme
+    /// pour les entrées de glossaire.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hebrew: Option<String>,
 }
 
 /// `dist/shemot.json` — les fiches des noms propres.
