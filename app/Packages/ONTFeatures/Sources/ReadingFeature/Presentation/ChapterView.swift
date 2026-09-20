@@ -1283,6 +1283,14 @@ private struct Prose: View, Equatable {
     let verses: [Verse]
     let theme: ONTTheme
     let surlignages: [Int: Color]
+    /// Les versets désignés, **et seulement quand le moteur ne peut pas les
+    /// dessiner** — un bloc trop haut pour un tampon de rendu.
+    ///
+    /// `nil` est le cas courant : le moteur s'en charge, la composition reste
+    /// stable, et cette vue se saute. Non-`nil`, elle entre dans la
+    /// comparaison ci-dessous, donc la composition se refait — c'est le prix
+    /// du repli, et il ne se paie que là où l'autre chemin ne marche pas.
+    let designation: Set<Int>?
 
     /// Les versets ne sont **pas** comparés en profondeur.
     ///
@@ -1298,13 +1306,18 @@ private struct Prose: View, Equatable {
             && a.verses.count == b.verses.count
             && a.surlignages == b.surlignages
             && a.theme == b.theme
+            // **Sans cette ligne, le repli ne s'afficherait jamais.** La vue
+            // est sautée quand elle se compare égale, et changer de sélection
+            // ne changerait alors rien à l'écran — le défaut même qu'on répare.
+            && a.designation == b.designation
     }
 
     var body: some View {
         ONTTextRenderer.flowingText(
             verses: verses,
             theme: theme,
-            highlight: { surlignages[$0] }
+            highlight: { surlignages[$0] },
+            designation: designation
         )
         .lineSpacing(theme.lineSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1418,6 +1431,19 @@ private struct FlowingVerses: View {
         ONTTampon.plafondEnPoints(echelle: echelleDeLEcran)
     }
 
+    /// **Le moteur ne se pose que s'il tient dans un tampon**, et c'est
+    /// presque jamais : mesuré à **13 960 pt** pour *Bereshit* 17 contre un
+    /// plafond de 2 594 (simulateur) ou 5 188 (appareil).
+    ///
+    /// La lecture suivie ne fabrique pas un bloc par paragraphe : elle fabrique
+    /// **un seul `Text` par unité**. Le commentaire d'origine parlait de blocs
+    /// de 2 878 à 4 042 pt — c'était avant que les sections ne fusionnent.
+    /// Depuis, la condition est fausse pour tout chapitre réel, et le voile
+    /// comme le pointillé avaient disparu sans que rien ne le dise.
+    ///
+    /// On garde la condition : quand elle est vraie, le moteur repeint sans
+    /// remettre en page, et c'est mieux. Quand elle est fausse, `Prose` pose
+    /// les mêmes marques en attributs — voir son paramètre `designation`.
     private var peutEstomper: Bool {
         !selection.isEmpty && hauteur > 0 && hauteur <= plafondDuTampon
     }
@@ -1439,7 +1465,9 @@ private struct FlowingVerses: View {
         Prose(
             verses: verses,
             theme: theme,
-            surlignages: surlignages
+            surlignages: surlignages,
+            // Le moteur d'abord ; les attributs seulement s'il ne peut pas.
+            designation: peutEstomper || selection.isEmpty ? nil : selectionLocale
         )
         // `.equatable()` protège la **composition**. Le texte ne dépendant plus
         // de la sélection, ce corps n'est plus réévalué pour un appui — et la
