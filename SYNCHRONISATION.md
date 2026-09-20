@@ -6093,6 +6093,38 @@ Ce qui est interdit, c'est de rustiner ==sans être remonté==. Un correctif qui
 n'est rattaché à aucun énoncé est ==une règle orpheline==, et le projet en a
 déjà payé plusieurs.
 
+### On ne le sait qu'après — et c'est ce qui rend la consigne difficile
+
+Relevé par la session Android le jour même, et il manquait :
+
+> ==On ne sait qu'un défaut est une manifestation qu'après être remonté.==
+> Avant, il a exactement l'air d'un accident local.
+
+**Son cas.** En mesurant ce que faisait sa feuille d'un **Shem** — pour pouvoir
+seulement la *décrire* à une session voisine —, elle a vu que ses titres étaient
+==fixes en points== alors que le corps suit le réglage du lecteur. Au curseur
+haut, ==un titre passait sous son propre texte==.
+
+Deux choses en sortent, et la seconde est la plus grave :
+
+- ==le défaut ne se voyait pas au réglage par défaut== — la seule position où
+  personne n'en a besoin ;
+- il frappait ==exactement qui monte le curseur==, c'est-à-dire l'auteur.
+
+**L'énoncé contredit n'était pas une règle d'interface.** C'était que ==l'app se
+lit avec le curseur monté== — un invariant d'accessibilité, pas de typographie.
+Le titre trop petit n'en était qu'une manifestation.
+
+**D'où la conséquence de méthode, qui corrige les deux gestes sans les annuler.**
+On ne peut pas trier les défauts en « accidents » et « manifestations » avant de
+remonter : ==le tri est le résultat du remontage, pas son critère d'entrée==.
+Elle n'aurait pas trouvé en cherchant un défaut de titre ; elle l'a trouvé en
+cherchant ==d'où venait une divergence==.
+
+Donc la règle s'applique ==à tout défaut==, y compris — et surtout — à ceux qui
+ont l'air anodins. ==Le remontage n'est pas une sévérité supplémentaire, c'est
+un autre geste.==
+
 ### Le même défaut ne se reconnaît pas quand il change d'échelle
 
 Relevé par la session des langues sources, le même jour, sur elle-même :
