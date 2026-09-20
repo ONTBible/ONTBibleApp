@@ -82,7 +82,22 @@ struct DailyVerseWidgetView: View {
     }
 
     private var taille: ONTDailyCard<AnyView>.Size {
-        switch family {
+        // **La quatrième famille prend la plus grande typographie, pas une
+        // quatrième.**
+        //
+        // Les trois tailles de `ONTDailyCard` ont été **mesurées au pixel**
+        // contre la carte de YouVersion, hauteur d'x contre hauteur d'x. En
+        // inventer une quatrième pour `systemExtraLargePortrait` reviendrait à
+        // poser des nombres que personne n'a mesurés, dans le fichier qui dit
+        // en toutes lettres d'où viennent les siens.
+        //
+        // `.large` est donc juste, et perfectible : la carte est plus haute,
+        // son texte pourrait l'être aussi. Ça demande la même mesure que les
+        // trois autres ont reçue, sur une capture de la vraie famille.
+        if #available(iOS 27.0, *), family == .systemExtraLargePortrait {
+            return .large
+        }
+        return switch family {
         case .systemSmall: .small
         case .systemLarge: .large
         default: .medium
@@ -91,13 +106,28 @@ struct DailyVerseWidgetView: View {
 }
 
 struct DailyVerseWidget: Widget {
+    /// **Les tailles que le lecteur peut choisir**, celle d'iOS 27 comprise.
+    ///
+    /// `systemExtraLargePortrait` est arrivée avec iOS 27 — le SDK la déclare
+    /// `@available(iOS 27.0, *)`. L'app vise iOS 18, donc la liste se compose
+    /// à l'exécution : l'écrire en dur ne compilerait pas, et la taire
+    /// laisserait la quatrième case grisée dans le choix du lecteur, ce que
+    /// l'auteur a vu sur son écran avant que personne ne le mesure.
+    private var famillesOffertes: [WidgetFamily] {
+        var familles: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge]
+        if #available(iOS 27.0, *) {
+            familles.append(.systemExtraLargePortrait)
+        }
+        return familles
+    }
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ONTDailyVerse", provider: DailyVerseProvider()) { entry in
             DailyVerseWidgetView(entry: entry)
         }
         .configurationDisplayName("Verset du jour")
         .description("Un verset de La Bible ONT, renouvelé chaque jour.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies(famillesOffertes)
     }
 }
 
