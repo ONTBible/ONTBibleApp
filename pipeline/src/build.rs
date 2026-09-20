@@ -1062,6 +1062,11 @@ pub fn build() -> Result<BuildResult, String> {
                 lemma: lemme.clone(),
                 title: fiche.titre.clone(),
                 definition: fiche.blocs.clone(),
+                // **La Source traverse jusqu'à l'entrée émise.** Elle s'arrêtait
+                // ici : le vault l'écrit dans 119 fiches de Shem, et le champ
+                // n'existait pas pour la porter.
+                strong: fiche.source.as_ref().map(|s| s.strong.clone()),
+                hebrew: fiche.source.as_ref().map(|s| s.hebreu.clone()),
             })
         })
         .collect();
@@ -1330,30 +1335,50 @@ pub fn build() -> Result<BuildResult, String> {
     // `sources`, parce que c'est ici que le glossaire existe. Le module des
     // sources n'a pas à savoir d'où viennent les fiches — il reçoit une table
     // et s'en sert.
-    let mut liaison = crate::sources::LiaisonDesMots::nouvelle(glossary.iter().map(|e| {
-        crate::sources::FichePourLaJointure {
-            lemme: e.lemma.as_str(),
-            // **`hebreu_de_la_fiche` en repli, et les deux champs ne disent
-            // pas la même chose.**
+    let mut liaison = crate::sources::LiaisonDesMots::nouvelle(
+        glossary
+            .iter()
+            .map(|e| {
+                crate::sources::FichePourLaJointure {
+                    lemme: e.lemma.as_str(),
+                    // **`hebreu_de_la_fiche` en repli, et les deux champs ne disent
+                    // pas la même chose.**
+                    //
+                    // `hebrew` vient de la puce du §2.5, entre parenthèses ; celle-ci
+                    // vient de la section `## Source` de la fiche. La puce de **YHWH
+                    // est volontairement nue**, le §7 réservant son traitement — donc
+                    // le nom divin n'avait aucune forme à comparer, et l'arbitre le
+                    // laissait inerte.
+                    //
+                    // Mesuré : 14 fiches sur 158 sont dans ce cas, dont `yhwh` et
+                    // `yhwh-elohim`, et à elles deux elles portaient **95 des 144 mots
+                    // inertes** de Bereshit. J'allais demander au vault d'écrire ce
+                    // qu'il avait déjà écrit, sous un autre nom de champ — c'est la
+                    // session du vault qui l'a relevé.
+                    //
+                    // Le §3 d'abord quand il existe : il est le lieu du terme, la
+                    // fiche est le lieu du mot.
+                    hebreu: e.hebrew.as_deref().or(e.hebreu_de_la_fiche.as_deref()),
+                    strong: e.strong.as_deref(),
+                    shem: false,
+                }
+            })
+            // **Et les Shemot, par la même porte.**
             //
-            // `hebrew` vient de la puce du §2.5, entre parenthèses ; celle-ci
-            // vient de la section `## Source` de la fiche. La puce de **YHWH
-            // est volontairement nue**, le §7 réservant son traitement — donc
-            // le nom divin n'avait aucune forme à comparer, et l'arbitre le
-            // laissait inerte.
+            // Le témoin ne sait pas qu'un mot est un concept ou un porteur : il dit un
+            // numéro et une forme. La jointure n'a donc pas à connaître deux chemins —
+            // seule la **cible** diffère, `ont://shem/` au lieu de `ont://term/`.
             //
-            // Mesuré : 14 fiches sur 158 sont dans ce cas, dont `yhwh` et
-            // `yhwh-elohim`, et à elles deux elles portaient **95 des 144 mots
-            // inertes** de Bereshit. J'allais demander au vault d'écrire ce
-            // qu'il avait déjà écrit, sous un autre nom de champ — c'est la
-            // session du vault qui l'a relevé.
-            //
-            // Le §3 d'abord quand il existe : il est le lieu du terme, la
-            // fiche est le lieu du mot.
-            hebreu: e.hebrew.as_deref().or(e.hebreu_de_la_fiche.as_deref()),
-            strong: e.strong.as_deref(),
-        }
-    }));
+            // Elles n'y entraient pas, et 350 noms propres de la Genèse restaient
+            // muets au toucher : Noach, Sarai, Lot, Nachor. Leur fiche existait, elle
+            // déclarait son numéro, et la table qui joint ne l'avait jamais vue.
+            .chain(shemot.iter().map(|e| crate::sources::FichePourLaJointure {
+                lemme: e.lemma.as_str(),
+                hebreu: e.hebrew.as_deref(),
+                strong: e.strong.as_deref(),
+                shem: true,
+            })),
+    );
 
     // **La translittération des mots sources se récolte ici, sur le corpus
     // assemblé**, pour la même raison que la ligne d'au-dessus : c'est ici que

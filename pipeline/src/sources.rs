@@ -460,6 +460,18 @@ pub struct FichePourLaJointure<'a> {
     pub hebreu: Option<&'a str>,
     /// Le numéro de Strong que la fiche déclare — `559`, `1254 a`.
     pub strong: Option<&'a str>,
+    /// **Une fiche de Shem, et non une entrée de glossaire.**
+    ///
+    /// Les deux couches se joignent par le même chemin — le témoin ne sait pas
+    /// qu'un mot est un concept ou un porteur, il dit un numéro et une forme —
+    /// mais elles n'ouvrent pas la même feuille : `ont://term/<lemma>` d'un
+    /// côté, `ont://shem/<lemma>` de l'autre.
+    ///
+    /// Et un lemme peut exister **des deux côtés** : `moreh` est un terme et un
+    /// lieu. Sans ce drapeau, la table les confondrait en une seule clé, et la
+    /// fiche qui gagnerait serait celle que l'ordre du fichier a mise en
+    /// dernier — le défaut même que cette couche a fermé le 16 septembre.
+    pub shem: bool,
 }
 
 impl LiaisonDesMots {
@@ -472,7 +484,7 @@ impl LiaisonDesMots {
         let mut hebreu_de: HashMap<String, (String, String)> = HashMap::new();
 
         for fiche in fiches {
-            let lemme = fiche.lemme.to_string();
+            let lemme = cle_de(fiche.shem, fiche.lemme);
             if let Some(strong) = fiche.strong {
                 // **Un construit déclare deux numéros, joints par un `+`.**
                 //
@@ -558,10 +570,10 @@ impl LiaisonDesMots {
         }
         for (forme, numero) in vus {
             let Some(numero) = numero else { continue };
-            if let Some(CibleDuNiveauTrois::Term { lemma }) = self.vocalisees.get(&forme) {
+            if let Some(cible) = self.vocalisees.get(&forme) {
                 // Ne recouvre jamais ce que la fiche déclare elle-même.
                 self.strong_atteste
-                    .entry(lemma.clone())
+                    .entry(cle_de_la_cible(cible))
                     .or_insert_with(|| numero.clone());
             }
         }
@@ -625,7 +637,7 @@ impl LiaisonDesMots {
                 })
             })?
         })
-        .map(|lemma| CibleDuNiveauTrois::Term { lemma })
+        .map(|cle| cible_de(&cle))
     }
 
     /// **Les fiches qui se disputaient ce mot, quand il est resté inerte.**
@@ -729,7 +741,12 @@ impl LiaisonDesMots {
         // Une fiche qui ne déclare rien ne peut rien contredire : la jointure
         // par la forme passe alors comme avant, avec sa part de risque, et
         // c'est un argument de plus pour écrire la Source partout.
-        if let (Some(n), CibleDuNiveauTrois::Term { lemma }) = (&numero, &par_la_forme) {
+        if let Some(n) = &numero {
+            // **Le veto vaut pour les deux espèces.** Un Shem joint par la
+            // forme se fait contredire par le témoin comme une entrée de
+            // glossaire — `moreh` le lieu et `moreh` le terme partagent la
+            // graphie, et seul le numéro les sépare.
+            let lemma = &cle_de_la_cible(&par_la_forme);
             // **Le veto tombe si le mot porte l'un des numéros déclarés.**
             //
             // Un construit en déclare deux ; un mot du témoin n'en porte qu'un,
@@ -949,6 +966,45 @@ fn seul(pretendants: &[String], convient: impl Fn(&str) -> bool) -> Option<Strin
 }
 
 /// Inscrit un prétendant, sans doublon.
+/// **La clé interne d'une fiche — son espèce et son lemme.**
+///
+/// `moreh` est un terme *et* un lieu : deux fiches, deux feuilles, un seul
+/// lemme. Les tables de jointure les confondraient en une clé unique, et la
+/// gagnante serait celle que l'ordre du fichier a mise en dernier — le défaut
+/// que cette couche a fermé le 16 septembre, qui reviendrait par la porte des
+/// Shemot.
+///
+/// Le séparateur est `U+0001`, qu'aucun lemme ne porte. Il ne sort jamais :
+/// `cible_de` le retire avant de rendre la cible.
+fn cle_de(shem: bool, lemme: &str) -> String {
+    format!("{}\u{1}{lemme}", if shem { 's' } else { 't' })
+}
+
+/// La cible que le lecteur ouvrira, reconstruite depuis la clé interne.
+fn cible_de(cle: &str) -> CibleDuNiveauTrois {
+    match cle.split_once('\u{1}') {
+        Some(("s", lemma)) => CibleDuNiveauTrois::Shem {
+            lemma: lemma.to_string(),
+        },
+        Some((_, lemma)) => CibleDuNiveauTrois::Term {
+            lemma: lemma.to_string(),
+        },
+        // Une clé sans espèce ne devrait pas exister ; la traiter en terme
+        // plutôt que de paniquer, et laisser le lemme intact.
+        None => CibleDuNiveauTrois::Term {
+            lemma: cle.to_string(),
+        },
+    }
+}
+
+/// Le chemin inverse — la clé interne d'une cible déjà formée.
+fn cle_de_la_cible(cible: &CibleDuNiveauTrois) -> String {
+    match cible {
+        CibleDuNiveauTrois::Shem { lemma } => cle_de(true, lemma),
+        CibleDuNiveauTrois::Term { lemma } => cle_de(false, lemma),
+    }
+}
+
 fn pretendre(table: &mut HashMap<String, Vec<String>>, cle: String, lemme: &str) {
     let e = table.entry(cle).or_default();
     if !e.iter().any(|l| l == lemme) {
@@ -970,12 +1026,7 @@ fn trier(
     let mut surs = HashMap::new();
     for (cle, mut lemmes) in brut {
         if lemmes.len() == 1 {
-            surs.insert(
-                cle,
-                CibleDuNiveauTrois::Term {
-                    lemma: lemmes.remove(0),
-                },
-            );
+            surs.insert(cle, cible_de(&lemmes.remove(0)));
         } else {
             lemmes.sort();
             disputes.insert(quelle(cle), lemmes);
@@ -1041,7 +1092,7 @@ fn departager_par_l_arite(
     for (cle, lemma) in tranchees {
         disputes.remove(&cle);
         if let Cle::Strong(numero) = cle {
-            strongs.insert(numero, CibleDuNiveauTrois::Term { lemma });
+            strongs.insert(numero, cible_de(&lemma));
         }
     }
 }
@@ -2083,6 +2134,7 @@ mod tests {
                 lemme: l,
                 hebreu: Some(h),
                 strong: st,
+                shem: false,
             }
         }
         let liaison = LiaisonDesMots::nouvelle([
@@ -2370,6 +2422,7 @@ mod tests {
             lemme: "shem",
             hebreu: Some("שֵׁם"),
             strong: Some("8034"),
+            shem: false,
         }]);
         assert_eq!(
             liaison.cible("שֵׁ֣ם", Some("8034")),
@@ -2385,6 +2438,7 @@ mod tests {
             lemme: "el",
             hebreu: Some("אֵל"),
             strong: None,
+            shem: false,
         }]);
         // Sans apprentissage, le squelette confond — et c'est le code d'avant.
         assert_eq!(
@@ -2418,6 +2472,7 @@ mod tests {
             lemme: "tov-vara",
             hebreu: Some("טוֹב וָרָע"),
             strong: Some("2896 b + 7451 b"),
+            shem: false,
         }]);
         let cible = CibleDuNiveauTrois::Term {
             lemma: "tov-vara".into(),
@@ -2528,11 +2583,13 @@ mod tests {
                 lemme: "tov",
                 hebreu: Some("טוֹב"),
                 strong: Some("2896 a"),
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "tov-meod",
                 hebreu: Some("טוֹב מְאֹד"),
                 strong: Some("2896 a + 3966"),
+                shem: false,
             },
         ]);
         let tov = Some(CibleDuNiveauTrois::Term {
@@ -2559,14 +2616,84 @@ mod tests {
                 lemme: "raah",
                 hebreu: Some("רָאָה"),
                 strong: Some("7200"),
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "roeh",
                 hebreu: Some("רֹאֶה"),
                 strong: Some("7200"),
+                shem: false,
             },
         ]);
         assert_eq!(deux_simples.cible("וַיַּ֥רְא", Some("7200")), None);
+    }
+
+    /// **Un Shem se joint comme un terme, et ouvre une autre feuille.**
+    ///
+    /// Le témoin ne sait pas qu'un mot est un concept ou un porteur : il dit un
+    /// numéro et une forme. La jointure n'a donc qu'un chemin — seule la cible
+    /// diffère.
+    ///
+    /// Et l'épreuve porte surtout le cas qui rendait la chose dangereuse :
+    /// **`moreh` est un terme *et* un lieu.** Un lemme, deux fiches, deux
+    /// feuilles. Sans clé qualifiée, les tables les confondraient et la
+    /// gagnante serait celle que l'ordre du fichier a mise en dernier.
+    #[test]
+    fn un_shem_se_joint_sans_se_confondre_avec_le_terme_du_meme_nom() {
+        let liaison = LiaisonDesMots::nouvelle([
+            FichePourLaJointure {
+                lemme: "noach",
+                hebreu: Some("נֹחַ"),
+                strong: Some("5146"),
+                shem: true,
+            },
+            // Le même lemme des deux côtés, avec deux numéros différents.
+            FichePourLaJointure {
+                lemme: "moreh",
+                hebreu: Some("מוֹרֶה"),
+                strong: Some("4175"),
+                shem: false,
+            },
+            FichePourLaJointure {
+                lemme: "moreh",
+                hebreu: Some("מוֹרֶה"),
+                strong: Some("4176"),
+                shem: true,
+            },
+        ]);
+
+        // **Un nom propre ouvre sa feuille de Shem**, et non une fiche de
+        // glossaire qui promettrait un concept là où il y a un porteur.
+        assert_eq!(
+            liaison.cible("נֹ֔חַ", Some("5146")),
+            Some(CibleDuNiveauTrois::Shem {
+                lemma: "noach".into()
+            })
+        );
+
+        // **Les deux `moreh` restent distincts, et c'est le numéro qui les
+        // sépare** — leur forme est la même, donc rien d'autre ne le pourrait.
+        assert_eq!(
+            liaison.cible("מוֹרֶ֑ה", Some("4175")),
+            Some(CibleDuNiveauTrois::Term {
+                lemma: "moreh".into()
+            })
+        );
+        assert_eq!(
+            liaison.cible("מוֹרֶ֑ה", Some("4176")),
+            Some(CibleDuNiveauTrois::Shem {
+                lemma: "moreh".into()
+            })
+        );
+
+        // **Et sans numéro, la forme ne tranche pas** : deux fiches déclarent
+        // `מוֹרֶה`, elles se disputent, et la garde refuse — exactement comme
+        // entre deux entrées de glossaire.
+        assert_eq!(liaison.cible("מוֹרֶ֑ה", None), None);
+
+        // Le veto vaut aussi pour un Shem : la fiche dit 5146, le témoin dit
+        // autre chose, on ne joint pas.
+        assert_eq!(liaison.cible("נֹ֔חַ", Some("9999")), None);
     }
 
     /// **Les trois questions du vault sur `roʿeh`, éprouvées et non déduites.**
@@ -2583,11 +2710,13 @@ mod tests {
                     lemme: "raah",
                     hebreu: Some("רָאָה"),
                     strong: Some("7200"),
+                    shem: false,
                 },
                 FichePourLaJointure {
                     lemme: "roeh",
                     hebreu: Some("רֹאֶה"),
                     strong: Some(strong_roeh),
+                    shem: false,
                 },
             ])
         };
@@ -2651,11 +2780,13 @@ mod tests {
                 lemme: "raah",
                 hebreu: Some("רָאָה"),
                 strong: Some("7200"),
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "roeh",
                 hebreu: Some("רֹאֶה"),
                 strong: Some("7200"),
+                shem: false,
             },
         ]);
 
@@ -2697,11 +2828,13 @@ mod tests {
                 lemme: "yhwh",
                 hebreu: Some("יְהוָה"),
                 strong: Some("3068"),
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "yhwh-elohim",
                 hebreu: Some("יְהוָה אֱלֹהִים"),
                 strong: Some("3068 + 430"),
+                shem: false,
             },
         ]);
         let yhwh = Some(CibleDuNiveauTrois::Term {
@@ -2752,11 +2885,13 @@ mod tests {
                 lemme: "raʾah",
                 hebreu: Some("רָאָה"),
                 strong: Some("7200"),
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "roʿeh",
                 hebreu: Some("רֹאֶה"),
                 strong: Some("7200"),
+                shem: false,
             },
         ]);
         // **Un niphal n'ouvre rien.** `הַנִּרְאֶה` est *nirʾah*, « qui lui
@@ -2793,11 +2928,13 @@ mod tests {
                 lemme: "davar",
                 hebreu: Some("דָּבָר"),
                 strong: None,
+                shem: false,
             },
             FichePourLaJointure {
                 lemme: "dibber",
                 hebreu: Some("דָּבָר"),
                 strong: None,
+                shem: false,
             },
         ]);
         // Deux fiches qui déclarent **la même** forme ne se départagent par
