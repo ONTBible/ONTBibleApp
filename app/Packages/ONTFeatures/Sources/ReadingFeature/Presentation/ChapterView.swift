@@ -1521,15 +1521,29 @@ private struct FlowingVerses: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(versetsParMorceau.enumerated()), id: \.offset) { _, groupe in
+                // **Seul le morceau qui porte la désignation touche au texte.**
+                //
+                // C'est ici que se jouait la lenteur. Avant ce chantier,
+                // toucher un verset ne touchait **pas** le texte : `Prose` est
+                // `.equatable()` et ignore la sélection, donc rien ne se
+                // recomposait. Poser le voile en attributs partout a ajouté une
+                // recomposition **et** une mise en page à un geste qui n'en
+                // coûtait aucune — et le découpage n'en a réduit que la part.
+                //
+                // Un morceau sans verset désigné n'a pas besoin des attributs
+                // pour être baissé : `.opacity` le fait au **dessin**, sans
+                // toucher à la chaîne, donc sans remise en page. Seul celui qui
+                // porte le verset en a besoin, pour le distinguer de ses
+                // voisins immédiats et lui poser son pointillé.
+                let designes = selection.intersection(groupe.map(\.n))
                 Prose(
                     verses: groupe,
                     theme: theme,
                     surlignages: surlignages,
-                    designation: peutEstomper || selection.isEmpty
-                        ? nil
-                        : selection.intersection(groupe.map(\.n))
+                    designation: peutEstomper || designes.isEmpty ? nil : designes
                 )
                 .equatable()
+                .opacity(selection.isEmpty || !designes.isEmpty ? 1 : ONTColors.dimmedOpacity)
             }
         }
         // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
