@@ -249,6 +249,48 @@ public enum ONTColors {
     }
 
     /// L'or lisible sur le fond du thème — sur parchemin l'or pur passe mal.
+    ///
+    /// ## Il porte du texte, et il est sous le seuil — décision de l'auteur
+    ///
+    /// Sur les thèmes clairs, cet or rend **3,11:1** sur le parchemin et
+    /// **3,39:1** sur le blanc. WCAG demande 3:1 pour ce qu'on repère et
+    /// **4,5:1 pour ce qu'on lit** — et ici c'est du texte qu'on lit :
+    ///
+    ///     ONTTypography.term          l'intraduisible, taille du corps
+    ///     ONTTypography.verseNumber   le numéro de verset
+    ///     ReferencePicker:284         « Introduction », callout
+    ///     LexiconTab:91               la lettre de tranche, footnote ~13 pt
+    ///
+    /// Le commentaire d'`accentSurSurlignage` dit « que l'or se repère au lieu
+    /// de se lire est une décision inscrite ». Elle avait été prise pour le
+    /// **numéro de verset** ; elle s'est étendue à l'intraduisible, qui se lit
+    /// dans le fil de la phrase, sans que personne la reprenne.
+    ///
+    /// ## Ce qui a été éprouvé, et ce que l'auteur a choisi
+    ///
+    /// Trois builds réels, installés sur le simulateur `ONT`, même chapitre et
+    /// même passage — pas une maquette, pas un nuancier :
+    ///
+    /// ```text
+    /// #A6874F   3,11:1   l'or d'aujourd'hui
+    /// #866D40   4,50:1   le minimum AA, à teinte et saturation constantes
+    /// #6A5733   6,40:1   le plancher que le site s'impose
+    /// ```
+    ///
+    /// **L'auteur a regardé les trois et gardé le premier**, le 21 septembre
+    /// 2026, en connaissant la mesure. C'est son œil qui tranche : il lit
+    /// l'app, et son kératocône est la raison pour laquelle la question a été
+    /// posée plutôt que corrigée d'office.
+    ///
+    /// **Donc : ne pas « réparer » cette valeur en la trouvant basse.** Elle
+    /// est basse, c'est mesuré, et c'est assumé. Y revenir demande une raison
+    /// neuve — un retour de testeur, une norme qui change, un fond qui bouge —
+    /// et la décision repasse par l'auteur. Le script de comparaison est
+    /// reproductible : trois builds, une valeur changée à chaque fois.
+    ///
+    /// Le site et macOS ont mesuré le même écart le même jour, chacun de son
+    /// côté ; leur garde de contraste s'aligne sur ce choix et non sur la
+    /// norme, sans quoi elle rougirait tous les jours sans rien apprendre.
     public static func accent(_ theme: ReadingTheme) -> Color {
         theme.isDark ? gold : goldDeep
     }
