@@ -356,6 +356,88 @@ La table porte les rôles, qui durent — pas les chantiers ni les arbitrages en
 attente, qui périment : ceux-là voyagent par message, et par `DECISIONS.md`
 pour ce qui attend l'auteur.
 
+### Où chaque rôle se tient — la carte Herdr
+
+**Posée le 18 septembre 2026**, à la demande de l'auteur. La table ci-dessus dit
+==ce que chaque rôle tient== ; celle-ci dit ==où il se tient==, et elle règle le
+problème que la première contournait.
+
+**L'auteur pilote depuis Herdr** ([herdr.dev](https://herdr.dev)), un
+gestionnaire d'espaces de terminal fait pour les agents. Trois étages :
+
+    SESSION      un projet        `ont`
+      ESPACE     un dépôt         « ONT App », « ONT Trad », « ONT MANAGER »
+        ONGLET   un agent         « iOS/iPadOS », « Vault », « ANA »
+          VOLET  le processus
+
+| rôle | espace | onglet | volet | moteur |
+|---|---|---|---|---|
+| la manageuse | ONT MANAGER | — | `w7:p1` | claude |
+| le vault | ONT Trad | Vault | `w1:p3` | claude |
+| les langues sources | ONT Trad | ANA | `w1:p6` | claude |
+| ==Astra== | ONT Trad | Astra | `w1:p7` | ==codex== |
+| iOS / iPadOS | ONT App | iOS/iPadOS | `wE:p3` | claude |
+| macOS | ONT App | MacOS | `wE:p2` | claude |
+| Android | ONT App | Android | `wE:p1` | claude |
+| le site | ONT WebApp | — | `w6:p1` | claude |
+
+==Ils sont huit et non sept==, et la huitième est **Astra**, sur codex. Elle
+n'apparaît dans **aucun `ListAgents`** et son envoi de message échoue en
+`Operation not permitted` : elle ==reçoit par le dépôt== —
+`knowledge/synchronisation-a-terminer.md`, `AGENTS.md` — ou par l'auteur, qui
+la lit. Sa place ci-dessus a été établie ==sans qu'elle puisse la dire==.
+
+#### Chaque agent connaît sa place, et doit la lancer
+
+    env | grep HERDR
+
+    HERDR_SESSION=ont · HERDR_WORKSPACE_ID · HERDR_TAB_ID · HERDR_PANE_ID
+
+==Lancer la commande, ne pas répondre de mémoire.== Deux sessions ont affirmé
+ne pas voir leur place sans avoir cherché ; leurs réponses étaient argumentées
+et fausses. *Une absence dans ce qu'on voit n'est pas une absence.*
+
+**C'est le premier identifiant stable de la flotte**, et il fallait quatre
+péremptions pour le trouver :
+
+    le nom d'agent          change à un /rename
+    le socket               un PID, rebattu à chaque redémarrage
+    la référence [abc123]   change à une reconnexion
+    l'auteur d'une PR       ne distingue personne — un seul compte GitHub
+    le volet Herdr          ne bouge pas : c'est une place, pas un processus
+
+==Le filtre juste, pour attribuer une PR, est la branche== — jamais
+`--author @me`. Trois sessions y sont tombées dans la même heure.
+
+#### Deux pièges de la disposition, et ils ont coûté
+
+**Les agents d'un même espace démarrent dans le même dossier**, donc dans le
+==même arbre de travail git==. Le 18 septembre, 237 lignes non commitées
+d'Astra se sont retrouvées sur la branche du vault — ==ce n'était la faute de
+personne, c'était la disposition==. La parade est `git worktree`, et c'est ce
+que font les langues sources, macOS et Android.
+
+**La branche affichée sous un espace est celle du dossier de lancement**, donc
+celle du seul agent qui y est resté. ==Les agents partis en worktree
+travaillent sur des branches qu'aucun écran ne montre.==
+
+#### Ce que l'auteur voit, et ce que ça engage
+
+Un ==point de couleur par agent== dans sa barre latérale : qui attend, qui
+travaille. Une session qui pose une question ==en prose== y paraît donc
+**finie**. C'est la raison de la règle du sélecteur — sans elle, il ne peut pas
+voir qu'on l'attend, et il ne relit pas huit écrans pour le découvrir.
+
+==L'état complet est un fichier lisible==,
+`~/.config/herdr/sessions/ont/session.json` : pour chaque volet, son dossier de
+lancement, son moteur, et l'identifiant de session de l'agent. ⚠️ ==L'ordre
+d'affichage n'y est pas l'ordre des numéros== — dans « ONT App », l'onglet
+affiché en premier est `t3`. Ne jamais déduire un identifiant d'une position à
+l'écran.
+
+**Cette table se relève, elle ne se recopie pas.** Les volets durent, les
+branches et les PR non — celles-ci sont des mesures, pas une identité.
+
 ---
 
 ## Tronc commun et entrées locales
@@ -5866,3 +5948,85 @@ Chroniques, le mot ne s'allume pas quand on le touche »*.
 
 D'où le signal, qui se lit après coup et ne trompe pas : **quand il délègue au
 lieu de trancher, c'est presque toujours la question qui était mal posée.**
+## 18 septembre 2026 au soir — trois défauts trouvés en mesurant autre chose
+
+Le chantier visait à décrire une divergence : `ShemSheet` gardait son rendu de
+blocs propre, là où `TermSheet` et `PrononciationSheet` employaient le composant
+partagé. Il fallait dire pourquoi, pour que la session iOS arbitre.
+
+**Aucun des trois défauts trouvés n'était celui qu'on cherchait.**
+
+### Les titres de fiche ne suivaient pas le réglage du lecteur
+
+`BlocDeFiche` fixait ses corps en points — 20, 17, 15, 13 sp — quand le corps
+d'une fiche suit `preferences.textSize`.
+
+    curseur à 16    titre plein 20  >  corps 16     juste
+    curseur à 22    titre plein 20  <  corps 22     le titre passe SOUS son texte
+    curseur à 26    titre plein 20  <  corps 26
+
+==Ce n'est pas un réglage d'esthétique : c'est le curseur que monte celui qui
+voit mal.== Le défaut frappait exactement qui en dépend le plus, et il était
+**invisible au réglage par défaut** — la seule position où personne n'en a
+besoin.
+
+La cause était dans la signature : `BlocDeFiche` recevait `showGloss` et
+`showLevel3`, deux booléens extraits de `ReadingPreferences`. Il lui manquait
+`textSize`, et rien ne le disait. **Passer un objet par ses parties fait qu'on
+oublie celle qu'on n'a pas encore employée.**
+
+### La teinte était à un cran
+
+    accent     sombre : gold   ·  clair : goldDeep
+    brandInk   sombre : gold   ·  clair : burgundy
+
+Android rendait ses titres de fiche en bordeaux là où iOS les rend en or sombre.
+**L'écart ne se voyait pas en thème sombre** — celui de l'auteur. La moitié des
+cas où personne ne pouvait le remarquer.
+
+Et la teinte n'est pas une finition ici : au régime resserré, le titre est plus
+petit que sa prose, donc **seuls le demi-gras et la couleur le tiennent**.
+
+### La chaîne Android n'avait aucun script
+
+Le dépôt porte `lancer-sur-iphone.sh` et `lancer-sur-le-mac.sh`. Android n'avait
+rien, et deux pannes de machine tuaient `./gradlew` **avant** qu'il démarre :
+`jenv` réclamant un JDK absent, et `local.properties` manquant d'un arbre neuf.
+Aucune ne ressemble à sa cause.
+
+`scripts/gradle-de-la-chaine.sh` est le pendant de `xcode-de-la-chaine.sh` —
+même forme, mêmes replis, et il vise **temurin-21** parce que c'est ce que la CI
+emploie. `scripts/lancer-sur-android.sh` le source.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `BlocDeFiche` rend les cinq formes de blocs que le vault
+autorise, avec des tailles dérivées du réglage ; les trois feuilles s'y branchent
+(#307, #316). Deux scripts neufs dans `scripts/` (#320).
+
+**ONTBibleTranslation** — rien à changer. Mais la décision du 30 août qui
+autorise listes, citations et filets dans les fiches est désormais **tenue par du
+code** côté Android, et plus seulement déclarée.
+
+**ONTBibleWebapp** — le site rend des fiches lui aussi. Deux questions qu'il est
+seul à pouvoir trancher : ses titres de fiche suivent-ils le réglage de taille du
+lecteur, et emploie-t-il l'accent doré plutôt que l'encre de marque ?
+
+### Le motif de la journée
+
+Cinq instruments ont rendu un résultat exact pour une question qu'ils ne posaient
+pas : un `grep` mesurant « lancé en une ligne » et non « lancé », un `cd` vers un
+worktree démonté qui a échoué en silence, un `cargo test` dont le « 0 passed »
+était le dernier crate, un `class BlocDeFiche` cherchant une classe là où il y a
+une fonction, et un sourcing derrière un `| sed` — donc dans un sous-shell où les
+exports meurent.
+
+> ==Une métadonnée exacte qui répond à côté est plus dangereuse qu'une donnée
+> absente, parce qu'une absence se remarque et qu'une réponse à côté se lit comme
+> une réponse.==
+
+Et sa forme la plus coûteuse, payée le même jour : `herdr workspace close` sur un
+espace vérifié vide a emporté un autre espace et ses trois onglets. Les trois
+mesures faites avant étaient justes — elles portaient sur **la cible**, quand la
+question était **l'effet**. Rien n'a été perdu : les worktrees étaient intacts,
+les sessions reprises depuis leurs transcripts.
