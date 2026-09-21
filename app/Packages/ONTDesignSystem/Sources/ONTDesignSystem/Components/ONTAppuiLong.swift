@@ -46,7 +46,16 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
     /// s'est posé est la seule façon de savoir *lequel* il désigne.
     private let action: (CGPoint) -> Void
 
-    public init(duree: TimeInterval = 0.4, action: @escaping (CGPoint) -> Void) {
+    /// Le contact se fait-il sentir ? Réglable par le lecteur — voir
+    /// `RetourHaptique.contact`.
+    private let sentirLeContact: Bool
+
+    public init(
+        duree: TimeInterval = 0.4,
+        sentirLeContact: Bool = true,
+        action: @escaping (CGPoint) -> Void
+    ) {
+        self.sentirLeContact = sentirLeContact
         self.duree = duree
         self.action = action
     }
@@ -81,6 +90,7 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
         /// quoi la première sensation d'une session arrive avec des dizaines
         /// de millisecondes de retard — exactement là où elle doit être vive.
         private let contact = UIImpactFeedbackGenerator(style: .soft)
+        var sentirLeContact = true
 
         override func reset() {
             super.reset()
@@ -89,13 +99,14 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
 
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
             ONTBalises.instant("doigt-pose")
-            contact.impactOccurred(intensity: 0.4)
+            if sentirLeContact { contact.impactOccurred(intensity: 0.4) }
             super.touchesBegan(touches, with: event)
         }
     }
 
     public func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
         let r = ReconnaisseurBalise()
+        r.sentirLeContact = sentirLeContact
         r.minimumPressDuration = duree
         // La tolérance d'UIKit, et non celle de SwiftUI : elle joue **après**
         // l'arbitrage, pas contre lui.
@@ -140,11 +151,15 @@ extension View {
     /// Là où le pont n'existe pas, on retombe sur le geste de SwiftUI : il
     /// vaut mieux un appui long capricieux que pas d'appui long du tout.
     public func ontAppuiLong(
-        duree: TimeInterval = 0.4, action: @escaping (CGPoint) -> Void
+        duree: TimeInterval = 0.4,
+        sentirLeContact: Bool = true,
+        action: @escaping (CGPoint) -> Void
     ) -> some View {
         #if canImport(UIKit)
             if #available(iOS 18.0, *) {
-                return AnyView(gesture(ONTAppuiLong(duree: duree, action: action)))
+                return AnyView(gesture(ONTAppuiLong(
+                    duree: duree, sentirLeContact: sentirLeContact, action: action
+                )))
             }
         #endif
         return AnyView(modifier(AppuiLongAvecCurseur(duree: duree, action: action)))

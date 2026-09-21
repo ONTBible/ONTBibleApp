@@ -48,6 +48,32 @@ struct ChapterView: View {
     /// Une seule présentation, au niveau du chapitre, et les deux modes de
     /// lecture y poussent leur demande.
     @State private var sourceDemandee: PositionDeVerset?
+
+    /// **Laquelle des trois sensations de sélection, et seulement si elle est
+    /// allumée.**
+    ///
+    /// Sortie du `sensoryFeedback` parce que le compilateur y renonçait : la
+    /// fermeture mêlait un `switch` sur deux booléens, trois ternaires et une
+    /// lecture de préférences, et Swift ne sait plus la vérifier en un temps
+    /// raisonnable. C'est la seconde fois dans ce fichier aujourd'hui — un
+    /// écran de réglages grossit par ajouts, et la limite se découvre en la
+    /// franchissant.
+    ///
+    /// Le `Set` a changé sans franchir de frontière : un verset de plus ou de
+    /// moins. Et s'il n'a pas changé du tout, SwiftUI ne nous appelle pas — le
+    /// déclencheur est `Equatable`.
+    private func sensation(de avant: Set<Int>, vers apres: Set<Int>) -> SensoryFeedback? {
+        let allumees = model.preferences.haptiques
+        switch (avant.isEmpty, apres.isEmpty) {
+        case (true, false):
+            return allumees.contains(.entree) ? .impact(weight: .medium, intensity: 0.5) : nil
+        case (false, true):
+            return allumees.contains(.sortie) ? .impact(weight: .light, intensity: 0.35) : nil
+        default:
+            return allumees.contains(.changement) ? .selection : nil
+        }
+    }
+
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -364,14 +390,7 @@ struct ChapterView: View {
         // `TextHandleMove`, sa sortie se confondant avec un retrait. C'est un
         // écart connu et assumé, pas un oubli.
         .sensoryFeedback(trigger: selection) { avant, apres in
-            switch (avant.isEmpty, apres.isEmpty) {
-            case (true, false): .impact(weight: .medium, intensity: 0.5)
-            case (false, true): .impact(weight: .light, intensity: 0.35)
-            // Le `Set` a changé sans franchir de frontière : un verset de plus
-            // ou de moins. Et s'il n'a pas changé du tout, SwiftUI ne nous
-            // appelle pas — le déclencheur est `Equatable`.
-            default: .selection
-            }
+            sensation(de: avant, vers: apres)
         }
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
@@ -481,7 +500,9 @@ struct ChapterView: View {
         // **arrive**, pas ce qui a été reconnu. Un appui long qui n'aboutirait
         // pas ne doit rien faire sentir.
         .sensoryFeedback(trigger: sourceDemandee != nil) { avant, apres in
-            apres && !avant ? .impact(flexibility: .rigid, intensity: 0.7) : nil
+            apres && !avant && model.preferences.haptiques.contains(.feuille)
+                ? .impact(flexibility: .rigid, intensity: 0.7)
+                : nil
         }
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
             FeuilleDuVersetSource(
@@ -822,7 +843,7 @@ private struct VerseRow: View {
         // `ONTAppuiLong`. Un `LongPressGesture` de SwiftUI passait au
         // simulateur et jamais sur l'appareil : il abandonne dès que le doigt
         // s'écarte de dix points, et un pointeur ne bouge pas.
-        .ontAppuiLong { _ in
+        .ontAppuiLong(sentirLeContact: model.preferences.haptiques.contains(.contact)) { _ in
             sourceDemandee = position(de: verse, dans: chapter)
         }
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
@@ -1571,7 +1592,7 @@ private struct FlowingVerses: View {
         // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
         // ici : on lit la hauteur du doigt et on la convertit avec la même
         // répartition que le repérage du défilement.
-        .ontAppuiLong { ou in
+        .ontAppuiLong(sentirLeContact: model.preferences.haptiques.contains(.contact)) { ou in
             guard let v = versetA(ou.y) else { return }
             sourceDemandee = positionDansLUnite(de: v)
         }
@@ -2141,6 +2162,8 @@ public struct ReadingSettingsSheet: View {
                 }
                 .ontRow()
 
+                SectionsHaptiques(haptiques: $model.preferences.haptiques)
+
                 Section {
                     Button("Réinitialiser les réglages", role: .destructive) {
                         confirmeReset = true
@@ -2177,6 +2200,72 @@ public struct ReadingSettingsSheet: View {
             Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
                 .font(ONTUI.ligneDeListe)
         }
+    }
+}
+
+/// **Les cinq sensations, et le droit de les éteindre.**
+///
+/// Une vue à part, et pas seulement pour la lisibilité : le corps des réglages
+/// avait atteint la taille où le compilateur renonce à le vérifier en un temps
+/// raisonnable. Un écran de réglages grossit par ajouts successifs, et c'est
+/// le genre de limite qu'on découvre en la franchissant.
+private struct SectionsHaptiques: View {
+    @Environment(\.ontTheme) private var theme
+    @Binding var haptiques: Set<RetourHaptique>
+
+    /// **Le commutateur d'ensemble reflète les cinq, il ne fait pas que les
+    /// commander.**
+    ///
+    /// Un interrupteur « tout » qui garderait son propre état mentirait dès
+    /// qu'on éteint la dernière sensation à la main : il resterait allumé sur
+    /// un silence complet. Celui-ci n'a pas d'état — il **lit** l'ensemble, et
+    /// l'écrire le remplit ou le vide.
+    private var toutes: Binding<Bool> {
+        Binding(
+            get: { !haptiques.isEmpty },
+            set: { haptiques = $0 ? Set(RetourHaptique.allCases) : [] }
+        )
+    }
+
+    private func une(_ sensation: RetourHaptique) -> Binding<Bool> {
+        Binding(
+            get: { haptiques.contains(sensation) },
+            set: { allumee in
+                if allumee { haptiques.insert(sensation) } else { haptiques.remove(sensation) }
+            }
+        )
+    }
+
+    var body: some View {
+        Section {
+            Toggle("Retour haptique", isOn: toutes)
+                .font(ONTUI.ligneDeListe)
+        } header: {
+            Text("Retour haptique").font(ONTUI.enteteDeListe)
+        } footer: {
+            Text("Les vibrations qui répondent à vos gestes sur le texte. "
+                 + "Chacune se coupe séparément ci-dessous.")
+                .font(ONTUI.piedDeListe)
+        }
+        .ontRow()
+
+        Section {
+            ForEach(RetourHaptique.allCases, id: \.self) { sensation in
+                Toggle(isOn: une(sensation)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(sensation.titre).font(ONTUI.ligneDeListe)
+                        Text(sensation.explication)
+                            .font(ONTUI.piedDeListe)
+                            .foregroundStyle(theme.ink.opacity(0.6))
+                    }
+                }
+            }
+        } footer: {
+            Text("« Le doigt se pose » répond à chaque contact sur le texte, "
+                 + "défilement compris — c'est le prix d'une réponse immédiate.")
+                .font(ONTUI.piedDeListe)
+        }
+        .ontRow()
     }
 }
 
