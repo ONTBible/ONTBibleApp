@@ -1,3 +1,4 @@
+import OSLog
 import UIKit
 import XCTest
 
@@ -15,6 +16,9 @@ import XCTest
 @MainActor
 final class PremiereReactionTests: XCTestCase {
     private var app: XCUIApplication!
+    private static let balises = OSSignposter(
+        subsystem: "com.labibleont.ONT", category: "selection-du-verset"
+    )
 
     override func setUp() {
         continueAfterFailure = false
@@ -40,7 +44,10 @@ final class PremiereReactionTests: XCTestCase {
     }
 
     func testDelaiAvantQueQuelqueChoseBouge() {
-        app.open(URL(string: "ont://read/bereshit/bereshit-17")!)
+        // L'unité est réglable : le temps mort dépend-il de la quantité de
+        // texte ? C'est ce qui distingue « retrouver le lien » du reste.
+        let unite = ProcessInfo.processInfo.environment["ONT_UNITE"] ?? "bereshit-17"
+        app.open(URL(string: "ont://read/bereshit/\(unite)")!)
         Thread.sleep(forTimeInterval: 10)
 
         let page = app.windows.firstMatch
@@ -48,6 +55,13 @@ final class PremiereReactionTests: XCTestCase {
         for tour in 0..<6 {
             let avant = empreinte()
             let debut = Date()
+            // **La balise qui manquait : l'instant où le doigt part.**
+            //
+            // Les balises de l'app disent ce qu'elle fait — 23 ms en tout. Elles
+            // ne disent pas ce qui se passe **avant** qu'elle sache. Celle-ci
+            // est posée par le banc, dans le même journal et sur la même
+            // horloge : l'écart avec `lien-recu` est le temps mort réel.
+            Self.balises.emitEvent("appui-emis")
             page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
                 .press(forDuration: 0.03, thenDragTo:
                         page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)),

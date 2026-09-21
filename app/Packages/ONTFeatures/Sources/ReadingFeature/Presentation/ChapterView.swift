@@ -288,6 +288,7 @@ struct ChapterView: View {
             // travail pour rien.
             .onChange(of: router.tappedVerse) { _, touche in
                 guard let touche else { return }
+                ONTBalises.instant("selection-posee")
                 router.tappedVerse = nil
                 if selection.contains(touche.id) {
                     selection.remove(touche.id)
@@ -1313,12 +1314,14 @@ private struct Prose: View, Equatable {
     }
 
     var body: some View {
-        ONTTextRenderer.flowingText(
-            verses: verses,
-            theme: theme,
-            highlight: { surlignages[$0] },
-            designation: designation
-        )
+        ONTBalises.durant("corps-evalue") {
+            ONTTextRenderer.flowingText(
+                verses: verses,
+                theme: theme,
+                highlight: { surlignages[$0] },
+                designation: designation
+            )
+        }
         .lineSpacing(theme.lineSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

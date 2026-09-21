@@ -195,6 +195,8 @@ public enum ONTTextRenderer {
         highlight: (Int) -> Color?,
         designation: Set<Int>? = nil
     ) -> Text {
+        ONTBalises.instant("composition-debut")
+        defer { ONTBalises.instant("composition-fin") }
         let type = theme.type
         var sortie = Text("")
 

@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import SwiftUI
+import ONTKit
 import UIKit
 
 /// **Un appui long qui survit à une zone défilante.**
@@ -50,8 +51,24 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
         self.action = action
     }
 
+    /// **Un reconnaisseur qui dit quand le doigt se pose.**
+    ///
+    /// `.began` d'un appui long n'arrive qu'après sa durée minimale ; il ne
+    /// peut donc pas dater le contact. `touchesBegan`, lui, est appelé dès que
+    /// UIKit remet le toucher au reconnaisseur — c'est le premier instant que
+    /// l'app puisse connaître.
+    ///
+    /// C'est la balise qui manquait pour savoir si les 146 ms relevées entre
+    /// l'appui du banc et `lien-recu` sont dans l'app ou dans le banc.
+    private final class ReconnaisseurBalise: UILongPressGestureRecognizer {
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            ONTBalises.instant("doigt-pose")
+            super.touchesBegan(touches, with: event)
+        }
+    }
+
     public func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
-        let r = UILongPressGestureRecognizer()
+        let r = ReconnaisseurBalise()
         r.minimumPressDuration = duree
         // La tolérance d'UIKit, et non celle de SwiftUI : elle joue **après**
         // l'arbitrage, pas contre lui.

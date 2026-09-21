@@ -339,6 +339,8 @@ public final class Router {
 
         case "verse":
             guard let n = parts.first.flatMap(Int.init) else { return false }
+            // La première balise du chemin : le toucher est arrivé jusqu'ici.
+            ONTBalises.instant("lien-recu")
             tappedVerse = VerseSelection(n)
             return true
 
