@@ -60,7 +60,7 @@ information, et il se voit.
 
     ouverte le   21 septembre 2026, par iOS
     vers         device
-    état         ouverte
+    état         fusionnée le 21 septembre 2026 — `ad10f1a`
 
 **Pourquoi.** `ONTColors.accent` rend **3,11:1** sur le parchemin et 3,39:1 sur
 le blanc. WCAG demande 3:1 pour ce qu'on repère et **4,5:1 pour ce qu'on lit** —
