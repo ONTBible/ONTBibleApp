@@ -56,6 +56,31 @@ information, et il se voit.
 
 ---
 
+## #328 · Inscrire le `cd` qui échoue en silence, et la garde qui le rattrape
+
+    ouverte le   21 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Deux sessions se sont fait prendre le même jour à quatre heures
+d'écart : un `cd` vers un worktree disparu échoue, écrit une ligne, et les
+commandes suivantes s'exécutent dans le dossier d'avant. La première a mesuré
+trois fois la branche d'une autre session ; la seconde a déplacé la branche de
+l'arbre principal. ==La seconde avait lu le récit de la première le matin même==
+— c'est l'argument pour que ce soit tenu par une garde et non par la mémoire.
+
+**Ce que ça engage.** Rien de technique : c'est du journal, et il vaut pour les
+trois dépôts puisque les huit sessions partagent la machine. La garde est à
+deux lignes et ne demande aucun outil.
+
+**Pour la relire.** Le second contrôle — `git rev-parse --show-toplevel` — n'est
+pas redondant avec `pwd` : `pwd` ment quand le dossier a été recréé entre-temps,
+et `--show-toplevel` répond à la question réelle avant un commit, ==à quel dépôt
+on parle==. Et le déclencheur, les deux fois, était un worktree disparu sous les
+pieds : ==un dossier de travail n'est pas un lieu stable==.
+
+---
+
 ## #327 · Inscrire que l'or des intraduisibles est sous le seuil, et assumé
 
     ouverte le   21 septembre 2026, par iOS
