@@ -6363,6 +6363,26 @@ qui vérifie la règle, non la première. La formulation juste est plus large :
 jet nommait un risque réel et manquait le principal, parce qu'il mesurait ce
 qui venait d'être nommé — `/tmp` — plutôt que ce que la situation engageait.
 
+**Et le versant positif, relevé le surlendemain sur le même terrain.** Cinq
+worktrees à démonter ; ==cinq relevés indépendants== demandés aux sessions.
+Trois se contredisaient — l'un donnait un commit déjà poussé, l'autre trois
+orphelins au lieu d'un, le troisième le compte exact.
+
+==C'est la divergence entre eux qui a sorti la trouvaille==, non le soin de
+celui qui menait l'opération : un commit détaché sur une branche que son propre
+auteur avait supprimée le matin même, sans voir qu'un worktree y pendait.
+
+> ==Un relevé à la fois aurait été vérifié une seule fois, par la même
+> personne.== C'est la raison de fond pour laquelle un lot se décide mieux
+> qu'une unité — non l'économie de gestes, mais ==le désaccord qu'il rend
+> possible==.
+
+**Et le contrôle qui tranche est le contenu, jamais l'ascendance.** Un
+==écrasement== laisse pour toujours des commits « non poussés » sur une branche
+dont le contenu est ==intégralement dans `main`==. Deux sessions ont failli
+donner une fausse alerte sur ce point exact ; la question juste est *ce que
+cette branche porte que la cible n'a pas*, et elle se pose fichier par fichier.
+
 ### Le motif de fond
 
 La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
