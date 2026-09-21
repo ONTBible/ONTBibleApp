@@ -438,6 +438,91 @@ l'écran.
 **Cette table se relève, elle ne se recopie pas.** Les volets durent, les
 branches et les PR non — celles-ci sont des mesures, pas une identité.
 
+### Déclarer son worktree — 21 septembre 2026
+
+**Décision de l'auteur.** Une session qui crée un `git worktree` ==l'inscrit
+ici==, dans le même tour. Une session qui le démonte ==retire sa ligne==.
+
+**Pourquoi une déclaration, et non un relevé.** Parce que ==rien ne prouve
+qu'une session tient un worktree==. Trois pistes ont été éprouvées le
+21 septembre, les trois échouent :
+
+    herdr agent list      rend le dossier de LANCEMENT du volet, jamais le worktree
+    lsof                  ne voit rien entre deux tours — un agent qui réfléchit
+                          n'a aucun fichier ouvert
+    date de l'index git   vieillit sur un poste où l'on lit sans commiter
+
+==Vu du dehors, une session ne se prouve que par sa réponse.== Et une réponse
+n'est pas consultable quand la session est occupée, partie, ou — comme Astra
+pendant deux jours — incapable d'écrire. D'où la déclaration : ==ce qu'aucun
+instrument ne mesure, on l'écrit==.
+
+**Ce que ça a coûté de ne pas l'avoir.** Le 21 septembre, un démontage de cinq
+worktrees a failli emporter ==un commit qui ne tenait que par un worktree== —
+`HEAD` détaché, sur une branche que son propre auteur avait supprimée le matin
+même sans voir qu'un worktree y pendait. Et ==un banc de mesure de 229 lignes==
+qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
+étaient la version d'avant.
+
+#### La table — elle déclare un poste, non une branche
+
+| worktree | qui | pourquoi |
+|---|---|---|
+| `ONTBibleTranslation` | **le vault** | arbre principal — leadeuse du dépôt |
+| `.herdr/worktrees/…/astra` | **Astra** | la KB et ses raccordements |
+| `ONTBibleTranslation-carte` | la manageuse | la carte et le registre, PR #122 |
+| `ONTBibleTranslation-android` | la manageuse | PR #125 |
+| `ONTBibleApp` | **iOS** | arbre principal — leadeuse du dépôt |
+| `ONTBibleApp-android` | **Android** | poste actif |
+| `ONTBibleApp-mac` | **macOS** | poste actif |
+| `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
+| `ONTBibleApp-worktrees` | la manageuse | PR #326 |
+| `ONTBibleApp-index` | ==non réclamé== | commits du 11 septembre |
+| `ONTBibleApp-journal13` | ==non réclamé== | PR #302, commits des 13-14 |
+| `ONTBibleWebapp` | **le site** | arbre principal — leadeuse du dépôt |
+| `ONTBibleWebapp-android` | la manageuse | PR #153 |
+| `ONTBibleWebapp-worktrees` | la manageuse | PR #155 |
+| `ONTBibleWebapp-appuilong` | ==non réclamé== | le site travaille cette branche depuis son arbre principal, pas d'ici |
+
+==Il n'y a pas de colonne « branche », et c'est une décision.== Trois sessions
+l'ont demandée le même jour, chacune par son chemin :
+
+- **macOS** : *« une table de branches serait fausse dans l'heure et personne
+  ne la croirait plus — une table de postes reste vraie des semaines »* ;
+- **Android** : quatre chantiers en trois jours sur un seul worktree ; le
+  contrôle aurait crié trois fois par semaine sur sa seule ligne, ==et un
+  avertissement qu'on apprend à ne plus lire abîme tous les autres== ;
+- **iOS** : l'arbre principal du site a porté ==trois branches en une matinée==.
+
+==La branche est un état, le poste est un fait.== Et le « pourquoi » — la seule
+colonne qu'aucun relevé ne produira jamais — est un fait de poste, pas de
+branche.
+
+**Une contrainte de git qui rend l'état « branche fusionnée » normal**, nommée
+par Android : ==deux worktrees ne peuvent pas porter la même branche==. Un poste
+sans chantier en cours ne peut donc pas se mettre « au neutre » sur la branche
+d'intégration, déjà tenue par un autre — il **reste** sur sa dernière branche,
+fusionnée. Ça ressemble à un worktree oublié et ce n'en est pas un.
+
+#### Le contrôle qui la tient
+
+    scripts/cartographier-la-flotte.py --worktrees
+
+Il compare ==les chemins== que la table déclare à ceux que `git worktree list`
+rend — ==jamais les branches==, pour la raison ci-dessus. Deux écarts, et ils ne
+se lisent pas de la même façon :
+
+    présent dans git, absent du journal   RAPPELER — quelqu'un a oublié
+    présent au journal, absent de git     DEMANDER, ne pas conclure
+
+La seconde asymétrie est celle des langues sources, expliquée plus haut : une
+ligne orpheline peut vouloir dire ==un worktree démonté à l'insu de son
+tenant==, et non un mensonge. ==Le contrôle nomme l'écart, propose les deux
+causes, et ne tranche pas.==
+
+Il ne réécrit rien — ==une table qui se met à jour seule perd le « pourquoi »,
+qui est la seule chose qu'aucun relevé ne peut produire==.
+
 ---
 
 ## Tronc commun et entrées locales
