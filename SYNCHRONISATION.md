@@ -464,37 +464,64 @@ même sans voir qu'un worktree y pendait. Et ==un banc de mesure de 229 lignes==
 qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
 étaient la version d'avant.
 
-#### La table
+#### La table — elle déclare un poste, non une branche
 
-| worktree | branche | qui | pourquoi |
-|---|---|---|---|
-| `ONTBibleTranslation` | `main` | **le vault** | arbre principal — leadeuse du dépôt |
-| `.herdr/worktrees/…/astra` | `raccorder-la-kb-ont` | **Astra** | la KB et ses raccordements |
-| `ONTBibleTranslation-carte` | `porter-la-carte-herdr` | la manageuse | PR #122 |
-| `ONTBibleTranslation-android` | `retablir-la-clause-d-android` | la manageuse | PR #125 |
-| `ONTBibleApp` | `travail` | **iOS** | arbre principal — leadeuse du dépôt |
-| `ONTBibleApp-android` | `outiller-la-chaine-android` | **Android** | poste actif |
-| `ONTBibleApp-mac` | `device` | **macOS** | poste actif |
-| `ONTBibleApp-chuqqot` | `inscrire-les-chuqqot-du-depot` | la manageuse | PR #313 |
-| `ONTBibleApp-index` | `indexer-les-renvois-bibliques` | ==non réclamé== | dort depuis le 11 |
-| `ONTBibleApp-journal13` | `inscrire-le-demi-anneau` | ==non réclamé== | PR #302 |
-| `ONTBibleWebapp` | `resoudre-140` | **le site** | arbre principal — leadeuse du dépôt |
-| `ONTBibleWebapp-android` | `retablir-la-clause-d-android` | la manageuse | PR #153 |
-| `ONTBibleWebapp-appuilong` | `inscrire-l-appui-long-au-journal` | ==non réclamé== | dort depuis le 16 |
+| worktree | qui | pourquoi |
+|---|---|---|
+| `ONTBibleTranslation` | **le vault** | arbre principal — leadeuse du dépôt |
+| `.herdr/worktrees/…/astra` | **Astra** | la KB et ses raccordements |
+| `ONTBibleTranslation-carte` | la manageuse | la carte et le registre, PR #122 |
+| `ONTBibleTranslation-android` | la manageuse | PR #125 |
+| `ONTBibleApp` | **iOS** | arbre principal — leadeuse du dépôt |
+| `ONTBibleApp-android` | **Android** | poste actif |
+| `ONTBibleApp-mac` | **macOS** | poste actif |
+| `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
+| `ONTBibleApp-worktrees` | la manageuse | PR #326 |
+| `ONTBibleApp-index` | ==non réclamé== | commits du 11 septembre |
+| `ONTBibleApp-journal13` | ==non réclamé== | PR #302, commits des 13-14 |
+| `ONTBibleWebapp` | **le site** | arbre principal — leadeuse du dépôt |
+| `ONTBibleWebapp-android` | la manageuse | PR #153 |
+| `ONTBibleWebapp-worktrees` | la manageuse | PR #155 |
+| `ONTBibleWebapp-appuilong` | ==non réclamé== | le site travaille cette branche depuis son arbre principal, pas d'ici |
 
-==Trois lignes portent « non réclamé », et c'est une information et non un
-trou== : personne ne s'en est déclaré tenant quand la question a été posée. La
-règle de veille s'y applique — ==une non-réponse vaut statut inconnu, pas
-supprimable==.
+==Il n'y a pas de colonne « branche », et c'est une décision.== Trois sessions
+l'ont demandée le même jour, chacune par son chemin :
+
+- **macOS** : *« une table de branches serait fausse dans l'heure et personne
+  ne la croirait plus — une table de postes reste vraie des semaines »* ;
+- **Android** : quatre chantiers en trois jours sur un seul worktree ; le
+  contrôle aurait crié trois fois par semaine sur sa seule ligne, ==et un
+  avertissement qu'on apprend à ne plus lire abîme tous les autres== ;
+- **iOS** : l'arbre principal du site a porté ==trois branches en une matinée==.
+
+==La branche est un état, le poste est un fait.== Et le « pourquoi » — la seule
+colonne qu'aucun relevé ne produira jamais — est un fait de poste, pas de
+branche.
+
+**Une contrainte de git qui rend l'état « branche fusionnée » normal**, nommée
+par Android : ==deux worktrees ne peuvent pas porter la même branche==. Un poste
+sans chantier en cours ne peut donc pas se mettre « au neutre » sur la branche
+d'intégration, déjà tenue par un autre — il **reste** sur sa dernière branche,
+fusionnée. Ça ressemble à un worktree oublié et ce n'en est pas un.
 
 #### Le contrôle qui la tient
 
     scripts/cartographier-la-flotte.py --worktrees
 
-Il compare ==ce que la table déclare== à ==ce que `git worktree list` rend==, et
-nomme les deux écarts : un worktree que personne n'a déclaré, une ligne dont le
-worktree n'existe plus. Il ne réécrit rien — ==une table qui se met à jour seule
-perd le « pourquoi », qui est la seule chose qu'aucun relevé ne peut produire==.
+Il compare ==les chemins== que la table déclare à ceux que `git worktree list`
+rend — ==jamais les branches==, pour la raison ci-dessus. Deux écarts, et ils ne
+se lisent pas de la même façon :
+
+    présent dans git, absent du journal   RAPPELER — quelqu'un a oublié
+    présent au journal, absent de git     DEMANDER, ne pas conclure
+
+La seconde asymétrie est celle des langues sources, expliquée plus haut : une
+ligne orpheline peut vouloir dire ==un worktree démonté à l'insu de son
+tenant==, et non un mensonge. ==Le contrôle nomme l'écart, propose les deux
+causes, et ne tranche pas.==
+
+Il ne réécrit rien — ==une table qui se met à jour seule perd le « pourquoi »,
+qui est la seule chose qu'aucun relevé ne peut produire==.
 
 ---
 
