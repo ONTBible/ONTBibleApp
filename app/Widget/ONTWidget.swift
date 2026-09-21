@@ -81,8 +81,48 @@ struct DailyVerseWidgetView: View {
         })
     }
 
+    /// **La quatrième famille, nommée par sa valeur et non par son cas.**
+    ///
+    /// `WidgetFamily.systemExtraLargePortrait` n'existe pas dans tous les SDK :
+    /// ma machine compile avec celui d'iOS 27.1, la CI avec celui de 27.0, et
+    /// le nom y est **introuvable**. Le vert local ne prédisait donc pas la CI
+    /// — le dépôt connaît déjà cette forme, et elle vient de resservir.
+    ///
+    /// Écrire un cas d'énumération par sa valeur brute est normalement une
+    /// faute : rien ne garantit qu'Apple ne la déplace pas. Ici c'est le seul
+    /// moyen de compiler sur les deux SDK, et le risque est mesuré plutôt que
+    /// supposé — relevé à l'exécution sur iOS 27 :
+    ///
+    /// ```text
+    /// systemSmall 0 · systemMedium 1 · systemLarge 2
+    /// systemExtraLarge 3 · systemExtraLargePortrait 4 · accessoryCircular 6
+    /// ```
+    ///
+    /// La quatrième s'est insérée **sans déplacer** ses voisines — 5 et 6
+    /// étaient déjà pris. Une valeur qui bougerait casserait aussi les widgets
+    /// déjà posés sur les écrans d'accueil, ce qu'Apple ne fait pas.
+    ///
+    /// Et `init?(rawValue:)` rend le bon service en prime : sur un système qui
+    /// ne connaît pas cette famille, il rend `nil`, et la case ne paraît pas.
+    fileprivate static let extraLargePortrait = WidgetFamily(rawValue: 4)
+
     private var taille: ONTDailyCard<AnyView>.Size {
-        switch family {
+        // **La quatrième famille prend la plus grande typographie, pas une
+        // quatrième.**
+        //
+        // Les trois tailles de `ONTDailyCard` ont été **mesurées au pixel**
+        // contre la carte de YouVersion, hauteur d'x contre hauteur d'x. En
+        // inventer une quatrième pour `systemExtraLargePortrait` reviendrait à
+        // poser des nombres que personne n'a mesurés, dans le fichier qui dit
+        // en toutes lettres d'où viennent les siens.
+        //
+        // `.large` est donc juste, et perfectible : la carte est plus haute,
+        // son texte pourrait l'être aussi. Ça demande la même mesure que les
+        // trois autres ont reçue, sur une capture de la vraie famille.
+        if family == Self.extraLargePortrait {
+            return .large
+        }
+        return switch family {
         case .systemSmall: .small
         case .systemLarge: .large
         default: .medium
@@ -91,13 +131,28 @@ struct DailyVerseWidgetView: View {
 }
 
 struct DailyVerseWidget: Widget {
+    /// **Les tailles que le lecteur peut choisir**, celle d'iOS 27 comprise.
+    ///
+    /// `systemExtraLargePortrait` est arrivée avec iOS 27 — le SDK la déclare
+    /// `@available(iOS 27.0, *)`. L'app vise iOS 18, donc la liste se compose
+    /// à l'exécution : l'écrire en dur ne compilerait pas, et la taire
+    /// laisserait la quatrième case grisée dans le choix du lecteur, ce que
+    /// l'auteur a vu sur son écran avant que personne ne le mesure.
+    private var famillesOffertes: [WidgetFamily] {
+        var familles: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge]
+        if let quatrieme = DailyVerseWidgetView.extraLargePortrait {
+            familles.append(quatrieme)
+        }
+        return familles
+    }
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ONTDailyVerse", provider: DailyVerseProvider()) { entry in
             DailyVerseWidgetView(entry: entry)
         }
         .configurationDisplayName("Verset du jour")
         .description("Un verset de La Bible ONT, renouvelé chaque jour.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies(famillesOffertes)
     }
 }
 

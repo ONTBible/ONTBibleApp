@@ -40,6 +40,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# **La stable compile ici aussi — mais pour le simulateur seulement.**
+#
+# Les trois simulateurs de captures tournent en **iOS 27.0**, que la stable
+# sait servir. L'iPhone de l'auteur, lui, est en **27.2** : c'est pourquoi
+# `lancer-sur-iphone.sh` reste sur la bêta, et le dit chez lui.
+#
+# Ce qui se joue ici est la divergence de la #216 — l'init synthétisée d'une
+# struct `private` à clôture `@ViewBuilder` compilait en bêta et rougissait en
+# stable. Une campagne de captures qui compile en bêta peut donc réussir sur
+# une app que la CI refusera.
+. "$(dirname "$0")/xcode-de-la-chaine.sh"
+
 SORTIE="app/Captures/brut"
 BUNDLE="com.labibleont.ONT"
 

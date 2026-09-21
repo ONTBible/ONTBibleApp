@@ -48,6 +48,32 @@ struct ChapterView: View {
     /// Une seule présentation, au niveau du chapitre, et les deux modes de
     /// lecture y poussent leur demande.
     @State private var sourceDemandee: PositionDeVerset?
+
+    /// **Laquelle des trois sensations de sélection, et seulement si elle est
+    /// allumée.**
+    ///
+    /// Sortie du `sensoryFeedback` parce que le compilateur y renonçait : la
+    /// fermeture mêlait un `switch` sur deux booléens, trois ternaires et une
+    /// lecture de préférences, et Swift ne sait plus la vérifier en un temps
+    /// raisonnable. C'est la seconde fois dans ce fichier aujourd'hui — un
+    /// écran de réglages grossit par ajouts, et la limite se découvre en la
+    /// franchissant.
+    ///
+    /// Le `Set` a changé sans franchir de frontière : un verset de plus ou de
+    /// moins. Et s'il n'a pas changé du tout, SwiftUI ne nous appelle pas — le
+    /// déclencheur est `Equatable`.
+    private func sensation(de avant: Set<Int>, vers apres: Set<Int>) -> SensoryFeedback? {
+        let allumees = model.preferences.haptiques
+        switch (avant.isEmpty, apres.isEmpty) {
+        case (true, false):
+            return allumees.contains(.entree) ? .impact(weight: .medium, intensity: 0.5) : nil
+        case (false, true):
+            return allumees.contains(.sortie) ? .impact(weight: .light, intensity: 0.35) : nil
+        default:
+            return allumees.contains(.changement) ? .selection : nil
+        }
+    }
+
     /// Les versets sélectionnés au doigt. État éphémère de la vue : une
     /// sélection ne survit pas au chapitre qu'on quitte, et n'a rien à faire
     /// dans le modèle ni sur le disque.
@@ -288,6 +314,7 @@ struct ChapterView: View {
             // travail pour rien.
             .onChange(of: router.tappedVerse) { _, touche in
                 guard let touche else { return }
+                ONTBalises.instant("selection-posee")
                 router.tappedVerse = nil
                 if selection.contains(touche.id) {
                     selection.remove(touche.id)
@@ -363,14 +390,7 @@ struct ChapterView: View {
         // `TextHandleMove`, sa sortie se confondant avec un retrait. C'est un
         // écart connu et assumé, pas un oubli.
         .sensoryFeedback(trigger: selection) { avant, apres in
-            switch (avant.isEmpty, apres.isEmpty) {
-            case (true, false): .impact(weight: .medium, intensity: 0.5)
-            case (false, true): .impact(weight: .light, intensity: 0.35)
-            // Le `Set` a changé sans franchir de frontière : un verset de plus
-            // ou de moins. Et s'il n'a pas changé du tout, SwiftUI ne nous
-            // appelle pas — le déclencheur est `Equatable`.
-            default: .selection
-            }
+            sensation(de: avant, vers: apres)
         }
         // Le titre central ne double plus la pastille : il ne sert qu'à
         // porter le renvoi pendant une sélection, comme dans Bible Strong.
@@ -463,6 +483,27 @@ struct ChapterView: View {
         // **Une dérogation, et elle s'écrit ici.** Une note tient en trois
         // lignes : lui donner le plein écran au glissement offrirait de la
         // hauteur à ce qui n'en demande pas.
+        // **La quatrième sensation : le verset d'origine se lève.**
+        //
+        // Les trois autres disent ce qu'on fait à la **sélection** — entrer,
+        // étendre, sortir. Celle-ci dit autre chose : une feuille arrive, et
+        // elle arrive après un appui long, donc après une attente pendant
+        // laquelle le doigt ne sait pas encore si le geste a pris.
+        //
+        // `.rigid` et non un poids : les trois autres se distinguent par leur
+        // **force** (medium, léger, sélection), celle-ci par sa **texture**.
+        // Un doigt sépare mieux deux matières que deux intensités, et c'est ce
+        // qui permet de savoir sans regarder que c'est la feuille qui vient et
+        // non un verset de plus.
+        //
+        // Posée sur `sourceDemandee` et non dans le geste : elle suit ce qui
+        // **arrive**, pas ce qui a été reconnu. Un appui long qui n'aboutirait
+        // pas ne doit rien faire sentir.
+        .sensoryFeedback(trigger: sourceDemandee != nil) { avant, apres in
+            apres && !avant && model.preferences.haptiques.contains(.feuille)
+                ? .impact(flexibility: .rigid, intensity: 0.7)
+                : nil
+        }
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
             FeuilleDuVersetSource(
                 titreDeLUnite: chapter.title, position: ou, sources: model.sources
@@ -802,7 +843,7 @@ private struct VerseRow: View {
         // `ONTAppuiLong`. Un `LongPressGesture` de SwiftUI passait au
         // simulateur et jamais sur l'appareil : il abandonne dès que le doigt
         // s'écarte de dix points, et un pointeur ne bouge pas.
-        .ontAppuiLong { _ in
+        .ontAppuiLong(sentirLeContact: model.preferences.haptiques.contains(.contact)) { _ in
             sourceDemandee = position(de: verse, dans: chapter)
         }
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
@@ -1283,6 +1324,14 @@ private struct Prose: View, Equatable {
     let verses: [Verse]
     let theme: ONTTheme
     let surlignages: [Int: Color]
+    /// Les versets désignés, **et seulement quand le moteur ne peut pas les
+    /// dessiner** — un bloc trop haut pour un tampon de rendu.
+    ///
+    /// `nil` est le cas courant : le moteur s'en charge, la composition reste
+    /// stable, et cette vue se saute. Non-`nil`, elle entre dans la
+    /// comparaison ci-dessous, donc la composition se refait — c'est le prix
+    /// du repli, et il ne se paie que là où l'autre chemin ne marche pas.
+    let designation: Set<Int>?
 
     /// Les versets ne sont **pas** comparés en profondeur.
     ///
@@ -1298,14 +1347,21 @@ private struct Prose: View, Equatable {
             && a.verses.count == b.verses.count
             && a.surlignages == b.surlignages
             && a.theme == b.theme
+            // **Sans cette ligne, le repli ne s'afficherait jamais.** La vue
+            // est sautée quand elle se compare égale, et changer de sélection
+            // ne changerait alors rien à l'écran — le défaut même qu'on répare.
+            && a.designation == b.designation
     }
 
     var body: some View {
-        ONTTextRenderer.flowingText(
-            verses: verses,
-            theme: theme,
-            highlight: { surlignages[$0] }
-        )
+        ONTBalises.durant("corps-evalue") {
+            ONTTextRenderer.flowingText(
+                verses: verses,
+                theme: theme,
+                highlight: { surlignages[$0] },
+                designation: designation
+            )
+        }
         .lineSpacing(theme.lineSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1418,8 +1474,78 @@ private struct FlowingVerses: View {
         ONTTampon.plafondEnPoints(echelle: echelleDeLEcran)
     }
 
+    /// **Le moteur ne se pose que s'il tient dans un tampon**, et c'est
+    /// presque jamais : mesuré à **13 960 pt** pour *Bereshit* 17 contre un
+    /// plafond de 2 594 (simulateur) ou 5 188 (appareil).
+    ///
+    /// La lecture suivie ne fabrique pas un bloc par paragraphe : elle fabrique
+    /// **un seul `Text` par unité**. Le commentaire d'origine parlait de blocs
+    /// de 2 878 à 4 042 pt — c'était avant que les sections ne fusionnent.
+    /// Depuis, la condition est fausse pour tout chapitre réel, et le voile
+    /// comme le pointillé avaient disparu sans que rien ne le dise.
+    ///
+    /// On garde la condition : quand elle est vraie, le moteur repeint sans
+    /// remettre en page, et c'est mieux. Quand elle est fausse, `Prose` pose
+    /// les mêmes marques en attributs — voir son paramètre `designation`.
     private var peutEstomper: Bool {
         !selection.isEmpty && hauteur > 0 && hauteur <= plafondDuTampon
+    }
+
+    /// En combien de morceaux rendre ce bloc — calibré sur la hauteur mesurée.
+    /// **La hauteur visée par morceau, et pourquoi ce n'est plus le tampon.**
+    ///
+    /// Le premier découpage se calait sur `plafondDuTampon` — la limite de
+    /// rastérisation, 8192 px sur simulateur et **16384 sur un téléphone**. Le
+    /// même chapitre était donc coupé en six chez moi et en **trois** chez
+    /// l'auteur : il remettait en page deux fois plus de texte à chaque appui
+    /// que ce que je mesurais. Mes chiffres étaient justes et ne décrivaient
+    /// pas son app.
+    ///
+    /// Le tampon ne concerne que le moteur de rendu, et le moteur ne sert plus
+    /// ici : au-dessus de sa limite il ne dessine rien, et c'est justement le
+    /// cas de toute unité réelle. Ce qui décide de la taille d'un morceau est
+    /// donc le **coût de sa mise en page**, qui ne dépend d'aucune plateforme.
+    ///
+    /// 1 800 points, soit trois à quatre versets. Mesuré sur `bereshit-17` :
+    ///
+    /// ```text
+    /// une seule pièce     1 233 ms      aucune césure
+    /// morceaux de 2 300     805 ms      5 césures sur 27 versets
+    /// morceaux de   700     507 ms      ~20 césures — la prose suivie n'existe plus
+    /// ```
+    ///
+    /// Le choix n'est pas technique : un morceau plus petit est plus rapide et
+    /// coupe la prose plus souvent. 1 800 garde la lecture suivie lisible —
+    /// une césure tous les trois ou quatre versets se lit comme un paragraphe.
+    private static let hauteurVisee: CGFloat = 1_800
+
+    private var morceaux: Int {
+        guard hauteur > Self.hauteurVisee else { return 1 }
+        return Int((hauteur / Self.hauteurVisee).rounded(.up))
+    }
+
+    /// Les versets répartis en morceaux d'égale hauteur, au prorata des signes.
+    private var versetsParMorceau: [[Verse]] {
+        let n = morceaux
+        guard n > 1 else { return [verses] }
+        let poids = parts.map(\.part)
+        let total = poids.reduce(0, +)
+        guard total > 0 else { return [verses] }
+        let cible = total / CGFloat(n)
+        var groupes: [[Verse]] = []
+        var courant: [Verse] = []
+        var cumul: CGFloat = 0
+        for (i, verse) in verses.enumerated() {
+            courant.append(verse)
+            cumul += poids[i]
+            if cumul >= cible, groupes.count < n - 1 {
+                groupes.append(courant)
+                courant = []
+                cumul = 0
+            }
+        }
+        if !courant.isEmpty { groupes.append(courant) }
+        return groupes
     }
 
     /// Les surlignages de ce bloc, relevés une fois.
@@ -1436,19 +1562,37 @@ private struct FlowingVerses: View {
     }
 
     var body: some View {
-        Prose(
-            verses: verses,
-            theme: theme,
-            surlignages: surlignages
-        )
-        // `.equatable()` protège la **composition**. Le texte ne dépendant plus
-        // de la sélection, ce corps n'est plus réévalué pour un appui — et la
-        // mise en page du bloc a donc lieu une seule fois, à son apparition.
-        .equatable()
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(versetsParMorceau.enumerated()), id: \.offset) { _, groupe in
+                // **Seul le morceau qui porte la désignation touche au texte.**
+                //
+                // C'est ici que se jouait la lenteur. Avant ce chantier,
+                // toucher un verset ne touchait **pas** le texte : `Prose` est
+                // `.equatable()` et ignore la sélection, donc rien ne se
+                // recomposait. Poser le voile en attributs partout a ajouté une
+                // recomposition **et** une mise en page à un geste qui n'en
+                // coûtait aucune — et le découpage n'en a réduit que la part.
+                //
+                // Un morceau sans verset désigné n'a pas besoin des attributs
+                // pour être baissé : `.opacity` le fait au **dessin**, sans
+                // toucher à la chaîne, donc sans remise en page. Seul celui qui
+                // porte le verset en a besoin, pour le distinguer de ses
+                // voisins immédiats et lui poser son pointillé.
+                let designes = selection.intersection(groupe.map(\.n))
+                Prose(
+                    verses: groupe,
+                    theme: theme,
+                    surlignages: surlignages,
+                    designation: peutEstomper || designes.isEmpty ? nil : designes
+                )
+                .equatable()
+                .opacity(selection.isEmpty || !designes.isEmpty ? 1 : ONTColors.dimmedOpacity)
+            }
+        }
         // **L'appui long, en prose continue.** Il n'y a pas de vue par verset
         // ici : on lit la hauteur du doigt et on la convertit avec la même
         // répartition que le repérage du défilement.
-        .ontAppuiLong { ou in
+        .ontAppuiLong(sentirLeContact: model.preferences.haptiques.contains(.contact)) { ou in
             guard let v = versetA(ou.y) else { return }
             sourceDemandee = positionDansLUnite(de: v)
         }
@@ -2018,6 +2162,8 @@ public struct ReadingSettingsSheet: View {
                 }
                 .ontRow()
 
+                SectionsHaptiques(haptiques: $model.preferences.haptiques)
+
                 Section {
                     Button("Réinitialiser les réglages", role: .destructive) {
                         confirmeReset = true
@@ -2054,6 +2200,72 @@ public struct ReadingSettingsSheet: View {
             Text("Votre taille de texte, votre fonte et votre thème reviennent au départ.")
                 .font(ONTUI.ligneDeListe)
         }
+    }
+}
+
+/// **Les cinq sensations, et le droit de les éteindre.**
+///
+/// Une vue à part, et pas seulement pour la lisibilité : le corps des réglages
+/// avait atteint la taille où le compilateur renonce à le vérifier en un temps
+/// raisonnable. Un écran de réglages grossit par ajouts successifs, et c'est
+/// le genre de limite qu'on découvre en la franchissant.
+private struct SectionsHaptiques: View {
+    @Environment(\.ontTheme) private var theme
+    @Binding var haptiques: Set<RetourHaptique>
+
+    /// **Le commutateur d'ensemble reflète les cinq, il ne fait pas que les
+    /// commander.**
+    ///
+    /// Un interrupteur « tout » qui garderait son propre état mentirait dès
+    /// qu'on éteint la dernière sensation à la main : il resterait allumé sur
+    /// un silence complet. Celui-ci n'a pas d'état — il **lit** l'ensemble, et
+    /// l'écrire le remplit ou le vide.
+    private var toutes: Binding<Bool> {
+        Binding(
+            get: { !haptiques.isEmpty },
+            set: { haptiques = $0 ? Set(RetourHaptique.allCases) : [] }
+        )
+    }
+
+    private func une(_ sensation: RetourHaptique) -> Binding<Bool> {
+        Binding(
+            get: { haptiques.contains(sensation) },
+            set: { allumee in
+                if allumee { haptiques.insert(sensation) } else { haptiques.remove(sensation) }
+            }
+        )
+    }
+
+    var body: some View {
+        Section {
+            Toggle("Retour haptique", isOn: toutes)
+                .font(ONTUI.ligneDeListe)
+        } header: {
+            Text("Retour haptique").font(ONTUI.enteteDeListe)
+        } footer: {
+            Text("Les vibrations qui répondent à vos gestes sur le texte. "
+                 + "Chacune se coupe séparément ci-dessous.")
+                .font(ONTUI.piedDeListe)
+        }
+        .ontRow()
+
+        Section {
+            ForEach(RetourHaptique.allCases, id: \.self) { sensation in
+                Toggle(isOn: une(sensation)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(sensation.titre).font(ONTUI.ligneDeListe)
+                        Text(sensation.explication)
+                            .font(ONTUI.piedDeListe)
+                            .foregroundStyle(theme.ink.opacity(0.6))
+                    }
+                }
+            }
+        } footer: {
+            Text("« Le doigt se pose » répond à chaque contact sur le texte, "
+                 + "défilement compris — c'est le prix d'une réponse immédiate.")
+                .font(ONTUI.piedDeListe)
+        }
+        .ontRow()
     }
 }
 

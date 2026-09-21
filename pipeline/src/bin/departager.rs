@@ -124,6 +124,7 @@ fn charger(dist: &Path) -> Result<LiaisonDesMots, String> {
             lemme: e.lemma.as_str(),
             hebreu: e.hebrew.as_deref(),
             strong: e.strong.as_deref(),
+            shem: false,
         }
     })))
 }
