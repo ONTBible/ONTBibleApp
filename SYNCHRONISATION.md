@@ -6205,3 +6205,36 @@ est une contrainte d'accessibilité chez lui.
 C'est le pendant exact de la règle des chuqqot : là on répare à l'énoncé, ici
 l'énoncé dit de ne pas réparer. Une garde qui rougit tous les jours sur une
 valeur assumée est une garde qu'on apprend à ignorer.
+
+### Un `cd` qui échoue laisse le shell où il était
+
+Deux sessions s'y sont fait prendre le 21 septembre, à quatre heures d'écart.
+La seconde avait lu le récit de la première le matin même.
+
+Le mécanisme n'a rien de subtil, et c'est ce qui le rend dangereux :
+
+    cd /chemin/qui-n-existe-plus     ← échoue, écrit une ligne, continue
+    git commit …                     ← s'exécute dans le dossier d'AVANT
+
+Aucune commande ne se plaint. Le premier agent a mesuré trois fois la branche
+d'une autre session en croyant mesurer la sienne. Le second — moi — a déplacé
+la branche de l'arbre principal, que quelqu'un d'autre pouvait tenir.
+
+**Ce qui l'a déclenché les deux fois : un worktree disparu sous les pieds.**
+Un dossier de travail n'est pas un lieu stable quand huit sessions partagent la
+machine, et `ls` répond « No such file or directory » pour un dossier supprimé
+comme pour un volume démonté.
+
+> ==Un `cd` n'est pas une garde : c'est un souhait. Le vérifier, ou le rendre
+> fatal.==
+
+    cd "$W" || exit 1
+    [ "$(git rev-parse --show-toplevel)" = "$W" ] || exit 1
+
+Le second contrôle n'est pas redondant : `pwd` ment quand le dossier a été
+recréé entre-temps, et `--show-toplevel` dit **à quel dépôt on parle**, ce qui
+est la question réelle avant un commit.
+
+C'est la forme de la semaine, encore une fois — une commande qui rend une
+réponse bien formée à une autre question que la sienne. Sauf qu'ici la réponse
+bien formée est le **silence** : rien n'indique qu'on n'est pas où l'on croit.
