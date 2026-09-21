@@ -81,6 +81,31 @@ struct DailyVerseWidgetView: View {
         })
     }
 
+    /// **La quatrième famille, nommée par sa valeur et non par son cas.**
+    ///
+    /// `WidgetFamily.systemExtraLargePortrait` n'existe pas dans tous les SDK :
+    /// ma machine compile avec celui d'iOS 27.1, la CI avec celui de 27.0, et
+    /// le nom y est **introuvable**. Le vert local ne prédisait donc pas la CI
+    /// — le dépôt connaît déjà cette forme, et elle vient de resservir.
+    ///
+    /// Écrire un cas d'énumération par sa valeur brute est normalement une
+    /// faute : rien ne garantit qu'Apple ne la déplace pas. Ici c'est le seul
+    /// moyen de compiler sur les deux SDK, et le risque est mesuré plutôt que
+    /// supposé — relevé à l'exécution sur iOS 27 :
+    ///
+    /// ```text
+    /// systemSmall 0 · systemMedium 1 · systemLarge 2
+    /// systemExtraLarge 3 · systemExtraLargePortrait 4 · accessoryCircular 6
+    /// ```
+    ///
+    /// La quatrième s'est insérée **sans déplacer** ses voisines — 5 et 6
+    /// étaient déjà pris. Une valeur qui bougerait casserait aussi les widgets
+    /// déjà posés sur les écrans d'accueil, ce qu'Apple ne fait pas.
+    ///
+    /// Et `init?(rawValue:)` rend le bon service en prime : sur un système qui
+    /// ne connaît pas cette famille, il rend `nil`, et la case ne paraît pas.
+    fileprivate static let extraLargePortrait = WidgetFamily(rawValue: 4)
+
     private var taille: ONTDailyCard<AnyView>.Size {
         // **La quatrième famille prend la plus grande typographie, pas une
         // quatrième.**
@@ -94,7 +119,7 @@ struct DailyVerseWidgetView: View {
         // `.large` est donc juste, et perfectible : la carte est plus haute,
         // son texte pourrait l'être aussi. Ça demande la même mesure que les
         // trois autres ont reçue, sur une capture de la vraie famille.
-        if #available(iOS 27.0, *), family == .systemExtraLargePortrait {
+        if family == Self.extraLargePortrait {
             return .large
         }
         return switch family {
@@ -115,8 +140,8 @@ struct DailyVerseWidget: Widget {
     /// l'auteur a vu sur son écran avant que personne ne le mesure.
     private var famillesOffertes: [WidgetFamily] {
         var familles: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge]
-        if #available(iOS 27.0, *) {
-            familles.append(.systemExtraLargePortrait)
+        if let quatrieme = DailyVerseWidgetView.extraLargePortrait {
+            familles.append(quatrieme)
         }
         return familles
     }
