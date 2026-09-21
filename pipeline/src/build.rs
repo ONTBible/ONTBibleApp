@@ -571,19 +571,7 @@ fn outline(book: &Book) -> BookOutline {
 const PRONONCIATION: &str = "prononciation";
 
 fn write_json<T: Serialize>(file: &Path, data: &T) -> std::io::Result<usize> {
-    // Compact par défaut : ces fichiers sont embarqués dans un binaire d'app,
-    // pas lus par un humain. `search.json` seul gagne 40 % à ne pas être
-    // indenté.
-    //
-    // `ONT_PRETTY=1` les rend lisibles, pour l'inspection à la main — c'est la
-    // seule façon de regarder un arbre d'inline sans passer par `jq`. La
-    // sortie indentée ne doit jamais être livrée : elle change les empreintes
-    // du manifeste, donc ferait retélécharger tout le corpus.
-    let body = if std::env::var("ONT_PRETTY").is_ok_and(|v| v != "0" && !v.is_empty()) {
-        serde_json::to_string_pretty(data).expect("sérialisation")
-    } else {
-        serde_json::to_string(data).expect("sérialisation")
-    };
+    let body = crate::sources::corps_json(data).expect("sérialisation");
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -641,6 +629,8 @@ pub struct BuildResult {
     pub moins_glosee: Option<(String, f64)>,
     /// Les plages à cheval dont la longueur déduite a été confrontée au témoin
     /// **et** tombe juste.
+    /// Les mots que plusieurs fiches revendiquaient — voir `BilanDesDisputes`.
+    pub disputes: crate::sources::BilanDesDisputes,
     pub plages_mesurees: usize,
     /// Celles qu'aucun témoin n'a permis de confronter.
     ///
@@ -1072,6 +1062,11 @@ pub fn build() -> Result<BuildResult, String> {
                 lemma: lemme.clone(),
                 title: fiche.titre.clone(),
                 definition: fiche.blocs.clone(),
+                // **La Source traverse jusqu'à l'entrée émise.** Elle s'arrêtait
+                // ici : le vault l'écrit dans 119 fiches de Shem, et le champ
+                // n'existait pas pour la porter.
+                strong: fiche.source.as_ref().map(|s| s.strong.clone()),
+                hebrew: fiche.source.as_ref().map(|s| s.hebreu.clone()),
             })
         })
         .collect();
@@ -1340,13 +1335,50 @@ pub fn build() -> Result<BuildResult, String> {
     // `sources`, parce que c'est ici que le glossaire existe. Le module des
     // sources n'a pas à savoir d'où viennent les fiches — il reçoit une table
     // et s'en sert.
-    let mut liaison = crate::sources::LiaisonDesMots::nouvelle(glossary.iter().map(|e| {
-        crate::sources::FichePourLaJointure {
-            lemme: e.lemma.as_str(),
-            hebreu: e.hebrew.as_deref(),
-            strong: e.strong.as_deref(),
-        }
-    }));
+    let mut liaison = crate::sources::LiaisonDesMots::nouvelle(
+        glossary
+            .iter()
+            .map(|e| {
+                crate::sources::FichePourLaJointure {
+                    lemme: e.lemma.as_str(),
+                    // **`hebreu_de_la_fiche` en repli, et les deux champs ne disent
+                    // pas la même chose.**
+                    //
+                    // `hebrew` vient de la puce du §2.5, entre parenthèses ; celle-ci
+                    // vient de la section `## Source` de la fiche. La puce de **YHWH
+                    // est volontairement nue**, le §7 réservant son traitement — donc
+                    // le nom divin n'avait aucune forme à comparer, et l'arbitre le
+                    // laissait inerte.
+                    //
+                    // Mesuré : 14 fiches sur 158 sont dans ce cas, dont `yhwh` et
+                    // `yhwh-elohim`, et à elles deux elles portaient **95 des 144 mots
+                    // inertes** de Bereshit. J'allais demander au vault d'écrire ce
+                    // qu'il avait déjà écrit, sous un autre nom de champ — c'est la
+                    // session du vault qui l'a relevé.
+                    //
+                    // Le §3 d'abord quand il existe : il est le lieu du terme, la
+                    // fiche est le lieu du mot.
+                    hebreu: e.hebrew.as_deref().or(e.hebreu_de_la_fiche.as_deref()),
+                    strong: e.strong.as_deref(),
+                    shem: false,
+                }
+            })
+            // **Et les Shemot, par la même porte.**
+            //
+            // Le témoin ne sait pas qu'un mot est un concept ou un porteur : il dit un
+            // numéro et une forme. La jointure n'a donc pas à connaître deux chemins —
+            // seule la **cible** diffère, `ont://shem/` au lieu de `ont://term/`.
+            //
+            // Elles n'y entraient pas, et 350 noms propres de la Genèse restaient
+            // muets au toucher : Noach, Sarai, Lot, Nachor. Leur fiche existait, elle
+            // déclarait son numéro, et la table qui joint ne l'avait jamais vue.
+            .chain(shemot.iter().map(|e| crate::sources::FichePourLaJointure {
+                lemme: e.lemma.as_str(),
+                hebreu: e.hebrew.as_deref(),
+                strong: e.strong.as_deref(),
+                shem: true,
+            })),
+    );
 
     // **La translittération des mots sources se récolte ici, sur le corpus
     // assemblé**, pour la même raison que la ligne d'au-dessus : c'est ici que
@@ -1380,6 +1412,19 @@ pub fn build() -> Result<BuildResult, String> {
         }
         for (relatif, editions) in &sources.fichiers_editions {
             bytes += write_json(&sortie.join(relatif), editions).map_err(|e| e.to_string())?;
+        }
+
+        // **Le manifeste vient de parler de ces fichiers ; on les lui oppose.**
+        //
+        // Après l'écriture et non avant : un contrôle qui vérifierait la
+        // promesse contre la structure en mémoire ne mesurerait que sa propre
+        // cohérence. Ce qui compte est ce que le client téléchargera.
+        let ecarts = crate::sources::confronter_le_manifeste(&sources.manifeste, &sortie);
+        if !ecarts.is_empty() {
+            return Err(format!(
+                "le manifeste des sources ne décrit pas ce qui a été écrit :\n  {}",
+                ecarts.join("\n  ")
+            ));
         }
         for dit in &sources.ecartees {
             eprintln!("source écartée — {dit}");
@@ -1723,6 +1768,7 @@ pub fn build() -> Result<BuildResult, String> {
             .count(),
         chapitres_mesures: densites.len(),
         moins_glosee: densites.first().map(|d| (d.unite.clone(), d.pour_mille())),
+        disputes: preparation.as_ref().map(|p| p.disputes).unwrap_or_default(),
         plages_mesurees: deductions.mesurees.len(),
         plages_non_mesurees: deductions.non_mesurees.len(),
     })

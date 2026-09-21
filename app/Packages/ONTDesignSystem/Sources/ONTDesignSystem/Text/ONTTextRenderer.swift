@@ -173,11 +173,30 @@ public enum ONTTextRenderer {
     ///   Les intraduisibles gardent le leur : le lien le plus intérieur
     ///   l'emporte, donc toucher un terme ouvre sa fiche et toucher ailleurs
     ///   désigne le verset.
+    /// - Parameter designation: les versets désignés, **quand le moteur de
+    ///   rendu ne peut pas s'en charger**.
+    ///
+    ///   `ONTProseRenderer` dessine d'ordinaire le voile et le pointillé, et
+    ///   c'est mieux : il repeint sans remettre en page. Mais il oblige SwiftUI
+    ///   à rasteriser le bloc hors écran, ce qu'un tampon ne peut pas faire
+    ///   au-delà de 8192 px sur simulateur, 16384 sur l'appareil. Un bloc plus
+    ///   haut perdait donc **les deux** — et d'autant plus vite que le lecteur
+    ///   grossit son texte, c'est-à-dire exactement quand il a besoin de voir
+    ///   ce qu'il a désigné.
+    ///
+    ///   Les attributs, eux, n'ont pas de tampon et pas de plafond. Ils coûtent
+    ///   une remise en page à chaque changement de sélection — c'est pour ça
+    ///   qu'on ne les emploie pas partout — mais désigner un verset est un
+    ///   geste rare et délibéré. **Perdre un peu de vitesse vaut mieux que
+    ///   perdre la désignation.**
     public static func flowingText(
         verses: [Verse],
         theme: ONTTheme,
-        highlight: (Int) -> Color?
+        highlight: (Int) -> Color?,
+        designation: Set<Int>? = nil
     ) -> Text {
+        ONTBalises.instant("composition-debut")
+        defer { ONTBalises.instant("composition-fin") }
         let type = theme.type
         var sortie = Text("")
 
@@ -216,6 +235,25 @@ public enum ONTTextRenderer {
             if let cible = verseURL(verse.n) {
                 poserLeLien(cible, sur: &numero)
                 poserLeLien(cible, sur: &corps)
+            }
+            // Le voile et le pointillé, posés en attributs faute de tampon.
+            if let designation {
+                if designation.contains(verse.n) {
+                    // Le corps seul : le numéro est en exposant, et son
+                    // soulignement flotterait au-dessus de celui de la ligne.
+                    corps.underlineStyle = Text.LineStyle(
+                        pattern: .dot,
+                        color: ONTColors.accent(theme.mode).opacity(0.8)
+                    )
+                } else {
+                    // Baisser l'encre, jamais le fond : un surlignage posé par
+                    // le lecteur doit rester visible sous le voile.
+                    let voile = ONTColors.dimmedOpacity
+                    numero.foregroundColor = (numero.foregroundColor ?? type.corpus.color)
+                        .opacity(voile)
+                    corps.foregroundColor = (corps.foregroundColor ?? type.corpus.color)
+                        .opacity(voile)
+                }
             }
 
             sortie = sortie

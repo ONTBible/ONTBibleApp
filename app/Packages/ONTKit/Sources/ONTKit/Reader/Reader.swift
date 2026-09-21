@@ -202,6 +202,54 @@ public enum ReadingFont: String, CaseIterable, Codable, Sendable {
 /// les **niveaux du texte** (CLAUDE.md §2.1), et pouvoir les éteindre est la
 /// raison d'être de la liseuse. Corps seul, on lit d'une traite ; gloses
 /// allumées, on lit l'appareil ; hébreu allumé, on travaille.
+/// **Les cinq sensations de la lecture**, et le droit de les éteindre.
+///
+/// Quatre disent ce qui **est arrivé** — on entre en sélection, on étend, on
+/// sort, la feuille du verset d'origine se lève. La cinquième dit autre chose
+/// et c'est la seule dans ce cas : *« je t'ai senti »*, dès que le doigt se
+/// pose, avant que l'app sache quoi que ce soit.
+///
+/// **Chacune se coupe séparément**, et c'est délibéré : elles n'ont pas le même
+/// prix pour tout le monde. Celle du contact se déclenche à chaque toucher du
+/// texte, défilement compris — douce, elle passe pour la texture de la page ;
+/// pour un lecteur qui la trouve bavarde, elle doit pouvoir partir sans
+/// emporter les quatre autres, qui, elles, ne parlent que quand il se passe
+/// quelque chose.
+public enum RetourHaptique: String, CaseIterable, Codable, Sendable {
+    /// Le doigt se pose sur le texte.
+    case contact
+    /// On entre en sélection — le premier verset désigné.
+    case entree
+    /// On ajoute ou on retire un verset à une sélection ouverte.
+    case changement
+    /// On sort de la sélection — plus aucun verset désigné.
+    case sortie
+    /// La feuille du verset d'origine se lève, après un appui long.
+    case feuille
+
+    public var titre: String {
+        switch self {
+        case .contact: "Le doigt se pose"
+        case .entree: "On entre en sélection"
+        case .changement: "On ajoute ou on retire"
+        case .sortie: "On sort de la sélection"
+        case .feuille: "Le verset d'origine se lève"
+        }
+    }
+
+    public var explication: String {
+        switch self {
+        case .contact:
+            "Répond dès le contact, avant même que l'appui long ait compté. "
+                + "Se déclenche aussi quand vous faites défiler."
+        case .entree: "Un choc net : un mode s'ouvre."
+        case .changement: "Le retour que le système réserve aux poignées de sélection."
+        case .sortie: "Plus discret que l'entrée : sortir rend la page."
+        case .feuille: "Une autre matière, pour la distinguer d'un verset de plus."
+        }
+    }
+}
+
 public struct ReadingPreferences: Codable, Hashable, Sendable {
     /// Niveau 2 — les gloses.
     public var showGloss: Bool
@@ -259,6 +307,16 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
     /// téléphone réglé en anglais coupe la prose française avec les motifs
     /// anglais — « pro-blème » au lieu de « pro-blè-me ».
     public var hyphenation: Bool
+    /// **Les sensations allumées.** Toutes, au départ.
+    ///
+    /// Un ensemble et non cinq booléens : la question « lesquelles sont
+    /// allumées » se pose telle quelle, et ajouter une sixième sensation
+    /// demain n'oblige pas à toucher au format enregistré.
+    ///
+    /// `Codable` avec une valeur par défaut : un réglage écrit avant ce champ
+    /// se relit avec les cinq allumées, ce qui est l'état que son propriétaire
+    /// connaissait.
+    public var haptiques: Set<RetourHaptique>
     /// Le rappel quotidien.
     ///
     /// Ici plutôt que dans un second magasin, parce qu'il n'y a qu'un port de
@@ -283,6 +341,9 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         continuous: Bool = true,
         french: Bool = true,
         hyphenation: Bool = false,
+        // Toutes allumées : c'est l'app telle qu'elle a toujours été, et un
+        // réglage ne s'introduit pas en éteignant quelque chose.
+        haptiques: Set<RetourHaptique> = Set(RetourHaptique.allCases),
         daily: DailyVerseSchedule = .default
     ) {
         self.showGloss = showGloss
@@ -290,6 +351,7 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         self.partage = partage
         self.french = french
         self.hyphenation = hyphenation
+        self.haptiques = haptiques
         self.textSize = textSize
         self.lineSpacing = lineSpacing
         self.theme = theme
@@ -316,6 +378,8 @@ public struct ReadingPreferences: Codable, Hashable, Sendable {
         french = try c.decodeIfPresent(Bool.self, forKey: .french) ?? defauts.french
         hyphenation = try c.decodeIfPresent(Bool.self, forKey: .hyphenation)
             ?? defauts.hyphenation
+        haptiques = try c.decodeIfPresent(Set<RetourHaptique>.self, forKey: .haptiques)
+            ?? defauts.haptiques
         daily = try c.decodeIfPresent(DailyVerseSchedule.self, forKey: .daily) ?? defauts.daily
     }
 

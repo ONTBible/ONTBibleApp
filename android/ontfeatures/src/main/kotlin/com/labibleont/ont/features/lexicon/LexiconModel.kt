@@ -9,6 +9,8 @@ import com.labibleont.ont.kit.glossary.GlossaryEntry
 import com.labibleont.ont.kit.glossary.Occurrence
 import com.labibleont.ont.kit.glossary.OccurrenceLevel
 import com.labibleont.ont.kit.ports.GlossaryRepository
+import com.labibleont.ont.kit.ports.FeuilleDePrononciation
+import com.labibleont.ont.kit.ports.PrononciationRepository
 import com.labibleont.ont.kit.search.SearchEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,9 +25,20 @@ import kotlinx.coroutines.withContext
  */
 public class LexiconModel(
     private val glossaire: GlossaryRepository,
+    private val feuilles: PrononciationRepository,
 ) : ViewModel() {
 
     public var entrees: kotlin.collections.List<GlossaryEntry> by mutableStateOf(emptyList())
+        private set
+
+    /**
+     * La feuille de prononciation, ou `null` tant que le vault ne la porte pas.
+     *
+     * L'absence est un **état déclaré**, pas un échec : le pipeline n'écrit rien
+     * quand le vault n'a pas la feuille. Le pavé disparaît alors du Lexique, au
+     * lieu d'ouvrir une feuille vide qui ferait croire à une panne.
+     */
+    public var prononciation: FeuilleDePrononciation? by mutableStateOf(null)
         private set
 
     public var requete: String by mutableStateOf("")
@@ -58,6 +71,10 @@ public class LexiconModel(
                 // après « Zohar » dans l'ordre des codes de caractères.
                 glossaire.entries().sortedBy { SearchEngine.fold(it.title) }
             }
+            // Dans le même `launch` et le même `Dispatchers.IO` : la feuille est
+            // un fichier de treize kilo-octets, lu une fois. Lui donner son
+            // propre passage doublerait le va-et-vient pour rien.
+            prononciation = withContext(Dispatchers.IO) { feuilles.feuille() }
         }
     }
 

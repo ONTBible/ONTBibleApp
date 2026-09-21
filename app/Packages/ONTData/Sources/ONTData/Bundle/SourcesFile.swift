@@ -32,6 +32,16 @@ public enum ONTSources {
     /// `sources/manifeste.json`.
     public struct Manifeste: Decodable, Sendable {
         public let schema: Int
+        /// L'estampille de la génération — la date du dernier commit du
+        /// vault, **la même valeur au caractère près** que le `generatedAt`
+        /// du manifeste du corpus sorti du même passage. Jamais un `now()` :
+        /// deux exécutions sur le même vault doivent produire le même octet.
+        ///
+        /// Absente tant que `ONT_GENERE` n'est pas posé (émise par la
+        /// #286 depuis `config::genere`, « vide plutôt que fausse ») — et
+        /// `SourcesUpdater` refuse alors, car un manifeste sans date n'est
+        /// pas prouvable plus récent.
+        public let genere: String?
         public let temoins: [String: Temoin]
         public let livres: [String: Livre]
     }

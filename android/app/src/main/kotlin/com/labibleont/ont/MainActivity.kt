@@ -68,6 +68,7 @@ import com.labibleont.ont.data.bundle.AssetGlossaryRepository
 import com.labibleont.ont.data.remote.CorpusUpdater
 import com.labibleont.ont.data.remote.DiskCorpusRepository
 import com.labibleont.ont.data.remote.DiskGlossaryRepository
+import com.labibleont.ont.data.remote.DiskPrononciationRepository
 import com.labibleont.ont.data.remote.DiskShemotRepository
 import com.labibleont.ont.data.remote.DiskSearchIndex
 import com.labibleont.ont.data.store.FileReaderStore
@@ -79,6 +80,7 @@ import com.labibleont.ont.designsystem.metrics.ONTRadius
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.features.lexicon.LexiconModel
 import com.labibleont.ont.features.lexicon.LexiconTab
+import com.labibleont.ont.features.lexicon.PrononciationSheet
 import com.labibleont.ont.data.bundle.AssetShemotRepository
 import com.labibleont.ont.kit.ports.ShemotRepository
 import com.labibleont.ont.features.lexicon.ShemSheet
@@ -306,6 +308,7 @@ public class MainActivity : ComponentActivity() {
         // ce qui a été téléchargé le recouvre morceau par morceau.
         val corpus = DiskCorpusRepository(applicationContext)
         val glossaire = DiskGlossaryRepository(applicationContext)
+        val prononciation = DiskPrononciationRepository(applicationContext)
         val shemot = DiskShemotRepository(applicationContext)
         val index = DiskSearchIndex(applicationContext)
         val vivier = AssetDailyVerseRepository(applicationContext)
@@ -376,7 +379,7 @@ public class MainActivity : ComponentActivity() {
             )
             val lexique: LexiconModel = viewModel(
                 key = "lexique",
-                factory = fabrique { LexiconModel(glossaire) },
+                factory = fabrique { LexiconModel(glossaire, prononciation) },
             )
             val qahal: QahalModel = viewModel(
                 key = "qahal",
@@ -460,6 +463,9 @@ private fun Racine(
         mutableStateOf(Ecran.Onglets)
     }
     var terme: String? by rememberSaveable { mutableStateOf(null) }
+    // La feuille de prononciation. Un booléen et non un contenu : la feuille
+    // est unique, et son texte vit déjà dans le modèle.
+    var prononciationOuverte: Boolean by rememberSaveable { mutableStateOf(false) }
     // Le Shem touché — un état distinct de `terme`. Les deux feuilles ne se
     // remplacent pas : elles ne parlent pas de la même chose, et un lecteur qui
     // ouvre un nom depuis une fiche de concept doit retrouver la sienne en
@@ -1137,6 +1143,7 @@ private fun Racine(
                 onglet == Onglet.LEXIQUE -> LexiconTab(
                     model = lexique,
                     onOuvrir = { terme = it },
+                    onOuvrirLaPrononciation = { prononciationOuverte = true },
                 )
 
                 else -> YouTab(
@@ -1198,6 +1205,23 @@ private fun Racine(
                 containerColor = ONTColors.surface(theme),
             ) {
                 ShemSheet(entree = entree, preferences = preferences)
+            }
+        }
+    }
+
+    // La feuille de prononciation, présentée comme ses deux voisines.
+    //
+    // Elle ne s'ouvre que si le modèle porte le document : le pavé qui la
+    // déclenche disparaît quand il est absent, mais l'état pourrait survivre à
+    // une rotation. Le `?.let` rend cet accord explicite plutôt que supposé.
+    if (prononciationOuverte) {
+        lexique.prononciation?.let { feuille ->
+            ModalBottomSheet(
+                onDismissRequest = { prononciationOuverte = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = ONTColors.surface(theme),
+            ) {
+                PrononciationSheet(feuille = feuille, preferences = preferences)
             }
         }
     }

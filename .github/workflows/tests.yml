@@ -69,6 +69,29 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée, et ce n'est pas cosmétique.**
+          #
+          # Sans `ref:`, `actions/checkout` prend la branche par défaut du
+          # dépôt cloné. C'était déjà `main` ici, donc rien ne change
+          # aujourd'hui — et c'est précisément ce qui rendait le défaut
+          # invisible : le comportement reste correct tant que la valeur par
+          # défaut l'est, et bascule le jour où elle change, sans qu'une ligne
+          # de ce fichier ne bouge.
+          #
+          # Une valeur par défaut implicite est une dépendance non déclarée.
+          #
+          # Le 11 septembre 2026, le vault avait le symétrique : son
+          # `eprouver.yml` clonait ce dépôt sans `ref:`, prenait donc
+          # `app-store` — restée au 7 septembre —, et jugeait le vault avec un
+          # pipeline de deux paliers en arrière. Il a fallu promouvoir les
+          # quatre paliers pour le débloquer. Le site a trouvé le même défaut
+          # trois fois chez lui le soir même.
+          #
+          # `main`, parce que l'app s'éprouve contre le vault **publié** — pas
+          # contre celui qu'on est en train d'écrire. C'est le symétrique exact
+          # du `ref: app-store` que le vault a posé de son côté : chacun juge
+          # l'autre sur ce qui est livré.
+          ref: main
           path: ONTBibleTranslation
 
       # ## Les scripts de livraison, que rien n'éprouvait
@@ -146,6 +169,25 @@ jobs:
       - name: Les scripts shell ne portent pas les deux pièges connus
         working-directory: ONTBibleApp
         run: ./scripts/eprouver-les-scripts.sh
+
+      # ## Les captures de la fiche montrent-elles encore l'app ?
+      #
+      # Trois récidives — 13 août, 19 août, 31 août — et le même mode d'échec à
+      # chaque fois : la capture périmée a la bonne taille, passe tous les
+      # contrôles, et montre une app qui n'existe plus. La garde de
+      # `soumettre.py` refuse une version **sans** captures ; personne ne
+      # refusait une version aux captures **fausses**.
+      #
+      # **À chaque PR plutôt qu'à la soumission**, sur décision de l'auteur du
+      # 18 septembre 2026 : à la soumission, le contrôle arriverait après le
+      # train de promotion et le bloquerait au pire moment. Ici il est bruyant
+      # — toute modification d'interface rend tous les jeux suspects, même ceux
+      # qu'elle ne touche pas — et c'est le prix assumé d'un contrôle qui ne
+      # déclare rien, donc ne peut pas mentir. L'en-tête du script porte
+      # l'argument entier, et dit aussi ce qu'il **n**'attrape **pas**.
+      - name: Les captures de la fiche sont postérieures à l'interface
+        working-directory: ONTBibleApp
+        run: ./scripts/eprouver-la-fraicheur-des-captures.sh
 
       # ## Une feuille passe par le système de design, jamais par `.sheet` nu
       #
@@ -321,6 +363,43 @@ jobs:
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 
+      # **Et les épreuves d'interface, qui ne tournaient nulle part.**
+      #
+      # `-scheme ONT` ne bâtit pas `ONTUITests`. Ces épreuves n'ont donc jamais
+      # tourné qu'à la main, sur la machine de la session qui les écrivait — et
+      # l'une d'elles gardait un défaut qui est revenu sans bruit.
+      #
+      # `EstompageTests` vérifie que désigner un verset baisse l'encre du
+      # reste. Elle a été écrite la première fois que ce défaut est arrivé, en
+      # août : le plafond du tampon de rendu était réglé sur la limite du
+      # simulateur, moitié moins que celle d'un téléphone, et sur l'appareil
+      # plus rien ne s'estompait. Corrigé alors, l'épreuve écrite — et jamais
+      # lancée depuis.
+      #
+      # Le 20 septembre, le même défaut est revenu par une autre porte : la
+      # lecture suivie a fusionné ses sections, un bloc est passé de 4 042 à
+      # **13 960 points**, et la condition qui pose le moteur est devenue fausse
+      # pour tout chapitre réel. L'auteur l'a vu sur son écran — « il n'y a pas
+      # les pointillés » — et l'épreuve, elle, était verte depuis un mois parce
+      # que personne ne la lançait.
+      #
+      # **Une garde qu'on n'exécute pas ne garde rien.** C'est la forme que ce
+      # dépôt retire partout ; elle valait aussi pour ses propres épreuves.
+      #
+      # Seule `EstompageTests` entre ici, et non toute la suite : elle mesure
+      # des pixels, donc elle coûte une trentaine de secondes. Les autres
+      # suivront quand quelqu'un aura mesuré ce qu'elles coûtent.
+      - name: Les épreuves d'interface qui gardent un défaut connu
+        working-directory: ONTBibleApp/app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONTUITests \
+            -only-testing:ONTUITests/EstompageTests \
+            -destination "id=${{ steps.simulateur.outputs.udid }}" \
+            | xcbeautify --renderer github-actions
+
       # **La liseuse du Mac n'était éprouvée nulle part.**
       #
       # `-scheme ONT` ne bâtit que la cible iOS. Les épreuves de `MacTests/` —
@@ -482,6 +561,29 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ONTBible/ONTBibleTranslation
+          # **La branche est nommée, et ce n'est pas cosmétique.**
+          #
+          # Sans `ref:`, `actions/checkout` prend la branche par défaut du
+          # dépôt cloné. C'était déjà `main` ici, donc rien ne change
+          # aujourd'hui — et c'est précisément ce qui rendait le défaut
+          # invisible : le comportement reste correct tant que la valeur par
+          # défaut l'est, et bascule le jour où elle change, sans qu'une ligne
+          # de ce fichier ne bouge.
+          #
+          # Une valeur par défaut implicite est une dépendance non déclarée.
+          #
+          # Le 11 septembre 2026, le vault avait le symétrique : son
+          # `eprouver.yml` clonait ce dépôt sans `ref:`, prenait donc
+          # `app-store` — restée au 7 septembre —, et jugeait le vault avec un
+          # pipeline de deux paliers en arrière. Il a fallu promouvoir les
+          # quatre paliers pour le débloquer. Le site a trouvé le même défaut
+          # trois fois chez lui le soir même.
+          #
+          # `main`, parce que l'app s'éprouve contre le vault **publié** — pas
+          # contre celui qu'on est en train d'écrire. C'est le symétrique exact
+          # du `ref: app-store` que le vault a posé de son côté : chacun juge
+          # l'autre sur ce qui est livré.
+          ref: main
           path: ONTBibleTranslation
 
       - name: Java

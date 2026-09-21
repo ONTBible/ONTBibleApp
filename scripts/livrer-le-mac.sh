@@ -38,6 +38,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# La stable compile, la bêta reste sélectionnée — voir ce fichier.
+. "$(dirname "$0")/xcode-de-la-chaine.sh"
 vert=$'\033[32m'; rouge=$'\033[31m'; gris=$'\033[90m'; fin=$'\033[0m'
 echec() { printf '%s✗%s %s\n' "$rouge" "$fin" "$1" >&2; exit 1; }
 

@@ -16,13 +16,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.labibleont.ont.designsystem.metrics.ontSpacing
-import com.labibleont.ont.designsystem.text.ONTTextRenderer
+import com.labibleont.ont.designsystem.text.BlocDeFiche
 import com.labibleont.ont.designsystem.theme.LocalReadingTheme
 import com.labibleont.ont.designsystem.tokens.ONTColors
 import com.labibleont.ont.designsystem.typography.ONTFonts
 import com.labibleont.ont.designsystem.typography.ONTProse
 import com.labibleont.ont.designsystem.typography.ONTTypography
-import com.labibleont.ont.kit.corpus.Block
 import com.labibleont.ont.kit.corpus.ShemEntry
 import com.labibleont.ont.kit.reader.ReadingPreferences
 
@@ -77,52 +76,32 @@ public fun ShemSheet(
         )
         Spacer(Modifier.height(espace.m))
 
+        // ## Le rendu des blocs est délégué — arbitrage iOS du 18 septembre 2026
+        //
+        // Cet écran gardait sa propre boucle : titres et paragraphes, un seul
+        // corps de titre à `textSize * 1.1f`, et les trois autres formes ignorées
+        // en silence. Mesuré côté iOS : `ShemSheet.swift:71` appelle `BlocDeFiche`
+        // comme les deux autres feuilles — il n'y a **pas** deux rendus là-bas.
+        //
+        // `titresPleins` reste à `false`, le régime **resserré**, et c'est un
+        // argument de structure de contenu, pas de plateforme : un `##` de fiche
+        // est déjà sous un en-tête de section, et lui donner une taille de titre
+        // le ferait rivaliser avec le bloc qui le contient. Cette feuille a les
+        // mêmes sections que celle d'iOS.
+        //
+        // Ce qu'on perd en le faisant : le titre devient plus petit que sa propre
+        // prose. Ce qu'on gagne : un seul rendu de bloc pour les trois feuilles.
+        // Deux régimes pour le même composant sur deux plateformes divergeraient
+        // à la première correction — c'est l'argument qui avait déjà fait préférer
+        // un drapeau à une seconde vue, un cran plus bas.
         for (bloc in entree.definition) {
-            when (bloc) {
-                is Block.Heading -> {
-                    Spacer(Modifier.height(espace.m))
-                    Text(
-                        ONTTextRenderer.compose(
-                            bloc.nodes,
-                            typo,
-                            showGloss = preferences.showGloss,
-                            showLevel3 = preferences.showLevel3,
-                        ),
-                        fontFamily = ONTFonts.display,
-                        // Un seul corps pour tous les niveaux de titre. Les
-                        // fiches n'en emploient que deux, et les distinguer
-                        // typographiquement demanderait au lecteur de tenir une
-                        // hiérarchie qu'aucune fiche ne fait sentir.
-                        fontSize = (preferences.textSize * 1.1f).sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ONTColors.ink(theme),
-                        // Le lecteur d'écran doit pouvoir sauter de mouvement en
-                        // mouvement : c'est à ça que servent des titres.
-                        modifier = Modifier.semantics { heading() },
-                    )
-                    Spacer(Modifier.height(espace.xs))
-                }
-
-                is Block.Paragraph -> {
-                    Text(
-                        ONTTextRenderer.compose(
-                            bloc.nodes,
-                            typo,
-                            showGloss = preferences.showGloss,
-                            showLevel3 = preferences.showLevel3,
-                        ),
-                        style = ONTProse.francaise.copy(lineHeight = interligne),
-                    )
-                    Spacer(Modifier.height(espace.s))
-                }
-
-                // Une fiche ne porte que des titres et des paragraphes. Le reste
-                // du schéma existe pour le corpus, pas pour elle — et l'ignorer
-                // en silence vaut mieux que de rendre au hasard une forme qu'on
-                // n'a jamais vue ici.
-                else -> Unit
-            }
+            BlocDeFiche(
+                bloc = bloc,
+                typo = typo,
+                preferences = preferences,
+            )
         }
+
         Spacer(Modifier.height(espace(48)))
     }
 }

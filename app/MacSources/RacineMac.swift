@@ -64,7 +64,7 @@ struct RacineMac: View {
         // Dans une `VStack`, elle occupe une place réelle — rien ne peut plus
         // se retrouver derrière elle — et elle hérite du thème du lecteur.
         VStack(spacing: 0) {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $colonnes) {
                 BarreLateraleONT()
                     // **Aucun fond, aucun panneau : la barre est celle du
                     // système.** Trois constructions à la main ont été
@@ -132,6 +132,19 @@ struct RacineMac: View {
 
     /// Les modales que les vues déposent, et que cette racine dessine.
     @State private var feuilles = ONTFeuilles()
+
+    /// La visibilité des colonnes — imposée ouverte **en mode capture** seulement.
+    ///
+    /// AppKit restaure l'état replié/déplié de la barre d'une session à
+    /// l'autre, et la vitrine de l'App Store en dépendait sans le savoir : le
+    /// 17 septembre 2026, les captures ont montré une barre repliée parce que
+    /// la dernière session de travail l'avait laissée ainsi. Le mode capture
+    /// est déjà un mode à part — taille de fenêtre forcée, restauration
+    /// coupée — ; la barre ouverte en fait partie : c'est elle qui montre la
+    /// navigation. En usage normal, `.automatic` laisse le système et la
+    /// restauration décider, comme avant.
+    @State private var colonnes: NavigationSplitViewVisibility =
+        UserDefaults.standard.string(forKey: "tailleDeCapture") != nil ? .all : .automatic
 
     /// La largeur d'ouverture de la barre latérale, en points.
     ///

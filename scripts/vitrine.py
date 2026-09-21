@@ -37,6 +37,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from compte_du_corpus import phrase
+
 RACINE = Path(__file__).resolve().parent.parent
 POLICES = RACINE / "app/Resources/Fonts"
 CAPTURES = RACINE / "app/Captures"
@@ -74,7 +76,7 @@ AFFICHES = [
     ),
     (
         ["Un chantier", "ouvert."],
-        "Trois livres sur soixante-dix. Le compte est public, et "
+        f"{phrase()}. Le compte est public, et "
         "il est tenu par le corpus lui-même.",
     ),
 ]

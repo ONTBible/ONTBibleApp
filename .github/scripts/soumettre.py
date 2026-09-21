@@ -38,17 +38,21 @@ d'échouer et de demander de relancer.
 """
 
 import os
+import pathlib
 import sys
 
 from asc import API, Client, application, attendre_le_build, detailler
 
-# Ce que le relecteur doit savoir avant d'ouvrir l'app. Trois livres sur
-# soixante-dix, et des unités marquées « brouillon » : sans cette note, un
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+from compte_du_corpus import phrase  # noqa: E402
+
+# Ce que le relecteur doit savoir avant d'ouvrir l'app. Le compte des livres
+# se lit dans le corpus, et des unités marquées « brouillon » : sans cette note, un
 # relecteur peut lire un chantier assumé comme une app inachevée — le motif de
 # rejet 2.1 le plus courant.
 NOTES = (
     "La Bible ONT est une restitution française du corpus hébreu et araméen "
-    "antique, en cours de traduction. Trois livres sur soixante-dix sont "
+    f"antique, en cours de traduction. {phrase()} sont "
     "publiés ; le sommaire montre les autres sans les rendre cliquables, et "
     "les unités non relues portent la mention « brouillon ». C'est délibéré, "
     "et non un contenu manquant.\n\n"
@@ -64,29 +68,35 @@ NOTES = (
 # de mettre à jour. Ici et non dans un formulaire, pour la même raison que la
 # fiche : ça se relit en diff, et ça se corrige en pull request.
 NOUVEAUTES = (
-    "Des correctifs d'affichage et de lecture.\n"
+    "Le renvoi biblique s'ouvre, et le verset hébreu se touche mot à mot.\n"
     "\n"
-    "LA GLOSE\n"
-    "Sur les thèmes clairs, le commentaire entre crochets ne se détachait pas "
-    "assez du texte traduit : on ne voyait plus où finissait la traduction et "
-    "où commençait le commentaire. Les quatre thèmes visaient le même écart, "
-    "alors qu'un même écart ne produit pas le même recul sur un fond clair et "
-    "sur un fond sombre. La glose recule désormais franchement, sur les "
-    "quatre.\n"
+    "LE RENVOI BIBLIQUE\n"
+    "Une référence citée au fil du texte — « Bereshit 1:3 » — était écrite "
+    "comme du texte ordinaire : on la lisait sans pouvoir y aller. Elle se "
+    "détache maintenant en ambre, soulignée de pointillés, et s'ouvre sur le "
+    "verset qu'elle nomme, qui arrive sélectionné. Le bouton de retour ramène "
+    "au chapitre et à l'endroit exact qu'on lisait. Quand le livre visé n'est "
+    "pas encore traduit, l'app le dit au lieu de ne rien faire.\n"
     "\n"
-    "LE THÈME\n"
-    "Changer de thème s'applique maintenant partout et tout de suite, sans "
-    "rouvrir l'app — y compris dans la feuille de réglages, qui est justement "
-    "l'endroit où l'on en change. La rangée « Thème » n'y reste plus écrite "
-    "dans les couleurs de l'ancien, et le menu ne surligne plus une valeur "
-    "pendant que la coche en désigne une autre.\n"
+    "LE VERSET D'ORIGINE\n"
+    "Un appui long sur un verset ouvre sa source hébraïque. Le texte hébreu "
+    "s'affiche en haut, chaque mot portant sa translittération dessous, et "
+    "toucher un mot montre ce qu'il veut dire. On balaie pour passer au verset "
+    "suivant, ou d'un mot à l'autre ; la fiche s'agrandit d'un bouton et "
+    "reprend sa taille du même geste.\n"
     "\n"
-    "LES SÉLECTEURS\n"
-    "Le segment retenu débordait de sa case et passait sous son voisin : "
-    "« Intraduisibles » recouvrait « Vocabulaire fixé ». Les parts sont "
-    "désormais mesurées et égales. Quand la place manque — aux grandes tailles "
-    "de texte, surtout — le libellé retenu se lit toujours en entier, puisque "
-    "c'est lui qui dit où l'on est ; seuls les autres se tronquent."
+    "POURQUOI C'EST ANNONCÉ MAINTENANT\n"
+    "Ces deux nouveautés étaient déjà dans la version précédente : ses notes "
+    "ne les mentionnaient pas, et décrivaient des correctifs d'affichage "
+    "arrivés avant elles. Le texte n'avait pas suivi le code. Si vous venez "
+    "de la 1.0.6, vous les avez donc déjà — c'est leur description qui "
+    "manquait.\n"
+    "\n"
+    "ET SOUS LE CAPOT\n"
+    "Les mises à jour du corpus et des langues sources s'installent "
+    "entièrement ou pas du tout : plus de mélange possible entre deux "
+    "générations. Et quand l'app refuse une mise à jour, elle dit désormais "
+    "laquelle des raisons l'a fait refuser, au lieu de se taire."
 )
 
 # Les états d'une version qu'on peut encore remplir et envoyer.
@@ -130,6 +140,30 @@ def creer_la_version(client, app: str, numero: str, plateforme: str) -> str:
         "relationships": {"app": {"data": {"type": "apps", "id": app}}}}})
     print(f"  version {numero} créée")
     return cree["data"]["id"]
+
+
+def compter_les_captures(client, version: str) -> int | None:
+    """Combien de captures la fiche de cette version porte-t-elle ?
+
+    `None` quand la question n'a pas pu être posée — panne de transport,
+    permission manquante. Ce n'est pas zéro : **ne rien trouver n'est pas
+    trouver zéro**, et la doctrine du dépôt est de laisser passer sur une
+    non-réponse plutôt que de bloquer une soumission valide.
+
+    Extraite de `main` pour être éprouvable. Une garde qu'on ne peut pas
+    retourner contre elle-même ne dit pas si elle sait refuser.
+    """
+    try:
+        total = 0
+        for loc in client.get(
+                f"appStoreVersions/{version}/appStoreVersionLocalizations")["data"]:
+            for jeu in client.get(
+                    f"appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")["data"]:
+                total += len(
+                    client.get(f"appScreenshotSets/{jeu['id']}/appScreenshots")["data"])
+        return total
+    except Exception:  # noqa: BLE001 — volontaire, voir ci-dessus
+        return None
 
 
 def main() -> None:
@@ -261,6 +295,44 @@ def main() -> None:
                 "type": "appStoreVersionLocalizations", "id": loc["id"],
                 "attributes": {"whatsNew": NOUVEAUTES}}})
             print(f"  nouveautés posées en {langue}")
+
+    # ── Les captures, avant de soumettre ─────────────────────────────────────
+    #
+    # **Apple refuse une version sans captures, et le refus arrive au bout.**
+    # C'est la même forme que le numéro déjà approuvé, que `version_libre.py`
+    # ferme en amont : tout a tourné, et c'est le dernier appel qui casse. Puis
+    # ça recommence à chaque fusion tant que la fiche n'a pas été remplie.
+    #
+    # Le cas n'était pas théorique. Jusqu'au 12 septembre 2026, ce script ne
+    # soumettait qu'iOS, dont les captures étaient posées depuis longtemps.
+    # L'ajout de macOS à la matrice ouvre un chemin où la plateforme est neuve
+    # et sa fiche peut être vide — et seule la revue le dirait.
+    #
+    # `fiche.py --captures` les téléverse, mais il ne tourne **pas**
+    # automatiquement : `fiche.yml` est un `workflow_dispatch`. Rien ne garantit
+    # donc qu'il ait tourné pour cette plateforme, et c'est exactement pourquoi
+    # la question se pose ici.
+    #
+    # **En cas de panne, on laisse passer** — doctrine du dépôt. Une erreur de
+    # transport n'apprend rien sur les captures, et refuser sur une
+    # non-réponse bloquerait une soumission parfaitement valide.
+    captures = compter_les_captures(client, version)
+    if captures is None:
+        print("  captures : non vérifiables — on laisse passer")
+    elif captures == 0:
+        print(
+            f"  ARRÊT : aucune capture dans la fiche {plateforme}.\n"
+            "  Apple refuserait la revue, et le refus arriverait après\n"
+            "  la compilation, la signature et le téléversement.\n"
+            "\n"
+            "  Le remède, une fois :\n"
+            "      gh workflow run fiche.yml -f captures=true\n"
+            "\n"
+            "  Les captures sont dans le dépôt — `app/Captures/` — et\n"
+            "  `fiche.py` sait les poser. Il ne tourne pas tout seul.")
+        raise SystemExit(1)
+    else:
+        print(f"  captures : {captures} dans la fiche {plateforme}")
 
     # ── La soumission, en trois temps ────────────────────────────────────────
 

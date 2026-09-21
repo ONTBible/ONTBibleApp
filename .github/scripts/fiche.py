@@ -49,6 +49,11 @@ import requests
 from asc import API, Client, application
 
 RACINE = pathlib.Path(__file__).resolve().parents[2]
+# Le compte des livres vit dans `scripts/`, avec les autres gestes du dépôt :
+# la vitrine et la fiche doivent annoncer le même nombre, et deux copies
+# finiraient par diverger — c'est exactement ce qui vient d'arriver.
+sys.path.insert(0, str(RACINE / "scripts"))
+from compte_du_corpus import phrase  # noqa: E402
 CAPTURES = RACINE / "app" / "Captures"
 PROJET = RACINE / "app" / "project.yml"
 
@@ -91,7 +96,7 @@ FICHE = {
         "rendre coûterait ce qu'ils portent. Chacun a sa fiche, et chaque fiche "
         "montre où le terme paraît dans le corpus.\n\n"
         "UN CHANTIER OUVERT\n\n"
-        "Trois livres sur soixante-dix. Le compte est public, et il est tenu par "
+        f"{phrase()}. Le compte est public, et il est tenu par "
         "le corpus lui-même. Une unité verrouillée a été relue et validée ; une "
         "unité qui ne l'est pas est un brouillon, et le dit.\n\n"
         "HORS LIGNE\n\n"

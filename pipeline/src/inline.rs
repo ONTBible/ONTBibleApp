@@ -107,20 +107,62 @@ pub fn slugify(input: &str) -> String {
     let mut tiret_en_attente = false;
     for c in minuscules.chars() {
         match c {
-            // Les apostrophes et les demi-anneaux rencontrés dans le vault :
-            // droite, courbe, la modificatrice, puis **les deux vrais signes
-            // savants** — ʾ pour l'alef, ʿ pour le ayin.
+            // **Les apostrophes tombent ; les demi-anneaux restent.** Ce sont
+            // deux choses que l'œil confond et que l'hébreu sépare.
             //
-            // Ces deux-là manquaient, alors que le commentaire annonçait déjà
-            // « la modificatrice qu'emploient les translittérations savantes ».
-            // L'intention y était, les caractères non : `ʾ` est U+02BE et `ʿ`
-            // est U+02BF, pas U+02BC.
+            // L'apostrophe droite, la courbe et la modificatrice U+02BC sont de
+            // la **ponctuation** : elles appartiennent à la façon d'écrire la
+            // translittération, pas au mot.
+            '\'' | '\u{2019}' | '\u{02BC}' => {}
+            // `ʾ` (U+02BE) et `ʿ` (U+02BF) sont les **deux vrais signes
+            // savants** — l'alef et le ayin. Ce sont des **consonnes de
+            // l'hébreu**, pas des ornements : les jeter revient à confondre
+            // deux mots que le texte distingue par une lettre.
             //
-            // Ce qu'ils coûtaient : tombant dans le cas général, ils devenaient
-            // un tiret. `malʾakh` aurait donné le lemme `mal-akh` au lieu de
-            // `malakh` — **tous les lemmes changés, tous les liens morts**, et
-            // rien pour le dire puisque le slug reste bien formé.
-            '\'' | '\u{2019}' | '\u{02BC}' | '\u{02BE}' | '\u{02BF}' => {}
+            // ## Ce que leur chute coûtait, mesuré
+            //
+            // `malʾakh` — l'envoyé — et `malakh` — régner, 347 emplois —
+            // tombaient sur la même clé `malakh`. La fiche du second ne pouvait
+            // donc pas être écrite : sa place était prise. Décision de l'auteur
+            // du 12 septembre 2026, prise en connaissance du prix.
+            //
+            // Six clés fusionnaient ainsi dans tout le corpus — `olam`, `adam`,
+            // `ra`, `adonai`, `rasha`, `arel` — et **36 entrées du glossaire
+            // sur 143** portent un demi-anneau dans l'une de leurs formes.
+            //
+            // ## Le prix, et qui le paie
+            //
+            // Aucun état de lecteur n'est indexé par lemme : les surlignages et
+            // la position de lecture sont à `chapterId#verse` sur les deux
+            // plateformes (`Reader.swift`, `Reader.kt`). **Zéro migration de
+            // données.**
+            //
+            // Le site, lui, publie `/fr/lexique/<lemme>` et les déclare dans
+            // son `sitemap.xml`. Les clés qui changent y deviennent des 404 —
+            // d'où la table de redirections qui accompagne ce changement.
+            //
+            // ## Le prix invisible, qui n'est pas dans ces comptes
+            //
+            // **Le système cesse d'être indulgent.** Jusqu'ici, une fiche qui
+            // omettait le demi-anneau d'une graphie était rattrapée par le
+            // pardon du slug. Désormais elle sera simplement **invisible**, et
+            // rien ne le dira — c'est le défaut qu'on accepte pour en corriger
+            // un autre, et il vaut d'être écrit plutôt que découvert.
+            //
+            // **Traités exactement comme une lettre**, séparateur compris. Ce
+            // n'est pas un détail de forme : `basar ʾechad` doit rendre
+            // `basar-ʾechad`, et une branche qui se contente d'annuler le tiret
+            // en attente rend `basarʾechad` — le composé perd sa charnière.
+            // Mesuré : c'est le seul des vingt-deux lemmes déplacés dont la
+            // clé ne se déduisait pas de l'ancienne, et c'est ce qui l'a
+            // trahi.
+            '\u{02BE}' | '\u{02BF}' => {
+                if tiret_en_attente && !out.is_empty() {
+                    out.push('-');
+                }
+                tiret_en_attente = false;
+                out.push(c);
+            }
             c if c.is_ascii_alphanumeric() => {
                 if tiret_en_attente && !out.is_empty() {
                     out.push('-');
@@ -1068,13 +1110,57 @@ mod tests {
 
     #[test]
     fn les_formes_se_reduisent_au_lemme_attendu() {
+        // **L'apostrophe reste de la ponctuation** : droite, courbe ou
+        // modificatrice, elle tombe. C'est une façon d'écrire, pas une lettre.
         assert_eq!(slugify("mal'akh"), "malakh");
         assert_eq!(slugify("She'ol"), "sheol");
+        assert_eq!(slugify("tov me'od"), "tov-meod");
+        assert_eq!(slugify("l'Être façonné du sol"), "letre-faconne-du-sol");
+
         assert_eq!(slugify("El Elyon"), "el-elyon");
         assert_eq!(slugify("ha-satan"), "ha-satan");
-        assert_eq!(slugify("tov me'od"), "tov-meod");
         assert_eq!(slugify("Elohim"), slugify("elohim"));
-        assert_eq!(slugify("l'Être façonné du sol"), "letre-faconne-du-sol");
+    }
+
+    /// **Le demi-anneau est une consonne, pas un ornement.**
+    ///
+    /// `ʾ` (U+02BE, l'alef) et `ʿ` (U+02BF, le ayin) ne tombent plus : deux
+    /// mots que l'hébreu sépare par une lettre ne doivent pas se rejoindre sur
+    /// la même clé. Décision de l'auteur du 12 septembre 2026.
+    #[test]
+    fn le_demi_anneau_separe_ce_que_l_hebreu_separe() {
+        // Le cas qui a motivé le changement : l'envoyé et le verbe régner.
+        assert_eq!(slugify("malʾakh"), "malʾakh");
+        assert_eq!(slugify("malakh"), "malakh");
+        assert_ne!(slugify("malʾakh"), slugify("malakh"));
+
+        // Les cinq autres collisions mesurées dans le corpus.
+        assert_ne!(slugify("raʿ"), slugify("Ra"));
+        assert_ne!(slugify("ʿolam"), slugify("Olam"));
+        assert_ne!(slugify("ʾadam"), slugify("Adam"));
+        assert_ne!(slugify("rashaʿ"), slugify("Rasha"));
+        assert_ne!(slugify("ʿarel"), slugify("Arel"));
+
+        // **Et il ne se confond pas avec l'apostrophe**, qui lui ressemble à
+        // l'œil et tombe toujours. C'est toute la difficulté du changement :
+        // `ʾ` est U+02BE, `ʼ` est U+02BC, et rien à l'écran ne les distingue.
+        assert_eq!(slugify("malʼakh"), "malakh");
+        assert_ne!(slugify("malʾakh"), slugify("malʼakh"));
+    }
+
+    /// **Une consonne garde la charnière des composés.**
+    ///
+    /// Le premier jet annulait le tiret en attente au lieu de le poser, et
+    /// rendait `basarʾechad` — le composé perdait sa charnière. Aucune des
+    /// vingt-deux clés déplacées ne l'aurait montré sauf celle-ci : les autres
+    /// portent leur demi-anneau ailleurs qu'en tête de mot.
+    #[test]
+    fn le_demi_anneau_en_tete_de_mot_garde_le_tiret() {
+        assert_eq!(slugify("basar ʾechad"), "basar-ʾechad");
+        assert_eq!(slugify("tov va-raʿ"), "tov-va-raʿ");
+        assert_eq!(slugify("ʾEl ʿElyon"), "ʾel-ʿelyon");
+        // Et il n'en invente pas un en tête de chaîne.
+        assert_eq!(slugify("ʾechad"), "ʾechad");
     }
 
     #[test]
@@ -1227,22 +1313,39 @@ mod triple_asterisque {
             "l'astérisque orpheline est entrée dans le terme : {texte}"
         );
     }
-    /// **Les demi-anneaux savants disparaissent, ils ne deviennent pas des
-    /// tirets.**
+    /// **Les demi-anneaux savants ne coupent pas le lemme — et depuis le 12
+    /// septembre 2026, ils n'en sortent plus non plus.**
     ///
     /// `ʾ` (U+02BE, alef) et `ʿ` (U+02BF, ayin) remplacent l'apostrophe unique
     /// depuis le 8 septembre 2026 : celle-ci était visible et ambiguë — on
     /// voyait qu'il y avait une lettre sans pouvoir dire laquelle.
     ///
-    /// Ils manquaient à `slugify`, donc ils tombaient dans le cas général et
-    /// devenaient un tiret. `malʾakh` aurait donné `mal-akh` : **tous les
-    /// lemmes changés, tous les liens morts**, et rien pour le dire puisque le
-    /// slug reste bien formé.
+    /// ## Cette épreuve a rougi sur un changement voulu, et c'est bien
+    ///
+    /// Elle exigeait `slugify("malʾakh") == "malakh"`. C'était juste tant que
+    /// le demi-anneau était tenu pour un ornement ; ça ne l'est plus depuis
+    /// qu'il est tenu pour une consonne — décision de l'auteur, parce que
+    /// `malʾakh` l'envoyé et `malakh` régner s'écrasaient sur la même clé et
+    /// que la fiche du second ne pouvait donc pas être écrite.
+    ///
+    /// Elle est **réécrite, pas supprimée**. Ce qu'elle gardait de vrai reste
+    /// vrai : le demi-anneau ne devient **jamais un tiret** — c'était le
+    /// danger d'origine, *« tous les lemmes changés, tous les liens morts,
+    /// et rien pour le dire puisque le slug reste bien formé »*. Seule
+    /// change la moitié qui le faisait disparaître.
+    ///
+    /// Une épreuve qu'on supprime parce qu'elle gêne emporte avec elle ce
+    /// qu'elle protégeait d'autre.
     #[test]
     fn les_demi_anneaux_savants_ne_coupent_pas_le_lemme() {
-        assert_eq!(slugify("malʾakh"), "malakh");
-        assert_eq!(slugify("Kenaʿan"), "kenaan");
-        assert_eq!(slugify("Gevurot ha-Neviʾim"), "gevurot-ha-neviim");
+        // Jamais un tiret — l'invariant d'origine, intact.
+        assert!(!slugify("malʾakh").contains('-'));
+        assert!(!slugify("Kenaʿan").contains('-'));
+
+        // Et désormais conservés, parce qu'ils portent une lettre.
+        assert_eq!(slugify("malʾakh"), "malʾakh");
+        assert_eq!(slugify("Kenaʿan"), "kenaʿan");
+        assert_eq!(slugify("Gevurot ha-Neviʾim"), "gevurot-ha-neviʾim");
     }
 
     /// Et les trois apostrophes d'avant continuent de disparaître — sans quoi

@@ -1,0 +1,489 @@
+import CryptoKit
+import Foundation
+
+/// La mise à jour des langues sources par le réseau.
+///
+/// ## Pourquoi elle ne ressemble pas à `CorpusUpdater`
+///
+/// Le corpus se remplace **fichier par fichier**, et c'est un choix assumé
+/// là-bas : ses morceaux sont indépendants, sept livres sur huit valent mieux
+/// que rien. Les sources n'ont pas ce luxe. Le manifeste et ses fichiers se
+/// répondent — une empreinte, un chemin, un compte d'octets par témoin — et le
+/// bundle ne porte qu'**un témoin sur cinq** (l'hébreu, décision de l'auteur
+/// du 11 septembre 2026). Un remplacement partiel peut donc être à la fois
+/// plus neuf pour le grec et plus vieux pour l'hébreu, et une estampille
+/// globale ne saurait pas le dire.
+///
+/// L'audit externe du 8 septembre a donné un nom à ce défaut sur le corpus
+/// (A08 : « une mise à jour peut laisser un corpus composé de versions
+/// incompatibles ») ; ici il est écarté **par construction** :
+///
+/// > **Une génération = un dossier = une estampille.** Le bundle est le
+/// > plancher : sous le plancher on purge, on ne fusionne jamais.
+///
+/// Concrètement : tout ce que le manifeste annonce est téléchargé dans un
+/// dossier candidat, chaque fichier est prouvé par son empreinte **sur les
+/// octets reçus** (A09), l'estampille s'écrit en dernier, puis le dossier
+/// bascule d'un seul geste. À aucun instant le dossier actif ne mêle deux
+/// générations.
+///
+/// ## Ce que ce fichier sait du contrat, et ce qu'il en attend
+///
+/// Le manifeste publié est celui du pipeline **verbatim** — `ONTSources.Manifeste`,
+/// le même décodeur que le bundle. Son `genere` est émis par le pipeline
+/// (#286) depuis `ONT_GENERE` : la date du dernier commit du vault, la même
+/// valeur au caractère près que le `generatedAt` du corpus sorti du même
+/// passage — jamais un `now()`, qui republierait tout à des lecteurs dont
+/// rien n'a changé. Le publieur du site vérifie ce champ avant la première
+/// copie et publie le fichier tel quel. Quand il manque — `ONT_GENERE`
+/// absent, doctrine « vide plutôt que fausse » — la garde d'âge refuse : un
+/// manifeste sans date n'est pas prouvable plus récent, et « refuser plutôt
+/// qu'accepter quand l'ordre est indécidable » est la doctrine du corpus,
+/// reprise telle quelle.
+///
+/// Les empreintes, elles, sont **pleines** — 64 hexadécimaux, posées par le
+/// pipeline dans le manifeste. Pas la forme tronquée à douze signes du
+/// publieur du corpus : deux normalisations pour une même donnée finissent
+/// par diverger, et celle-ci existe déjà de bout en bout.
+public actor SourcesUpdater {
+    /// La version du manifeste des sources que ce code sait lire.
+    static let schema = 1
+
+    /// Ce que la synchronisation a fait — ou **pourquoi elle ne l'a pas fait**.
+    ///
+    /// ## Pourquoi un type et non un compte
+    ///
+    /// Cette méthode rendait un `Int` : le nombre de fichiers installés, et
+    /// `0` sinon. Quatre chemins sortaient par ce `0` — pas de manifeste, rien
+    /// de plus récent, génération incomplète, bascule refusée — et le
+    /// deuxième est le **cas normal**. Un appelant ne pouvait donc pas
+    /// distinguer « tout va bien, rien à faire » de « ça échoue à chaque tour
+    /// depuis trois semaines ».
+    ///
+    /// Les gardes étaient justes et éprouvées ; c'est leur **rapport** qui
+    /// était muet. On avait mesuré que le refus se produit, jamais qu'il se
+    /// fasse entendre.
+    ///
+    /// > **Une garde qui refuse sans le dire est un gel programmé.**
+    ///
+    /// Relevé le 12 septembre 2026 par la session du site, en déroulant les
+    /// conséquences d'un cache long sur des noms de fichiers fixes : le
+    /// manifeste neuf et un fichier servi depuis le cache du bord se
+    /// désaccordent, l'empreinte le détecte, le candidat entier est jeté — et
+    /// la seule trace est que rien n'arrive jamais. Le cache a été corrigé
+    /// chez eux ; ce silence-ci restait, et il vaut pour **toutes** les causes,
+    /// pas seulement celle-là.
+    ///
+    /// `Ne jette toujours pas sur une panne de réseau` — c'était juste, et ça
+    /// n'impliquait pas de rendre le refus indistinguable du repos.
+    public enum Resultat: Sendable, Equatable {
+        /// Une génération entière est installée et active.
+        case installee(fichiers: Int)
+        /// Le publié n'est pas plus récent que ce qu'on a. **Le cas normal.**
+        case rienDeNeuf
+        /// Pas de manifeste lisible à l'adresse publiée — réseau, 404, JSON
+        /// illisible. Sans gravité une fois ; répété, c'est une publication
+        /// qui n'a jamais eu lieu.
+        case manifesteInjoignable
+        /// Le manifeste n'a pas de `genere` exploitable. Un manifeste sans
+        /// date n'est pas plus vieux : il est **indécidable**, donc refusé.
+        /// Répété, c'est un publieur qui omet le champ — et rien d'autre ne le
+        /// dira.
+        case dateIndecidable
+        /// Le **bundle** n'a pas d'estampille lisible — son `manifest.json`
+        /// manque, ou son `generatedAt` est vide ou mal formé. Sans plancher,
+        /// aucune publication n'est prouvable plus récente : chaque
+        /// synchronisation refuserait pour toujours, et c'est un défaut du
+        /// **build**, pas du publieur — la cause d'en face de
+        /// `dateIndecidable`, et rien d'autre ne la dira.
+        case plancherIllisible
+        /// Un fichier annoncé n'est pas arrivé, ou n'a pas prouvé son
+        /// empreinte ou sa taille. Porte de quoi chercher.
+        case generationIncomplete(motif: String)
+        /// Tout était prêt, la bascule a échoué — disque plein, permissions.
+        case basculeRefusee(motif: String)
+
+        /// Le nombre de fichiers installés, `0` pour tout le reste.
+        ///
+        /// Conservé pour les appelants qui ne veulent que ça — mais il
+        /// **n'est plus le seul retour**, et c'est tout l'objet de ce type.
+        public var fichiers: Int {
+            if case .installee(let n) = self { return n }
+            return 0
+        }
+
+        /// Vrai quand rien n'a été installé **et que ce n'est pas normal**.
+        ///
+        /// `rienDeNeuf` n'en est pas : c'est la réponse attendue la plupart du
+        /// temps. Les cinq autres méritent une trace.
+        public var estUnRefus: Bool {
+            switch self {
+            case .installee, .rienDeNeuf: return false
+            case .manifesteInjoignable, .dateIndecidable, .plancherIllisible,
+                .generationIncomplete, .basculeRefusee: return true
+            }
+        }
+    }
+
+    public enum Failure: LocalizedError {
+        case unsupportedSchema(Int)
+
+        public var errorDescription: String? {
+            switch self {
+            case .unsupportedSchema(let version):
+                // Même doctrine que le corpus : un manifeste plus récent que
+                // cette version de l'app décrit peut-être des fichiers qu'elle
+                // ne saurait pas lire. Mieux vaut rester sur le bundle.
+                "Manifeste des sources non pris en charge, version \(version)"
+            }
+        }
+    }
+
+    private let origine: URL
+    private let dossier: URL
+    private let session: URLSession
+    /// Le plancher : l'estampille du build, lue de son `manifest.json` — la
+    /// même que celle du corpus, et c'est voulu. Corpus et sources embarquent
+    /// dans le même passage de `corpus.sh` : un build = une date, et un
+    /// deuxième champ serait un A07 en attente.
+    ///
+    /// Injectable : sans ça, l'épreuve des gardes dépendrait du bundle de
+    /// l'hôte des tests, qui ne porte pas de manifeste.
+    let plancher: CorpusUpdater.Estampille?
+
+    public init(
+        origine: URL = URL(string: "https://ontbible.com/")!,
+        dossier: URL? = nil,
+        session: URLSession = .shared
+    ) {
+        self.init(
+            origine: origine, dossier: dossier, session: session,
+            plancher: CorpusUpdater.estampilleEmbarquee())
+    }
+
+    init(
+        origine: URL,
+        dossier: URL?,
+        session: URLSession,
+        plancher: CorpusUpdater.Estampille?
+    ) {
+        self.origine = origine
+        self.dossier = dossier ?? Self.dossierParDefaut()
+        self.session = session
+        self.plancher = plancher
+    }
+
+    /// `Application Support/sources` — le dossier des générations.
+    ///
+    /// La génération active vit dans `actif/`, et les chemins du manifeste
+    /// valent sous elle comme partout : `actif/sources/he-wlc/bereshit.json`.
+    /// La répétition de « sources » est le prix d'une convention unique — la
+    /// même chaîne désigne le fichier dans le paquet, sur le disque et chez
+    /// le publieur.
+    public static func dossierParDefaut() -> URL {
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("sources", isDirectory: true)
+    }
+
+    /// La génération active — ce que les lecteurs de disque liront.
+    public var actif: URL { dossier.appendingPathComponent("actif", isDirectory: true) }
+
+    /// Va chercher la génération publiée si elle est plus récente, et bascule.
+    ///
+    /// Rend un `Resultat` qui **nomme** ce qui s'est passé — installée, rien de
+    /// neuf, ou l'une des quatre raisons de n'avoir rien installé. Voir
+    /// `Resultat` pour pourquoi ce n'est plus un simple compte.
+    ///
+    /// **Ne jette pas sur une panne de réseau.** Une mise à jour est un
+    /// agrément, pas une condition : la liseuse lit ce qu'elle a. Seul un
+    /// manifeste d'une version inconnue remonte — il dit quelque chose.
+    @discardableResult
+    public func synchroniser() async throws -> Resultat {
+        guard let (manifeste, octetsDuManifeste) = try await manifestePublie() else {
+            return .manifesteInjoignable
+        }
+        guard manifeste.schema == Self.schema else {
+            throw Failure.unsupportedSchema(manifeste.schema)
+        }
+
+        // **On n'accepte que ce qu'on peut prouver plus récent** — que le
+        // plancher du bundle ET que la génération active. La comparaison à
+        // l'actif est la leçon A08 : ne comparer qu'au bundle laisse une
+        // publication V2 recouvrir une V3 téléchargée, tant que V2 reste plus
+        // neuve que le bundle V1. Et un manifeste **sans** date n'est pas
+        // « plus vieux » : il est indécidable, donc refusé — ne rien trouver
+        // n'est pas trouver zéro.
+        guard let genere = manifeste.genere,
+            let publiee = CorpusUpdater.Estampille(genere),
+            let plancher,
+            publiee > plancher,
+            estampilleActive.map({ publiee > $0 }) ?? true
+        else {
+            // **Trois causes distinctes sous une même garde, et aucune ne dit
+            // la même chose.** Une date absente ou illisible est un défaut du
+            // publieur ; un plancher illisible est un défaut du build — et il
+            // gèlerait TOUTES les synchronisations à venir, pas une ; une date
+            // plus vieille est le repos. Les séparer ici plutôt qu'éclater la
+            // garde : son enchaînement est ce qui la rend lisible.
+            //
+            // La #296 n'en séparait que deux : `plancher` nil tombait dans
+            // `rienDeNeuf` — le gel éternel rangé sous le repos, la famille
+            // exacte que son commit condamnait, une jambe plus loin.
+            guard let genere = manifeste.genere,
+                CorpusUpdater.Estampille(genere) != nil
+            else { return .dateIndecidable }
+            guard plancher != nil else { return .plancherIllisible }
+            return .rienDeNeuf
+        }
+
+        // **La génération entière, dans un dossier candidat.** Chaque fichier
+        // que le manifeste annonce doit arriver et se prouver ; un seul échec
+        // jette le candidat entier. Un livre à `temoins` vide est complet par
+        // déclaration — son absence est du contrat, pas un trou.
+        let annonces = fichiersAnnonces(manifeste)
+
+        // **Et les annonces ne doivent pas se percuter ENTRE ELLES.** Toutes
+        // les gardes ci-dessous comparent un fichier à SON entrée — élément
+        // contre ensemble. Aucune ne voyait deux entrées en collision : deux
+        // `chemin` identiques s'écriraient au même endroit, dernier gagnant,
+        // et la preuve du premier serait silencieusement annulée — la
+        // génération basculée porterait un fichier dont l'empreinte ne répond
+        // qu'à une des deux annonces. Même famille que les `n` en double de
+        // bereshit-7 : chaque élément valide seul, l'ensemble faux.
+        //
+        // Le pipeline émet des chemins uniques par construction (BTreeMap par
+        // témoin) — mais le manifeste est une donnée reçue, pas une promesse
+        // tenue d'avance. Question posée par le vault le 16 septembre 2026,
+        // et la réponse est celle-ci.
+        if let percussion = Self.percussionDesChemins(annonces) {
+            return .generationIncomplete(motif: percussion)
+        }
+        let candidat = dossier.appendingPathComponent(
+            "candidat-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: candidat) }
+
+        do {
+            try preparer(candidat)
+            for fichier in annonces {
+                let octets = try await telecharger(fichier)
+                try ecrire(octets, chemin: fichier.chemin, sous: candidat)
+            }
+            // Le manifeste lui-même, dans les octets reçus — pas re-sérialisé :
+            // une re-sérialisation est une normalisation de plus.
+            try ecrire(octetsDuManifeste, chemin: "sources/manifeste.json", sous: candidat)
+            // **L'estampille en dernier.** Tant qu'elle n'y est pas, le
+            // candidat n'est pas une génération — et comme la bascule est le
+            // seul geste qui rend visible, l'ordre vaut aussi après une mort
+            // subite au milieu : un candidat orphelin n'est jamais lu.
+            try publiee.texte.write(
+                to: candidat.appendingPathComponent("estampille.txt"),
+                atomically: true, encoding: .utf8)
+        } catch {
+            return .generationIncomplete(motif: Self.enClair(error))
+        }
+
+        // **La bascule, d'un seul geste.** `replaceItemAt` échange les deux
+        // dossiers atomiquement ; s'il n'y a pas encore d'actif, un simple
+        // déplacement suffit — il est tout aussi atomique sur un même volume.
+        do {
+            if FileManager.default.fileExists(atPath: actif.path) {
+                _ = try FileManager.default.replaceItemAt(actif, withItemAt: candidat)
+            } else {
+                try FileManager.default.moveItem(at: candidat, to: actif)
+            }
+        } catch {
+            return .basculeRefusee(motif: Self.enClair(error))
+        }
+        return .installee(fichiers: annonces.count)
+    }
+
+    /// **Écarte la génération du disque quand le bundle est plus récent.**
+    ///
+    /// Le pendant de la garde de `synchroniser`, pour ce qui est **déjà là** :
+    /// refuser de poser du plus vieux ne fait rien à une génération posée
+    /// avant la garde. C'est la leçon du corpus (30 août — le publié écrasait
+    /// le bundle plus neuf), et l'audit l'a généralisée (A08).
+    ///
+    /// Une estampille absente vaut « plus vieux » : une génération que
+    /// personne n'a datée date forcément d'avant ce code.
+    public static func purgerSiLeBundleEstPlusNeuf(
+        dossier: URL = dossierParDefaut(),
+        bundle: Foundation.Bundle = .main
+    ) {
+        purgerSiLeBundleEstPlusNeuf(
+            dossier: dossier, plancher: CorpusUpdater.estampilleEmbarquee(bundle))
+    }
+
+    static func purgerSiLeBundleEstPlusNeuf(
+        dossier: URL, plancher: CorpusUpdater.Estampille?
+    ) {
+        guard let plancher else { return }
+        let actif = dossier.appendingPathComponent("actif", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: actif.path) else { return }
+        let estampille = (try? String(
+            contentsOf: actif.appendingPathComponent("estampille.txt"), encoding: .utf8))
+            .flatMap { CorpusUpdater.Estampille($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        if let estampille, !(estampille < plancher) { return }
+        try? FileManager.default.removeItem(at: actif)
+    }
+
+    // MARK: - Ce que le manifeste annonce
+
+    /// La collision entre annonces, s'il y en a une — `nil` sinon.
+    ///
+    /// Trois formes, toutes rendues avec le chemin fautif pour le diagnostic :
+    /// un chemin **en double** (deux annonces, un seul fichier écrit) ; un
+    /// chemin **réservé** (`sources/manifeste.json`, `estampille.txt` — il
+    /// écraserait ou serait écrasé par ce que l'updater écrit lui-même) ; un
+    /// chemin **qui s'évade** (`..`, ou absolu — il écrirait hors du dossier
+    /// candidat, et la bascule ne l'emporterait pas).
+    static func percussionDesChemins(_ annonces: [ONTSources.Fichier]) -> String? {
+        var vus = Set<String>()
+        for fichier in annonces {
+            let chemin = fichier.chemin
+            if !vus.insert(chemin).inserted {
+                return "chemin annoncé deux fois : \(chemin)"
+            }
+            if chemin == "sources/manifeste.json" || chemin == "estampille.txt" {
+                return "chemin réservé à l'updater : \(chemin)"
+            }
+            if chemin.hasPrefix("/") || chemin.split(separator: "/").contains("..") {
+                return "chemin hors du candidat : \(chemin)"
+            }
+        }
+        return nil
+    }
+
+    /// Tous les fichiers que la génération doit porter — les témoins de
+    /// chaque livre, et l'apparat d'éditions quand il existe. La complétude
+    /// se mesure contre **cette** liste : c'est le manifeste qui parle, pas
+    /// une convention de nommage.
+    private func fichiersAnnonces(_ manifeste: ONTSources.Manifeste) -> [ONTSources.Fichier] {
+        manifeste.livres.values
+            .flatMap { livre in
+                livre.temoins.values + (livre.editions.map { [$0] } ?? [])
+            }
+            .sorted { $0.chemin < $1.chemin }
+    }
+
+    // MARK: - Le réseau
+
+    private func manifestePublie() async throws -> (ONTSources.Manifeste, Data)? {
+        let url = origine.appendingPathComponent("sources/manifeste.json")
+        guard let (octets, reponse) = try? await session.data(from: url),
+            (reponse as? HTTPURLResponse)?.statusCode == 200,
+            let manifeste = try? JSONDecoder().decode(ONTSources.Manifeste.self, from: octets)
+        else { return nil }
+        return (manifeste, octets)
+    }
+
+    /// Ce qu'un fichier reçu a de faux — **avec ses nombres**.
+    ///
+    /// Le premier jet jetait des `URLError` : `.dataLengthExceedsMaximum` pour
+    /// une taille inattendue, `.badServerResponse` pour tout le reste. Le
+    /// commentaire de la garde promettait pourtant l'inverse — « 1 204 octets
+    /// au lieu de 502 186 dit quoi chercher, là où *empreinte fausse* ne dit
+    /// rien » — et `generationIncomplete(motif:)` portait ce motif au journal.
+    ///
+    /// **La promesse était dans le commentaire et pas dans le code.** Le motif
+    /// rendait le nom d'une erreur de Foundation : sans le fichier, sans les
+    /// deux tailles, et sans distinguer un serveur muet d'un contenu faux —
+    /// deux causes que `.badServerResponse` confondait.
+    ///
+    /// Ces nombres tranchent une question que personne ne peut trancher
+    /// depuis la liseuse, et la session du vault l'a mesurée le 18 septembre
+    /// 2026 :
+    ///
+    ///     annoncés ≫ reçus    troncature, mauvais fichier, transfert coupé
+    ///     annoncés ≪ reçus    génération construite avec `ONT_PRETTY` armé —
+    ///                         le pipeline calcule `octets` et `sha256` sur la
+    ///                         forme compacte et écrit la forme indentée
+    ///
+    /// Sans les deux nombres au journal, les deux cas se lisent pareil — et
+    /// l'un se répare en retentant, l'autre en republiant.
+    enum Reception: LocalizedError, Equatable {
+        case statut(chemin: String, code: Int)
+        case tailleInattendue(chemin: String, annonces: Int, recus: Int)
+        case empreinteFausse(chemin: String, octets: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .statut(let chemin, let code):
+                "\(chemin) : le serveur a répondu \(code)"
+            case .tailleInattendue(let chemin, let annonces, let recus):
+                "\(chemin) : \(recus) octets reçus, \(annonces) annoncés"
+            case .empreinteFausse(let chemin, let octets):
+                "\(chemin) : empreinte fausse sur \(octets) octets — la taille "
+                    + "est juste, le contenu non"
+            }
+        }
+    }
+
+    /// Le motif qu'on porte au journal, dans la langue de qui le lira.
+    ///
+    /// `String(describing:)` sur une erreur de Foundation rend son nom de cas
+    /// et rien d'autre ; sur une `Reception`, il rendrait la forme Swift avec
+    /// ses étiquettes. Ni l'un ni l'autre ne se lit à trois heures du matin :
+    /// `errorDescription` est écrit pour ça, quand il existe.
+    static func enClair(_ erreur: any Error) -> String {
+        (erreur as? LocalizedError)?.errorDescription ?? String(describing: erreur)
+    }
+
+    private func telecharger(_ fichier: ONTSources.Fichier) async throws -> Data {
+        let (octets, reponse) = try await session.data(
+            from: origine.appendingPathComponent(fichier.chemin))
+        let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else {
+            throw Reception.statut(chemin: fichier.chemin, code: code)
+        }
+        // La taille d'abord, pour le diagnostic — voir `Reception` : c'est
+        // l'écart, et son sens, qui disent quoi chercher.
+        guard octets.count == fichier.octets else {
+            throw Reception.tailleInattendue(
+                chemin: fichier.chemin, annonces: fichier.octets, recus: octets.count)
+        }
+        // **L'empreinte, sur les octets reçus** (A09) — pleine, 64 signes,
+        // celle que le pipeline a posée. Un contenu faux de même taille ne
+        // doit jamais passer pour bon.
+        guard Self.empreinte(octets) == fichier.sha256 else {
+            throw Reception.empreinteFausse(chemin: fichier.chemin, octets: octets.count)
+        }
+        return octets
+    }
+
+    /// `sha256` plein, hexadécimal minuscule — la forme du manifeste des
+    /// sources. Pas celle, tronquée à douze signes, du publieur du corpus.
+    static func empreinte(_ octets: Data) -> String {
+        SHA256.hash(data: octets).map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Le disque
+
+    private var estampilleActive: CorpusUpdater.Estampille? {
+        (try? String(
+            contentsOf: actif.appendingPathComponent("estampille.txt"), encoding: .utf8))
+            .flatMap { CorpusUpdater.Estampille($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    }
+
+    private func preparer(_ candidat: URL) throws {
+        try FileManager.default.createDirectory(
+            at: candidat, withIntermediateDirectories: true)
+        // L'exclusion des sauvegardes se pose sur la racine du chantier :
+        // tout ce qui vit dessous est retéléchargeable, rien n'a sa place
+        // dans l'iCloud du lecteur.
+        var racine = dossier
+        var valeurs = URLResourceValues()
+        valeurs.isExcludedFromBackup = true
+        try? racine.setResourceValues(valeurs)
+    }
+
+    /// Écrit sous le candidat, au chemin que le manifeste donne — le même qui
+    /// vaut dans le paquet et chez le publieur.
+    private func ecrire(_ octets: Data, chemin: String, sous candidat: URL) throws {
+        let destination = candidat.appendingPathComponent(chemin)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try octets.write(to: destination, options: .atomic)
+    }
+}
