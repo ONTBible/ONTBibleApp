@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import SwiftUI
+import ONTKit
 import UIKit
 
 /// **Un appui long qui survit à une zone défilante.**
@@ -45,13 +46,67 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
     /// s'est posé est la seule façon de savoir *lequel* il désigne.
     private let action: (CGPoint) -> Void
 
-    public init(duree: TimeInterval = 0.4, action: @escaping (CGPoint) -> Void) {
+    /// Le contact se fait-il sentir ? Réglable par le lecteur — voir
+    /// `RetourHaptique.contact`.
+    private let sentirLeContact: Bool
+
+    public init(
+        duree: TimeInterval = 0.4,
+        sentirLeContact: Bool = true,
+        action: @escaping (CGPoint) -> Void
+    ) {
+        self.sentirLeContact = sentirLeContact
         self.duree = duree
         self.action = action
     }
 
+    /// **Un reconnaisseur qui dit quand le doigt se pose.**
+    ///
+    /// `.began` d'un appui long n'arrive qu'après sa durée minimale ; il ne
+    /// peut donc pas dater le contact. `touchesBegan`, lui, est appelé dès que
+    /// UIKit remet le toucher au reconnaisseur — c'est le premier instant que
+    /// l'app puisse connaître.
+    ///
+    /// C'est la balise qui manquait pour savoir si les 146 ms relevées entre
+    /// l'appui du banc et `lien-recu` sont dans l'app ou dans le banc.
+    private final class ReconnaisseurBalise: UILongPressGestureRecognizer {
+        /// **Le retour du contact — la cinquième sensation.**
+        ///
+        /// Les quatre autres disent ce qui **est arrivé** : on entre en
+        /// sélection, on étend, on sort, la feuille se lève. Celle-ci dit
+        /// autre chose, et c'est la seule dans ce cas : *« je t'ai senti »*.
+        /// Elle répond au doigt avant que l'app sache quoi que ce soit — quatre
+        /// dixièmes de seconde pendant lesquels rien ne disait au lecteur que
+        /// son appui avait commencé à compter.
+        ///
+        /// `.soft` et faible, parce qu'elle se déclenche **à chaque contact**
+        /// sur le texte, y compris celui qui deviendra un défilement : à cet
+        /// instant rien ne distingue les deux, et attendre pour le savoir
+        /// reviendrait à ne plus répondre au contact. Une sensation douce
+        /// passe alors pour la texture de la page ; une franche serait du
+        /// bruit.
+        ///
+        /// Préparé d'avance : `prepare()` réveille le moteur haptique, sans
+        /// quoi la première sensation d'une session arrive avec des dizaines
+        /// de millisecondes de retard — exactement là où elle doit être vive.
+        private let contact = UIImpactFeedbackGenerator(style: .soft)
+        var sentirLeContact = true
+
+        override func reset() {
+            super.reset()
+            contact.prepare()
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            ONTBalises.instant("doigt-pose")
+            if sentirLeContact { contact.impactOccurred(intensity: 0.4) }
+            super.touchesBegan(touches, with: event)
+        }
+    }
+
     public func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
-        let r = UILongPressGestureRecognizer()
+        let r = ReconnaisseurBalise()
+        r.sentirLeContact = sentirLeContact
         r.minimumPressDuration = duree
         // La tolérance d'UIKit, et non celle de SwiftUI : elle joue **après**
         // l'arbitrage, pas contre lui.
@@ -96,11 +151,15 @@ extension View {
     /// Là où le pont n'existe pas, on retombe sur le geste de SwiftUI : il
     /// vaut mieux un appui long capricieux que pas d'appui long du tout.
     public func ontAppuiLong(
-        duree: TimeInterval = 0.4, action: @escaping (CGPoint) -> Void
+        duree: TimeInterval = 0.4,
+        sentirLeContact: Bool = true,
+        action: @escaping (CGPoint) -> Void
     ) -> some View {
         #if canImport(UIKit)
             if #available(iOS 18.0, *) {
-                return AnyView(gesture(ONTAppuiLong(duree: duree, action: action)))
+                return AnyView(gesture(ONTAppuiLong(
+                    duree: duree, sentirLeContact: sentirLeContact, action: action
+                )))
             }
         #endif
         return AnyView(modifier(AppuiLongAvecCurseur(duree: duree, action: action)))

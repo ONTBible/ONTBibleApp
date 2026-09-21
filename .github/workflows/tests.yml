@@ -363,6 +363,43 @@ jobs:
             -resultBundlePath ../resultats.xcresult \
             | xcbeautify --renderer github-actions
 
+      # **Et les épreuves d'interface, qui ne tournaient nulle part.**
+      #
+      # `-scheme ONT` ne bâtit pas `ONTUITests`. Ces épreuves n'ont donc jamais
+      # tourné qu'à la main, sur la machine de la session qui les écrivait — et
+      # l'une d'elles gardait un défaut qui est revenu sans bruit.
+      #
+      # `EstompageTests` vérifie que désigner un verset baisse l'encre du
+      # reste. Elle a été écrite la première fois que ce défaut est arrivé, en
+      # août : le plafond du tampon de rendu était réglé sur la limite du
+      # simulateur, moitié moins que celle d'un téléphone, et sur l'appareil
+      # plus rien ne s'estompait. Corrigé alors, l'épreuve écrite — et jamais
+      # lancée depuis.
+      #
+      # Le 20 septembre, le même défaut est revenu par une autre porte : la
+      # lecture suivie a fusionné ses sections, un bloc est passé de 4 042 à
+      # **13 960 points**, et la condition qui pose le moteur est devenue fausse
+      # pour tout chapitre réel. L'auteur l'a vu sur son écran — « il n'y a pas
+      # les pointillés » — et l'épreuve, elle, était verte depuis un mois parce
+      # que personne ne la lançait.
+      #
+      # **Une garde qu'on n'exécute pas ne garde rien.** C'est la forme que ce
+      # dépôt retire partout ; elle valait aussi pour ses propres épreuves.
+      #
+      # Seule `EstompageTests` entre ici, et non toute la suite : elle mesure
+      # des pixels, donc elle coûte une trentaine de secondes. Les autres
+      # suivront quand quelqu'un aura mesuré ce qu'elles coûtent.
+      - name: Les épreuves d'interface qui gardent un défaut connu
+        working-directory: ONTBibleApp/app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ONT.xcodeproj \
+            -scheme ONTUITests \
+            -only-testing:ONTUITests/EstompageTests \
+            -destination "id=${{ steps.simulateur.outputs.udid }}" \
+            | xcbeautify --renderer github-actions
+
       # **La liseuse du Mac n'était éprouvée nulle part.**
       #
       # `-scheme ONT` ne bâtit que la cible iOS. Les épreuves de `MacTests/` —
