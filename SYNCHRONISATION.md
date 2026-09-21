@@ -6176,3 +6176,33 @@ un Shem — relevé dans leurs sources, pas déduit :
 **Il n'y a donc rien à porter, seulement plus de mots qui portent une cible.**
 C'est la couche des Shemot décidée le 29 août qui avait déjà fait le travail
 chez eux ; ce qui manquait était en amont, dans la jointure.
+
+### Une comparaison n'est honnête qu'à la taille où la chose sera vue
+
+L'or des intraduisibles rend **3,11:1** sur le parchemin, là où WCAG demande
+4,5:1 pour du texte qu'on lit. Pour soumettre la question, j'ai d'abord fabriqué
+une maquette : la vraie fonte, la vraie phrase, les trois ors côte à côte.
+
+**Elle était fausse, et d'une façon qu'on ne voit pas** : le texte y faisait
+46 px, quand le corps de la liseuse est à 17 pt. À cette taille l'or tient
+largement — la maquette répondait donc *oui* à une question qu'elle ne posait
+pas. L'auteur a choisi sur elle ; il a fallu recommencer.
+
+Trois builds réels, installés sur le simulateur, même chapitre et même passage,
+une seule valeur changée entre chacun. C'est là que le choix vaut quelque chose.
+
+> ==Un aperçu à une autre échelle écrase les écarts qu'on lui demande de
+> montrer. Juger à 1:1, sur le support réel.==
+
+La session macOS avait appris la même chose en septembre sur ses captures
+d'écran, à demi-échelle. Deux terrains, un seul énoncé.
+
+**Et la décision est allée contre la mesure, en la connaissant** : l'auteur garde
+l'or actuel. C'est inscrit dans `ONTColors.accent` avec les trois valeurs
+éprouvées et la consigne de **ne pas le « réparer »** — parce que cette valeur
+paraîtra fausse à quiconque la mesurera, et d'autant plus que le fort contraste
+est une contrainte d'accessibilité chez lui.
+
+C'est le pendant exact de la règle des chuqqot : là on répare à l'énoncé, ici
+l'énoncé dit de ne pas réparer. Une garde qui rougit tous les jours sur une
+valeur assumée est une garde qu'on apprend à ignorer.
