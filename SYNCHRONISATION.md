@@ -6030,3 +6030,63 @@ espace vérifié vide a emporté un autre espace et ses trois onglets. Les trois
 mesures faites avant étaient justes — elles portaient sur **la cible**, quand la
 question était **l'effet**. Rien n'a été perdu : les worktrees étaient intacts,
 les sessions reprises depuis leurs transcripts.
+
+---
+
+## 21 septembre 2026 — une condition jamais vraie, et une épreuve qui ne tournait pas
+
+Le pointillé sous le verset désigné et le voile sur ses voisins étaient morts
+**depuis le 15 août**. Le commit qui a posé le moteur de rendu a, dans le même
+geste, fusionné les versets d'une unité en **un seul texte** : 13 960 points de
+haut, contre un plafond de tampon de 5 188 sur un téléphone.
+
+Au-dessus de ce plafond, `TextRenderer` **perd le dessin sans erreur ni trace**.
+La condition qui posait le pointillé n'a donc jamais été vraie sur un chapitre
+réel — pas une fois en cinq semaines.
+
+### L'épreuve existait, et elle était juste
+
+`EstompageTests` gardait exactement ce cas. Elle n'était branchée dans aucun
+job : `-scheme ONT` ne la bâtissait pas. **Verte un mois durant sans jamais
+tourner.**
+
+> ==Une garde qu'on n'exécute pas ne garde rien. Vérifier qu'une épreuve
+> existe n'est pas vérifier qu'elle s'exécute — ce sont deux questions, et
+> c'est la seconde qui protège.==
+
+Elle entre dans `tests.yml`, et durcie : elle mesurait l'encre de la page sans
+vérifier qu'il y en avait. Sur un écran blanc — l'autre manifestation du même
+défaut — elle passait au vert.
+
+### Trois bancs ont mesuré leur propre attente
+
+La correction a rendu la sélection lente, et trois bancs successifs ont annoncé
+**490 à 900 ms**. Les trois étaient faux, pour la même raison : `XCUITest` ne
+rend la main qu'une fois l'application **au repos**. Tout banc externe mesure
+donc la fin du mouvement, jamais le travail.
+
+Des `os_signpost` posés dans le chemin lui-même ont tranché : **54 ms** entre le
+doigt et le texte marqué. J'avais annoncé « 517 ms récupérés » ; ce chemin n'en
+a jamais fait plus de 54.
+
+Les balises restent dans le code livré — elles ne coûtent rien tant que personne
+n'écoute, et une instrumentation qu'on repose à chaque enquête est une
+instrumentation qu'on reposera de travers.
+
+### Ce que la jointure des Shemot change chez les voisins — vérifié, pas supposé
+
+562 noms propres deviennent touchables : leur fiche existait et déclarait son
+numéro de Strong, mais `LiaisonDesMots` ne chaînait que le glossaire. Les 626
+jointures passent toutes par le numéro déclaré **des deux côtés**.
+
+Aucune forme JSON ne bouge, et les deux autres plateformes savent déjà ouvrir
+un Shem — relevé dans leurs sources, pas déduit :
+
+| dépôt | ce qui reçoit un `ont://shem/<lemme>` |
+|---|---|
+| site | `interface/design/verset.rs:208` et `:238` — `CibleDuNiveauTrois::Shem` |
+| Android | `MainActivity.kt:469-473`, `:1200-1207` — `ShemSheet`, état distinct du terme |
+
+**Il n'y a donc rien à porter, seulement plus de mots qui portent une cible.**
+C'est la couche des Shemot décidée le 29 août qui avait déjà fait le travail
+chez eux ; ce qui manquait était en amont, dans la jointure.
