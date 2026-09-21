@@ -438,6 +438,64 @@ l'écran.
 **Cette table se relève, elle ne se recopie pas.** Les volets durent, les
 branches et les PR non — celles-ci sont des mesures, pas une identité.
 
+### Déclarer son worktree — 21 septembre 2026
+
+**Décision de l'auteur.** Une session qui crée un `git worktree` ==l'inscrit
+ici==, dans le même tour. Une session qui le démonte ==retire sa ligne==.
+
+**Pourquoi une déclaration, et non un relevé.** Parce que ==rien ne prouve
+qu'une session tient un worktree==. Trois pistes ont été éprouvées le
+21 septembre, les trois échouent :
+
+    herdr agent list      rend le dossier de LANCEMENT du volet, jamais le worktree
+    lsof                  ne voit rien entre deux tours — un agent qui réfléchit
+                          n'a aucun fichier ouvert
+    date de l'index git   vieillit sur un poste où l'on lit sans commiter
+
+==Vu du dehors, une session ne se prouve que par sa réponse.== Et une réponse
+n'est pas consultable quand la session est occupée, partie, ou — comme Astra
+pendant deux jours — incapable d'écrire. D'où la déclaration : ==ce qu'aucun
+instrument ne mesure, on l'écrit==.
+
+**Ce que ça a coûté de ne pas l'avoir.** Le 21 septembre, un démontage de cinq
+worktrees a failli emporter ==un commit qui ne tenait que par un worktree== —
+`HEAD` détaché, sur une branche que son propre auteur avait supprimée le matin
+même sans voir qu'un worktree y pendait. Et ==un banc de mesure de 229 lignes==
+qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
+étaient la version d'avant.
+
+#### La table
+
+| worktree | branche | qui | pourquoi |
+|---|---|---|---|
+| `ONTBibleTranslation` | `main` | **le vault** | arbre principal — leadeuse du dépôt |
+| `.herdr/worktrees/…/astra` | `raccorder-la-kb-ont` | **Astra** | la KB et ses raccordements |
+| `ONTBibleTranslation-carte` | `porter-la-carte-herdr` | la manageuse | PR #122 |
+| `ONTBibleTranslation-android` | `retablir-la-clause-d-android` | la manageuse | PR #125 |
+| `ONTBibleApp` | `travail` | **iOS** | arbre principal — leadeuse du dépôt |
+| `ONTBibleApp-android` | `outiller-la-chaine-android` | **Android** | poste actif |
+| `ONTBibleApp-mac` | `device` | **macOS** | poste actif |
+| `ONTBibleApp-chuqqot` | `inscrire-les-chuqqot-du-depot` | la manageuse | PR #313 |
+| `ONTBibleApp-index` | `indexer-les-renvois-bibliques` | ==non réclamé== | dort depuis le 11 |
+| `ONTBibleApp-journal13` | `inscrire-le-demi-anneau` | ==non réclamé== | PR #302 |
+| `ONTBibleWebapp` | `resoudre-140` | **le site** | arbre principal — leadeuse du dépôt |
+| `ONTBibleWebapp-android` | `retablir-la-clause-d-android` | la manageuse | PR #153 |
+| `ONTBibleWebapp-appuilong` | `inscrire-l-appui-long-au-journal` | ==non réclamé== | dort depuis le 16 |
+
+==Trois lignes portent « non réclamé », et c'est une information et non un
+trou== : personne ne s'en est déclaré tenant quand la question a été posée. La
+règle de veille s'y applique — ==une non-réponse vaut statut inconnu, pas
+supprimable==.
+
+#### Le contrôle qui la tient
+
+    scripts/cartographier-la-flotte.py --worktrees
+
+Il compare ==ce que la table déclare== à ==ce que `git worktree list` rend==, et
+nomme les deux écarts : un worktree que personne n'a déclaré, une ligne dont le
+worktree n'existe plus. Il ne réécrit rien — ==une table qui se met à jour seule
+perd le « pourquoi », qui est la seule chose qu'aucun relevé ne peut produire==.
+
 ---
 
 ## Tronc commun et entrées locales
