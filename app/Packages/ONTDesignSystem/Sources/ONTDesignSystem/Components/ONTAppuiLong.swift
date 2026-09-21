@@ -61,8 +61,35 @@ public struct ONTAppuiLong: UIGestureRecognizerRepresentable {
     /// C'est la balise qui manquait pour savoir si les 146 ms relevées entre
     /// l'appui du banc et `lien-recu` sont dans l'app ou dans le banc.
     private final class ReconnaisseurBalise: UILongPressGestureRecognizer {
+        /// **Le retour du contact — la cinquième sensation.**
+        ///
+        /// Les quatre autres disent ce qui **est arrivé** : on entre en
+        /// sélection, on étend, on sort, la feuille se lève. Celle-ci dit
+        /// autre chose, et c'est la seule dans ce cas : *« je t'ai senti »*.
+        /// Elle répond au doigt avant que l'app sache quoi que ce soit — quatre
+        /// dixièmes de seconde pendant lesquels rien ne disait au lecteur que
+        /// son appui avait commencé à compter.
+        ///
+        /// `.soft` et faible, parce qu'elle se déclenche **à chaque contact**
+        /// sur le texte, y compris celui qui deviendra un défilement : à cet
+        /// instant rien ne distingue les deux, et attendre pour le savoir
+        /// reviendrait à ne plus répondre au contact. Une sensation douce
+        /// passe alors pour la texture de la page ; une franche serait du
+        /// bruit.
+        ///
+        /// Préparé d'avance : `prepare()` réveille le moteur haptique, sans
+        /// quoi la première sensation d'une session arrive avec des dizaines
+        /// de millisecondes de retard — exactement là où elle doit être vive.
+        private let contact = UIImpactFeedbackGenerator(style: .soft)
+
+        override func reset() {
+            super.reset()
+            contact.prepare()
+        }
+
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
             ONTBalises.instant("doigt-pose")
+            contact.impactOccurred(intensity: 0.4)
             super.touchesBegan(touches, with: event)
         }
     }
