@@ -56,6 +56,35 @@ information, et il se voit.
 
 ---
 
+## #327 · Inscrire que l'or des intraduisibles est sous le seuil, et assumé
+
+    ouverte le   21 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** `ONTColors.accent` rend **3,11:1** sur le parchemin et 3,39:1 sur
+le blanc. WCAG demande 3:1 pour ce qu'on repère et **4,5:1 pour ce qu'on lit** —
+et c'est du texte qu'on lit : `ONTTypography.term` porte cet or à la taille du
+corps, dans le fil de la phrase. Relevé par le site en portant les quatre
+thèmes, confirmé par macOS qui a nommé deux emplois texte de plus.
+
+**Aucune valeur ne change.** Trois builds réels sur le simulateur ont mis les
+trois ors sous l'œil de l'auteur — 3,11 · 4,50 · 6,40 — et il a gardé le
+premier en connaissant la mesure. La PR n'inscrit que le commentaire.
+
+**Ce que ça engage.** Le site et macOS ont mesuré le même écart le même jour.
+==Leur garde de contraste s'aligne sur ce choix et non sur la norme== : sans
+ça elle rougit tous les jours sans rien apprendre, et une garde qu'on apprend à
+ignorer ne garde plus rien. Le site porte la sienne dans son PR #156.
+
+**Pour la relire.** La décision « l'or se repère au lieu de se lire » existait
+déjà dans `accentSurSurlignage` — mais elle avait été prise **pour le numéro de
+verset**, et s'est étendue à l'intraduisible sans être reprise. C'est la forme
+qu'on se signale depuis une semaine : ==une décision juste dans son périmètre
+d'origine, devenue fausse en s'étendant sans qu'on la repose==.
+
+---
+
 ## #326 · Déclarer son worktree, puisque rien ne le prouve
 
     ouverte le   21 septembre 2026, par la manageuse
