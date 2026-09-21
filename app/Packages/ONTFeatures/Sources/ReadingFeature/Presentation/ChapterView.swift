@@ -464,6 +464,25 @@ struct ChapterView: View {
         // **Une dérogation, et elle s'écrit ici.** Une note tient en trois
         // lignes : lui donner le plein écran au glissement offrirait de la
         // hauteur à ce qui n'en demande pas.
+        // **La quatrième sensation : le verset d'origine se lève.**
+        //
+        // Les trois autres disent ce qu'on fait à la **sélection** — entrer,
+        // étendre, sortir. Celle-ci dit autre chose : une feuille arrive, et
+        // elle arrive après un appui long, donc après une attente pendant
+        // laquelle le doigt ne sait pas encore si le geste a pris.
+        //
+        // `.rigid` et non un poids : les trois autres se distinguent par leur
+        // **force** (medium, léger, sélection), celle-ci par sa **texture**.
+        // Un doigt sépare mieux deux matières que deux intensités, et c'est ce
+        // qui permet de savoir sans regarder que c'est la feuille qui vient et
+        // non un verset de plus.
+        //
+        // Posée sur `sourceDemandee` et non dans le geste : elle suit ce qui
+        // **arrive**, pas ce qui a été reconnu. Un appui long qui n'aboutirait
+        // pas ne doit rien faire sentir.
+        .sensoryFeedback(trigger: sourceDemandee != nil) { avant, apres in
+            apres && !avant ? .impact(flexibility: .rigid, intensity: 0.7) : nil
+        }
         .ontFeuille(objet: $sourceDemandee, titre: "Verset d'origine", paliers: .pleine) { ou in
             FeuilleDuVersetSource(
                 titreDeLUnite: chapter.title, position: ou, sources: model.sources
