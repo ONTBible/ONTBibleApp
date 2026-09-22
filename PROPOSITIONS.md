@@ -85,7 +85,7 @@ pieds : ==un dossier de travail n'est pas un lieu stable==.
 
     ouverte le   22 septembre 2026, par iOS
     vers         device
-    état         ouverte
+    état         fusionnée le 22 septembre 2026 — `5a0e9aa`
 
 **Pourquoi.** Trois défauts du même écran, ==dont deux se déguisaient en autre
 chose==. Le disque bordeaux de l'onglet « Vous » **était** la photo, peinte en

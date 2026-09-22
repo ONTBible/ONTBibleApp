@@ -476,7 +476,6 @@ qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
 | `ONTBibleApp-android` | **Android** | poste actif |
 | `ONTBibleApp-mac` | **macOS** | poste actif |
 | `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
-| `ONTBibleApp-vous` | **iOS** | l'écran de profil — PR #330 |
 | `ONTBibleApp-cd` | **iOS** | inscrire le `cd` qui échoue — PR #328 |
 | `ONTBibleApp-worktrees` | la manageuse | PR #326 |
 | `ONTBibleApp-index` | ==non réclamé== | commits du 11 septembre |
