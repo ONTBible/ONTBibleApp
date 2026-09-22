@@ -187,11 +187,34 @@ public struct BibleTab: View {
         /// Le sommaire d'iOS — la `List` du système, qui a déjà ses réponses.
         private var sommaire: some View {
             List {
+                // **Le sommaire arrive lui aussi.**
+                //
+                // Les trois `ontApparition` que ce fichier portait déjà sont
+                // dans la branche macOS et dans le sélecteur de référence :
+                // ==le sommaire de l'iPhone n'en avait aucune==, alors que
+                // c'est l'écran le plus visité de l'app. Relevé par l'auteur
+                // le 22 septembre 2026, après que les cinq autres onglets
+                // l'eurent reçue.
+                //
+                // « Reprendre » ouvre, puis chaque mode de lecture se suit.
                 if let position = model.position {
                     Section {
                         ResumeRow(position: position) { reprendre(position) }
-                            .ontRow()
+                            // **Ni fond de rangée, ni marges de rangée.**
+                            //
+                            // `ontRow()` peint la surface d'une ligne de liste
+                            // — ce que le hero n'est pas. Il porte son propre
+                            // aplat de marque, et le fond de rangée s'y
+                            // superposerait en le ternissant.
+                            //
+                            // Les encarts remis à zéro pour la même raison :
+                            // une `List` marge ses rangées pour aligner du
+                            // texte, et le hero se marge lui-même.
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
+                    .ontApparition(0)
                 }
 
                 ForEach(model.corpora) { corpus in
@@ -200,7 +223,8 @@ public struct BibleTab: View {
                         // trois modes portent le même identifiant dans les deux
                         // corpus, et une `List` les range tous dans la même
                         // suite de lignes.
-                        ForEach(situes(corpus)) { situe in
+                        ForEach(Array(situes(corpus).enumerated()), id: \.element.id) {
+                            rang, situe in
                             DisclosureGroup {
                                 ForEach(disposer(situe.mode)) { element in
                                     switch element.contenu {
@@ -214,6 +238,10 @@ public struct BibleTab: View {
                                 ModeLabel(mode: situe.mode)
                             }
                             .ontRow()
+                            // Décalé de un : « Reprendre » tient le rang zéro
+                            // quand il est là, et le sommaire ne doit pas
+                            // partir en même temps que lui.
+                            .ontApparition(rang + 1)
                         }
                     } header: {
                         enteteDeCorpus(corpus)
@@ -228,7 +256,6 @@ public struct BibleTab: View {
 #if os(macOS)
     /// La carte « Reprendre » — de bord à bord, elle se lève et s'enfonce.
     private struct CarteDeReprise: View {
-        @Environment(\.ontTheme) private var theme
         let position: ReadingPosition
         let open: () -> Void
         private var spacing = ONTSpacing()
@@ -238,34 +265,25 @@ public struct BibleTab: View {
             self.open = open
         }
 
+        // **La DA du hero de prononciation**, décision de l'auteur du
+        // 13 septembre 2026.
+        //
+        // Ce pavé était une variante approximative de celui du Lexique : même
+        // intention — le pavé d'appel en tête d'onglet, qui ouvre la porte
+        // principale — et onze propriétés différentes, dont aucune n'était une
+        // décision. Un fond discret au lieu de l'or, un rayon de 18 au lieu de
+        // 16, deux fontes plus petites, une icône au poids par défaut, trois
+        // marges, pas de hauteur plancher, et un style de bouton de rangée.
+        //
+        // `ONTHero` porte la forme ; ce qui reste ici est ce qui ne se
+        // factorise pas : ce que le pavé dit, et où il mène.
         var body: some View {
-            Button(action: open) {
-                // Un `HStack` et non un `LabeledContent` : hors d'une `List`,
-                // celui-ci n'écarte plus ses deux bouts, et la flèche venait
-                // se coller au libellé.
-                HStack(spacing: spacing.s) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
-                        Text("\(position.chapterTitle):\(position.verse)")
-                            .font(ONTUI.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.turn.down.right")
-                        .foregroundStyle(ONTColors.accent(theme.mode))
-                }
-                .padding(spacing.m)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.surface, in: .rect(cornerRadius: ONTRadius.block))
-                .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.block), souleve: true)
-                .contentShape(.rect(cornerRadius: ONTRadius.block))
-            }
-            .buttonStyle(.ontLigne)
-            // L'anneau de focus du système se posait sur la carte **dès
-            // l'ouverture** — premier répondeur de la fenêtre — et se lisait
-            // comme une sélection. La carte a déjà trois autres chemins au
-            // clavier : la barre latérale, le menu, ⌘1.
-            .focusEffectDisabled()
+            ONTHero(
+                "Reprendre",
+                sousTitre: "\(position.chapterTitle):\(position.verse)",
+                icone: "arrow.turn.down.right",
+                action: open
+            )
         }
     }
 
@@ -340,30 +358,27 @@ public struct BibleTab: View {
 #endif
 
 private struct ResumeRow: View {
-    @Environment(\.ontTheme) private var theme
     let position: ReadingPosition
     let open: () -> Void
 
+    // **La DA du hero de prononciation**, décision de l'auteur du
+    // 13 septembre 2026 — et sur **les deux** plateformes.
+    //
+    // Ce pavé existait en deux exemplaires : `CarteDeReprise` pour le Mac,
+    // `ResumeRow` pour iOS, chacun dans sa branche du `#if os(macOS)` qui
+    // sépare les deux sommaires. Le premier jet n'a converti que celui du Mac,
+    // et l'écran d'iPhone n'a pas bougé d'un point.
+    //
+    // > **Avant de poser quoi que ce soit dans une paire, chercher l'autre
+    // > moitié.** Une vue par plateforme est une paire ; le compilateur ne le
+    // > dit pas, puisque les deux compilent séparément.
     var body: some View {
-        Button(action: open) {
-            LabeledContent {
-                Image(systemName: "arrow.turn.down.right")
-                    .foregroundStyle(ONTColors.accent(theme.mode))
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reprendre").font(ONTUI.subheadline.weight(.medium))
-                    Text("\(position.chapterTitle):\(position.verse)")
-                        .font(ONTUI.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            // Sans forme de contact, `.buttonStyle(.plain)` ne rend touchable
-            // que ce qui est **dessiné**. Le blanc entre le libellé et l'icône
-            // n'était donc pas une cible : le doigt tombait à côté neuf fois
-            // sur dix, et seule l'icône répondait du premier coup.
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
+        ONTHero(
+            "Reprendre",
+            sousTitre: "\(position.chapterTitle):\(position.verse)",
+            icone: "arrow.turn.down.right",
+            action: open
+        )
     }
 }
 

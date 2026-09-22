@@ -30,6 +30,22 @@ public struct ONTRailDeLettres: View {
     /// La lettre sous le doigt, ou `nil` quand il n'y a pas de doigt.
     @State private var sousLeDoigt: String?
 
+    /// Le pas entre deux lettres, en points.
+    ///
+    /// Contacts d'Apple tient ses vingt-sept lettres à quatorze points. Le
+    /// Lexique en a moins — les tranches d'un glossaire hébreu ne couvrent pas
+    /// tout l'alphabet —, donc la place ne manque pas, et l'auteur a demandé
+    /// « un tout petit peu plus d'écart » après avoir vu les deux à l'écran.
+    ///
+    /// Quinze, arrêté à l'écran : quatorze serrait trop pour le nombre de
+    /// lettres qu'a ce glossaire, dix-sept commençait à disperser. ==Un pas se
+    /// juge sur l'appareil, pas sur la mesure d'à côté.==
+    ///
+    /// Sous les quarante-quatre points d'une cible tactile ordinaire, et ce
+    /// n'est pas un oubli : ==un rail se parcourt au doigt glissé==, pas au
+    /// tap précis. Le geste suit le doigt en continu et corrige de lui-même.
+    private static let pas: CGFloat = 15
+
     public init(lettres: [String], vers: @escaping (String) -> Void) {
         self.lettres = lettres
         self.vers = vers
@@ -70,6 +86,26 @@ public struct ONTRailDeLettres: View {
             .sensoryFeedback(.selection, trigger: sousLeDoigt)
         }
         .frame(width: 22)
+        // **Le rail se groupe, il ne s'étale pas.**
+        //
+        // Chaque lettre prend `maxHeight: .infinity` dans un `VStack` qui
+        // remplissait toute la colonne : vingt lettres sur huit cents points
+        // faisaient quarante points de pas, et le rail se lisait comme une
+        // suite de lettres éparpillées le long du bord plutôt que comme un
+        // index.
+        //
+        // Contacts d'Apple — la référence pour ce contrôle — tient ses
+        // vingt-sept lettres sur un pas d'environ quatorze points, groupées et
+        // centrées. Relevé par l'auteur le 22 septembre 2026, capture à
+        // l'appui : « elles sont hyper explosées, sur Contacts c'est beaucoup
+        // moins le cas ».
+        //
+        // ==Borner la hauteur plutôt que fixer celle de chaque lettre== : le
+        // `GeometryReader` mesure alors la hauteur réduite, et le calcul du
+        // geste — `hauteur / lettres.count` — reste juste sans qu'on y touche.
+        // Sur un écran trop court pour le compte, le rail se resserre au lieu
+        // de déborder.
+        .frame(maxHeight: CGFloat(lettres.count) * Self.pas)
         // **Invisible à VoiceOver, et c'est voulu.** Un lecteur d'écran
         // parcourt déjà la liste par ses en-têtes de section, qui portent les
         // mêmes lettres ; le rail lui offrirait vingt-six éléments redondants

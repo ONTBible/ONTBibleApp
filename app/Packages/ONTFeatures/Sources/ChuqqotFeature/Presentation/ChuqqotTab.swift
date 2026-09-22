@@ -256,14 +256,30 @@ private struct EnAttenteDeValidation: View {
     @Environment(\.ontTheme) private var theme
     private var spacing = ONTSpacing()
 
+    // **Un écran vide arrive, lui aussi.**
+    //
+    // L'onglet paraissait sans mouvement alors que les cinq autres en avaient
+    // un, et la cause n'était pas dans le mécanisme : ==aucune chuqqah n'est
+    // publiée==, donc la liste — qui porte bien l'apparition sur chaque
+    // rangée — n'est jamais montée. C'est cet écran-ci qu'on voit, et il
+    // n'avait rien.
+    //
+    // Relevé par l'auteur le 22 septembre 2026, avec la bonne intuition :
+    // « c'est peut-être parce qu'il n'y a pas grand-chose dessus ». Mesuré :
+    // `chuqqot.json` porte **zéro** entrée.
+    //
+    // Les quatre éléments se suivent comme des rangées le feraient — l'onglet
+    // ne dit pas « il n'y a rien » d'une autre voix que les autres.
     var body: some View {
         VStack(alignment: .leading, spacing: spacing.s) {
             Image(systemName: "square.stack.3d.up.fill")
                 .font(.system(size: ONTUI.points(28), weight: .light))
                 .foregroundStyle(ONTColors.brandInk(theme.mode))
+                .ontApparition(0)
             Text("Rien à lire pour l'instant")
                 .font(ONTUI.headline)
                 .foregroundStyle(theme.ink)
+                .ontApparition(1)
             Text(
                 "Les chuqqot sont écrites et attendent leur validation. "
                     + "Elles paraîtront ici une à une, dès qu'elles seront arrêtées."
@@ -271,6 +287,7 @@ private struct EnAttenteDeValidation: View {
             .font(ONTUI.body)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+            .ontApparition(2)
             Text(
                 "Un énoncé permanent ne se publie pas « en attente » : "
                     + "il se contredirait lui-même."
@@ -279,6 +296,7 @@ private struct EnAttenteDeValidation: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, spacing.xs)
+            .ontApparition(3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, spacing.page)

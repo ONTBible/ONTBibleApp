@@ -62,11 +62,22 @@ public struct ONTSegments<Valeur: Hashable>: View {
             .defaultScrollAnchor(.leading)
         }
         .padding(3)
-        .background {
-            Capsule()
-                .fill(ONTColors.surface(theme.mode))
-                .overlay(Capsule().strokeBorder(ONTColors.separator(theme.mode)))
-        }
+        // **La capsule doit couper, pas seulement se poser derrière.**
+        //
+        // Elle n'était qu'un `background` : le défilement horizontal passait
+        // donc par-dessus ses bords arrondis, et la pastille du segment choisi
+        // ==sortait du champ== quand elle atteignait l'extrémité — un morceau
+        // de bordeaux débordant du coin droit.
+        //
+        // Relevé par l'auteur le 22 septembre 2026, capture à l'appui.
+        //
+        // L'ordre compte : on **coupe le contenu** d'abord, on pose le fond
+        // dessous, puis le filet par-dessus. Clipper l'ensemble d'un bloc
+        // rognerait le filet de moitié, puisqu'un trait se dessine à cheval
+        // sur le bord qu'il suit.
+        .clipShape(.capsule)
+        .background(Capsule().fill(ONTColors.surface(theme.mode)))
+        .overlay(Capsule().strokeBorder(ONTColors.separator(theme.mode)))
     }
 
     /// La rangée des segments.

@@ -35,6 +35,17 @@ public struct LexiconTab: View {
                         .listRowInsets(.init(top: 4, leading: 16, bottom: 10, trailing: 16))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        // **Le hero arrive en premier.**
+                        //
+                        // Il ouvre l'écran ; les rangées du glossaire le
+                        // suivent à leur rang. Son jumeau de l'onglet Bible —
+                        // « Reprendre » — l'avait déjà, et les deux passent
+                        // maintenant par le même composant : ==ce qui vaut
+                        // pour la DA doit valoir pour l'arrivée==, sans quoi
+                        // le partage s'arrête à l'apparence.
+                        //
+                        // Relevé par l'auteur le 22 septembre 2026.
+                        .ontApparition(0)
                 }
 
                 Section {
@@ -50,6 +61,19 @@ public struct LexiconTab: View {
                     .padding(.vertical, 6)
                     .textCase(nil)
                     .listRowInsets(.init(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    // **Le sélecteur arrive après le hero, avant les
+                    // rangées.**
+                    //
+                    // Il vit dans l'en-tête d'une section vide — la seule
+                    // façon de l'épingler sans écraser le grand titre — et
+                    // c'est ce qui l'avait fait oublier : ==on pose
+                    // l'apparition sur ce qu'on voit comme une rangée, et un
+                    // en-tête n'en est pas une.==
+                    //
+                    // Il était donc le seul élément fixe de l'écran à ne pas
+                    // arriver, entre deux qui arrivaient. Relevé par l'auteur
+                    // le 22 septembre 2026.
+                    .ontApparition(1)
                 }
 
                 // **Une section par lettre**, et non une seule liste plate.
@@ -83,7 +107,7 @@ public struct LexiconTab: View {
                                 }
                                 .buttonStyle(.ontLigne)
                                 .ontLigneDeCarte()
-                                .ontApparition(rang)
+                                .ontApparition(rang + 2)
                             }
                         } header: {
                             Text(tranche.lettre)
@@ -112,7 +136,7 @@ public struct LexiconTab: View {
                             }
                             .buttonStyle(.ontLigne)
                             .ontLigneDeCarte()
-                            .ontApparition(rang)
+                            .ontApparition(rang + 2)
                         }
                     } header: {
                         Text(tranche.lettre)
