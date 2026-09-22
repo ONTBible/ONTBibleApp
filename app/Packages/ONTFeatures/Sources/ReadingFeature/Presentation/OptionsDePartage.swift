@@ -65,7 +65,7 @@ public struct OptionsDePartage: View {
                         .font(ONTUI.callout)
                         .foregroundStyle(theme.ink)
                         .textSelection(.enabled)
-                        .animation(.snappy(duration: 0.16), value: apercu)
+                        .animation(ONTMouvement.apercuDePartage, value: apercu)
 
                     if model.preferences.partage.lien {
                         Text("https://ontbible.com/fr/lire/bereshit/bereshit-1?v=1-2")

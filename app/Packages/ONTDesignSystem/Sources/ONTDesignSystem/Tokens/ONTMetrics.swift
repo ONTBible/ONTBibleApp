@@ -103,6 +103,43 @@ public enum ONTRadius {
     /// feuille. 34 et non 40 : la carte du Mac est bordée d'air, pas d'un bord
     /// d'écran, et le plein 40 y paraissait gonflé.
     public static let feuille: CGFloat = 34
+
+    // MARK: - Nommés après coup, le 22 septembre 2026
+    //
+    // Dix rayons étaient écrits en dur dans les écrans, dont l'un valait
+    // exactement `block` sans le savoir. **Aucune valeur n'a changé en les
+    // nommant** : chacune avait été réglée sur l'appareil, et les rapprocher
+    // du jeton voisin aurait modifié le dessin sans qu'un test rougisse.
+    //
+    // ==Un rayon nommé n'est pas un rayon uniformisé== — c'est un rayon qu'on
+    // retrouve, et dont on voit d'un coup d'œil s'il est déjà pris.
+
+    /// La barre d'actions qui se pose sous le verset désigné.
+    ///
+    /// Au-dessus de `card` : elle flotte au-dessus du texte, bordée d'air de
+    /// tous les côtés, et un angle plus ferme l'aurait collée à la page.
+    /// Écrite deux fois dans le même corps — le fond et son filet.
+    public static let barreDActions: CGFloat = 26
+
+    /// Une pastille de couleur de surlignage — cinq carrés qu'on touche.
+    ///
+    /// À peine plus que `highlight`, le rayon du surlignage qu'elle pose :
+    /// la pastille *annonce* la marque, elle ne l'imite pas.
+    public static let pastilleDeCouleur: CGFloat = 9
+
+    /// La rangée d'un livre dans le sommaire — sa forme tactile et son survol.
+    public static let rangee: CGFloat = 10
+
+    /// Le pavé d'un pied d'unité — le compte de versets, sous le texte.
+    public static let pied: CGFloat = 12
+
+    /// La cible d'un bouton d'outil, dans la barre de lecture.
+    public static let outil: CGFloat = 14
+
+    /// Le fond d'un message de refus, sous un champ.
+    ///
+    /// Le plus ferme de la gamme : il épouse une ligne de texte, pas un bloc.
+    public static let refus: CGFloat = 8
 }
 
 /// La largeur de lecture.

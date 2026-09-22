@@ -313,7 +313,19 @@ struct EditeurDuProfil: View {
                         if let refus {
                             Text(refus)
                                 .font(ONTUI.caption)
-                                .foregroundStyle(.red)
+                                // **Le rouge du thème, pas celui du système.**
+                                //
+                                // `.red` est une couleur d'iOS : elle ignore le parchemin comme
+                                // la nuit. `ONTColors.danger` existait déjà et n'était employé
+                                // nulle part ici — trois refus s'affichaient donc dans un rouge
+                                // qui n'est d'aucun des quatre thèmes.
+                                //
+                                // ==Un jeton qui existe et qu'on n'emploie pas coûte plus qu'un
+                                // jeton absent== : on le croit en vigueur.
+                                //
+                                // Relevé le 22 septembre 2026, en auditant les valeurs posées hors
+                                // du design system à la demande de l'auteur.
+                                .foregroundStyle(ONTColors.danger(theme.mode))
                                 .multilineTextAlignment(.center)
                         }
                     }
@@ -354,7 +366,7 @@ struct EditeurDuProfil: View {
                 // Le reproche ne paraît que s'il y a quelque chose à reprocher,
                 // et il nomme ce qui manque — jamais la règle entière.
                 if let reproche = NomDUsage.reproche(account.profil.nomDUsage) {
-                    Text(reproche).foregroundStyle(.red)
+                    Text(reproche).foregroundStyle(ONTColors.danger(theme.mode))
                         .font(ONTUI.piedDeListe)
                 } else {
                     Text("Ce par quoi les autres lecteurs vous nommeront, au Qahal.")
@@ -398,7 +410,7 @@ struct EditeurDuProfil: View {
                     )
                     if adresseInvalide {
                         Text("Cette adresse ne ressemble pas à une adresse courriel.")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(ONTColors.danger(theme.mode))
                     }
                 }
                 .font(ONTUI.piedDeListe)

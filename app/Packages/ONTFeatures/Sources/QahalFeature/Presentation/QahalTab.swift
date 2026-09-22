@@ -112,7 +112,7 @@ public struct QahalTab: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 18))
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: ONTRadius.block))
     }
 
 }

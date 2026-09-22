@@ -324,7 +324,7 @@ private struct AccountSection: View {
                             .foregroundStyle(theme.danger)
                             .padding(.horizontal, spacing.m)
                             .padding(.vertical, spacing.s)
-                            .background(theme.dangerSurface, in: .rect(cornerRadius: 8))
+                            .background(theme.dangerSurface, in: .rect(cornerRadius: ONTRadius.refus))
                     }
                     Text(
                         "La lecture, les surlignages et les notes fonctionnent entièrement "

@@ -342,8 +342,8 @@ public struct BibleTab: View {
                                     .padding(.horizontal, spacing.m)
                                     .padding(.vertical, spacing.s)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(.rect(cornerRadius: 10))
-                                    .ontSurvol(dans: RoundedRectangle(cornerRadius: 10))
+                                    .contentShape(.rect(cornerRadius: ONTRadius.rangee))
+                                    .ontSurvol(dans: RoundedRectangle(cornerRadius: ONTRadius.rangee))
                                     .ontApparition(rang)
                             }
                         }
