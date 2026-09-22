@@ -81,6 +81,37 @@ pieds : ==un dossier de travail n'est pas un lieu stable==.
 
 ---
 
+## #330 · Rendre la photo de profil visible dans son onglet, et lui donner un menu
+
+    ouverte le   22 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Trois défauts du même écran, ==dont deux se déguisaient en autre
+chose==. Le disque bordeaux de l'onglet « Vous » **était** la photo, peinte en
+aplat de la teinte : une image opaque ne rend pas une silhouette, elle rend un
+rond plein qu'on prend pour l'icône d'un compte absent. Et « Apple » sortait
+deux fois plus gros que sa pomme, parce que `.font(nil)` réinitialise au lieu
+d'hériter.
+
+**Ce que ça engage.** `ONTUI.ligneDeListe` est un rôle du design system, et son
+piège est maintenant écrit dessus : ==à ne poser que sur le contenu direct
+d'une ligne de liste==. Le site le reprend en portant la typographie — sa
+notion de « police nulle » n'existe pas en CSS, où l'héritage est le défaut ;
+c'est donc un cas où la transposition **ne doit pas** être littérale.
+
+Gravatar ajoute un appel réseau sortant depuis l'app, vers `gravatar.com`.
+Aucune adresse n'y voyage : l'empreinte SHA-256 seulement.
+
+**Pour la relire.** La garde du mode de rendu ==existait, et son commentaire
+disait juste== — elle était posée sur la `Image` de SwiftUI quand la barre
+d'onglets, vue UIKit, ne lit que le mode de l'`UIImage`. Raison juste, endroit
+faux : c'est la forme qui coûte le plus cher à trouver, parce que la garde
+paraît tenue. Le premier correctif (la dépendance observable manquante) était
+juste aussi, et insuffisant seul : ==il a fallu les deux==.
+
+---
+
 ## #327 · Inscrire que l'or des intraduisibles est sous le seuil, et assumé
 
     ouverte le   21 septembre 2026, par iOS
