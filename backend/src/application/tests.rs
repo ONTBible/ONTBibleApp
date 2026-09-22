@@ -448,6 +448,8 @@ fn profil(updated_at: i64, prenom: &str) -> ProfilLecteur {
         prenom: prenom.into(),
         nom: "Bikouta".into(),
         bio: String::new(),
+        courriel: String::new(),
+        courriels_consentis: None,
         portrait: None,
         updated_at,
     }
