@@ -438,6 +438,92 @@ l'écran.
 **Cette table se relève, elle ne se recopie pas.** Les volets durent, les
 branches et les PR non — celles-ci sont des mesures, pas une identité.
 
+### Déclarer son worktree — 21 septembre 2026
+
+**Décision de l'auteur.** Une session qui crée un `git worktree` ==l'inscrit
+ici==, dans le même tour. Une session qui le démonte ==retire sa ligne==.
+
+**Pourquoi une déclaration, et non un relevé.** Parce que ==rien ne prouve
+qu'une session tient un worktree==. Trois pistes ont été éprouvées le
+21 septembre, les trois échouent :
+
+    herdr agent list      rend le dossier de LANCEMENT du volet, jamais le worktree
+    lsof                  ne voit rien entre deux tours — un agent qui réfléchit
+                          n'a aucun fichier ouvert
+    date de l'index git   vieillit sur un poste où l'on lit sans commiter
+
+==Vu du dehors, une session ne se prouve que par sa réponse.== Et une réponse
+n'est pas consultable quand la session est occupée, partie, ou — comme Astra
+pendant deux jours — incapable d'écrire. D'où la déclaration : ==ce qu'aucun
+instrument ne mesure, on l'écrit==.
+
+**Ce que ça a coûté de ne pas l'avoir.** Le 21 septembre, un démontage de cinq
+worktrees a failli emporter ==un commit qui ne tenait que par un worktree== —
+`HEAD` détaché, sur une branche que son propre auteur avait supprimée le matin
+même sans voir qu'un worktree y pendait. Et ==un banc de mesure de 229 lignes==
+qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
+étaient la version d'avant.
+
+#### La table — elle déclare un poste, non une branche
+
+| worktree | qui | pourquoi |
+|---|---|---|
+| `ONTBibleTranslation` | **le vault** | arbre principal — leadeuse du dépôt |
+| `.herdr/worktrees/…/astra` | **Astra** | la KB et ses raccordements |
+| `ONTBibleTranslation-carte` | la manageuse | la carte et le registre, PR #122 |
+| `ONTBibleTranslation-android` | la manageuse | PR #125 |
+| `ONTBibleApp` | **iOS** | arbre principal — leadeuse du dépôt |
+| `ONTBibleApp-android` | **Android** | poste actif |
+| `ONTBibleApp-mac` | **macOS** | poste actif |
+| `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
+| `ONTBibleApp-cd` | **iOS** | inscrire le `cd` qui échoue — PR #328 |
+| `ONTBibleApp-worktrees` | la manageuse | PR #326 |
+| `ONTBibleApp-index` | ==non réclamé== | commits du 11 septembre |
+| `ONTBibleApp-journal13` | ==non réclamé== | PR #302, commits des 13-14 |
+| `ONTBibleWebapp` | **le site** | arbre principal — leadeuse du dépôt |
+| `ONTBibleWebapp-android` | la manageuse | PR #153 |
+| `ONTBibleWebapp-worktrees` | la manageuse | PR #155 |
+| `ONTBibleWebapp-appuilong` | ==non réclamé== | le site travaille cette branche depuis son arbre principal, pas d'ici |
+
+==Il n'y a pas de colonne « branche », et c'est une décision.== Trois sessions
+l'ont demandée le même jour, chacune par son chemin :
+
+- **macOS** : *« une table de branches serait fausse dans l'heure et personne
+  ne la croirait plus — une table de postes reste vraie des semaines »* ;
+- **Android** : quatre chantiers en trois jours sur un seul worktree ; le
+  contrôle aurait crié trois fois par semaine sur sa seule ligne, ==et un
+  avertissement qu'on apprend à ne plus lire abîme tous les autres== ;
+- **iOS** : l'arbre principal du site a porté ==trois branches en une matinée==.
+
+==La branche est un état, le poste est un fait.== Et le « pourquoi » — la seule
+colonne qu'aucun relevé ne produira jamais — est un fait de poste, pas de
+branche.
+
+**Une contrainte de git qui rend l'état « branche fusionnée » normal**, nommée
+par Android : ==deux worktrees ne peuvent pas porter la même branche==. Un poste
+sans chantier en cours ne peut donc pas se mettre « au neutre » sur la branche
+d'intégration, déjà tenue par un autre — il **reste** sur sa dernière branche,
+fusionnée. Ça ressemble à un worktree oublié et ce n'en est pas un.
+
+#### Le contrôle qui la tient
+
+    scripts/cartographier-la-flotte.py --worktrees
+
+Il compare ==les chemins== que la table déclare à ceux que `git worktree list`
+rend — ==jamais les branches==, pour la raison ci-dessus. Deux écarts, et ils ne
+se lisent pas de la même façon :
+
+    présent dans git, absent du journal   RAPPELER — quelqu'un a oublié
+    présent au journal, absent de git     DEMANDER, ne pas conclure
+
+La seconde asymétrie est celle des langues sources, expliquée plus haut : une
+ligne orpheline peut vouloir dire ==un worktree démonté à l'insu de son
+tenant==, et non un mensonge. ==Le contrôle nomme l'écart, propose les deux
+causes, et ne tranche pas.==
+
+Il ne réécrit rien — ==une table qui se met à jour seule perd le « pourquoi »,
+qui est la seule chose qu'aucun relevé ne peut produire==.
+
 ---
 
 ## Tronc commun et entrées locales
@@ -6030,3 +6116,126 @@ espace vérifié vide a emporté un autre espace et ses trois onglets. Les trois
 mesures faites avant étaient justes — elles portaient sur **la cible**, quand la
 question était **l'effet**. Rien n'a été perdu : les worktrees étaient intacts,
 les sessions reprises depuis leurs transcripts.
+
+---
+
+## 21 septembre 2026 — une condition jamais vraie, et une épreuve qui ne tournait pas
+
+Le pointillé sous le verset désigné et le voile sur ses voisins étaient morts
+**depuis le 15 août**. Le commit qui a posé le moteur de rendu a, dans le même
+geste, fusionné les versets d'une unité en **un seul texte** : 13 960 points de
+haut, contre un plafond de tampon de 5 188 sur un téléphone.
+
+Au-dessus de ce plafond, `TextRenderer` **perd le dessin sans erreur ni trace**.
+La condition qui posait le pointillé n'a donc jamais été vraie sur un chapitre
+réel — pas une fois en cinq semaines.
+
+### L'épreuve existait, et elle était juste
+
+`EstompageTests` gardait exactement ce cas. Elle n'était branchée dans aucun
+job : `-scheme ONT` ne la bâtissait pas. **Verte un mois durant sans jamais
+tourner.**
+
+> ==Une garde qu'on n'exécute pas ne garde rien. Vérifier qu'une épreuve
+> existe n'est pas vérifier qu'elle s'exécute — ce sont deux questions, et
+> c'est la seconde qui protège.==
+
+Elle entre dans `tests.yml`, et durcie : elle mesurait l'encre de la page sans
+vérifier qu'il y en avait. Sur un écran blanc — l'autre manifestation du même
+défaut — elle passait au vert.
+
+### Trois bancs ont mesuré leur propre attente
+
+La correction a rendu la sélection lente, et trois bancs successifs ont annoncé
+**490 à 900 ms**. Les trois étaient faux, pour la même raison : `XCUITest` ne
+rend la main qu'une fois l'application **au repos**. Tout banc externe mesure
+donc la fin du mouvement, jamais le travail.
+
+Des `os_signpost` posés dans le chemin lui-même ont tranché : **54 ms** entre le
+doigt et le texte marqué. J'avais annoncé « 517 ms récupérés » ; ce chemin n'en
+a jamais fait plus de 54.
+
+Les balises restent dans le code livré — elles ne coûtent rien tant que personne
+n'écoute, et une instrumentation qu'on repose à chaque enquête est une
+instrumentation qu'on reposera de travers.
+
+### Ce que la jointure des Shemot change chez les voisins — vérifié, pas supposé
+
+562 noms propres deviennent touchables : leur fiche existait et déclarait son
+numéro de Strong, mais `LiaisonDesMots` ne chaînait que le glossaire. Les 626
+jointures passent toutes par le numéro déclaré **des deux côtés**.
+
+Aucune forme JSON ne bouge, et les deux autres plateformes savent déjà ouvrir
+un Shem — relevé dans leurs sources, pas déduit :
+
+| dépôt | ce qui reçoit un `ont://shem/<lemme>` |
+|---|---|
+| site | `interface/design/verset.rs:208` et `:238` — `CibleDuNiveauTrois::Shem` |
+| Android | `MainActivity.kt:469-473`, `:1200-1207` — `ShemSheet`, état distinct du terme |
+
+**Il n'y a donc rien à porter, seulement plus de mots qui portent une cible.**
+C'est la couche des Shemot décidée le 29 août qui avait déjà fait le travail
+chez eux ; ce qui manquait était en amont, dans la jointure.
+
+### Une comparaison n'est honnête qu'à la taille où la chose sera vue
+
+L'or des intraduisibles rend **3,11:1** sur le parchemin, là où WCAG demande
+4,5:1 pour du texte qu'on lit. Pour soumettre la question, j'ai d'abord fabriqué
+une maquette : la vraie fonte, la vraie phrase, les trois ors côte à côte.
+
+**Elle était fausse, et d'une façon qu'on ne voit pas** : le texte y faisait
+46 px, quand le corps de la liseuse est à 17 pt. À cette taille l'or tient
+largement — la maquette répondait donc *oui* à une question qu'elle ne posait
+pas. L'auteur a choisi sur elle ; il a fallu recommencer.
+
+Trois builds réels, installés sur le simulateur, même chapitre et même passage,
+une seule valeur changée entre chacun. C'est là que le choix vaut quelque chose.
+
+> ==Un aperçu à une autre échelle écrase les écarts qu'on lui demande de
+> montrer. Juger à 1:1, sur le support réel.==
+
+La session macOS avait appris la même chose en septembre sur ses captures
+d'écran, à demi-échelle. Deux terrains, un seul énoncé.
+
+**Et la décision est allée contre la mesure, en la connaissant** : l'auteur garde
+l'or actuel. C'est inscrit dans `ONTColors.accent` avec les trois valeurs
+éprouvées et la consigne de **ne pas le « réparer »** — parce que cette valeur
+paraîtra fausse à quiconque la mesurera, et d'autant plus que le fort contraste
+est une contrainte d'accessibilité chez lui.
+
+C'est le pendant exact de la règle des chuqqot : là on répare à l'énoncé, ici
+l'énoncé dit de ne pas réparer. Une garde qui rougit tous les jours sur une
+valeur assumée est une garde qu'on apprend à ignorer.
+
+### Un `cd` qui échoue laisse le shell où il était
+
+Deux sessions s'y sont fait prendre le 21 septembre, à quatre heures d'écart.
+La seconde avait lu le récit de la première le matin même.
+
+Le mécanisme n'a rien de subtil, et c'est ce qui le rend dangereux :
+
+    cd /chemin/qui-n-existe-plus     ← échoue, écrit une ligne, continue
+    git commit …                     ← s'exécute dans le dossier d'AVANT
+
+Aucune commande ne se plaint. Le premier agent a mesuré trois fois la branche
+d'une autre session en croyant mesurer la sienne. Le second — moi — a déplacé
+la branche de l'arbre principal, que quelqu'un d'autre pouvait tenir.
+
+**Ce qui l'a déclenché les deux fois : un worktree disparu sous les pieds.**
+Un dossier de travail n'est pas un lieu stable quand huit sessions partagent la
+machine, et `ls` répond « No such file or directory » pour un dossier supprimé
+comme pour un volume démonté.
+
+> ==Un `cd` n'est pas une garde : c'est un souhait. Le vérifier, ou le rendre
+> fatal.==
+
+    cd "$W" || exit 1
+    [ "$(git rev-parse --show-toplevel)" = "$W" ] || exit 1
+
+Le second contrôle n'est pas redondant : `pwd` ment quand le dossier a été
+recréé entre-temps, et `--show-toplevel` dit **à quel dépôt on parle**, ce qui
+est la question réelle avant un commit.
+
+C'est la forme de la semaine, encore une fois — une commande qui rend une
+réponse bien formée à une autre question que la sienne. Sauf qu'ici la réponse
+bien formée est le **silence** : rien n'indique qu'on n'est pas où l'on croit.

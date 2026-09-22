@@ -16,11 +16,27 @@
     /// autre ne produit pas une erreur, ça produit **du vide** — et un vide
     /// ressemble à un oubli, pas à un refus.
     ///
-    /// ## `.renderingMode(.original)` n'est pas une option
+    /// ## Le mode de rendu se pose sur l'`UIImage`, pas sur la `Image`
     ///
     /// Sans lui, la barre d'onglets peint l'image en aplat de la teinte
-    /// courante : le visage sortirait en silhouette monochrome, ce qui est
-    /// exactement ce qu'on essayait d'éviter.
+    /// courante. Une photo étant opaque d'un bord à l'autre du rond, ==le
+    /// résultat n'est pas une silhouette reconnaissable : c'est un disque
+    /// bordeaux uni==, qu'on prend pour l'icône générique d'un lecteur sans
+    /// compte. Le défaut se déguise donc en absence de défaut.
+    ///
+    /// Il était posé — mais sur la `Image` de SwiftUI, par
+    /// `.renderingMode(.original)`. ==Une barre d'onglets est une vue UIKit :
+    /// elle lit le mode de rendu de l'`UIImage` qu'on lui passe, et jamais le
+    /// modificateur SwiftUI posé par-dessus.== Le commentaire disait donc vrai
+    /// sur la règle et faux sur l'endroit, ce qui est la pire combinaison :
+    /// la garde paraissait tenue.
+    ///
+    /// `withRenderingMode(.alwaysOriginal)` le pose là où il est lu. Le
+    /// modificateur SwiftUI reste, sans coût, pour les usages hors barre.
+    ///
+    /// Relevé par l'auteur le 22 septembre 2026, deux fois — la seconde après
+    /// un premier correctif qui portait sur une autre cause (la dépendance
+    /// observable manquante) et qui était juste, mais pas suffisant.
     enum PortraitDOnglet {
         /// Le côté du rond, en points. La taille d'icône d'une barre d'onglets.
         private static let cote: CGFloat = 26
@@ -53,7 +69,8 @@
                         y: (taille.height - cadre.height) / 2,
                         width: cadre.width, height: cadre.height))
             }
-            return Image(uiImage: rendu).renderingMode(.original)
+            return Image(uiImage: rendu.withRenderingMode(.alwaysOriginal))
+                .renderingMode(.original)
         }
     }
 #endif

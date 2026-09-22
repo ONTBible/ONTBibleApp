@@ -126,6 +126,18 @@ impl App {
             prenom,
             nom,
             bio,
+            // **L'adresse du fournisseur ne devient pas l'adresse du profil**,
+            // pour la même famille de raison que le nom d'usage ci-dessus.
+            //
+            // Deux motifs, et le second est le plus fort : celle d'Apple peut
+            // être un relais `@privaterelay.appleid.com`, donc inutilisable
+            // pour joindre quelqu'un ; et une adresse pré-remplie que le
+            // lecteur n'a pas relue est une adresse qu'il croira avoir
+            // validée. Le consentement qui suivrait porterait alors sur une
+            // adresse qu'il n'a jamais donnée.
+            courriel: String::new(),
+            // Jamais consenti par défaut. Un consentement ne s'amorce pas.
+            courriels_consentis: None,
             portrait: None,
             updated_at: self.clock.now().unix_timestamp(),
         };
