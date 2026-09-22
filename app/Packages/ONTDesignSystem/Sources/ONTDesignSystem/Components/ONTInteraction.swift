@@ -1,6 +1,8 @@
 #if os(macOS)
     import AppKit
 #endif
+import ONTKit
+import OSLog
 import SwiftUI
 
 // MARK: - Les états d'interaction
@@ -90,18 +92,92 @@ extension View {
 /// L'élément part huit points plus bas, à peine transparent, et remonte au
 /// ressort `pop`, décalé par son indice. Sans mouvement d'entrée, un écran
 /// *apparaît* ; avec, il *arrive*.
+///
+/// ## `onAppear` ne suffit pas dans une barre d'onglets
+///
+/// Un `TabView` **garde ses vues vivantes** : la première visite les construit,
+/// et revenir dessus ne les reconstruit pas. `onAppear` ne rejoue donc pas, et
+/// `visible` reste vrai. L'arrivée ne se voyait qu'après une absence assez
+/// longue pour que le système ait détruit la vue sous la pression mémoire —
+/// ==un mouvement qui dépend de la mémoire disponible n'est pas un mouvement,
+/// c'est un hasard==.
+///
+/// D'où la clé d'environnement `ontOngletActif` : chaque onglet dit à son
+/// contenu s'il est celui qu'on regarde. Le mécanisme vit ici, le signal vient
+/// de là-haut, et **aucun écran n'a rien à savoir** — c'est ce qui permet de le
+/// donner à tous les onglets d'un coup.
+///
+/// Relevé par l'auteur le 22 septembre 2026 : « je le trouve vraiment pas mal,
+/// ajoute-le à toutes les tabs et à chaque atterrissage ».
 public struct ONTApparition: ViewModifier {
     let indice: Int
 
+    @Environment(\.ontArrivee) private var arrivee
     @State private var visible = false
 
     public func body(content: Content) -> some View {
         content
             .opacity(visible ? 1 : 0)
             .offset(y: visible ? 0 : 8)
-            .onAppear {
-                withAnimation(ONTMouvement.cascade(indice)) { visible = true }
-            }
+            .onAppear { jouer() }
+            .onChange(of: arrivee) { _, _ in rejouer() }
+    }
+
+    private func jouer() {
+        withAnimation(ONTMouvement.cascade(indice)) { visible = true }
+    }
+
+    /// Redescendre, puis remonter — **en deux passes de rendu**.
+    ///
+    /// Remettre `visible` à faux puis à vrai dans la même passe ne produit
+    /// rien : SwiftUI compare l'état au début et à la fin du cycle, et ne voit
+    /// qu'un `true` qui reste `true`. ==Le mouvement n'était pas raté, il
+    /// n'était jamais demandé.==
+    ///
+    /// La descente est **hors animation** : sans ça, on verrait la vue
+    /// redescendre lentement avant de remonter, soit le geste à l'envers.
+    ///
+    /// ## Deux refontes essayées et retirées le 22 septembre 2026
+    ///
+    /// **Retenir *quel* atterrissage a été joué** plutôt qu'un booléen, pour
+    /// laisser la comparaison devenir fausse d'elle-même. Plus propre sur le
+    /// papier ; ==plus rien ne s'est animé nulle part== — `withAnimation` sur
+    /// un entier ne fait pas interpoler les modificateurs qui en dépendent par
+    /// comparaison.
+    ///
+    /// **Un drapeau « cet onglet est-il actif » posé par chaque `Tab`**, pour
+    /// que seul l'onglet regardé travaille. C'est la bonne idée et elle ne
+    /// tient pas ici : le corps d'un `TabContent` n'est pas réévalué à chaque
+    /// changement de sélection, donc ==la valeur reste celle de la
+    /// construction== et trois onglets sur cinq ne recevaient jamais le
+    /// signal.
+    ///
+    /// Le coût que cette seconde tentative visait est réel et reste ouvert :
+    /// un compteur global fait rejouer l'animation dans tous les onglets déjà
+    /// montés. Le mesurer avant d'y retoucher.
+    private func rejouer() {
+        var descente = Transaction()
+        descente.disablesAnimations = true
+        withTransaction(descente) { visible = false }
+        Task { @MainActor in jouer() }
+    }
+}
+
+/// Le signal d'atterrissage — un compteur, pas un booléen.
+///
+/// **Un compteur parce qu'il faut distinguer deux arrivées de suite au même
+/// endroit.** Un booléen « on vient d'arriver » ne changerait pas de valeur
+/// quand on quitte le Lexique pour la Bible puis qu'on y revient, et le
+/// mouvement sauterait une fois sur deux.
+private struct ONTArriveeKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    /// Incrémenté à chaque atterrissage sur un onglet. Voir `ONTApparition`.
+    public var ontArrivee: Int {
+        get { self[ONTArriveeKey.self] }
+        set { self[ONTArriveeKey.self] = newValue }
     }
 }
 

@@ -42,6 +42,7 @@ struct RootView: View {
                 RayonDeLivres(titre: corpus.title, livres: livresRédigés(de: corpus))
             }
         }
+
         .tabViewStyle(.sidebarAdaptable)
         // **Le compte en bas de la barre, comme Apple Music.**
         //
@@ -285,7 +286,49 @@ private struct LigneDuCompte: View {
 /// Un `TabContent` avec son `body` déclaré ne laisse plus rien à deviner :
 /// chaque morceau est résolu pour lui-même, jamais dans le même souffle que
 /// les autres.
+/// **L'atterrissage, compté par onglet.**
+///
+/// ## Pourquoi une vue intermédiaire, et pas une valeur posée sur le `Tab`
+///
+/// Le compteur était unique pour la barre entière. Mesuré sur l'iPhone de
+/// l'auteur : ==47 vues réveillées à chaque atterrissage==, où qu'on aille —
+/// y compris sur Chuqqot, qui n'en affiche que quatre. Quarante-trois vues
+/// travaillaient pour rien, et le compte ne dépendait plus de l'onglet visé.
+///
+/// Une première correction posait `router.tab == id` directement sur le
+/// contenu de chaque `Tab`. Elle a cassé trois onglets sur cinq, et la raison
+/// vaut d'être retenue : ==le corps d'un `TabContent` n'est pas réévalué quand
+/// la sélection change==. La valeur restait celle de la construction.
+///
+/// Une `View`, elle, l'est. Celle-ci lit le routeur elle-même, tient son
+/// propre compteur, et ne l'incrémente que lorsque c'est **son** onglet qui
+/// devient actif. Les autres ne sont pas prévenus.
+///
+/// > Poser une valeur dépendante là où le corps ne se relit pas, c'est la
+/// > figer sans qu'aucune erreur le dise.
+private struct AtterrissageDeLOnglet<Contenu: View>: View {
+    let id: Router.TabID
+    @ViewBuilder let contenu: Contenu
+
+    @Environment(Router.self) private var router
+    @State private var arrivees = 0
+
+    var body: some View {
+        contenu
+            .environment(\.ontArrivee, arrivees)
+            .onChange(of: router.tab) { _, nouveau in
+                if nouveau == id { arrivees += 1 }
+            }
+    }
+}
+
+/// **Chaque onglet dit à son contenu s'il est celui qu'on regarde.**
+///
+/// Voir `ontOngletActif` : c'est ce qui fait qu'une arrivée ne réveille que
+/// l'onglet concerné, au lieu de faire rejouer l'animation dans tous ceux
+/// qu'on a déjà visités.
 private struct OngletsFixes: TabContent {
+    @Environment(Router.self) private var router
     /// Vrai quand la barre latérale est déployée — l'iPad, pas l'iPhone.
     let enBarreLaterale: Bool
     
@@ -321,13 +364,13 @@ private struct OngletsFixes: TabContent {
             }
         }
         Tab("Qahal", systemImage: "person.2.fill", value: Router.TabID.qahal) {
-            QahalTab()
+            AtterrissageDeLOnglet(id: .qahal) { QahalTab() }
         }
         Tab("Bible", systemImage: "book.closed.fill", value: Router.TabID.bible) {
-            BibleTab { SearchView() }
+            AtterrissageDeLOnglet(id: .bible) { BibleTab { SearchView() } }
         }
         Tab("Lexique", systemImage: "character.book.closed.fill", value: Router.TabID.lexicon) {
-            LexiconTab()
+            AtterrissageDeLOnglet(id: .lexicon) { LexiconTab() }
         }
         // **Chuqqot** — חֻקּוֹת, ce qui est *gravé* et qui demeure.
         // Le féminin est délibéré : voir `ChuqqotTab`.
@@ -342,7 +385,7 @@ private struct OngletsFixes: TabContent {
         // dernier arrivé. C'est donc le dernier qui puisse s'ajouter sans
         // qu'on repense la barre entière.
         Tab("Chuqqot", systemImage: "square.stack.3d.up.fill", value: Router.TabID.chuqqot) {
-            ChuqqotTab()
+            AtterrissageDeLOnglet(id: .chuqqot) { ChuqqotTab() }
         }
         // **« Vous » n'est un onglet que sur l'iPhone.**
         //
@@ -385,7 +428,9 @@ private struct OngletsFixes: TabContent {
                 let rond = PortraitDOnglet.rond(compte.portrait())
             {
                 Tab(value: Router.TabID.you) {
-                    YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+                    AtterrissageDeLOnglet(id: .you) {
+                        YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
+                    }
                 } label: {
                     Label { Text("Vous") } icon: { rond }
                 }

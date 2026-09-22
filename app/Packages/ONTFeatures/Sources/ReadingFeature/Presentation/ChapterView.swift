@@ -360,7 +360,7 @@ struct ChapterView: View {
         // dessin, pas une mise en page — ce qui restait de délai perçu était
         // en grande partie cette animation elle-même. Assez court pour suivre
         // le doigt, assez long pour qu'on voie d'où la barre vient.
-        .animation(.snappy(duration: 0.14), value: selection.isEmpty)
+        .animation(ONTMouvement.barreDActions, value: selection.isEmpty)
         // **Chaque verset se sent, et les trois moments ne se ressemblent pas.**
         //
         // On désigne un verset en regardant le texte, pas la barre qui monte du
@@ -939,7 +939,7 @@ private struct VerseActionBar: View {
             // Une fenêtre posée sur la page, détachée des quatre bords : le
             // texte continue de courir derrière elle, et la carte se lit comme
             // un objet qu'on peut écarter — pas comme un morceau de l'écran.
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+            RoundedRectangle(cornerRadius: ONTRadius.barreDActions, style: .continuous)
                 .fill(theme.surface)
                 .shadow(
                     color: .black.opacity(theme.mode.isDark ? 0.6 : 0.18),
@@ -948,7 +948,7 @@ private struct VerseActionBar: View {
                 )
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+            RoundedRectangle(cornerRadius: ONTRadius.barreDActions, style: .continuous)
                 .strokeBorder(theme.separator)
         }
         .padding(.horizontal, 14)
@@ -979,7 +979,7 @@ private struct VerseActionBar: View {
                         // reprend la carte là où le doigt l'a laissée.
                         selection.removeAll()
                     } else {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(ONTMouvement.retourDeCarte) {
                             glissement = 0
                         }
                     }
@@ -1044,11 +1044,11 @@ private struct VerseActionBar: View {
                 Button {
                     model.apply(color, to: selection, in: chapter)
                 } label: {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: ONTRadius.pastilleDeCouleur, style: .continuous)
                         .fill(ONTColors.highlight(color, theme.mode))
                         .frame(width: 34, height: 34)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            RoundedRectangle(cornerRadius: ONTRadius.pastilleDeCouleur, style: .continuous)
                                 .strokeBorder(theme.ink.opacity(0.10))
                         }
                         // La cible s'arrêtait au carré dessiné — 34 points,
@@ -1275,7 +1275,7 @@ private struct ActionTileLabel: View {
                 .foregroundStyle(theme.accent)
                 .frame(width: 52, height: 44)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: ONTRadius.outil, style: .continuous)
                         .fill(theme.accent.opacity(0.12))
                 )
             Text(title)
