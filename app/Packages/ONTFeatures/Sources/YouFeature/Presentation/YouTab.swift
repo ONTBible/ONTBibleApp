@@ -39,6 +39,7 @@ public struct YouTab: View {
         return NavigationStack {
             List {
                 AccountSection()
+                .ontApparition(0)
 
                 // **Ce qui interrompt le lecteur est rangé à part.**
                 //
@@ -63,6 +64,7 @@ public struct YouTab: View {
                     }
                 }
                 .ontLigneDeCarte()
+                .ontApparition(1)
 
                 Section(header: Text("Lecture").font(ONTUI.enteteDeListe)) {
                     NavigationLink {
@@ -102,6 +104,7 @@ public struct YouTab: View {
                     }
                 }
                 .ontLigneDeCarte()
+                .ontApparition(2)
 
                 // **Le registre ouvre la section du corpus, et ne s'y confond pas.**
                 //
@@ -142,6 +145,7 @@ public struct YouTab: View {
                         .font(ONTUI.piedDeListe)
                 }
                 .ontLigneDeCarte()
+                .ontApparition(3)
 
                 Section {
                     LabeledContent("Slots rédigés") {
@@ -170,6 +174,7 @@ public struct YouTab: View {
                         .font(ONTUI.piedDeListe)
                 }
                 .ontLigneDeCarte()
+                .ontApparition(4)
 
                 #if DEBUG
                 Section {
@@ -201,6 +206,7 @@ public struct YouTab: View {
                         .font(ONTUI.piedDeListe)
                 }
                 .ontLigneDeCarte()
+                .ontApparition(5)
                 #endif
 
                 Section(header: Text("Crédits").font(ONTUI.enteteDeListe)) {
@@ -216,6 +222,7 @@ public struct YouTab: View {
                     LabeledContent("Titres", value: "Frank Ruhl Libre — OFL").ontCarteDeLigne()
                 }
                 .ontLigneDeCarte()
+                .ontApparition(6)
             }
             .ontListeDeCartes()
             .ontScreen()
@@ -317,7 +324,7 @@ private struct AccountSection: View {
                             .foregroundStyle(theme.danger)
                             .padding(.horizontal, spacing.m)
                             .padding(.vertical, spacing.s)
-                            .background(theme.dangerSurface, in: .rect(cornerRadius: 8))
+                            .background(theme.dangerSurface, in: .rect(cornerRadius: ONTRadius.refus))
                     }
                     Text(
                         "La lecture, les surlignages et les notes fonctionnent entièrement "

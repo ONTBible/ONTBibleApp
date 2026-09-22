@@ -30,6 +30,12 @@ public struct QahalTab: View {
                             chapter: verseOfTheDay.chapter,
                             verse: verseOfTheDay.verse
                         )
+                        // Le verset du jour ouvre l'onglet, comme « Reprendre »
+                        // ouvre la Bible et le pavé de prononciation le
+                        // Lexique. ==Ce qui tient le haut d'un écran arrive en
+                        // premier== — les trois onglets le disent maintenant de
+                        // la même façon.
+                        .ontApparition(0)
                     }
 
                     comingSoon
@@ -63,13 +69,21 @@ public struct QahalTab: View {
                 .foregroundStyle(.secondary)
 
             ForEach(
-                [
-                    ("heart.text.square", "Ce que le Qahal a retenu", "les versets les plus repris"),
-                    ("bubble.left.and.text.bubble.right", "Échanges", "commenter un passage"),
-                    ("book.pages", "Parcours", "lire le corpus à plusieurs"),
-                ],
-                id: \.0
-            ) { icon, title, subtitle in
+                Array(
+                    [
+                        (
+                            "heart.text.square", "Ce que le Qahal a retenu",
+                            "les versets les plus repris"
+                        ),
+                        (
+                            "bubble.left.and.text.bubble.right", "Échanges",
+                            "commenter un passage"
+                        ),
+                        ("book.pages", "Parcours", "lire le corpus à plusieurs"),
+                    ].enumerated()),
+                id: \.element.0
+            ) { rang, entree in
+                let (icon, title, subtitle) = entree
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
@@ -82,6 +96,8 @@ public struct QahalTab: View {
                     Image(systemName: icon)
                         .foregroundStyle(ONTColors.accent(theme.mode))
                 }
+                // Décalé de un : le verset du jour tient le rang zéro.
+                .ontApparition(rang + 1)
             }
             .foregroundStyle(.secondary)
 
@@ -96,7 +112,7 @@ public struct QahalTab: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 18))
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: ONTRadius.block))
     }
 
 }

@@ -468,7 +468,7 @@ struct ChapterSwipe: View {
                 ? ecart >= seuil - Self.jeuDeDesarmement
                 : ecart >= seuil
             if arme != devrait {
-                withAnimation(.easeOut(duration: 0.09)) { arme = devrait }
+                withAnimation(ONTMouvement.armementDuPli) { arme = devrait }
             }
     }
 
@@ -482,7 +482,7 @@ struct ChapterSwipe: View {
             let assez = abs(dx) >= seuilDuGeste(largeur) || abs(lance) > largeur * 0.5
 
             guard assez, let cible = entrant ?? voisine(suivante: dx < 0) else {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                withAnimation(ONTMouvement.renoncementDuPli) {
                     glisse = 0
                     creux = 0
                 }
@@ -546,7 +546,7 @@ struct ChapterSwipe: View {
         // de la largeur.
         glisse = -sens * largeur * Self.entree
 
-        withAnimation(.easeOut(duration: 0.20)) {
+        withAnimation(ONTMouvement.entreeDePage) {
             glisse = 0
         } completion: {
             sens = 0
@@ -635,7 +635,7 @@ private struct Pastille: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: ONTRadius.pied, style: .continuous)
                     .fill(teinte.opacity(0.14))
             )
             .accessibilityHidden(true)
