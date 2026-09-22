@@ -101,6 +101,20 @@ public enum ONTUI {
     ///
     /// Les trois rôles ne prennent pas la même fonte, et c'est le point : un
     /// en-tête, un pied et un contenu de ligne n'ont pas la même voix.
+    /// ## `nil` ne veut pas dire « hérite » — il veut dire « réinitialise »
+    ///
+    /// Sur iOS ce rôle vaut `nil`, pour laisser la liste donner sa propre
+    /// police. C'est juste **sur une ligne entière**, et faux partout ailleurs :
+    /// `.font(nil)` ==révoque== la police de l'environnement et rend celle du
+    /// système, au lieu de laisser passer celle qu'un parent a choisie.
+    ///
+    /// Posé dans un `HStack` qui portait déjà `.font(ONTUI.caption)`, il a
+    /// rendu le nom du fournisseur à la taille du corps à côté de son logo
+    /// resté en `caption2` — « Apple » deux fois plus gros que la pomme.
+    /// Relevé par l'auteur le 22 septembre 2026.
+    ///
+    /// **À ne poser que sur le contenu direct d'une ligne de liste.** Pour
+    /// laisser un enfant hériter, ne rien poser du tout.
     public static var ligneDeListe: Font? {
         #if os(macOS)
             return body

@@ -1,5 +1,6 @@
 import ONTDesignSystem
 import ONTKit
+import CryptoKit
 import PhotosUI
 import SwiftUI
 
@@ -59,16 +60,26 @@ struct EnTeteDuProfil: View {
                                     .font(ONTUI.caption2)
                                     .accessibilityLabel("Connecté avec \(fournisseur.label)")
                             }
+                            // **Pas de `.font` ici.** `ONTUI.ligneDeListe`
+                            // vaut `nil` sur iOS, et `.font(nil)` ne veut pas
+                            // dire « hérite » : il veut dire ==réinitialise au
+                            // défaut du système==. Posé ici, il révoquait le
+                            // `caption` de la ligne — le logo restait en
+                            // `caption2` et le mot d'à côté remontait à la
+                            // taille du corps. « Apple » s'affichait deux fois
+                            // plus gros que son propre logo.
+                            //
+                            // Relevé par l'auteur le 22 septembre 2026 :
+                            // « le Apple à côté du logo Apple est écrit en trop
+                            // gros, y a un problème de cohérence de taille ».
                             if let adresse = session.email {
                                 Text(adresse)
-                                    .font(ONTUI.ligneDeListe)
                             } else if let fournisseur = session.provider {
                                 // L'adresse n'arrive qu'avec le serveur
                                 // déployé. Le nom du fournisseur tient lieu
                                 // d'information en attendant — il est vrai, et
                                 // c'est ce que la question demandait.
                                 Text(fournisseur.label)
-                                    .font(ONTUI.ligneDeListe)
                             }
                         }
                         .font(ONTUI.caption)
@@ -110,6 +121,57 @@ private func logo(_ provider: AuthProvider) -> String {
 /// latérale de l'iPad, et dans l'onglet de l'iPhone. Le trois-temps — la photo,
 /// les initiales, la silhouette — doit être le même partout, sinon le lecteur
 /// se voit d'une façon dans un écran et d'une autre ailleurs.
+/// Le portrait **avec sa pastille d'appareil photo** — l'étiquette du menu.
+///
+/// Séparée de `Portrait` parce que ce n'est pas le même objet : `Portrait` est
+/// une **image de quelqu'un**, employée dans une ligne de liste, dans la barre
+/// d'onglets et dans une carte. Celle-ci est une **commande**, et la pastille
+/// est ce qui le dit. Les confondre mettrait un appareil photo partout où l'on
+/// montre une tête.
+struct PortraitTouchable: View {
+    @Environment(\.ontTheme) private var theme
+    let profil: Profil
+    let octets: Data?
+    let charge: Bool
+
+    var body: some View {
+        // **144 points**, à mi-chemin des deux essais. Il faisait 96, le
+        // doublement demandé l'a porté à 192 — « c'est trop gros », et
+        // l'auteur a tranché pour l'entre-deux le 22 septembre 2026.
+        //
+        // Ce n'est pas un compromis mou : à 192 le portrait devenait le sujet
+        // de l'écran, alors que l'écran sert à **modifier** un profil, pas à
+        // le contempler. À 96 il était une vignette. 144 le donne à voir sans
+        // lui laisser prendre la page.
+        //
+        // Et il reste sous la borne : on réduit les images à 512 px avant de
+        // les écrire, 144 points font 432 px sur un écran ×3. ==L'image est
+        // donc rendue en deçà de sa définition==, ce qui n'était plus vrai à
+        // 192.
+        Portrait(profil: profil, octets: octets, taille: 144)
+            .overlay(alignment: .bottom) {
+                // La pastille chevauche le bord bas du rond, comme dans Apple
+                // Music : posée à l'intérieur elle mangerait le visage, posée
+                // à l'extérieur elle se lirait comme un bouton séparé.
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(ONTColors.brandInk(theme.mode)))
+                    .overlay(Circle().stroke(theme.background, lineWidth: 4))
+                    .offset(y: 10)
+            }
+            .overlay {
+                if charge {
+                    Circle().fill(.black.opacity(0.35))
+                    ProgressView().tint(.white)
+                }
+            }
+            .frame(height: 154, alignment: .top)
+            .contentShape(.circle)
+    }
+}
+
 public struct Portrait: View {
     @Environment(\.ontTheme) private var theme
     let profil: Profil
@@ -159,6 +221,7 @@ struct EditeurDuProfil: View {
     @State private var choix: PhotosPickerItem?
     @State private var chargeLaPhoto = false
     @State private var parcourtLesFichiers = false
+    @State private var choisitDansLaPhototheque = false
     @State private var refus: String?
 
     /// La limite de la bio.
@@ -175,36 +238,66 @@ struct EditeurDuProfil: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 10) {
-                        Portrait(
-                            profil: account.profil, octets: account.portrait(), taille: 96)
-                        if chargeLaPhoto {
-                            ProgressView()
-                        } else {
-                            // **Deux origines, et l'une ne remplace pas
-                            // l'autre.** La photothèque tient les photos ; un
-                            // portrait dessiné, reçu par message ou rangé dans
-                            // iCloud Drive n'y est pas, et rien ne l'y fera
-                            // entrer. Le lecteur qui l'a sous la main n'aurait
-                            // eu aucun chemin.
-                            HStack(spacing: 18) {
-                                PhotosPicker(selection: $choix, matching: .images) {
-                                    Label("Photothèque", systemImage: "photo.on.rectangle")
-                                        .font(ONTUI.footnote)
-                                }
+                        // **Le portrait est le bouton.**
+                        //
+                        // Les deux origines étaient posées côte à côte sous
+                        // l'image, en toutes lettres — « Photothèque » et
+                        // « Fichiers ». À deux elles tenaient déjà mal sur la
+                        // largeur ; une troisième n'entrait pas, et c'est
+                        // exactement ce que Gravatar demandait d'ajouter.
+                        //
+                        // ==Une liste horizontale de verbes ne s'agrandit
+                        // pas== : chaque origine de plus la rapproche du bord,
+                        // et le libellé rétrécit jusqu'à mentir sur ce qu'il
+                        // ouvre.
+                        //
+                        // Un menu, lui, s'allonge. C'est la forme qu'emploie
+                        // Apple Music pour la même décision, et celle que
+                        // l'auteur a demandée le 22 septembre 2026 : « c'est
+                        // plutôt un bouton, un menu comme ça qui apparaît ».
+                        // La pastille d'appareil photo dit que l'image se
+                        // touche — sans elle, rien ne l'annoncerait.
+                        Menu {
+                            Button {
+                                choisitDansLaPhototheque = true
+                            } label: {
+                                Label("Photothèque", systemImage: "photo.on.rectangle")
+                            }
+                            Button {
+                                parcourtLesFichiers = true
+                            } label: {
+                                Label("Fichiers", systemImage: "folder")
+                            }
+                            // **Seulement si l'adresse est connue.** Gravatar
+                            // ne répond qu'à une empreinte d'adresse ; sans
+                            // elle il n'y a rien à demander, et un bouton qui
+                            // ne peut pas aboutir n'a rien à faire dans un
+                            // menu — c'est la règle déjà tenue pour les
+                            // fournisseurs de connexion.
+                            if adresseDuCompte != nil {
                                 Button {
-                                    parcourtLesFichiers = true
+                                    Task { await importerDeGravatar() }
                                 } label: {
-                                    Label("Fichiers", systemImage: "folder")
-                                        .font(ONTUI.footnote)
+                                    Label("Importer depuis Gravatar", systemImage: "at.circle")
                                 }
                             }
-                        }
-                        if account.profil.portrait != nil {
-                            Button("Retirer", role: .destructive) {
-                                account.profil.portrait = nil
+                            if account.profil.portrait != nil {
+                                Divider()
+                                Button(role: .destructive) {
+                                    account.profil.portrait = nil
+                                } label: {
+                                    Label("Retirer la photo", systemImage: "trash")
+                                }
                             }
-                            .font(ONTUI.footnote)
+                        } label: {
+                            PortraitTouchable(
+                                profil: account.profil,
+                                octets: account.portrait(),
+                                charge: chargeLaPhoto
+                            )
                         }
+                        .accessibilityLabel("Changer la photo de profil")
+
                         if let refus {
                             Text(refus)
                                 .font(ONTUI.caption)
@@ -320,6 +413,11 @@ struct EditeurDuProfil: View {
         .ontTitreCompact()
         .ontScreen()
         .task(id: choix) { await recevoirLaPhoto() }
+        // Le sélecteur ne peut pas vivre **dans** le menu : un
+        // `PhotosPicker` y serait une ligne qui se présente elle-même, et
+        // le menu se referme avant qu'elle n'ait la main. Il est donc posé
+        // sur l'écran, et le menu ne fait que lever le drapeau.
+        .photosPicker(isPresented: $choisitDansLaPhototheque, selection: $choix, matching: .images)
         .fileImporter(
             isPresented: $parcourtLesFichiers,
             allowedContentTypes: [.image],
@@ -347,6 +445,71 @@ struct EditeurDuProfil: View {
             return
         }
         poser(image)
+    }
+
+    /// L'adresse à laquelle demander un Gravatar, ou `nil`.
+    ///
+    /// Elle vient de la **session**, pas du profil : c'est celle que le
+    /// fournisseur a certifiée, et Gravatar n'indexe que des adresses réelles.
+    private var adresseDuCompte: String? {
+        guard let brute = account.session?.email else { return nil }
+        let propre = brute.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return propre.isEmpty ? nil : propre
+    }
+
+    /// Chercher le portrait que le lecteur a déjà, ailleurs.
+    ///
+    /// ## Pourquoi cette origine existe
+    ///
+    /// Gravatar — *globally recognized avatar* — est l'annuaire d'images le
+    /// plus ancien du web : on y associe une photo à une adresse, et des
+    /// milliers de sites la reprennent. Un lecteur qui en a un n'a alors rien
+    /// à choisir ni à téléverser. YouVersion le propose pour cette raison, et
+    /// l'auteur l'a demandé le 22 septembre 2026.
+    ///
+    /// ## Ce que l'adresse ne quitte pas
+    ///
+    /// ==On n'envoie pas l'adresse, on envoie son empreinte.== Gravatar indexe
+    /// par SHA-256 de l'adresse en minuscules, débarrassée de ses espaces —
+    /// c'est le protocole, et c'est aussi ce qui fait qu'aucune adresse ne
+    /// voyage en clair dans l'URL ni dans les journaux du serveur.
+    ///
+    /// ## `d=404`, et pourquoi il compte
+    ///
+    /// Sans ce paramètre, Gravatar rend **toujours** une image : une silhouette
+    /// grise engendrée pour l'empreinte. On l'enregistrerait comme portrait, et
+    /// le lecteur croirait avoir importé le sien. `d=404` fait répondre 404
+    /// quand il n'y a rien — ==l'absence redevient distinguable d'une réponse==,
+    /// et on peut le dire au lieu de poser une image vide.
+    private func importerDeGravatar() async {
+        guard let adresse = adresseDuCompte else { return }
+        refus = nil
+        chargeLaPhoto = true
+        defer { chargeLaPhoto = false }
+
+        let empreinte = SHA256.hash(data: Data(adresse.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        guard let url = URL(string: "https://gravatar.com/avatar/\(empreinte)?s=512&d=404")
+        else { return }
+
+        do {
+            let (octets, reponse) = try await URLSession.shared.data(from: url)
+            if let http = reponse as? HTTPURLResponse, http.statusCode == 404 {
+                refus = "Aucun Gravatar n'est associé à cette adresse."
+                return
+            }
+            guard let image = ONTImage(data: octets) else {
+                refus = "Gravatar a répondu autre chose qu'une image."
+                return
+            }
+            poser(image)
+        } catch {
+            // Le message dit **ce que le lecteur peut faire**, pas ce que
+            // l'erreur contenait : hors ligne, il n'y a rien à corriger dans
+            // l'app.
+            refus = "Gravatar n'a pas répondu. Vérifiez votre connexion."
+        }
     }
 
     private func recevoirLaPhoto() async {

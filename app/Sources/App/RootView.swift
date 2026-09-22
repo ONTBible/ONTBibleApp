@@ -364,7 +364,26 @@ private struct OngletsFixes: TabContent {
             //
             // Sans portrait, le symbole du système : c'est la bonne icône pour
             // qui n'a pas de compte, et le système sait l'animer.
-            if let rond = PortraitDOnglet.rond(compte.portrait()) {
+            // **Toucher la propriété observée avant de lire les octets.**
+            //
+            // `compte.portrait()` va chercher un fichier sur le disque. Une
+            // lecture de fichier n'est **pas** une dépendance : `@Observable`
+            // n'enregistre que les propriétés qu'on touche, et celle-ci n'en
+            // touchait aucune. La barre se composait donc une fois, avec ce
+            // que le disque portait à cet instant, et ==plus rien ne la
+            // rappelait== — ni le profil qui finit de se charger, ni la photo
+            // que le lecteur vient de poser.
+            //
+            // Lire `profil.portrait` d'abord inscrit la dépendance. Le nom
+            // sert aussi à décider : sans lui il n'y a pas de fichier à
+            // ouvrir, et l'onglet garde le symbole du système.
+            //
+            // Relevé par l'auteur le 22 septembre 2026 — « la photo ne passe
+            // pas correctement » sur l'onglet Vous, alors que la même image
+            // s'affichait dans la carte juste au-dessus.
+            if compte.profil.portrait != nil,
+                let rond = PortraitDOnglet.rond(compte.portrait())
+            {
                 Tab(value: Router.TabID.you) {
                     YouTab(onDailyChange: appliquer, onParutions: appliquerParutions)
                 } label: {
