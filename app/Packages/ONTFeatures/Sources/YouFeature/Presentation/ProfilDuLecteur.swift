@@ -381,10 +381,7 @@ struct EditeurDuProfil: View {
 
             Section {
                 TextField("vous@exemple.com", text: $account.profil.courriel)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    .ontChampDeCourriel()
                     .accessibilityIdentifier("profil.courriel")
             } header: {
                 Text("Adresse courriel")
