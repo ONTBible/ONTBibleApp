@@ -505,6 +505,66 @@ sans chantier en cours ne peut donc pas se mettre « au neutre » sur la branche
 d'intégration, déjà tenue par un autre — il **reste** sur sa dernière branche,
 fusionnée. Ça ressemble à un worktree oublié et ce n'en est pas un.
 
+#### Ce que la table interdit à qui range
+
+**On ne démonte pas un worktree dont la ligne est encore dans la table.**
+La règle tient ; ==le récit qui l'a fait écrire était faux==, et il faut les
+séparer.
+
+**Ce qui a été cru le 22 septembre.** Trois worktrees d'une même session ont
+disparu ==dans la minute suivant la fusion de leur PR==, pendant qu'elle y
+travaillait encore. Elle a mesuré l'agent de veille, le journal de Herdr, les
+PR restantes, le motif de sélection — ==tout, sauf ses propres actes==. Et j'ai
+cherché un automate, un `cron`, une session en boucle.
+
+**Ce qui était vrai.** Son propre enchaînement de rangement, dans le même bloc
+que la poussée :
+
+    W=/Users/gloiiire_/ONTBible/ONTBibleApp-vous       136 assignations
+    W=/Users/gloiiire_/ONTBible/ONTBibleApp-cd           8
+    W=/Users/gloiiire_/ONTBible/ONTBibleApp-or           2
+
+    git push -q origin <branche>:device
+    git worktree remove --force $W && git worktree prune
+
+==La variable de sa garde et celle de son rangement sont la même.== D'où
+« disparu dans la minute suivant la fusion » — ==la suppression *est* l'étape
+de fusion== ; d'où « seuls les fusionnés partent » ; d'où l'enregistrement git
+absent, puisque `prune` suit. Et ==sa garde la protégeait de son propre
+geste== : `cd "$W" || exit 1` s'arrêtait net, au bloc suivant, sur ce qu'elle
+venait de démonter.
+
+**Ce que ça apprend, et c'est la huitième forme de la série :**
+
+> ==On cherche la cause au-dehors quand on ne s'est pas compté parmi les
+> causes.== Toutes les mesures étaient justes ; aucune ne portait sur celui qui
+> mesurait.
+
+**Et pourquoi la règle reste**, alors que son motif tombe : rien n'obligeait ce
+jour-là à séparer *la fusion d'une PR* de *la fin du travail sur sa branche*, et
+c'est une distinction réelle.
+
+> ==Qui lit la fusion mesure l'état de GitHub. Qui lit la table mesure l'état du
+> travail.== Après la fusion il reste le journal, le registre et le rangement —
+> ==précisément ce qu'on oublie le plus==.
+
+Le tenant retire donc sa ligne ==quand il a fini==, et tant qu'elle est là, le
+worktree ne se démonte pas — ==y compris par lui-même==. C'est la clause que le
+cas rendait invisible : celui contre qui la table protège le mieux est souvent
+==celui qui l'a écrite==.
+
+**Aucune donnée n'a été perdue**, vérifié par le contenu et non par
+l'ascendance : les branches étaient poussées avant chaque démontage, et la seule
+remise devenue inatteignable avait été reprise. ==Le seul dégât réel est
+ailleurs== — l'agent de veille du disque est resté mort trois jours, tué par un
+`No space left on device` sur son propre verrou, et personne ne l'a vu.
+
+**Pourquoi cette section est réécrite plutôt que retirée.** Le `CLAUDE.md`
+impose la même chose au corpus : les gloses de *Bereshit* 11 qui expliquaient
+une homonymie entre [[Haran]] et [[Charan]] ont été réécrites, parce qu'==un
+artefact d'outil relu comme un fait du texte== ne se corrige pas en silence. Une
+règle juste adossée à une cause fausse se relit comme vérifiée.
+
 #### Le contrôle qui la tient
 
     scripts/cartographier-la-flotte.py --worktrees
@@ -524,7 +584,61 @@ causes, et ne tranche pas.==
 Il ne réécrit rien — ==une table qui se met à jour seule perd le « pourquoi »,
 qui est la seule chose qu'aucun relevé ne peut produire==.
 
----
+### Inscrire sa proposition — 21 septembre 2026
+
+**Décision de l'auteur.** Toute PR s'inscrit dans **`PROPOSITIONS.md`**, par
+celle qui l'ouvre, avec ==ce qu'aucun tableau GitHub ne montre== : qui l'a
+ouverte, pourquoi, et ==ce qu'elle engage chez les voisins==.
+
+**Le nom est le pendant de `DECISIONS.md`** — celui-ci porte ce qui est
+==tranché==, celui-là ce qui est ==proposé et attend==. Une PR *est* une
+proposition.
+
+**Les trois trous qu'il comble :**
+
+    qui l'a ouverte    les huit sessions poussent sous le compte `gloiiire` ;
+                       `--author @me` rend TOUTES les PR du dépôt, et trois
+                       sessions y sont tombées le même jour
+    pourquoi           le titre dit ce que la PR fait, jamais le défaut qu'elle
+                       répare ni la mesure qui l'a rendue nécessaire
+    ce que ça engage   la règle du `CLAUDE.md` racine — *demander ce que ce
+                       travail change pour les autres dépôts* — que rien ne
+                       portait
+
+**Et ça ne coûte rien**, contrairement à la déclaration d'un worktree :
+==l'entrée voyage dans la PR qu'elle décrit==. On l'écrit sur la branche qu'on
+vient de pousser, avant d'ouvrir la PR. Pas un commit de plus, pas une CI de
+plus.
+
+==On ne retire pas une entrée fusionnée== : on change son état et on date. Une
+proposition abandonnée reste avec son motif — c'est souvent elle qui a le plus à
+apprendre.
+
+#### La même asymétrie, et ce qui la rend ici plus facile
+
+Relevée par les langues sources dans l'heure qui a suivi, contre ce registre-ci :
+**qui met la ligne à jour quand la PR fusionne ?** ==Une PR ne se ferme pas par
+un commit — elle se ferme chez GitHub.== Rien ne passe par l'arbre, donc rien ne
+peut corriger la ligne au moment où elle cesse d'être vraie. Leurs deux PR ont
+été fusionnées un samedi pendant leur absence ; elles l'ont appris le lundi.
+
+**Mais ici l'état se mesure sans ambiguïté**, et c'est la différence avec les
+worktrees : là-bas une ligne orpheline peut vouloir dire un démontage à l'insu
+de son tenant, donc on demande. ==Ici GitHub le dit, donc le contrôle conclut.==
+
+    au registre, PR ouverte          rien à dire
+    au registre, PR fusionnée        METTRE À JOUR l'état et la date — il conclut
+    PR ouverte, rien au registre     RAPPELER — à écrire par qui l'a ouverte
+
+`scripts/cartographier-la-flotte.py --propositions`. Il ne juge **jamais le
+contenu** — ==personne ne peut écrire le « pourquoi » d'une PR qu'il n'a pas
+ouverte==, et une entrée qui porte *« à écrire par qui l'a ouverte »* est
+complète à ses yeux : le trou y est déclaré.
+
+**Et il lit `origin/<base>`, jamais un chemin nu.** Un chemin nu lit l'arbre
+courant, qui est sur la branche où il se trouve — et ==là où l'on se tient n'est
+jamais la branche d'intégration==. La faute a été commise sur cet outil-ci, le
+lendemain du jour où elle a été nommée.---
 
 ## Tronc commun et entrées locales
 
