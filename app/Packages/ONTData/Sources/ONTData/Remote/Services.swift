@@ -113,6 +113,11 @@ internal struct ProfilDTO: Codable {
     let prenom: String
     let nom: String
     let bio: String
+    /// Facultatifs : un serveur d'avant ces champs ne les rend pas, et les
+    /// exiger ferait échouer tout le profil au lieu de ces deux valeurs —
+    /// c'est la raison écrite plus bas pour la réponse entière.
+    let courriel: String?
+    let courrielsConsentis: Int64?
     let portrait: Data?
     let updatedAt: Int64
 
@@ -121,13 +126,20 @@ internal struct ProfilDTO: Codable {
         prenom = profil.prenom
         nom = profil.nom
         bio = profil.bio
+        courriel = profil.courriel
+        courrielsConsentis = profil.courrielsConsentis
+            .map { Int64($0.timeIntervalSince1970 * 1000) }
         portrait = profil.portrait
         updatedAt = Int64(profil.updatedAt.timeIntervalSince1970 * 1000)
     }
 
     var domain: ProfilEnVol {
         ProfilEnVol(
-            nomDUsage: nomDusage, prenom: prenom, nom: nom, bio: bio, portrait: portrait,
+            nomDUsage: nomDusage, prenom: prenom, nom: nom, bio: bio,
+            courriel: courriel ?? "",
+            courrielsConsentis: courrielsConsentis
+                .map { Date(timeIntervalSince1970: Double($0) / 1000) },
+            portrait: portrait,
             updatedAt: Date(timeIntervalSince1970: Double(updatedAt) / 1000))
     }
 }

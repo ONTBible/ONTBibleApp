@@ -32,6 +32,30 @@ public struct Profil: Codable, Hashable, Sendable {
     public var nom: String
     /// Quelques lignes, libres.
     public var bio: String
+    /// L'adresse à laquelle on peut joindre le lecteur.
+    ///
+    /// **Elle n'est pas celle de la connexion**, et c'est tout l'intérêt.
+    /// « Se connecter avec Apple » permet de masquer son adresse : le compte
+    /// s'ouvre alors sous un relais `@privaterelay.appleid.com` que le lecteur
+    /// n'a jamais choisi, et qu'aucun service tiers ne connaît. `session.email`
+    /// peut donc être absente, ou présente et inutilisable.
+    ///
+    /// Celle-ci est ==déclarée par le lecteur, pour ce qu'il veut en faire== :
+    /// aujourd'hui retrouver son Gravatar, demain être prévenu d'une parution.
+    /// Les deux demandent la même chose — une adresse qu'il emploie vraiment.
+    ///
+    /// Vide tant qu'il n'en a pas saisi : on ne recopie pas celle de la
+    /// session à sa place. Une adresse pré-remplie qu'il n'a pas relue est une
+    /// adresse qu'il croira avoir validée.
+    public var courriel: String
+    /// **Quand** le lecteur a accepté d'être prévenu par courriel — et `nil`
+    /// s'il ne l'a pas fait.
+    ///
+    /// La date *est* le consentement. Un booléen à côté d'un horodatage se
+    /// désynchronise, et il faut alors deviner lequel des deux croire. Le RGPD
+    /// demande de pouvoir **prouver** un consentement, pas seulement de le
+    /// détenir : sans date, il n'y a rien à montrer.
+    public var courrielsConsentis: Date?
     /// Le nom du fichier du portrait dans le dossier des données, jamais son
     /// contenu.
     ///
@@ -49,12 +73,15 @@ public struct Profil: Codable, Hashable, Sendable {
 
     public init(
         nomDUsage: String = "", prenom: String = "", nom: String = "", bio: String = "",
+        courriel: String = "", courrielsConsentis: Date? = nil,
         portrait: String? = nil, updatedAt: Date = Date()
     ) {
         self.nomDUsage = nomDUsage
         self.prenom = prenom
         self.nom = nom
         self.bio = bio
+        self.courriel = courriel
+        self.courrielsConsentis = courrielsConsentis
         self.portrait = portrait
         self.updatedAt = updatedAt
     }
@@ -121,6 +148,10 @@ public struct Profil: Codable, Hashable, Sendable {
         prenom = try c.decodeIfPresent(String.self, forKey: .prenom) ?? ""
         nom = try c.decodeIfPresent(String.self, forKey: .nom) ?? ""
         bio = try c.decodeIfPresent(String.self, forKey: .bio) ?? ""
+        // Tolérant : les profils écrits avant ce champ n'en portent pas, et
+        // un décodage strict les rendrait illisibles d'un coup.
+        courriel = try c.decodeIfPresent(String.self, forKey: .courriel) ?? ""
+        courrielsConsentis = try c.decodeIfPresent(Date.self, forKey: .courrielsConsentis)
         portrait = try c.decodeIfPresent(String.self, forKey: .portrait)
         // `.distantPast` et non `Date()` pour un fichier écrit avant ce champ :
         // un profil sans horodatage doit **perdre** contre n'importe quel autre,

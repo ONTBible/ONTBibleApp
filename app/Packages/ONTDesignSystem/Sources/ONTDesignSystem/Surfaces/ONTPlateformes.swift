@@ -124,6 +124,32 @@ extension View {
             return self
         #endif
     }
+
+    /// **Un champ d'adresse courriel** — le rôle, pas ses trois réglages.
+    ///
+    /// Trois modificateurs vont ensemble pour ce champ, et **deux n'existent
+    /// pas sur macOS** : `keyboardType` n'a pas de sens sans clavier logiciel,
+    /// et `NSTextContentType` ne connaît ni `.emailAddress` ni la plupart des
+    /// valeurs d'UIKit. Les poser directement compile chez soi et casse la
+    /// compilation du Mac — mesuré le 22 septembre 2026, sur une CI où seul
+    /// « Les tests du Mac » a rougi.
+    ///
+    /// Un adaptateur par **rôle** plutôt qu'un `#if` par réglage : l'appelant
+    /// dit ce que le champ *est*, et n'a pas à savoir lesquels de ses réglages
+    /// sont propres à une plateforme. `autocorrectionDisabled` reste dedans
+    /// bien qu'il existe partout — le séparer obligerait à se souvenir de
+    /// l'appeler à côté.
+    public func ontChampDeCourriel() -> some View {
+        #if os(iOS)
+            return self
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        #else
+            return autocorrectionDisabled()
+        #endif
+    }
 }
 
 /// Où va un bouton de barre d'outils.

@@ -86,6 +86,28 @@ pub struct ProfilLecteur {
     pub nom: String,
     #[serde(default)]
     pub bio: String,
+    /// L'adresse déclarée par le lecteur, pour qu'on puisse le joindre.
+    ///
+    /// **Ce n'est pas celle de la connexion.** « Se connecter avec Apple »
+    /// permet de masquer son adresse : le compte s'ouvre alors sous un relais
+    /// `@privaterelay.appleid.com` que le lecteur n'a pas choisi. L'adresse
+    /// d'authentification vit dans la session ; celle-ci est une donnée de
+    /// profil, déclarée, et modifiable sans toucher au compte.
+    #[serde(default)]
+    pub courriel: String,
+    /// Quand le lecteur a accepté de recevoir des courriels, s'il l'a fait.
+    ///
+    /// **La date EST le consentement**, et c'est délibéré : un booléen à côté
+    /// d'un horodatage se désynchronise — on en a vu passer un à `true` avec
+    /// une date vide, et plus personne ne savait si le consentement valait.
+    /// Ici `None` veut dire « pas consenti », et une date veut dire « consenti
+    /// ce jour-là ».
+    ///
+    /// Le RGPD demande de pouvoir **prouver** le consentement, pas seulement
+    /// de le posséder : sans date, il n'y a rien à montrer. Millisecondes
+    /// depuis l'époque, comme `updated_at`.
+    #[serde(default)]
+    pub courriels_consentis: Option<i64>,
     /// Le portrait encodé en base64, ou `None`.
     #[serde(default)]
     pub portrait: Option<String>,
