@@ -94,7 +94,8 @@ public struct LexiconTab: View {
                     //
                     // Mais les **sections par lettre** sont les mêmes : c'est
                     // elles que le rail vise, et sans elles il disparaît.
-                    ForEach(tranchesDeNoms) { tranche in
+                    ForEach(Array(tranchesDeNoms.enumerated()), id: \.element.id) {
+                        rangDeTranche, tranche in
                         Section {
                             ForEach(Array(tranche.entrees.enumerated()), id: \.element.id) {
                                 rang, nom in
@@ -114,11 +115,22 @@ public struct LexiconTab: View {
                                 .font(ONTUI.footnote.weight(.semibold))
                                 .foregroundStyle(theme.accent)
                                 .accessibilityAddTraits(.isHeader)
+                                // **Une lettre de tranche est un en-tête, pas
+                                // une rangée** — et c'est pour ça qu'elle avait
+                                // été oubliée deux fois : on pose l'apparition
+                                // sur ce qu'on voit comme une ligne.
+                                //
+                                // Son rang est celui de sa tranche : avec deux
+                                // lettres à l'écran, ==les donner au même rang
+                                // les ferait partir ensemble== et l'ordre de
+                                // lecture disparaîtrait.
+                                .ontApparition(rangDeTranche + 2)
                         }
                         .id(tranche.lettre)
                     }
                 } else {
-                ForEach(tranches) { tranche in
+                ForEach(Array(tranches.enumerated()), id: \.element.id) {
+                    rangDeTranche, tranche in
                     Section {
                         ForEach(Array(tranche.entrees.enumerated()), id: \.element.id) { rang, entry in
                             Button {
@@ -142,6 +154,7 @@ public struct LexiconTab: View {
                         Text(tranche.lettre)
                             .font(ONTUI.footnote.weight(.semibold))
                             .foregroundStyle(theme.accent)
+                            .ontApparition(rangDeTranche + 2)
                             .accessibilityAddTraits(.isHeader)
                     }
                     .id(tranche.lettre)

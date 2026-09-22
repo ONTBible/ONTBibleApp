@@ -217,7 +217,8 @@ public struct BibleTab: View {
                     .ontApparition(0)
                 }
 
-                ForEach(model.corpora) { corpus in
+                ForEach(Array(model.corpora.enumerated()), id: \.element.id) {
+                    rangDeCorpus, corpus in
                     Section {
                         // **Situé, pas seulement nommé.** Voir `ModeSitue` :
                         // trois modes portent le même identifiant dans les deux
@@ -241,10 +242,22 @@ public struct BibleTab: View {
                             // Décalé de un : « Reprendre » tient le rang zéro
                             // quand il est là, et le sommaire ne doit pas
                             // partir en même temps que lui.
-                            .ontApparition(rang + 1)
+                            .ontApparition(rangDeCorpus * 4 + rang + 2)
                         }
                     } header: {
                         enteteDeCorpus(corpus)
+                            // **Un titre de corpus est un en-tête, pas une
+                            // rangée** — « Kenesset », « Berit Hadashah ». Même
+                            // oubli qu'au Lexique, pour la même raison : on
+                            // pose l'apparition sur ce qu'on voit comme une
+                            // ligne, et un en-tête n'en est pas une.
+                            //
+                            // Son rang est celui de son corpus, décalé par les
+                            // modes du précédent : les deux titres sont
+                            // visibles ensemble sur un iPhone, et les faire
+                            // partir au même instant effacerait l'ordre de
+                            // lecture.
+                            .ontApparition(rangDeCorpus * 4 + 1)
                     }
                 }
             }
