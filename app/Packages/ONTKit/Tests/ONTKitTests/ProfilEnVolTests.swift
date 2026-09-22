@@ -79,3 +79,50 @@ struct ProfilEnVolTests {
         #expect(revenu == parti)
     }
 }
+
+/// Ce que l'adresse et son consentement doivent faire en traversant.
+@Suite("L'adresse déclarée et son consentement")
+struct CourrielDuProfilTests {
+    /// **Un profil d'avant ces champs reste lisible.**
+    ///
+    /// C'est le cas réel : tous les profils déjà écrits sur les appareils des
+    /// testeurs n'en portent pas la clé. Un décodage strict les rendrait
+    /// illisibles d'un coup, et le lecteur perdrait son nom et sa bio en même
+    /// temps que rien.
+    @Test("un profil écrit avant ces champs se relit")
+    func unProfilDAvant() throws {
+        let lu = try JSONDecoder().decode(
+            Profil.self, from: Data(#"{"prenom":"Gloire","bio":"Je lis."}"#.utf8))
+        #expect(lu.courriel == "")
+        #expect(lu.courrielsConsentis == nil)
+        #expect(lu.prenom == "Gloire")
+    }
+
+    /// **Le consentement est une date, et `nil` veut dire non.**
+    ///
+    /// Un booléen à côté d'un horodatage se désynchronise ; ici l'un *est*
+    /// l'autre, et il n'y a donc rien à départager.
+    @Test("l'absence de date vaut absence de consentement")
+    func labsenceDeDate() {
+        #expect(Profil().courrielsConsentis == nil)
+        let consenti = Profil(courriel: "a@b.co", courrielsConsentis: Date())
+        #expect(consenti.courrielsConsentis != nil)
+    }
+
+    /// Les deux champs traversent, dans les deux sens.
+    @Test("l'adresse et la date font l'aller-retour")
+    func lAllerRetour() {
+        let quand = Date(timeIntervalSince1970: 1_700_000_000)
+        let local = Profil(
+            nomDUsage: "gloiiire_", courriel: "ybikouta@icloud.com",
+            courrielsConsentis: quand, portrait: "p.jpg")
+
+        let enVol = ProfilEnVol(local, portrait: Data([0xFF]))
+        #expect(enVol.courriel == "ybikouta@icloud.com")
+        #expect(enVol.courrielsConsentis == quand)
+
+        let retour = enVol.versLeProfil(portrait: "p2.jpg")
+        #expect(retour.courriel == "ybikouta@icloud.com")
+        #expect(retour.courrielsConsentis == quand)
+    }
+}
