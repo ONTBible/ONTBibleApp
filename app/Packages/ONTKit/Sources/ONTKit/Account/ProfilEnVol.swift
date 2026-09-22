@@ -15,6 +15,10 @@ public struct ProfilEnVol: Codable, Hashable, Sendable {
     public var prenom: String
     public var nom: String
     public var bio: String
+    /// L'adresse déclarée par le lecteur, et la date à laquelle il a accepté
+    /// d'être joint — `nil` tant qu'il ne l'a pas fait.
+    public var courriel: String
+    public var courrielsConsentis: Date?
     /// Les octets de l'image. `JSONEncoder` les écrit en base64, ce que le
     /// serveur attend.
     public var portrait: Data?
@@ -22,12 +26,15 @@ public struct ProfilEnVol: Codable, Hashable, Sendable {
 
     public init(
         nomDUsage: String = "", prenom: String = "", nom: String = "", bio: String = "",
+        courriel: String = "", courrielsConsentis: Date? = nil,
         portrait: Data? = nil, updatedAt: Date = Date()
     ) {
         self.nomDUsage = nomDUsage
         self.prenom = prenom
         self.nom = nom
         self.bio = bio
+        self.courriel = courriel
+        self.courrielsConsentis = courrielsConsentis
         self.portrait = portrait
         self.updatedAt = updatedAt
     }
@@ -36,7 +43,9 @@ public struct ProfilEnVol: Codable, Hashable, Sendable {
     public init(_ profil: Profil, portrait: Data?) {
         self.init(
             nomDUsage: profil.nomDUsage, prenom: profil.prenom, nom: profil.nom,
-            bio: profil.bio, portrait: portrait, updatedAt: profil.updatedAt)
+            bio: profil.bio, courriel: profil.courriel,
+            courrielsConsentis: profil.courrielsConsentis,
+            portrait: portrait, updatedAt: profil.updatedAt)
     }
 
     /// Ce qu'on garde, depuis ce qu'on reçoit — **sans le portrait**, dont le
@@ -44,6 +53,7 @@ public struct ProfilEnVol: Codable, Hashable, Sendable {
     public func versLeProfil(portrait nomDuFichier: String?) -> Profil {
         Profil(
             nomDUsage: nomDUsage, prenom: prenom, nom: nom, bio: bio,
+            courriel: courriel, courrielsConsentis: courrielsConsentis,
             portrait: nomDuFichier, updatedAt: updatedAt)
     }
 }

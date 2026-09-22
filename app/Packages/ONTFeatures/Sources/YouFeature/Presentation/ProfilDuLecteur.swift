@@ -283,11 +283,23 @@ struct EditeurDuProfil: View {
                             }
                             if account.profil.portrait != nil {
                                 Divider()
+                                // **Le rôle rougit le mot, pas le glyphe.**
+                                //
+                                // `role: .destructive` peint le libellé en
+                                // rouge, et laisse l'icône prendre la teinte
+                                // courante — le bordeaux de l'app. La ligne
+                                // disait donc deux choses à la fois : un
+                                // avertissement à droite, une action ordinaire
+                                // à gauche.
+                                //
+                                // `.tint(.red)` porte la teinte à l'icône.
+                                // Relevé par l'auteur le 22 septembre 2026.
                                 Button(role: .destructive) {
                                     account.profil.portrait = nil
                                 } label: {
                                     Label("Retirer la photo", systemImage: "trash")
                                 }
+                                .tint(.red)
                             }
                         } label: {
                             PortraitTouchable(
@@ -366,6 +378,68 @@ struct EditeurDuProfil: View {
                     .accessibilityIdentifier("profil.nom")
             }
             .ontRow()
+
+            Section {
+                TextField("vous@exemple.com", text: $account.profil.courriel)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("profil.courriel")
+            } header: {
+                Text("Adresse courriel")
+                    .font(ONTUI.enteteDeListe)
+            } footer: {
+                // **Dire ce que l'adresse fait aujourd'hui, pas ce qu'elle
+                // fera.** Une explication qui annonce des courriels que rien
+                // n'envoie encore est une promesse, et une promesse dans un
+                // pied de section se lit comme un fait.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                        "Sert à retrouver votre portrait sur Gravatar. Elle reste "
+                            + "sur cet appareil."
+                    )
+                    if adresseInvalide {
+                        Text("Cette adresse ne ressemble pas à une adresse courriel.")
+                            .foregroundStyle(.red)
+                    }
+                }
+                .font(ONTUI.piedDeListe)
+            }
+            .ontRow()
+
+            // **Le consentement n'apparaît qu'avec une adresse.**
+            //
+            // Un interrupteur qui accepte des courriels sans adresse où les
+            // envoyer recueillerait un accord sur rien. Et il resterait allumé
+            // après que le lecteur a effacé son adresse — un consentement qui
+            // survit à son objet est un consentement qu'on ne peut plus
+            // rattacher à personne.
+            if !account.profil.courriel.trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+            {
+                Section {
+                    Toggle("Me prévenir des parutions", isOn: consentementAuxCourriels)
+                        .accessibilityIdentifier("profil.courriels")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(
+                            "Un courriel quand une unité paraît ou qu'une traduction "
+                                + "est révisée. Jamais rien d'autre, et vous pouvez "
+                                + "éteindre cet interrupteur à tout moment."
+                        )
+                        // **La date se montre.** Le RGPD demande de pouvoir
+                        // prouver un consentement ; la moindre des choses est
+                        // que le lecteur voie ce qu'il a accepté, et quand.
+                        if let quand = account.profil.courrielsConsentis {
+                            Text("Accepté le \(quand.formatted(date: .long, time: .shortened)).")
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .font(ONTUI.piedDeListe)
+                }
+                .ontRow()
+            }
 
             Section {
                 TextField("Quelques mots sur vous", text: $account.profil.bio, axis: .vertical)
@@ -447,14 +521,59 @@ struct EditeurDuProfil: View {
         poser(image)
     }
 
+    /// L'interrupteur des courriels, monté sur une **date**.
+    ///
+    /// Le modèle ne porte pas de booléen : `nil` veut dire « pas consenti »,
+    /// et une date veut dire « consenti ce jour-là ». Cette liaison traduit
+    /// l'un dans l'autre — et ==n'écrase pas la date existante quand on
+    /// rallume==, parce que la première acceptation est celle qu'il faudrait
+    /// pouvoir montrer.
+    private var consentementAuxCourriels: Binding<Bool> {
+        Binding(
+            get: { account.profil.courrielsConsentis != nil },
+            set: { accepte in
+                if accepte {
+                    if account.profil.courrielsConsentis == nil {
+                        account.profil.courrielsConsentis = Date()
+                    }
+                } else {
+                    account.profil.courrielsConsentis = nil
+                }
+            }
+        )
+    }
+
+    /// L'adresse saisie ne ressemble pas à une adresse.
+    ///
+    /// **Un signalement, pas un refus.** On n'empêche pas d'enregistrer : le
+    /// lecteur tape, et une saisie à moitié écrite serait refusée à chaque
+    /// caractère. Ce qui compte est qu'il voie que Gravatar ne répondra pas —
+    /// et la vraie vérification, c'est la réponse de Gravatar, pas une
+    /// expression rationnelle. ==Une adresse bien formée peut n'exister pas.==
+    private var adresseInvalide: Bool {
+        let a = account.profil.courriel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !a.isEmpty else { return false }
+        let morceaux = a.split(separator: "@", omittingEmptySubsequences: false)
+        return morceaux.count != 2 || morceaux.contains(where: \.isEmpty)
+            || !morceaux[1].contains(".")
+    }
+
     /// L'adresse à laquelle demander un Gravatar, ou `nil`.
     ///
     /// Elle vient de la **session**, pas du profil : c'est celle que le
     /// fournisseur a certifiée, et Gravatar n'indexe que des adresses réelles.
     private var adresseDuCompte: String? {
-        guard let brute = account.session?.email else { return nil }
-        let propre = brute.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return propre.isEmpty ? nil : propre
+        // **Celle que le lecteur a déclarée d'abord.** La session peut en
+        // porter une, mais « Se connecter avec Apple » permet de la masquer :
+        // le compte s'ouvre alors sous un relais `@privaterelay.appleid.com`
+        // qu'aucun Gravatar ne connaît. Une adresse déclarée à la main est
+        // toujours celle que le lecteur emploie vraiment ; celle de la session
+        // ne l'est que parfois.
+        for brute in [account.profil.courriel, account.session?.email ?? ""] {
+            let propre = brute.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !propre.isEmpty { return propre }
+        }
+        return nil
     }
 
     /// Chercher le portrait que le lecteur a déjà, ailleurs.
