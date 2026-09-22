@@ -85,6 +85,6 @@ struct AvecOuverture<Contenu: View>: View {
 
     private func fermer() {
         guard ouverte else { return }
-        withAnimation(.easeOut(duration: 0.45)) { ouverte = false }
+        withAnimation(ONTMouvement.fermetureDeLOuverture) { ouverte = false }
     }
 }

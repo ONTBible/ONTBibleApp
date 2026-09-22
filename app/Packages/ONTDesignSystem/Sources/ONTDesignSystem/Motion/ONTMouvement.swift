@@ -48,6 +48,47 @@ public enum ONTMouvement {
     /// qui rend l'élément *vivant* plutôt que posé là.
     public static let pop = Animation.spring(response: 0.32, dampingFraction: 0.66)
 
+    // MARK: - Les mouvements nommés après coup
+    //
+    // **Aucune valeur n'a changé en les nommant**, et c'est la condition du
+    // geste : chacune avait été réglée à l'œil sur l'appareil, et les
+    // remplacer par un ressort voisin aurait modifié le ressenti sans qu'un
+    // seul test rougisse. ==Systématiser, ce n'est pas uniformiser== — c'est
+    // donner un nom à ce qui existe, pour qu'on sache où le retrouver.
+    //
+    // Relevées le 22 septembre 2026, en auditant les valeurs posées hors du
+    // design system à la demande de l'auteur.
+
+    /// **La barre d'actions qui se pose** sous le verset désigné.
+    ///
+    /// Assez court pour suivre le doigt, assez long pour qu'on voie d'où la
+    /// barre vient. C'est ce qui restait de délai perçu après que les 54 ms du
+    /// chemin eurent été mesurés : l'animation elle-même.
+    public static let barreDActions = Animation.snappy(duration: 0.14)
+
+    /// **La carte qu'on relâche** — elle reprend sa place d'où le doigt l'a
+    /// laissée.
+    public static let retourDeCarte = Animation.spring(response: 0.3, dampingFraction: 0.8)
+
+    /// **Le pli qui s'arme**, sous le doigt, quand le glissement franchit son
+    /// seuil. Le plus court de tous : c'est un état, pas un déplacement.
+    public static let armementDuPli = Animation.easeOut(duration: 0.09)
+
+    /// **Le pli qui renonce** — le geste n'est pas allé assez loin, la page
+    /// revient. Plus amorti que `ressort` : rien n'a abouti, rien ne rebondit.
+    public static let renoncementDuPli = Animation.spring(
+        response: 0.32, dampingFraction: 0.86)
+
+    /// **La page suivante qui entre**, une fois le pli accompli.
+    public static let entreeDePage = Animation.easeOut(duration: 0.20)
+
+    /// **L'aperçu du partage** qui se recompose quand une option change.
+    public static let apercuDePartage = Animation.snappy(duration: 0.16)
+
+    /// **L'ouverture de l'app qui se retire** — le seul mouvement long de
+    /// l'app, et il n'a lieu qu'une fois par lancement.
+    public static let fermetureDeLOuverture = Animation.easeOut(duration: 0.45)
+
     /// La cascade — le même ressort, décalé par l'indice de l'élément.
     ///
     /// C'est l'orchestration de Craft : les éléments d'un écran n'arrivent pas
