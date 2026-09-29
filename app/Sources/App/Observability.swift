@@ -25,9 +25,20 @@ import Sentry
 /// Ce qu'on garde : la pile d'appels, le type d'erreur, la version, l'appareil.
 /// De quoi corriger un bug, sans rien apprendre du lecteur.
 enum Observability {
-    /// Démarre Sentry. Ne fait rien si le DSN manque, ou sous XCTest.
+    /// Démarre Sentry. Ne fait rien si le DSN manque, sous XCTest, ou dans un
+    /// build de développement.
     static func start() {
-        guard !isRunningUnderXCTest else { return }
+        guard doitRemonter(
+            debug: isDebugBuild,
+            sousXCTest: isRunningUnderXCTest,
+            arguments: ProcessInfo.processInfo.arguments
+        ) else {
+            #if DEBUG
+            print("[Observability] Sentry muet — build de développement.")
+            print("[Observability] `-sentry-en-debug` le rallume pour ce lancement.")
+            #endif
+            return
+        }
 
         let dsn = Bundle.main.object(forInfoDictionaryKey: "ONTSentryDSN") as? String ?? ""
         guard !dsn.isEmpty, !dsn.contains("à-remplir") else {
@@ -94,6 +105,78 @@ enum Observability {
             options.beforeSend = { expurger($0) }
         }
     }
+
+    /// Faut-il remonter quoi que ce soit depuis ce lancement ?
+    ///
+    /// Pure, et prenant son monde en paramètre : c'est ce qui la rend
+    /// éprouvable. `start()` lui passe l'environnement réel.
+    ///
+    /// ## Pourquoi un build Debug se tait
+    ///
+    /// Le 29 septembre 2026, `ONT-IOS-15` — *App Hang Fully Blocked, 12,2 à
+    /// 13,0 secondes* — est arrivé par courriel avec `environment: debug`. Il
+    /// ne venait d'aucun lecteur : d'un build posé sur l'appareil de l'auteur
+    /// par `scripts/lancer-sur-*`.
+    ///
+    /// Trois mesures expliquent pourquoi ce n'est pas un accident isolé, et
+    /// les trois viennent du SDK lu, pas supposé (`sentry-cocoa` 9.25.0) :
+    ///
+    /// - `SentryDependencyContainer.swift:568` — le suiveur de blocages **V2
+    ///   est imposé** sur iOS ; aucune option ne le règle ;
+    /// - `SentryWatchdogTerminationLogic.swift:55` — `isSimulatorBuild`
+    ///   n'écarte **que** les terminaisons watchdog. Les blocages, eux, ne
+    ///   sont écartés ni sur simulateur, ni sous débogueur : le mot
+    ///   `IsBeingTraced` n'apparaît nulle part dans les sources du SDK ;
+    /// - un build Debug n'engendre pas de dSYM (`scripts/televerser-symboles.sh`
+    ///   s'arrête ligne 26), donc sa pile arrive en `?` — l'événement dit
+    ///   qu'il y a eu un blocage, et rien de plus.
+    ///
+    /// Une pause du débogueur, un point d'arrêt, ou simplement un premier
+    /// chargement non optimisé produisent donc l'alerte exacte qu'on vient de
+    /// recevoir — illisible, et mêlée à celles des lecteurs.
+    ///
+    /// C'est la raison déjà écrite pour XCTest un cran plus bas — *« chaque
+    /// test qui lève une erreur polluerait le tableau de bord »* — et elle
+    /// valait pour Debug depuis le début. Elle n'y avait simplement pas été
+    /// appliquée.
+    ///
+    /// ## Pourquoi une porte, et pas une extinction sèche
+    ///
+    /// `Composition.init` fait échouer le chargement du corpus pour de bon
+    /// sous `-corpus-absent`, et son commentaire dit pourquoi : *« c'est ainsi
+    /// qu'on vérifie que la chaîne de remontée fonctionne de bout en bout,
+    /// sans fabriquer un faux événement qui contournerait le vrai chemin »*.
+    ///
+    /// Cet argument n'existe **qu'en Debug**. Éteindre Debug sans exception
+    /// aurait donc rendu ce dispositif inerte — en silence, et sans que rien
+    /// échoue : le lancement se serait déroulé normalement, l'erreur aurait
+    /// bien été levée, et le tableau de bord serait resté vide. On aurait
+    /// conclu que la chaîne est rompue, ou pire, qu'elle tient.
+    ///
+    /// > Un contrôle qui ne peut plus rougir ne mesure plus rien.
+    ///
+    /// D'où deux portes : `-corpus-absent`, qui rallume la remontée parce
+    /// qu'il vient précisément l'éprouver, et `-sentry-en-debug`, pour
+    /// regarder un vrai blocage sur l'appareil quand on le cherche.
+    static func doitRemonter(
+        debug: Bool,
+        sousXCTest: Bool,
+        arguments: [String]
+    ) -> Bool {
+        if sousXCTest { return false }
+        guard debug else { return true }
+        return arguments.contains { portesDeDebug.contains($0) }
+    }
+
+    /// Les deux arguments de lancement qui rouvrent la remontée en Debug.
+    ///
+    /// Volontairement **privée** : l'épreuve écrit ces chaînes à la main. Une
+    /// épreuve qui lirait cette constante mesurerait la constante contre
+    /// elle-même, et resterait verte si on la vidait.
+    private static let portesDeDebug: Set<String> = [
+        "-corpus-absent",
+        "-sentry-en-debug",
+    ]
 
     /// Expurge **l'enveloppe entière**, et non trois champs nommés.
     ///

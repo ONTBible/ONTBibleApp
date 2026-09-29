@@ -22,7 +22,17 @@ export SENTRY_PROJECT="${SENTRY_PROJECT:-ont-ios}"
 
 # ── Ce qui ne concerne pas ce build ──────────────────────────────────────────
 
-# Un build Debug ne produit pas de dSYM, et ses piles sont déjà lisibles.
+# Un build Debug ne produit pas de dSYM : il n'y a rien à téléverser.
+#
+# La raison écrite ici disait « et ses piles sont déjà lisibles ». C'est vrai
+# d'un crash Swift, dont la pile vient du binaire chargé en mémoire. Ce ne
+# l'est pas d'un blocage : sa pile vient de l'échantillonnage natif, et sans
+# dSYM elle arrive en `?`. `ONT-IOS-15`, le 29 septembre 2026, en portait
+# soixante-dix d'un coup, toutes muettes.
+#
+# Rien à changer ici — c'est `Observability.doitRemonter` qui tient désormais
+# la conséquence : un build Debug ne remonte plus. Mais la phrase, elle, était
+# fausse, et une phrase fausse se relit sans qu'on la voie.
 if [ "${CONFIGURATION:-Debug}" = "Debug" ]; then
   echo "note: Sentry — build Debug, pas de symboles à téléverser."
   exit 0

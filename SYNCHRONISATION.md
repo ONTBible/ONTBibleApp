@@ -1100,6 +1100,77 @@ portaient sur le dessin, pas sur le contenu :
 > valoir.==
 
 
+## 29 septembre 2026, le soir — les builds de développement alertaient comme la production
+
+Un courriel de Sentry, `ONT-IOS-15` : *App Hang Fully Blocked, 12,2 à
+13,0 secondes*. Il ne venait d'aucun lecteur — `environment: debug`, donc d'un
+build posé sur l'appareil de l'auteur par `scripts/lancer-sur-*`. Sa pile
+tenait en deux `?` et *« 70 additional frame(s) were not displayed »*.
+
+**Rien n'écartait ce bruit, et rien ne pouvait l'écarter.** Trois mesures, lues
+dans `sentry-cocoa` 9.25.0 et non supposées :
+
+| où | ce qui s'y lit |
+|---|---|
+| `SentryDependencyContainer.swift:568` | le suiveur de blocages **V2 est imposé** sur iOS, sans option |
+| `SentryWatchdogTerminationLogic.swift:55` | `isSimulatorBuild` n'écarte **que** les terminaisons watchdog |
+| tout `Sources/` du SDK | **aucune** occurrence de `IsBeingTraced` — un débogueur en pause produit un blocage comme un autre |
+
+Une pause lldb, un point d'arrêt, un premier chargement non optimisé : chacun
+rend l'alerte exacte qu'on venait de recevoir.
+
+### Ce qui l'a laissé passer, et qui était déjà écrit à côté
+
+`Observability.start()` se taisait sous XCTest, et disait pourquoi :
+
+> *« chaque test qui lève une erreur polluerait le tableau de bord »*
+
+**La raison valait pour Debug depuis le début.** Elle n'y avait simplement pas
+été appliquée. La bonne question n'était pas « faut-il filtrer ? » mais « à quoi
+répond déjà la garde d'à côté ».
+
+Et le script des symboles portait un énoncé faux, qui se relisait sans qu'on le
+voie — `televerser-symboles.sh:25` : *« un build Debug ne produit pas de dSYM,
+et ses piles sont déjà lisibles »*. Vrai d'un crash Swift, dont la pile vient du
+binaire chargé. Faux d'un blocage, dont la pile vient de l'échantillonnage natif
+— d'où les soixante-dix frames muettes.
+
+### Ce qui traverse
+
+**Android porte exactement le même défaut, et il est vivant.**
+`android/app/src/main/kotlin/com/labibleont/ont/observabilite/Observabilite.kt:54` :
+
+```kotlin
+options.environment = if (BuildConfig.DEBUG) "debug" else "release"
+```
+
+Aucune garde en amont. Un `./gradlew installDebug` alerte comme la production.
+La correction iOS est dans `Observability.doitRemonter(debug:sousXCTest:arguments:)`,
+et sa forme se porte telle quelle : une fonction pure qui prend son monde en
+paramètre — c'est ce qui la rend éprouvable, `BuildConfig.DEBUG` n'étant pas
+davantage posable depuis un test que `#if DEBUG`.
+
+**Le backend ne l'a pas.** `deployer-backend.yml` ne se déclenche que sur
+`app-store`, donc `ont-api` ne reçoit que du déployé.
+
+**Le site : rien à porter.**
+
+### Et la porte, qui est le vrai enseignement
+
+Éteindre Debug sans exception aurait rendu `-corpus-absent` inerte — le
+dispositif qui fait échouer le chargement du corpus *pour de bon*, et dont le
+commentaire dit qu'il sert à *« vérifier que la chaîne de remontée fonctionne de
+bout en bout, sans fabriquer un faux événement »*. Cet argument n'existe qu'en
+Debug.
+
+Rien n'aurait échoué : le lancement se serait déroulé, l'erreur aurait bien été
+levée, et le tableau de bord serait resté vide. On aurait conclu que la chaîne
+est rompue — ou qu'elle tient.
+
+> ==Éteindre une remontée éteint aussi les contrôles qui passaient par elle.
+> Avant de couper, demander ce qui s'en servait pour rougir.==
+
+
 ## La règle
 
 Après **chaque** travail dans l'un des dépôts, avant de dire que c'est fini :
