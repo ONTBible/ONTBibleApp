@@ -56,6 +56,37 @@ information, et il se voit.
 
 ---
 
+## #345 · Dater les trois entrées du registre dont la PR est fusionnée
+
+    ouverte le   29 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Le contrôle de la flotte — `cartographier-la-flotte.py
+--propositions`, côté vault — relevait #343, #328 et #326 encore « ouverte »
+alors que les trois sont fusionnées. Relevé vérifié sur GitHub avant d'écrire,
+et non déduit : `2026-09-29T16:01:38Z`, `2026-09-21T13:20:08Z`,
+`2026-09-21T10:47:52Z`.
+
+**Ce que ça engage.** Rien de technique — trois lignes d'état. Mais le registre
+ne vaut que si son état est vrai : une entrée qui se dit ouverte alors qu'elle
+est fusionnée fait relire un dossier clos, et fait manquer celui qui attend.
+
+**Pour la relire.** ==Cette entrée-ci existe parce que son absence aurait
+recréé le défaut que la PR corrige== — une PR ouverte sans entrée est
+exactement ce que le contrôle relève. Et le même contrôle signalait #344, #339
+et #332 : aucune des trois n'est d'iOS, elles ont été renvoyées à Android, à
+MacOS et à la session du tronc, identifiées par leur **branche** — l'auteur
+GitHub vaut `gloiiire` pour toutes les sessions et ne discrimine rien.
+
+Une nuance rendue au contrôle : ==#344 portait déjà son entrée, dans sa propre
+PR==. Le registre de `device` ne la voyait pas parce qu'elle n'était pas encore
+fusionnée. Le contrôle mesurait juste — *le registre de `device` ne porte pas
+#344* — et cette phrase se lit comme *Android n'a pas écrit son entrée*, qui est
+fausse.
+
+---
+
 ## #343 · Taire Sentry dans les builds de développement, sans éteindre ce qui l'éprouvait
 
     ouverte le   29 septembre 2026, par iOS
