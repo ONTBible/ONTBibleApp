@@ -434,10 +434,21 @@ pub const ARTEFACTS: &[Artefact] = &[
         lectures: &[
             (Liseuse::Ios, Lecture::Lit),
             (Liseuse::Android, Lecture::Lit),
-            (
-                Liseuse::Site,
-                Lecture::Lacune("la feuille de prononciation n'a pas de page sur le site"),
-            ),
+            // **Le site la sert depuis le 29 septembre 2026** —
+            // `/fr/lexique/prononciation`, plus une carte en tête du lexique.
+            // Le fichier y est embarqué par `include_str!`, comme les cinq
+            // autres : s'il disparaît ou change de forme, ==le site ne compile
+            // plus== au lieu de rendre une page vide.
+            //
+            // Vérifié dans ses sources avant de basculer, pas sur sa parole :
+            // `infrastructure/corpus.rs:72` l'inclut, et
+            // `design/carte_de_prononciation.rs:39` pointe la route.
+            //
+            // La `Lacune` a tenu exactement ce que son commentaire promettait :
+            // la trace a paru, le contrôle a rougi, et la session du site est
+            // venue réclamer la mise à jour du tableau. ==La dette était bornée
+            // des deux côtés.==
+            (Liseuse::Site, Lecture::Lit),
         ],
     },
     Artefact {
