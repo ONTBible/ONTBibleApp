@@ -56,6 +56,67 @@ information, et il se voit.
 
 ---
 
+## #343 · Taire Sentry dans les builds de développement, sans éteindre ce qui l'éprouvait
+
+    ouverte le   29 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Gloire a reçu `ONT-IOS-15` — *App Hang Fully Blocked, 12,2 à
+13,0 secondes* — avec `environment: debug`. L'alerte ne venait d'aucun lecteur
+mais d'un build posé sur son appareil par `scripts/lancer-sur-*`, et sa pile
+tenait en deux `?`. Trois mesures dans `sentry-cocoa` 9.25.0 disent que rien ne
+pouvait l'écarter : le suiveur de blocages V2 est imposé sans option
+(`SentryDependencyContainer.swift:568`), `isSimulatorBuild` n'écarte que les
+terminaisons watchdog (`SentryWatchdogTerminationLogic.swift:55`), et
+==`IsBeingTraced` n'apparaît nulle part dans le SDK== — un débogueur en pause
+produit un blocage comme un autre.
+
+**Ce que ça engage.** ==Android porte exactement le même défaut, et il est
+vivant== : `Observabilite.kt:54` pose `environment` sans aucune garde en amont.
+La session Android est prévenue, avec la forme à porter. Le backend ne l'a pas
+(`deployer-backend.yml` ne part que de `app-store`) ; le site n'a pas de Sentry
+client.
+
+**Pour la relire.** ==La raison était déjà écrite à côté== : `start()` se taisait
+sous XCTest en disant « chaque test qui lève une erreur polluerait le tableau de
+bord ». Elle valait pour Debug depuis le début. Et la porte n'est pas une
+commodité : `-corpus-absent` fait échouer le corpus *pour de bon* afin
+d'éprouver la chaîne de remontée, et cet argument n'existe qu'en Debug. Couper
+sans exception l'aurait rendu inerte ==en silence== — rien n'aurait échoué, le
+tableau de bord serait simplement resté vide. ==Éteindre une remontée éteint
+aussi les contrôles qui passaient par elle.==
+
+---
+
+## #342 · Ouvrir l'app par l'icône : trois raccourcis, et le délégué qui les reçoit
+
+    ouverte le   29 septembre 2026, par iOS
+    vers         device
+    état         fusionnée le 29 septembre 2026
+
+**Pourquoi.** Demande de l'auteur : des options rapides au long press de l'icône.
+Trois entrées — Verset du jour, Reprendre, La Bible — reposées quand l'app quitte
+`.active`, chacune portant son `ont://` dans son `userInfo`.
+
+**Ce que ça engage.** ==Android a le même dispositif (`App Shortcuts`) et ne l'a
+pas.== L'initiative vient d'iOS : à porter, avec les trois mêmes entrées et les
+mêmes URL. `Router` gagne un host `onglet`, qui manquait pour désigner un onglet
+sans désigner un texte.
+
+**Pour la relire.** Deux faux départs, et ==les deux fois le SDK portait la
+réponse== — c'est ce qui a valu le « Vérifie le SDK au lieu de tâtonner » de
+l'auteur. `UIApplication.open()` refuse d'ouvrir une app par son propre schéma
+et rend `true` en silence. `application(_:performActionFor:)` n'est jamais appelé
+dans une app à scènes : `UIApplication.h:453` porte littéralement
+`API_DEPRECATED("Use UIScene lifecycle and windowScene(_:performActionFor:
+completionHandler:) from UIWindowSceneDelegate instead.", ios(9.0, 26.0))`.
+Un raccourci arrive par `ConnectionOptions.shortcutItem` quand l'app est fermée,
+par `windowScene(_:performActionFor:)` quand elle est ouverte, et ==jamais par
+l'`UIApplicationDelegate`==.
+
+---
+
 ## #328 · Inscrire le `cd` qui échoue en silence, et la garde qui le rattrape
 
     ouverte le   21 septembre 2026, par iOS
