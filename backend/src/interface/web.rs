@@ -34,11 +34,35 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 ///   le met en cache via son propre CDN. Le modifier ne se voit pas tout de
 ///   suite.
 ///
-/// `/fr/lire/*` seulement : le reste du domaine — page d'accueil, mentions —
-/// doit rester consultable dans un navigateur.
+/// **Deux chemins, et l'ancien ne part jamais.**
+///
+/// La liseuse du site a déménagé de `/fr/lire` à `/fr/webapp` le 29 septembre
+/// 2026, sur décision de l'auteur. Le serveur redirige l'ancien vers le
+/// nouveau, chaîne de requête comprise — mais ==une redirection ne sauve que
+/// le navigateur==. Pour qu'un lien ouvre l'**app**, il faut que son chemin
+/// soit déclaré ici : iOS ne suit pas les redirections pour décider.
+///
+/// `/fr/lire/*` reste donc, définitivement. Tous les liens partagés avant ce
+/// jour le portent, et les retirer les renverrait au navigateur sans qu'aucune
+/// erreur ne le dise.
+///
+/// ## Ce fichier n'atteint la production qu'au bout de la chaîne
+///
+/// `deployer-backend.yml` se déclenche sur **`app-store`** — après la revue
+/// d'Apple. Le fichier servi aujourd'hui date donc du 11 septembre, et ce
+/// changement-ci ne sera en ligne qu'après une promotion complète.
+///
+/// **C'est ce qui ordonne les deux moitiés du déménagement** : le
+/// constructeur de liens de partage (`Router::webBase`, côté app) ne doit
+/// basculer sur `/fr/webapp` ==qu'une fois ce fichier en ligne==. Dans l'autre
+/// ordre, chaque partage produirait un lien que l'app ne sait pas rattraper,
+/// et le défaut serait muet des deux côtés.
+///
+/// Le reste du domaine — page d'accueil, mentions — doit rester consultable
+/// dans un navigateur, d'où l'absence de `{"/": "*"}`.
 pub async fn apple_app_site_association() -> Response {
     let corps = format!(
-        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/lire/*"}}]}}]}}}}"#
+        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/webapp/*"}},{{"/":"/fr/lire/*"}}]}}]}}}}"#
     );
     (
         StatusCode::OK,
@@ -161,7 +185,19 @@ mod tests {
             .unwrap();
         let texte = String::from_utf8(corps.to_vec()).unwrap();
         assert!(texte.contains(APP_ID));
-        assert!(texte.contains("/fr/lire/*"));
+        // **Les deux chemins, et l'ancien nommément.**
+        //
+        // Vérifier seulement le nouveau laisserait passer le retrait de
+        // l'ancien — c'est-à-dire la seule régression qui casse des liens
+        // déjà partagés, et elle est silencieuse.
+        assert!(
+            texte.contains("/fr/webapp/*"),
+            "le chemin neuf manque : {texte}"
+        );
+        assert!(
+            texte.contains("/fr/lire/*"),
+            "l'ancien chemin a disparu : {texte}"
+        );
         // Et rien d'autre : ouvrir tout le domaine empêcherait de consulter
         // une page dans un navigateur.
         assert!(!texte.contains(r#""/":"*""#));
