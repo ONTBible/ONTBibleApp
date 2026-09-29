@@ -34,11 +34,55 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 ///   le met en cache via son propre CDN. Le modifier ne se voit pas tout de
 ///   suite.
 ///
-/// `/fr/lire/*` seulement : le reste du domaine — page d'accueil, mentions —
-/// doit rester consultable dans un navigateur.
+/// **Deux chemins, et l'ancien ne part jamais.**
+///
+/// La liseuse du site a déménagé de `/fr/lire` à `/fr/webapp` le 29 septembre
+/// 2026, sur décision de l'auteur. Le serveur redirige l'ancien vers le
+/// nouveau, chaîne de requête comprise — mais ==une redirection ne sauve que
+/// le navigateur==. Pour qu'un lien ouvre l'**app**, il faut que son chemin
+/// soit déclaré ici : iOS ne suit pas les redirections pour décider.
+///
+/// `/fr/lire/*` reste donc, définitivement. Tous les liens partagés avant ce
+/// jour le portent, et les retirer les renverrait au navigateur sans qu'aucune
+/// erreur ne le dise.
+///
+/// ## ⚠︎ Cette route n'est plus celle qui sert `ontbible.com`
+///
+/// **Mesuré le 29 septembre 2026, pas déduit :**
+///
+/// ```text
+/// GET ontbible.com/.well-known/apple-app-site-association   200, via CloudFront
+/// GET ontbible.com/llms.txt                                 200  ← le site seul le porte
+/// GET ontbible.com/health                                   404  ← ce backend le porte
+/// ```
+///
+/// Le 404 tranche : ==ce backend n'est pas sur ce domaine==. Depuis la bascule
+/// des domaines du 13 août, `ontbible.com` est servi par la distribution du
+/// site, et c'est **lui** qui rend ce fichier. Cette route date de l'époque où
+/// le domaine pointait l'API.
+///
+/// **Elle est donc tenue d'accord par principe, pas par nécessité.** Le jour
+/// où quelqu'un remet l'API sur la racine — ou monte un second domaine —, une
+/// copie périmée casserait tous les liens universels sans qu'aucune erreur ne
+/// le dise. C'est le genre de panne qu'on met des jours à trouver parce que
+/// « le fichier existe et il est juste ».
+///
+/// **Ce qui ordonne les deux moitiés du déménagement se joue donc côté site :**
+/// le constructeur de liens de partage (`Router::webBase`, côté app) ne doit
+/// basculer sur `/fr/webapp` qu'une fois le fichier **du site** en ligne. Dans
+/// l'autre ordre, chaque partage produirait un lien que l'app ne sait pas
+/// rattraper, et le défaut serait muet des deux côtés.
+///
+/// J'avais écrit ici que la dette attendait une revue Apple —
+/// `deployer-backend.yml` se déclenchant sur `app-store`. C'était juste sur le
+/// chemin du déploiement et faux sur la prémisse : ==ce fichier ne passe pas
+/// par ce déploiement.== La session du site l'a mesuré et corrigé.
+///
+/// Le reste du domaine — page d'accueil, mentions — doit rester consultable
+/// dans un navigateur, d'où l'absence de `{"/": "*"}`.
 pub async fn apple_app_site_association() -> Response {
     let corps = format!(
-        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/lire/*"}}]}}]}}}}"#
+        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/webapp/*"}},{{"/":"/fr/lire/*"}}]}}]}}}}"#
     );
     (
         StatusCode::OK,
@@ -161,7 +205,19 @@ mod tests {
             .unwrap();
         let texte = String::from_utf8(corps.to_vec()).unwrap();
         assert!(texte.contains(APP_ID));
-        assert!(texte.contains("/fr/lire/*"));
+        // **Les deux chemins, et l'ancien nommément.**
+        //
+        // Vérifier seulement le nouveau laisserait passer le retrait de
+        // l'ancien — c'est-à-dire la seule régression qui casse des liens
+        // déjà partagés, et elle est silencieuse.
+        assert!(
+            texte.contains("/fr/webapp/*"),
+            "le chemin neuf manque : {texte}"
+        );
+        assert!(
+            texte.contains("/fr/lire/*"),
+            "l'ancien chemin a disparu : {texte}"
+        );
         // Et rien d'autre : ouvrir tout le domaine empêcherait de consulter
         // une page dans un navigateur.
         assert!(!texte.contains(r#""/":"*""#));
