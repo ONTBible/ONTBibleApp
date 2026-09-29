@@ -46,17 +46,37 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 /// jour le portent, et les retirer les renverrait au navigateur sans qu'aucune
 /// erreur ne le dise.
 ///
-/// ## Ce fichier n'atteint la production qu'au bout de la chaîne
+/// ## ⚠︎ Cette route n'est plus celle qui sert `ontbible.com`
 ///
-/// `deployer-backend.yml` se déclenche sur **`app-store`** — après la revue
-/// d'Apple. Le fichier servi aujourd'hui date donc du 11 septembre, et ce
-/// changement-ci ne sera en ligne qu'après une promotion complète.
+/// **Mesuré le 29 septembre 2026, pas déduit :**
 ///
-/// **C'est ce qui ordonne les deux moitiés du déménagement** : le
-/// constructeur de liens de partage (`Router::webBase`, côté app) ne doit
-/// basculer sur `/fr/webapp` ==qu'une fois ce fichier en ligne==. Dans l'autre
-/// ordre, chaque partage produirait un lien que l'app ne sait pas rattraper,
-/// et le défaut serait muet des deux côtés.
+/// ```text
+/// GET ontbible.com/.well-known/apple-app-site-association   200, via CloudFront
+/// GET ontbible.com/llms.txt                                 200  ← le site seul le porte
+/// GET ontbible.com/health                                   404  ← ce backend le porte
+/// ```
+///
+/// Le 404 tranche : ==ce backend n'est pas sur ce domaine==. Depuis la bascule
+/// des domaines du 13 août, `ontbible.com` est servi par la distribution du
+/// site, et c'est **lui** qui rend ce fichier. Cette route date de l'époque où
+/// le domaine pointait l'API.
+///
+/// **Elle est donc tenue d'accord par principe, pas par nécessité.** Le jour
+/// où quelqu'un remet l'API sur la racine — ou monte un second domaine —, une
+/// copie périmée casserait tous les liens universels sans qu'aucune erreur ne
+/// le dise. C'est le genre de panne qu'on met des jours à trouver parce que
+/// « le fichier existe et il est juste ».
+///
+/// **Ce qui ordonne les deux moitiés du déménagement se joue donc côté site :**
+/// le constructeur de liens de partage (`Router::webBase`, côté app) ne doit
+/// basculer sur `/fr/webapp` qu'une fois le fichier **du site** en ligne. Dans
+/// l'autre ordre, chaque partage produirait un lien que l'app ne sait pas
+/// rattraper, et le défaut serait muet des deux côtés.
+///
+/// J'avais écrit ici que la dette attendait une revue Apple —
+/// `deployer-backend.yml` se déclenchant sur `app-store`. C'était juste sur le
+/// chemin du déploiement et faux sur la prémisse : ==ce fichier ne passe pas
+/// par ce déploiement.== La session du site l'a mesuré et corrigé.
 ///
 /// Le reste du domaine — page d'accueil, mentions — doit rester consultable
 /// dans un navigateur, d'où l'absence de `{"/": "*"}`.
