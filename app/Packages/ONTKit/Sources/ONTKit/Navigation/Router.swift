@@ -366,6 +366,27 @@ public final class Router {
                 ? VerseVise(parts[1], pendingSelection.min()) : nil
             return true
 
+        // **Un onglet, nommé par son identifiant.**
+        //
+        // `ont://onglet/lexicon`, `ont://onglet/qahal`. Les hosts qui
+        // précèdent désignent tous un *contenu* — un terme, un verset, une
+        // unité ; celui-ci désigne un **endroit**, et c'est ce qui manquait.
+        //
+        // Posé pour les raccourcis de l'icône (29 septembre 2026), et
+        // réutilisable tel quel par un widget ou une intention Siri : ==un
+        // seul chemin de navigation, celui qui est déjà éprouvé==, plutôt
+        // qu'un second qui aurait ses propres oublis.
+        //
+        // `TabID` sait se relire de son `rawValue` — c'est le même codage que
+        // celui qui survit à un redémarrage dans `UserDefaults`, donc rien de
+        // neuf à tenir d'accord.
+        case "onglet":
+            guard let brut = parts.first, let vise = TabID(rawValue: brut) else {
+                return false
+            }
+            tab = vise
+            return true
+
         default:
             return false
         }
