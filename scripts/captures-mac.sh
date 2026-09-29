@@ -126,7 +126,19 @@ rm -rf "$SORTIE" && mkdir -p "$SORTIE"
 # de travail. `UserDefaults.standard` lit les arguments de lancement comme
 # domaine prioritaire — le même mécanisme que `-tailleDeCapture` — donc la
 # clé se force ici, sans toucher ni au code ni aux préférences du bac à sable.
-open -a "$APP" --args -tailleDeCapture "$TAILLE" -tab bible
+# **Et le lecteur est neuf.** `-tab` ne suffisait pas : il vit dans
+# `UserDefaults`, que les arguments de lancement dominent — mais le thème, la
+# position et le réglage « français reçu » viennent de `lecteur.json`, qu'aucun
+# argument n'atteint. Mes affiches disaient donc « Parashiot » quand celles de
+# l'iPhone disaient « Chapitres » : elles portaient le réglage de la machine.
+#
+# On ne peut pas effacer ce conteneur — c'est le vrai lecteur de l'auteur, avec
+# ses surlignages. On **pointe ailleurs** : `-lecteurJetable` envoie le store
+# dans un dossier temporaire, et la vitrine montre ce qu'un lecteur neuf voit.
+LECTEUR_JETABLE="$TRAVAIL/lecteur-neuf"
+mkdir -p "$LECTEUR_JETABLE"
+open -a "$APP" --args -tailleDeCapture "$TAILLE" -tab bible \
+  -lecteurJetable "$LECTEUR_JETABLE"
 LIGNE=$(attendre_la_fenetre) || echec "la fenêtre n'atteint pas $TAILLE — Stage Manager l'a peut-être garée"
 
 # **L'écran de lancement doit avoir fini.** La fenêtre atteint sa taille avant
