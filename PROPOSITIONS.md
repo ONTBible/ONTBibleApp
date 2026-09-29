@@ -60,7 +60,7 @@ information, et il se voit.
 
     ouverte le   29 septembre 2026, par iOS
     vers         device
-    état         ouverte
+    état         fusionnée le 29 septembre 2026
 
 **Pourquoi.** Gloire a reçu `ONT-IOS-15` — *App Hang Fully Blocked, 12,2 à
 13,0 secondes* — avec `environment: debug`. L'alerte ne venait d'aucun lecteur
@@ -121,7 +121,7 @@ l'`UIApplicationDelegate`==.
 
     ouverte le   21 septembre 2026, par iOS
     vers         device
-    état         ouverte
+    état         fusionnée le 21 septembre 2026
 
 **Pourquoi.** Deux sessions se sont fait prendre le même jour à quatre heures
 d'écart : un `cd` vers un worktree disparu échoue, écrit une ligne, et les
@@ -206,7 +206,7 @@ d'origine, devenue fausse en s'étendant sans qu'on la repose==.
 
     ouverte le   21 septembre 2026, par la manageuse
     vers         device
-    état         ouverte
+    état         fusionnée le 21 septembre 2026
 
 **Pourquoi.** Rien ne prouve qu'une session tient un worktree : `herdr agent
 list` rend le dossier de *lancement*, `lsof` ne voit rien entre deux tours, et
