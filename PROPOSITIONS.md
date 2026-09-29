@@ -56,6 +56,57 @@ information, et il se voit.
 
 ---
 
+## #339 · Poser la vitrine sur un lecteur neuf, sans toucher à celui de l'auteur
+
+    ouverte le   29 septembre 2026, par macOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Les captures de la fiche App Store portaient **l'état de la
+machine**. Deux fuites avaient déjà été fermées — l'onglet restauré par
+`-tab bible`, la barre repliée par une visibilité imposée en mode capture — et
+la troisième ne pouvait pas l'être par le même moyen : le thème, la position et
+le réglage « français reçu » vivent dans `lecteur.json`, ==qu'aucun argument de
+lancement n'atteint==, parce qu'ils viennent d'un JSON et non de `UserDefaults`.
+
+Mesuré le 19 septembre en comparant les deux jeux : mes affiches disaient
+**« Parashiot »** quand celles de l'iPhone disaient **« Chapitres »**. ==Ni
+l'une ni l'autre n'était fausse== — la mienne portait un réglage de la machine
+de l'auteur, l'autre le défaut d'un conteneur neuf. La fiche montrait donc
+l'app dans deux langues, et ==aucun contrôle ne pouvait le dire== : la garde de
+fraîcheur compare des dates, et les deux jeux étaient récents.
+
+**Ce que ça engage.**
+
+- **Rien pour le vault ni pour le site** : c'est l'outillage de capture d'une
+  seule plateforme, et aucun format publié ne bouge.
+- **Pour iOS, une confirmation et non une reprise.** Son remède — désinstaller
+  avant d'installer, pour que le conteneur reparte vide — reste le bon sur
+  simulateur. ==Il ne traverse pas== : ici le conteneur est le *vrai* lecteur de
+  l'auteur, avec ses surlignages, ses notes et sa position. C'est l'autre moitié
+  du même énoncé, déjà gravée dans `app/Captures/LISEZ-MOI.md` — **pointer
+  ailleurs plutôt qu'effacer**.
+- **Une question devient posable, et elle n'est pas à moi.** Un lecteur neuf a
+  `french = true`, donc le français reçu : les affiches disent maintenant
+  « Chapitres », « Prophètes », « Écrits apocalyptiques » là où elles disaient
+  « Parashiot », « ceux qui portent le davar », « les Réalités voilées ».
+  ==Les deux plateformes montrent enfin la même chose== — mais *laquelle* la
+  vitrine doit montrer reste un arbitrage de l'auteur, que la session iOS tient
+  et lui pose. Ma part était que la réponse ne dépende plus de la machine.
+
+**Pour la relire.** `-lecteurJetable` n'est lu qu'à un seul endroit
+(`Composition.swift`) et n'a aucun effet sans l'argument : le chemin normal est
+inchangé, et ==l'auteur ne peut pas perdre son lecteur par ce mécanisme==, qui
+ne sait qu'écrire ailleurs.
+
+Les quatre affiches sont refaites dans la même PR, et pas par commodité : la
+garde de fraîcheur rougissait depuis le 22 septembre — l'interface avait bougé
+dans `BibleTab` et `LexiconTab`, ==c'est-à-dire dans deux des quatre scènes==.
+Le jeu `mac` repasse au vert ; `iphone-6.9` et `ipad-13` restent rouges à dix
+jours, et c'est le couloir d'iOS.
+
+---
+
 ## #328 · Inscrire le `cd` qui échoue en silence, et la garde qui le rattrape
 
     ouverte le   21 septembre 2026, par iOS
