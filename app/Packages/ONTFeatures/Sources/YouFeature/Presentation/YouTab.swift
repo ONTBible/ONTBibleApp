@@ -290,7 +290,11 @@ private struct AccountSection: View {
                             // `onBrandAccent` et non `gold` : sur les thèmes
                             // sombres la capsule **est** l'or, et demander l'or
                             // dessus donnerait un bouton vide.
-                            Label("Continuer avec \(provider.label)", systemImage: icon(provider))
+                            Label {
+                                Text("Continuer avec \(provider.label)")
+                            } icon: {
+                                marqueDe(provider)
+                            }
                                 .foregroundStyle(ONTColors.onBrandAccent(theme.mode))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, spacing.m)
@@ -425,11 +429,18 @@ private struct AccountSection: View {
         }
     }
 
-    private func icon(_ provider: AuthProvider) -> String {
-        switch provider {
-        case .apple: "apple.logo"
-        case .google: "g.circle.fill"
-        case .github: "chevron.left.forwardslash.chevron.right"
+    /// **La marque du fournisseur**, de la même main pour les trois.
+    ///
+    /// Les trois viennent d'Ionicons — voir `ONTLogoDeConnexion` pour ce que
+    /// chacune remplace et ce que l'écart engage.
+    @ViewBuilder
+    private func marqueDe(_ provider: AuthProvider) -> some View {
+        let teinte = ONTColors.onBrandAccent(theme.mode)
+        if let nom = ONTLogoDeConnexion.Nom(provider) {
+            ONTLogoDeConnexion.marque(nom, cote: ONTUI.points(20), teinte: teinte)
+        } else {
+            // Apple : le symbole du système, qui est ici le mark sanctionné.
+            Image(systemName: "apple.logo").foregroundStyle(teinte)
         }
     }
 }

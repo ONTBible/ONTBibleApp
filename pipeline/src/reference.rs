@@ -532,6 +532,13 @@ fn bloc_de_fiche(paragraphe: &str) -> Option<Block> {
 pub struct Fiche {
     pub titre: String,
     pub blocs: Vec<Block>,
+    /// Les lignes de `## Formes` que la garde a écartées — de la prose, par
+    /// construction.
+    ///
+    /// **Portées jusqu'au rapport plutôt que jetées.** Écarter en silence
+    /// serait la même faute d'un cran plus bas : la fiche paraîtrait juste, et
+    /// son auteur ne saurait pas que sa section porte une note en trop.
+    pub refus_de_formes: Vec<String>,
     /// Les formes fléchies que la fiche déclare elle-même, §2.5 ter du vault.
     ///
     /// ## Pourquoi ici et non au §2.5 du document de référence
@@ -667,28 +674,76 @@ fn source_declaree(texte: &str) -> Option<SourceDeclaree> {
     None
 }
 
-fn formes_declarees(texte: &str) -> Vec<String> {
+/// **Ce qui ne peut pas être une forme.**
+///
+/// Une section `Formes` qui contient une phrase est une erreur d'écriture
+/// *certaine* : il n'existe aucun cas légitime. Le parseur prenait pourtant
+/// toute ligne non vide et la découpait sur `·` — une note en prose posée là
+/// devenait donc une clé de jointure qui ne correspondrait jamais à rien.
+///
+/// Quatre fiches le faisaient depuis des semaines, neuf fausses formes en
+/// sortaient, et ==rien ne pouvait le dire== : ni l'écriture, ni la
+/// construction, ni la CI. La session du vault en a ajouté une quatrième sans
+/// le remarquer, puis a trouvé la cause en reconstruisant — le 28 septembre
+/// 2026.
+///
+/// ## Le critère, et les deux mesures qu'il a fallu
+///
+/// **La première portait sur le mauvais référentiel.** Relevée dans
+/// `glossary.json` — le corpus *publié* —, elle donnait 21 caractères pour la
+/// plus longue forme, et un seuil de 28 paraissait large. Passé sur le vault
+/// réel, ce seuil a écarté trois formes parfaitement légitimes :
+/// `vayehi hachemesh baʾah vaʿallatah` et deux de leurs sœurs. ==Le publié est
+/// plus ancien que le vault, et mesurer sur lui répond à une autre question.==
+///
+/// La seconde mesure porte sur les **777 entrées du vault**, et elle tranche :
+///
+/// ```text
+/// formes légitimes    4 mots au maximum, 34 caractères
+/// les trois proses    9 et 10 mots, 35 à 54 caractères
+/// ```
+///
+/// **La longueur ne sépare pas** — 34 contre 35, un caractère d'écart. Le
+/// nombre de mots, lui, laisse cinq mots de marge. Le seuil est à six : la
+/// moitié de plus que la plus longue forme connue, trois de moins que la plus
+/// courte prose rencontrée.
+///
+/// La ponctuation reste un motif à part : **aucune** des 777 entrées n'en
+/// porte, ni de chiffre, et elle attrape deux des trois proses à elle seule.
+fn ne_peut_pas_etre_une_forme(candidat: &str) -> bool {
+    const MOTS_MAX: usize = 6;
+    candidat.split_whitespace().count() > MOTS_MAX
+        || candidat
+            .chars()
+            .any(|c| c.is_ascii_digit() || ".,;:—…()".contains(c))
+}
+
+/// Les formes déclarées, et **ce qui a été refusé** — jamais l'un sans
+/// l'autre.
+///
+/// Rendre les refus plutôt que de les taire : une ligne écartée en silence
+/// serait la même faute d'un cran plus bas. Le rapport les nomme, l'auteur de
+/// la fiche voit ce que sa section porte de trop.
+fn formes_et_refus(texte: &str) -> (Vec<String>, Vec<String>) {
+    let (mut formes, mut refus) = (Vec::new(), Vec::new());
     let mut dedans = false;
-    let mut formes = Vec::new();
     for ligne in texte.lines() {
         let t = ligne.trim();
         if let Some(titre) = t.strip_prefix("## ") {
-            // Une seule section `Formes` par fiche : la première rencontrée
-            // ferme la question, et la suivante — quelle qu'elle soit — la
-            // clôt.
             dedans = titre.trim().eq_ignore_ascii_case("formes");
             continue;
         }
         if dedans && !t.is_empty() {
-            formes.extend(
-                t.split('·')
-                    .map(str::trim)
-                    .filter(|f| !f.is_empty())
-                    .map(str::to_string),
-            );
+            for f in t.split('·').map(str::trim).filter(|f| !f.is_empty()) {
+                if ne_peut_pas_etre_une_forme(f) {
+                    refus.push(f.to_string());
+                } else {
+                    formes.push(f.to_string());
+                }
+            }
         }
     }
-    formes
+    (formes, refus)
 }
 
 pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
@@ -716,7 +771,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
         let lemme = slugify(&nom);
         let blocs: Vec<Block> = blocs_de_prose(&texte);
         if !blocs.is_empty() {
-            let formes = formes_declarees(&texte);
+            let (formes, refus_de_formes) = formes_et_refus(&texte);
             let source = source_declaree(&texte);
             fiches.insert(
                 lemme,
@@ -724,6 +779,7 @@ pub fn read_fiches(racine: &Path) -> HashMap<String, Fiche> {
                     titre: nom,
                     blocs,
                     formes,
+                    refus_de_formes,
                     source,
                 },
             );
@@ -879,7 +935,7 @@ pub fn read_reference(texte: &str, known_book_ids: &HashSet<String>) -> Referenc
 
 #[cfg(test)]
 mod formes_de_fiche {
-    use super::formes_declarees;
+    use super::formes_et_refus;
 
     /// **Sur une fixture, pas sur le vault.** Le vault a ses `## Formes` sur une
     /// branche, pas sur `main` : une épreuve qui lirait `lexique/` mesurerait
@@ -901,7 +957,7 @@ vayomer · vayomru · vaʾomar · amarti
 Ce paragraphe n'est pas une forme.
 ";
         assert_eq!(
-            formes_declarees(fiche),
+            formes_et_refus(fiche).0,
             ["vayomer", "vayomru", "vaʾomar", "amarti"]
         );
     }
@@ -909,7 +965,9 @@ Ce paragraphe n'est pas une forme.
     /// Une fiche sans section n'en déclare aucune — et n'échoue pas.
     #[test]
     fn une_fiche_sans_section_ne_declare_rien() {
-        assert!(formes_declarees("# chesed\n\nLa bonté fidèle.\n").is_empty());
+        assert!(formes_et_refus("# chesed\n\nLa bonté fidèle.\n")
+            .0
+            .is_empty());
     }
 
     /// **Le point médian seul sépare.** Une forme peut contenir un tiret ou une
@@ -917,7 +975,7 @@ Ce paragraphe n'est pas une forme.
     #[test]
     fn le_point_median_seul_separe() {
         assert_eq!(
-            formes_declarees("## Formes\n\nmot tamut · ha-adam\n"),
+            formes_et_refus("## Formes\n\nmot tamut · ha-adam\n").0,
             ["mot tamut", "ha-adam"]
         );
     }
@@ -927,7 +985,7 @@ Ce paragraphe n'est pas une forme.
     #[test]
     fn plusieurs_lignes_se_cumulent() {
         assert_eq!(
-            formes_declarees("## Formes\n\nun · deux\n\ntrois\n"),
+            formes_et_refus("## Formes\n\nun · deux\n\ntrois\n").0,
             ["un", "deux", "trois"]
         );
     }
@@ -938,7 +996,7 @@ Ce paragraphe n'est pas une forme.
     /// `vayaʿas` et `vayaas` cesseraient de se rejoindre.
     #[test]
     fn les_formes_sortent_telles_qu_ecrites() {
-        assert_eq!(formes_declarees("## Formes\n\nvayaʿas\n"), ["vayaʿas"]);
+        assert_eq!(formes_et_refus("## Formes\n\nvayaʿas\n").0, ["vayaʿas"]);
     }
 }
 
@@ -1118,5 +1176,92 @@ mod fiches {
                 .any(|n| matches!(n, crate::schema::Inline::Translit { .. })),
             "le niveau 3 s'est perdu : {nodes:?}",
         );
+    }
+}
+
+#[cfg(test)]
+mod la_prose_n_est_pas_une_forme {
+    use super::*;
+
+    /// **Les trois proses réellement trouvées**, relevées par la session du
+    /// vault le 28 septembre 2026 dans `YHWH.md`, `min-preposition.md` et
+    /// `bein.md`.
+    ///
+    /// Elles sont ici telles qu'elles étaient écrites : une épreuve qui
+    /// inventerait ses cas ne garantirait rien de ce qui est arrivé.
+    #[test]
+    fn les_trois_proses_trouvees_sont_refusees() {
+        let fiche = "## Formes\n\
+                     Le témoin porte 820 emplois préfixés — be-, le-, mi-.\n\
+                     Les formes assimilées — mikol, mimei — perdent le noun.\n\
+                     Le bet perd son dagesh après un mot ouvert\n";
+        let (formes, refus) = formes_et_refus(fiche);
+        assert!(
+            formes.is_empty(),
+            "de la prose est entrée dans les formes : {formes:?}"
+        );
+        assert_eq!(
+            refus.len(),
+            3,
+            "trois lignes de prose, trois refus : {refus:?}"
+        );
+    }
+
+    /// **Et les vraies formes passent** — dont celle qui piège un critère au
+    /// compteur de mots.
+    ///
+    /// Dont les trois formes composées que le premier seuil — calibré sur le
+    /// corpus publié — avait écartées à tort : elles font 33 et 34 signes,
+    /// pour quatre mots.
+    #[test]
+    fn les_vraies_formes_passent_meme_a_quatre_mots() {
+        let fiche = "## Formes\n\
+                     basar ʾechad · kohen gadol · lo tahor\n\
+                     L'Être façonné du sol\n\
+                     vayehi hachemesh baʾah vaʿallatah\n\
+                     ben-shemonim shanah veshesh shanim\n\
+                     venichreta hanefesh hahi meʿammeha\n";
+        let (formes, refus) = formes_et_refus(fiche);
+        assert!(
+            refus.is_empty(),
+            "une vraie forme a été refusée : {refus:?}"
+        );
+        assert_eq!(formes.len(), 7, "{formes:?}");
+        assert!(formes.contains(&"L'Être façonné du sol".to_string()));
+    }
+
+    /// **La garde rougit contre le code d'avant** — exigence du dépôt.
+    ///
+    /// Avant, `formes_declarees` prenait toute ligne non vide. On le rejoue
+    /// ici à l'identique : si cette épreuve cessait de montrer neuf entrées
+    /// là où la garde n'en laisse aucune, c'est que le défaut aurait changé
+    /// de forme et que la garde mesurerait autre chose.
+    #[test]
+    fn le_parseur_d_avant_ingerait_bien_la_prose() {
+        let fiche = "## Formes\n\
+                     Le témoin porte 820 emplois préfixés — be-, le-, mi-.\n";
+        let avant: Vec<String> = fiche
+            .lines()
+            .skip(1)
+            .flat_map(|l| l.split('·').map(str::trim).filter(|f| !f.is_empty()))
+            .map(str::to_string)
+            .collect();
+        assert_eq!(avant.len(), 1, "le code d'avant prenait la ligne entière");
+        assert!(
+            formes_et_refus(fiche).0.is_empty(),
+            "la garde ne rattrape pas ce que le code d'avant laissait passer"
+        );
+    }
+
+    /// Un chiffre suffit, même dans une ligne courte : aucune des 261 formes
+    /// publiées n'en porte.
+    #[test]
+    fn un_chiffre_disqualifie() {
+        // Et la longueur ne disqualifie pas : 34 signes, quatre mots.
+        assert!(!ne_peut_pas_etre_une_forme(
+            "ben-shemonim shanah veshesh shanim"
+        ));
+        assert!(ne_peut_pas_etre_une_forme("820 emplois"));
+        assert!(!ne_peut_pas_etre_une_forme("shalom"));
     }
 }

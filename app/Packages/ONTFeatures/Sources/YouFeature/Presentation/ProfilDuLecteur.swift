@@ -56,8 +56,11 @@ struct EnTeteDuProfil: View {
                     if let session = account.session {
                         HStack(spacing: 5) {
                             if let fournisseur = session.provider {
-                                Image(systemName: logo(fournisseur))
-                                    .font(ONTUI.caption2)
+                                // La même marque que sur le bouton qui a ouvert
+                                // la session — voir `ONTLogoDeConnexion`. Plus
+                                // petite : elle qualifie une adresse, elle
+                                // n'invite pas à un geste.
+                                marqueDe(fournisseur, cote: ONTUI.points(14))
                                     .accessibilityLabel("Connecté avec \(fournisseur.label)")
                             }
                             // **Pas de `.font` ici.** `ONTUI.ligneDeListe`
@@ -107,11 +110,18 @@ struct EnTeteDuProfil: View {
 /// Les symboles du système plutôt que des logos de marque : Apple interdit de
 /// redessiner le sien, et embarquer trois images pour trois glyphes qui
 /// existent déjà coûterait la moitié d'un mégaoctet et une revue de licence.
-private func logo(_ provider: AuthProvider) -> String {
-    switch provider {
-    case .apple: "apple.logo"
-    case .google: "g.circle.fill"
-    case .github: "chevron.left.forwardslash.chevron.right"
+/// La marque du fournisseur, à la taille d'une ligne. Voir
+/// `ONTLogoDeConnexion` pour ce que chacune des trois exige.
+///
+/// `@MainActor` : `ONTUI.caption2` l'est — l'échelle de l'interface suit le
+/// Dynamic Type, qui ne se lit que sur le fil principal.
+@MainActor
+@ViewBuilder
+private func marqueDe(_ provider: AuthProvider, cote: CGFloat) -> some View {
+    if let nom = ONTLogoDeConnexion.Nom(provider) {
+        ONTLogoDeConnexion.marque(nom, cote: cote, teinte: .secondary)
+    } else {
+        Image(systemName: "apple.logo").font(ONTUI.caption2)
     }
 }
 

@@ -7,6 +7,1099 @@ divergence.
 
 ---
 
+## 10 septembre 2026 — le vault a bougé onze fois, et une seule chose traverse vraiment
+
+**Onze commits sur `ecrire-la-premiere-khuqqah`** — `125df42..ca8cbeb`, soit de
+`7c36003` à `ca8cbeb` inclus. *(La notation compte : `7c36003..ca8cbeb` en rend
+**dix**, la borne gauche étant exclue. Ce journal a déjà une entrée sur les
+opérateurs de plage qui ne posent pas la même question ; elle vaut aussi quand
+on cite une plage dans une phrase.)* Un
+**Shem** séparé en deux, environ cent vingt noms propres rendus touchables, une
+casse alignée, un `CLAUDE.md` qui gagne une section, et vingt-trois versets de
+corps repris.
+
+La synchronisation a été faite après coup, et c'est déjà la première chose à
+retenir : **aucun des onze commits n'a demandé ce que la journée changeait pour
+les voisins.** La règle en tête de ce fichier n'est pas une formalité de fin de
+travail — elle est ce qui a trouvé le défaut ci-dessous, et rien d'autre ne
+l'aurait trouvé.
+
+### Le site colore deux cent quatorze Shemot sur deux cent quinze, et n'en ouvre aucune
+
+**Le défaut, mesuré et non déduit.** Le pipeline émet deux index séparés :
+
+    dist/glossary.json   139 entrées   les intraduisibles
+    dist/shemot.json     215 entrées   les noms propres
+
+Leur intersection est de **une** entrée, et cette entrée-là est un défaut à
+elle seule — voir juste après. Or `ONTBibleWebapp` n'embarque que
+`corpus.json`, `glossary.json`, `occurrences.json` et `search.json` — il n'y a
+**aucune occurrence de « shemot » dans tout son `src/`**. La page de fiche
+résout contre le seul glossaire (`src/api.rs:276`), et ce qu'elle ne trouve pas
+tombe sur la branche `_ => view! { <Absente /> }` (`src/interface/pages/fiche.rs:186`),
+titrée « Fiche introuvable ».
+
+Et pourtant le nœud est **rendu, coloré et cliquable** : `verset.rs:170-177` lui
+donne `text-shem`, soit `--color-shem: #ba8c6c` (`style/main.css:98`), et un
+`href` vers `/fr/lexique/{lemme}`.
+
+**Le site tient donc exactement la moitié de la couche.** La couleur promet une
+fiche — c'est ce que le §2.10 du vault lui fait promettre — et le clic tombe
+dans le vide, 214 fois sur 215.
+
+**Sur iOS, les mêmes nœuds fonctionnent.** `ONTTextRenderer.swift:299-305` pose
+le lien `ont://shem/<lemme>`, `Router.swift:258-261` l'ouvre, et `ShemSheet` est
+alimentée par `shemot.json` via `DiskShemotRepository`. Le fichier est chargé
+d'un côté, pas de l'autre.
+
+**Ce que la journée y ajoute.** Les nœuds `shem` émis dans `dist/books/` passent
+de **2 734 à 2 878** — cent quarante-quatre de plus. Sur iOS ce sont cent
+quarante-quatre liens neufs qui marchent ; sur le site, cent quarante-quatre
+liens morts de plus.
+
+> **La couleur et la fiche voyagent séparément, et rien ne l'annonce.**
+
+C'est la forme que ce journal connaît déjà, un cran plus haut. Les deux dépôts
+sont **cohérents avec eux-mêmes** : le site rend ce qu'il sait résoudre, l'app
+résout ce qu'elle rend. La divergence ne se voit depuis aucun des deux — elle
+n'existe qu'entre eux, et c'est précisément ce que ce fichier existe pour
+regarder. Aucune compilation ne rougit : un index qu'on n'embarque pas ne
+manque à personne.
+
+### Et l'unique lien que le site sait résoudre ouvre la mauvaise fiche
+
+L'entrée que les deux index ont en commun est **`moreh`**, et ce n'est pas une
+coïncidence heureuse : c'est **une collision d'homographes que personne n'avait
+nommée**.
+
+    [[Moreh]]      le chêne de Moreh, où ʾAvraham s'arrête — Bereshit 12:6
+    **moreh**      l'intraduisible du §2.5 — celui qui pointe du doigt la direction
+
+Les deux tombent sur le lemme `moreh`, et il n'existe **qu'un seul fichier** :
+`lexique/Moreh.md`, qui est entièrement la fiche du **concept** — *yarah*, la
+racine que la *Torah* partage, la place du **moreh** parmi les cinq offices. Le
+lieu n'y est pas mentionné.
+
+Donc le lecteur qui touche le nom du chêne — sur le site **comme sur iOS** —
+reçoit la leçon sur l'office d'enseignant. Le site ne rate pas 214 fiches sur
+215 : il en rate 214 et **se trompe sur la quinzième**.
+
+**Le §2.10 avait prévu le cas et n'avait pas prévu celui-là.** Il réserve à
+l'auteur les homographes connus — `Shem` le fils de Noach contre `**Shem**`
+l'acte d'existence, `Adam` le personnage contre `**ʾadam**` le générique — et
+note que la casse ne les sépare pas. `Moreh` est **le troisième**, arrivé par la
+porte de derrière : il n'est né ni d'un récit ni d'une décision, mais du jour où
+`**moreh**` a été déclaré intraduisible, alors que `[[Moreh]]` existait déjà
+dans un chapitre verrouillé.
+
+> **Un intraduisible neuf peut percuter un Shem ancien, et rien ne le dit.**
+> Déclarer un mot au §2.5 crée un lemme ; si `lexique/` porte déjà ce lemme pour
+> un porteur, les deux fusionnent en silence. Aucun contrôle ne compare les deux
+> index — et c'est exactement pourquoi celui-ci a été trouvé en mesurant leur
+> intersection pour tout autre chose.
+
+**À trancher par l'auteur**, et par lui seul : le §2.10 le dit, un homographe est
+un arbitrage verset par verset.
+
+**Ce qui reste à décider, et qui n'est pas à cette session** : embarquer
+`shemot.json` et lui donner sa branche de résolution, ou cesser de colorer ce
+que le site ne peut pas ouvrir. La seconde est pire pour le lecteur ; la
+première est du travail dans `ONTBibleWebapp`. L'arbitrage revient à l'auteur.
+
+### Le contrôle qui décide s'exécute au push — donc il n'a rien dit
+
+**Trois constructions, sur trois états du vault, avec le même pipeline :**
+
+    93c664b   la tête poussée sur origin       0 lien mort   vert
+    125df42   la veille de la journée          9 liens morts, 6 lemmes
+    ca8cbeb   la tête locale d'aujourd'hui     9 liens morts, 6 lemmes — la même liste
+
+**La journée n'en a introduit aucun.** Les deux listes sont identiques à
+l'octet. Les neuf viennent de la veille : `af94fdf` a posé `[[Yehoshua]]`,
+`[[Yericho]]` et un `**shiphchah**` dans une glose de *Bereshit* 12 ; `e16a1f2`
+a posé `[[Ashur]]`, `[[Levanon]]` et `[[Yaʿaqov]]` dans le *Sefar Gibbaraya*.
+
+Le `**shiphchah**` mérite d'être nommé à part : la passe du 8 septembre avait
+converti ce mot en `shifchah`, quarante-six fois, sur décision de règle. Le
+lendemain, une glose neuve l'a réécrit **à l'ancienne graphie**, dans un
+chapitre verrouillé.
+
+> **Une passe corrige le corpus ; elle ne corrige pas la main qui écrira demain.**
+
+**Soldé dans la journée** — `5b077df` —, et la façon dont il l'a été vaut plus
+que le correctif. Le relevé que cette session a transmis donnait les quatre
+occurrences **dans *Bereshit* 12**. Elles étaient deux dans *Bereshit* 12 et deux
+dans *Bereshit* 17.
+
+La faute est une lecture de colonne : le rapport de construction titre
+« **Vu d'abord** », et nomme donc le **premier** fichier, jamais le seul. Le
+rapport est honnête ; c'est la lecture qui a serré. Qui aurait suivi la liste
+transmise aurait corrigé *Bereshit* 12, vu le compte tomber de quatre à deux, et
+laissé le contrôle rouge **sans comprendre pourquoi**.
+
+> **Une colonne qui dit « vu d'abord » ne dit pas « vu là ».** Un rapport qui
+> nomme un premier exemplaire se lit comme s'il nommait un emplacement, et rien
+> dans la ligne ne détrompe.
+
+Ce n'est pas la vérification qui l'a rattrapé, c'est **le refus de croire le
+relevé d'un pair** : la session du vault a refait la mesure au lieu de suivre la
+liste, puis a rebalayé deux fois — vingt-trois formes hébraïques en `ph`
+cherchées nommément, puis **tous** les termes en gras portant `ph`, sans liste.
+Les deux rendent les mêmes quatre. C'est la règle du §2.9 tenue jusqu'au bout :
+*on énumère les formes hébraïques, on ne soustrait pas les mots français.*
+
+Le compte de liens morts est donc passé de neuf à **cinq** dans la journée. Les
+cinq qui restent sont les cinq fiches de **Shemot** à écrire.
+
+**Et le contrôle n'a pas parlé, parce qu'il ne pouvait pas.** `eprouver`
+s'exécute sur pull request. Les soixante-dix commits qui portent le défaut sont
+**restés en local** : le distant de la branche est encore à `93c664b`, où tout
+était vert. Le dernier verdict connu de cette branche date du 8 septembre et
+porte sur un état vieux de soixante-dix commits.
+
+> **Un souvenir vert d'`origin` n'est pas l'état de `HEAD`.**
+
+C'est la « prémisse périmée » que ce journal a déjà nommée, vue depuis
+l'intégration continue plutôt que depuis un `grep` : la mesure était juste, et
+elle ne dit plus rien de ce qu'on tient. Le remède est le même — construire
+avant d'affirmer, et non relire un tableau vert.
+
+### Une liste blanche protège de ce qu'elle exclut, jamais de ce qu'elle inclut
+
+**Le fait.** La passe du 8 septembre, qui rend le het par `ch`, a converti
+quatre-vingt-neuf `Haran` en `Charan`. Ils n'étaient pas le même mot :
+
+    הָרָן   he     le fils de Terach, père de Lot
+    חָרָן   het    la ville où Terach s'arrête
+
+La passe avait été bâtie avec soin pour **ne pas** toucher *Pharaon*,
+*Euphrate*, *orphelin*, *Memphis*. Elle a tenu cette promesse-là entièrement.
+Personne ne lui a demandé si les formes qu'elle **contenait** étaient bien
+celles qu'elle croyait.
+
+> **Une liste blanche répond de ses exclusions. Ses inclusions, personne ne les
+> relit — elles ont l'air d'être la réponse.**
+
+Le contrôle qui manquait ne coûtait rien : regarder l'hébreu du mot avant de
+changer sa translittération. C'est lui qui a tranché, sur les lemmes Strong de
+`sources/he-wlc/Gen.jsonl`, qui séparent le 2039 du 2771a sans qu'on ait à en
+juger.
+
+**Séparés le 10 septembre**, et vérifié à la construction : `shemot.json` passe
+de 214 à 215 entrées, `haran` s'ajoute, `charan` reste, et **ni l'un ni l'autre
+n'apparaît** en « Shemot sans fiche » ni parmi les liens morts.
+
+### Le corpus s'était mis à tirer du sens de son propre défaut
+
+C'est la partie qui fait peur, et elle vaut plus que l'erreur elle-même.
+
+Pendant deux jours, deux **Shem** distincts ont porté la même graphie. Les
+gloses **verrouillées** de *Bereshit* 11 se sont mises à **l'expliquer** :
+« les deux formes sont identiques en translittération française », « l'homonymie
+n'est pas fortuite dans un texte où les **Shem** portent la destinée ». Et le
+§12 du `CLAUDE.md` inscrivait « Charan personne / Charan ville (homonymie
+délibérée) ».
+
+> **Un artefact d'outil relu comme un fait du texte, et commenté comme tel dans
+> un fichier verrouillé.**
+
+Le corpus est fait pour trouver du sens ; c'est son office. Quand le défaut lui
+arrive sous la forme d'une coïncidence lexicale, il fait ce qu'il sait faire, et
+il le fait bien. Rien dans l'exercice ne distingue une homonymie du texte d'une
+homonymie de notre translittération — sauf **regarder l'hébreu**, ce que la
+glose n'avait pas à faire pour être bien écrite.
+
+La règle qui l'interdisait était déjà écrite, une section plus haut : celle du
+he final, qui refuse que `Elisha` porte à la fois אֱלִישָׁה et אֱלִישָׁע. Le même cas,
+sur l'initiale au lieu de la finale — et la passe l'a produit **le jour même où
+cette phrase était écrite**.
+
+> **Une règle n'empêche que ce qu'on pense à lui soumettre.**
+
+### Une règle syntaxique ne se vérifie pas sur la syntaxe
+
+**Le §4.17 est né d'une erreur de la veille.** *Bereshit* 13:10 avait été aligné
+sur 1:4 au motif que la construction hébraïque était identique — `וַיַּרְא` +
+`אֶת` + objet plein + `כִּי`.
+
+En reprenant les **cinq** occurrences de cette construction dans *Bereshit* :
+quatre étaient déjà tranchées par des gloses verrouillées, et **deux d'entre
+elles disaient l'inverse** de la règle qu'on croyait appliquer. Le regard des
+fils d'**ʾElohim** sur les filles (6:2) et celui des Mitsrim sur l'**ʾIshah**
+(12:14) sont rendus d'un seul verbe, délibérément : la glose de 12:14 va jusqu'à
+**insister** que le verbe unique est le point.
+
+> **Une construction identique ne demande pas un rendu identique. La syntaxe dit
+> ce qui est écrit ; elle ne dit pas ce que la scène fait.**
+
+La marche à suivre, portée au §4.17 : regarder ce qui suit le verset, regarder
+qui regarde, et **regarder ce que les gloses du corpus disent déjà** — elles
+portent souvent l'arbitrage, écrit avant que la règle ait été formulée.
+
+Et le §4.17 va plus loin que le verbe *raʾah*, sur décision de l'auteur : *on ne
+fait pas des mathématiques linguistiques ; le vivant peut être singulier.* Une
+restitution sert le sens, un système se sert lui-même — quand les deux
+divergent, c'est le sens qui commande.
+
+### Une garde peut casser le contrôle qu'elle définit
+
+`sessions/` est exclu des balayages du dépôt : ce sont les transcriptions de ce
+que l'auteur a tapé, et corriger l'orthographe de ce que quelqu'un a écrit n'est
+pas une correction, c'est une réécriture. La journée a posé un `sessions/README.md`
+pour que cette garde soit lisible plutôt que sue.
+
+Le `README` portait un témoin de comptage — « il doit rester exactement *n*
+occurrences de tel mot dans ce dossier » — et **citait ce mot deux fois dans sa
+propre page**. Le compte est passé de *n* à *n+2* le jour où la garde a été
+écrite.
+
+> **Une page qui définit un compte fait partie de ce qui est compté.**
+
+Réparé dans la journée, en coupant le mot dans la citation : le dossier rend de
+nouveau le compte attendu, et la page le dit d'elle-même.
+
+Le motif n'est pas anecdotique : c'est celui du §13.2 et celui du périmètre du
+§2.5 — un document qui énonce une règle est lui-même dans le champ de la règle,
+et personne ne pense à s'y regarder.
+
+### Un zéro est vrai pour ce que l'instrument cherche, faux pour ce qu'il prétend mesurer
+
+La passe de casse sur `**shem**` / `**Shem**` (§2.5 : majuscule après
+déterminant) a corrigé trente-six occurrences dans neuf fichiers, puis annoncé
+« reste après déterminant : 0 ». Il en restait **neuf**.
+
+Le motif énumérait les déterminants **en minuscules seulement** —
+`le|son|leur|du|des|ce|un` —, si bien que « Le **shem** » en tête de phrase et
+« Leur **shem** » après un point ne matchaient pas. **Cinq des neuf étaient dans
+le seul *Bereshit* 17**, le fichier où la même passe en avait corrigé dix.
+
+Le zéro était exact pour ce que l'instrument cherchait, faux pour ce qu'il
+prétendait mesurer.
+
+> **Un zéro se rapporte avec son outil.** Et un zéro est ce qu'on vérifie le
+> moins, parce qu'il ne laisse aucun appariement à relire — c'est l'endroit
+> exact où un instrument mal réglé passe inaperçu.
+
+**Et ce n'est pas un contrôle qui l'a trouvé** : c'est la session qui travaillait
+dans *Bereshit* 17 et qui l'a vue en passant. Aucun relevé n'allait la chercher,
+puisque le relevé disait zéro.
+
+Trois autres divergences remontées le même jour ont dû être **rejetées** pour la
+raison inverse, et elle mérite d'être gardée : `**Nephilim**`, `**ʿirin**` et une
+prétendue contradiction du §2.9 étaient toutes trois des faux positifs, lus dans
+les passages du `CLAUDE.md` qui **racontent une graphie abandonnée**. Un document
+qui garde l'histoire de ses règles offre à qui le parcourt trois graphies mortes
+pour une vivante, et rien dans la ligne ne dit laquelle est laquelle.
+
+> **Prémisse périmée non pas dans le dépôt, mais dans la phrase lue.**
+
+### « Attesté » compte le gras, pas ce qui s'atteint
+
+Un chiffre du rapport a bougé sans que rien ne se perde, et il vaut d'être
+expliqué avant que quelqu'un ne le lise comme une régression :
+
+    Entrées attestées dans le corpus rédigé    71 → 70
+
+L'entrée qui sort est `tevah`. La journée a retiré son unique gras — `**tevah**`
+dans *Sefar Gibbaraya* 10:17 — et le retrait est **juste** : `tevah` est un
+terme du §3.2, rendu « arche », pas un intraduisible du §2.5, et le gras y était
+un défaut.
+
+Mais la fiche reste atteignable : `dist/books/bereshit.json` porte toujours
+**quatre** nœuds `translit` dont la `cible` est `term/tevah`, posés par les
+niveaux 3 `(*tevah* / תֵּבָה)`. Aucun lecteur ne perd l'accès.
+
+> **Le compte des « attestées » mesure le gras, non la portée.** Deux questions
+> voisines, un seul mot pour les dire — et c'est le genre d'écart qui a déjà
+> laissé passer un défaut le 9 septembre, quand le rapport normalisait autrement
+> que le consommateur.
+
+### Ce que ça demande à chaque dépôt
+
+- **`ONTBibleTranslation`** — **cinq** fiches de **Shemot** à écrire avant que la
+  branche puisse être poussée sans rougir `eprouver` : `Ashur`, `Levanon`,
+  `Yaʿaqov`, `Yehoshua`, `Yericho`. Le sixième lemme, le `**shiphchah**` des
+  *Bereshit* 12 et 17, a été soldé dans la journée. C'est de l'écriture de
+  corpus : elle revient à la session qui tient le vault, pas à celle qui mesure.
+- **`ONTBibleApp`** — rien à porter. Le §4.17 n'a produit aucun lemme, vérifié
+  dans `pipeline/src/reference.rs` : `read_tagged_terms` ne s'exécute que sur la
+  section numérotée `2.5`, `read_fixed_terms` sur `^3\.[123]$`, et le motif des
+  formes exige des **accents graves** autour du gras — un `**terme**` de prose
+  n'est jamais lu. `glossary.json` reste à 139 entrées avant et après. La couche
+  des **Shemot** y est complète, couleur et fiche.
+- **`ONTBibleWebapp`** — la moitié de la couche des **Shemot** est à finir, et
+  c'est le seul vrai chantier ouvert par la journée. Voir plus haut.
+
+### Deux dettes constatées en passant, et non traitées ici
+
+- **Les quatre `SYNCHRONISATION.md` divergent**, et divergeaient avant cette
+  entrée : `concorder-la-synchronisation.py` rend trois empreintes de tronc
+  commun pour trois dépôts, donc **aucune référence**. La PR #83 du vault porte
+  déjà les entrées manquantes de l'app ; elle n'est pas fusionnée, et le site
+  n'a pas son équivalent. Cette entrée est ajoutée identique aux trois — elle ne
+  réduit pas l'écart préexistant, et il ne fallait pas qu'elle le fasse en
+  silence.
+- **Le nœud `renvoi` de la quatrième couche est déjà rendu par les deux
+  liseuses**, alors que le §2.11 demande de ne pas encore en écrire. Le site
+  l'affiche coloré et **assume** de le laisser inerte, commentaire à l'appui.
+  iOS lui pose un lien `ont://chuqqah/<cible>` que **`Router.swift` ne route
+  pas** : le `switch` couvre `term`, `shem`, `verse`, `share`, `read`, puis
+  `default: return false`. Le jour où une **chuqqah** portera un `((…))`, iOS
+  soulignera un lien mort là où le site aura été honnête. Rien ne le signale
+  aujourd'hui, puisque le vault n'en écrit aucun.
+
+### 11 septembre 2026 — deux manifestes portent presque le même nom, et on les a confondus
+
+Le site publie `manifeste.json` sur `/corpus/`. Le pipeline écrit
+`manifest.json` dans `dist/`. **Ce ne sont pas les mêmes fichiers, et ils ne
+portent pas les mêmes nombres :**
+
+| fichier | qui l'écrit | ce qu'il porte |
+|---|---|---|
+| `dist/manifest.json` | le pipeline | `schema: 1`, `contrat: 3` |
+| `/corpus/manifeste.json` | `corpus-publie.py`, chez le site | `schema: 2` |
+
+La liseuse récupère `ontbible.com/corpus/` — **celui du site** — et compare
+**son** `schema` au sien. Le `contrat` du pipeline ne l'atteint jamais.
+
+#### Le défaut vu, le correctif faux, et ce qui a sauvé la mise
+
+La session du pipeline a signalé, à juste titre, que le `2` du site était écrit
+en dur et ne bougeait pas quand un type de nœud apparaissait. Elle a demandé de
+recopier son `contrat` à la place. C'est ce qui a été fait, et **c'était faux** :
+publier 3 aurait fait refuser le corpus **entier** par toutes les liseuses
+installées, qui comparent en égalité stricte et sont à 2.
+
+Ce qui l'a arrêté n'est pas la relecture du correctif — il compilait, onze
+chemins l'éprouvaient, et le tableau était vert. C'est **la lecture de la
+liseuse**, et une seule ligne :
+
+    CorpusUpdater.swift:87   « La version du manifeste que ce code sait lire.
+                               2 depuis 1.0.3, où l'accentuation a changé de
+                               nom sur le fil. »
+
+Le nombre était donc déjà nommé, déjà daté, déjà justifié — dans le dépôt
+d'à côté, à l'endroit exact où la question se pose. Trois sessions ont raisonné
+une heure sur ce qu'il devait valoir sans aller lire ce qu'il valait.
+
+#### La distinction qui manquait, et elle vaut bien au-delà d'ici
+
+> **Une valeur dont l'unique devoir est de *suivre* une autre se recopie.**
+> **Une valeur *copropriétaire* de deux parties se garde par une mesure.**
+
+`contrat` est de la première espèce : il suit `CONTRAT_DES_NOEUDS`, et l'écrire
+à la main est une faute. `schema` est de la seconde : il est le numéro de
+compatibilité du **fil**, tenu d'un commun accord par le script de publication
+et les deux liseuses. Il se monte délibérément, dans le même lot qu'une liseuse
+qui sait lire la nouveauté.
+
+Le défaut n'était donc pas qu'il soit écrit à la main. **C'est que personne ne
+le mesurait contre quoi que ce soit.** Le premier correctif a supprimé le
+littéral — et un littéral gardé vaut mieux qu'une recopie fausse.
+
+#### On garde sur le contenu, jamais sur l'attestation
+
+Le correctif refusait de publier quand `contrat` manquait. Il gardait une
+**déclaration**, et c'était faux deux fois : une déclaration absente se lisait
+comme un danger, une déclaration présente comme une garantie.
+
+Or ce qui met une liseuse en danger n'est pas ce que le pipeline *dit*, c'est ce
+que le corpus *contient*. La variante `Renvoi` existe déjà dans le schéma de
+`dev` **sans** le champ `contrat` : la garde sur l'attestation aurait laissé
+passer exactement le cas qu'elle prétendait couvrir.
+
+La garde regarde donc le corpus, et refuse tout type de nœud hors d'une liste
+figée **à côté** de `SCHEMA_DU_MANIFESTE` — les deux ne se déplacent que dans le
+même commit, avec la liseuse qui sait lire le type nouveau. Dix-sept types
+relevés le 11 septembre ; un `renvoi` planté est refusé quoi que déclare le
+manifeste.
+
+C'est plus long à écrire qu'un nombre recopié. C'est la seule mesure qui ne
+puisse pas mentir.
+
+#### Trois choses de forme, apprises au passage
+
+- **Ne rien trouver n'est pas trouver zéro.** Deux témoins positifs : la garde
+  refuse si elle ne lit aucun nœud, et si elle ne relève aucune liseuse. Sans
+  eux, un chemin renommé chez le pipeline ferait passer la garde en silence, et
+  son silence se lirait comme un accord.
+- **Retirer un littéral casse ceux qui le lisaient.** Une étape de CI relevait
+  le `"schema": 2` par `sed` pour le comparer à la liseuse en vente. En le
+  retirant, son relevé rendait une chaîne vide et elle **tuait le déploiement**
+  sur un désaccord qui n'avait pas eu lieu. Avant d'en retirer une, chercher qui
+  la lit.
+- **Une liseuse en avance n'est pas une panne.** C'est l'ordre voulu — le
+  lecteur d'abord, ce qu'il lit ensuite. La garde le dit et continue ; elle ne
+  refuse que devant une liseuse **en retard**, et le plafond qui compte est celui
+  de la version en vente, la seule qui soit dans des mains.
+
+#### Et un défaut bien vu ne garantit pas le correctif proposé
+
+La session du pipeline avait raison sur le mécanisme, et s'est trompée sur les
+nombres — puis est revenue le corriger d'elle-même. Elle avait annoncé
+`contrat = 4` quand `origin/device` en porte 3.
+
+Un correctif reçu d'une session voisine se mesure comme tout le reste, **y
+compris quand il vient de celle qui a vu le défaut la première**. Et la mesure
+utile n'était pas dans les branches qu'on a comparées : elle était dans le
+commentaire du fichier qu'on cherchait à protéger.
+
+
+## 18 septembre 2026 — le dépôt a ses chuqqot, et on répare depuis elles
+
+**Consigne de l'auteur**, portée aux sept sessions. Ses mots :
+
+> « au final le projet ONT lui même a ses propre chuqqot les choses graver qui
+> regisse le reste, et les manifestation qui en decoule »
+
+> « toujours se fier aux ONT's chuqqot pour construire et toujours reparer a
+> partir d'elles »
+
+**Ce que sont les chuqqot du dépôt.** Des énoncés qu'on ==n'argumente plus== et
+qu'on ==invoque pour trancher autre chose== : `**...**` est exclusivement
+l'intraduisible ; le témoin fait foi ; on restitue l'ambiguïté au lieu de la
+trancher (§4.11) ; aucune catégorie extérieure n'entre (§4.7) ; une seule source
+par fait ; `1254 a` n'est pas `1254 b`.
+
+Elles se sont écrites ==comme celles du corpus : après coup, sur une pratique==.
+Le §2.9 le déclare de lui-même — *« c'est le relevé de ce qu'il fait déjà, rendu
+opposable »*. L'écriture n'a pas produit la règle ; elle a produit que ==la
+divergence devienne visible==. Une pratique non écrite ne se compare à rien,
+donc elle ne peut pas diverger visiblement.
+
+### Les deux gestes
+
+**Construire à partir d'elles.** Avant d'écrire, chercher ==quel énoncé
+gouverne== ce qu'on va faire. Ne pas inventer une règle locale pour un cas
+local : presque toujours l'énoncé existe, et il décide.
+
+**Réparer à partir d'elles.** Un défaut n'est pas un accident, c'est ==une
+manifestation==. On ne rustine pas : on remonte à l'énoncé qu'il contredit, et
+on répare là.
+
+### La preuve, sur une seule journée
+
+Quatre défauts du 18 septembre, quatre manifestations d'un énoncé gravé :
+
+    un contrôle barrait [[Yosef]]      contre « des marques de travail à faire,
+                                       pas des erreurs » (CLAUDE.md, inline.rs)
+    deux fiches réclamaient 7200       contre « une seule source par fait »
+    l'option « 7203 » écrite nue       contre « 1254 a n'est pas 1254 b »
+    trois gras d'emphase               contre « le gras est EXCLUSIVEMENT
+                                       l'intraduisible » (§2.5)
+
+==Aucun n'a été attrapé par plus de rigueur.== Tous par une contradiction entre
+ce qu'on faisait et ce qui était gravé. Et chacun pouvait être « réparé » par un
+cas particulier — une exception dans le contrôle, une règle morphologique pour
+départager, un gras toléré « juste ici ». ==Chaque rustine aurait ajouté une
+règle de plus==, qui aurait divergé à son tour.
+
+### La nuance sans laquelle la consigne devient un dogme
+
+Remonter à l'énoncé ==ne veut pas dire que l'énoncé a raison==. Parfois c'est
+lui qui doit être corrigé : le §13.2 l'a fait — les « vingt-deux marqueurs
+déséquilibrés » n'existaient pas —, et la fiche de `moreh` l'a fait cette
+semaine, qui déclarait un numéro que le témoin ne lui donne pas.
+
+    remonter à l'énoncé              TOUJOURS
+    puis décider lequel est faux     la manifestation, ou l'énoncé
+
+Ce qui est interdit, c'est de rustiner ==sans être remonté==. Un correctif qui
+n'est rattaché à aucun énoncé est ==une règle orpheline==, et le projet en a
+déjà payé plusieurs.
+
+### On ne le sait qu'après — et c'est ce qui rend la consigne difficile
+
+Relevé par la session Android le jour même, et il manquait :
+
+> ==On ne sait qu'un défaut est une manifestation qu'après être remonté.==
+> Avant, il a exactement l'air d'un accident local.
+
+**Son cas.** En mesurant ce que faisait sa feuille d'un **Shem** — pour pouvoir
+seulement la *décrire* à une session voisine —, elle a vu que ses titres étaient
+==fixes en points== alors que le corps suit le réglage du lecteur. Au curseur
+haut, ==un titre passait sous son propre texte==.
+
+Deux choses en sortent, et la seconde est la plus grave :
+
+- ==le défaut ne se voyait pas au réglage par défaut== — la seule position où
+  personne n'en a besoin ;
+- il frappait ==exactement qui monte le curseur==, c'est-à-dire l'auteur.
+
+**L'énoncé contredit n'était pas une règle d'interface.** C'était que ==l'app se
+lit avec le curseur monté== — un invariant d'accessibilité, pas de typographie.
+Le titre trop petit n'en était qu'une manifestation.
+
+**D'où la conséquence de méthode, qui corrige les deux gestes sans les annuler.**
+On ne peut pas trier les défauts en « accidents » et « manifestations » avant de
+remonter : ==le tri est le résultat du remontage, pas son critère d'entrée==.
+Elle n'aurait pas trouvé en cherchant un défaut de titre ; elle l'a trouvé en
+cherchant ==d'où venait une divergence==.
+
+Donc la règle s'applique ==à tout défaut==, y compris — et surtout — à ceux qui
+ont l'air anodins. ==Le remontage n'est pas une sévérité supplémentaire, c'est
+un autre geste.==
+
+### Le même défaut ne se reconnaît pas quand il change d'échelle
+
+Relevé par la session des langues sources, le même jour, sur elle-même :
+
+> J'ai passé la matinée à mesurer une chose, et l'après-midi à la commettre
+> ailleurs.
+
+Le matin, elle déclarait une limite du pont Septante : il écrit `2617` là où le
+témoin écrit `2617 a`. L'après-midi, elle proposait qu'une fiche déclare `7203`
+là où le témoin écrit `7203 a`. ==Le même énoncé violé deux fois en un jour, à
+deux étages du projet==, par la personne qui venait de l'inscrire.
+
+    le pont écrit 2617    là où le témoin écrit 2617 a    → limite déclarée
+    une fiche écrirait 7203   là où le témoin écrit 7203 a  → rien ne joindrait
+
+**Et le second cas est muet**, ce qui le rend pire : `7203` nu n'existe pas dans
+le témoin — ==zéro occurrence==. Une fiche qui le déclarerait ne joindrait pas
+« moins », elle ne joindrait ==rien==, sans qu'aucun contrôle ne s'en plaigne.
+
+D'où la clause qui manquait aux deux gestes : ==remonter à un énoncé ne dispense
+pas de regarder si on vient de le violer soi-même ailleurs==. Une règle qu'on
+vient d'écrire est précisément celle qu'on croit tenir, donc celle qu'on ne
+vérifie plus.
+
+### Un énoncé coupe dans les deux sens — en appliquer la moitié, c'est croire le tenir
+
+Relevé par la session du vault, sur elle-même, une heure après avoir transmis
+la présente consigne.
+
+L'énoncé est celui du §2.5 ter : ==`1254 a` n'est pas `1254 b`==. Elle l'avait
+lu comme ==« écris la lettre »==, et c'est vrai. Mais il dit aussi l'inverse :
+==ne revendique pas une lettre qui n'est pas ton mot==.
+
+La fiche de `roʿeh` a déclaré un moment `7203 a + 7203 b`. Or les deux ne sont
+pas le même mot, et le témoin le montre par la préposition :
+
+    שָׁגוּ    בַּיַּיִן        b/3196        ils ont erré dans le vin
+             וּבַשֵּׁכָר      c/b/7941      et dans la boisson forte
+    שָׁגוּ    בָּרֹאֶה         b/7203 b      ils ont erré ba-roʾeh
+                              Rd/Ncmsa
+
+Le `b/` range `7203 b` ==dans la même série que le vin et la boisson forte==,
+et son étiquette est un ==nom==, non le participe des cinq de *1 Shemuel* 9.
+C'est ==la chose vue==, pas celui qui voit. Une fiche du Voyant qui le
+revendiquerait enverrait le lecteur ==vers l'égarement des ivrognes== — le mode
+d'échec exact que le §2.5 ter existe pour fermer.
+
+**D'où la clause, et elle est la plus coûteuse des trois à tenir :** ==une
+moitié d'énoncé appliquée est une règle qu'on croit tenir==. Elle ne se signale
+pas comme un manque — elle se signale comme une conformité.
+
+La fiche déclare désormais `7203 a` seul, et elle ==nomme== `7203 b` pour dire
+qu'elle ne le revendique pas, ==plutôt que de le taire== : une absence déclarée
+se relit, un silence non.
+
+### Un tube avale le code de sortie — et fabrique une réussite
+
+Relevé le 18 septembre 2026 par la session du vault, sur ses propres commandes,
+après un accident de la manageuse.
+
+    bash -c 'set -e; false | tail -1; echo ATTEINT'    →  ATTEINT
+    bash -c 'set -e; false; echo jamais'               →  arrêté
+
+==Une commande dont la sortie passe dans un tube n'est plus protégée par
+`set -e`== : c'est le statut du ==dernier maillon== qui compte, et `tail` réussit
+toujours.
+
+**Ce que ça a produit, et ce que ça aurait pu produire :**
+
+- un enchaînement de la manageuse a commité ==dans l'arbre partagé== : le
+  `worktree add` avait échoué, son échec a été avalé, le `cd` suivant a échoué à
+  son tour, et `add`/`commit`/`push` se sont exécutés dans le dossier courant.
+  ==Sans dégât par hasard== — l'arbre se trouvait sur la bonne branche ;
+- le vault écrivait `git push --quiet 2>&1 | tail -1` ==sur chaque PR de la
+  journée==. Si une poussée avait échoué — distant en avance, jeton expiré,
+  branche protégée —, ==le tube aurait avalé le code et la poussée aurait été
+  annoncée réussie à l'auteur==.
+
+**C'est le motif du 25 août sous une forme qu'on n'avait pas vue** : *le format
+de sortie survit à l'absence de mesure*. Ici ==le tube fabrique le format==. La
+ligne rendue est bien formée, elle ressemble à un succès, et rien n'a été mesuré.
+
+**Les trois remèdes, et ils ne coûtent rien :**
+
+    git -C <chemin> …          plutôt que `cd` puis `git` — ne dépend d'aucun
+                               dossier courant, donc aucun `cd` à réussir
+    pas de tube                sur ce dont l'échec doit arrêter le script
+    vérifier par les SHA       `rev-parse <branche>` contre
+                               `rev-parse origin/<branche>` — un push n'a pas
+                               de `set -e` pour le protéger en interactif
+
+==Le dernier est le seul qui mesure l'atterrissage== au lieu de lire ce que la
+commande a bien voulu dire. Les trois branches de cette entrée ont été
+vérifiées ainsi avant d'être annoncées.
+
+**Et une règle d'arbre partagé, du même accident** : ==ne jamais annoncer de
+mémoire la branche d'un arbre que six sessions lisent==. `git branch
+--show-current` coûte une commande ; l'inexactitude qui l'a remplacée a failli
+faire commiter un tiers sur `main`.
+
+### La forme négative : « je ne vois pas » devenu « il n'y a pas »
+
+Relevée par la session macOS sur elle-même, le 18 septembre au soir, et c'est
+==la plus sournoise des cinq==.
+
+Les quatre précédentes sont des conclusions ==positives== tirées du mauvais
+champ : un compte bien formé sur une question voisine. Celle-ci ne lit
+==aucun== champ — elle transforme *je ne vois pas* en *il n'y a pas*.
+
+Deux sessions ont affirmé ne pas voir leur place dans Herdr. L'une a écrit
+*« ni mon environnement, ni mes outils, ni aucun fichier de mon périmètre ne le
+portent »* — ==sans avoir lancé `env`==, qui portait sa place exacte.
+
+**Et elle se déguise en rigueur**, ce qui la rend difficile à attraper de
+l'intérieur : *« je ne peux pas le confirmer »* ==sonne comme de la prudence==,
+alors que la prudence aurait été de chercher. Une réponse qui s'abstient a
+l'air plus sage qu'une réponse qui affirme ; elle ne l'est que si l'abstention
+vient après la mesure.
+
+    ✗  X ne porte pas Y
+    ✓  j'ai cherché Y dans X, il n'y est pas
+    ✓  je n'ai pas cherché
+
+==La règle : ne jamais écrire « X ne porte pas Y » sans avoir lancé la commande
+qui chercherait==, et distinguer dans la phrase **« je n'ai pas cherché »** de
+**« j'ai cherché et il n'y a rien »**. Les deux sont honnêtes ; les confondre ne
+l'est pas.
+
+### Un contrôle vert est une affirmation sur l'instant où il a tourné
+
+Relevé par la session du site le 18 septembre au soir, et c'est ==la seule des
+six qui porte sur le temps== plutôt que sur la mesure.
+
+    #149  pass  8m36s   tourné AVANT l'arrivée des demi-anneaux
+    #150  pass  7m55s   idem
+    #151  fail  2m13s   tourné APRÈS — deux fiches sans définition
+
+Les trois disent la vérité. ==Les deux premières la disent d'un dépôt qui
+n'existe plus== : cinquante-deux clés du lexique ont changé entre-temps.
+
+**Fusionner sur un vert périmé ne casse pas seulement la branche**, et c'est ce
+qui le rend coûteux : ==la PR suivante porte le chapeau== d'un défaut qui n'est
+pas le sien. C'est exactement ce qui a tenu le corpus publié huit jours en
+arrière — le site a servi un texte du 10 septembre jusqu'au 18, et les deux
+gardes qui ont fini par voir la panne étaient ==externes==, ni l'une ni l'autre
+ne cherchant cela.
+
+==Le vert n'est pas un état, c'est un horodatage.== Avant de fusionner, regarder
+non pas *si* le contrôle est vert, mais ==quand il l'est devenu== — et ce qui a
+bougé depuis.
+
+**Et un corollaire que la journée a donné deux fois** : un espace où travaille
+==un seul agent n'a pas de témoin==. Le défaut qui bloquait le site était chez
+le seul qui y travaillait, donc personne ne pouvait le voir de l'intérieur.
+
+**Et il y a deux horodatages, non un.** Précision de la session du site, une
+heure après, sur un cas qu'elle a failli rapporter à l'envers.
+
+Le vault venait de fusionner le correctif. Elle a mesuré, trouvé le défaut
+toujours là, et s'apprêtait à écrire que la fusion n'avait rien changé. Elle a
+comparé les octets avant :
+
+    git ls-tree origin/main   lexique/basar-ʾechad.md   la fiche neuve
+    ls lexique/               basar-echad.md            l'ancienne
+    HEAD local du vault       68c7849                   avant la fusion
+
+==L'arbre qu'elle lisait n'avait pas tiré.== Elle régénère depuis ce dossier :
+sa mesure était fraîche, et sa source périmée.
+
+    l'horodatage du contrôle           se voit sur la PR
+    l'horodatage de ce qu'il a mesuré  ==ne se voit nulle part==
+
+Les deux se périment séparément, et aucun tableau n'affiche l'état du dépôt
+voisin au moment où le contrôle a tourné. D'où la règle courte, qui est d'elle :
+==un `fetch` met à jour ce qu'on voit, pas ce qu'on lit.==
+
+### Deux instruments justes peuvent couvrir le même angle
+
+Relevée par la session du vault le 18 septembre au soir, contre ==sa propre
+vérification et la mienne==, toutes deux exactes.
+
+Un agent Codex venait de commiter cinq fichiers qu'il avait laissés non commités
+dans l'arbre partagé. ==Deux sessions ont vérifié la sauvegarde== avant de
+laisser restaurer l'arbre : l'une par empreinte SHA-256, l'autre octet par
+octet. Les cinq fichiers identiques des deux côtés, deux fois.
+
+**Et les deux posaient la même question** — *le contenu du commit égale-t-il
+celui de l'arbre ?* Personne n'a posé l'autre : ==ce travail est-il durable ?==
+
+    ls-remote --heads origin <branche>     0
+    branch -r --contains <commit>          aucune
+    branch -a --contains <commit>          la branche locale, seule
+
+==Une branche locale, un seul disque, aucune copie serveur.== Mieux qu'un arbre
+sale — un commit ne s'efface pas par un `switch` — mais ce n'est pas ce que
+« sauvegardé » veut dire, et c'est ce que deux sessions lui avaient laissé
+croire.
+
+**Le motif, et il est plus utile que le cas :** ==on mesure ce qui vient d'être
+nommé==, parce que c'est la question fraîche, et non ce que la manœuvre engage
+vraiment.
+
+> ==Deux vérifications ne valent que si elles peuvent échouer pour des raisons
+> différentes.== Deux instruments justes qui couvrent le même angle laissent
+> l'autre entier.
+
+**Et c'est le même défaut que le 25 août par l'autre bout.** Ce jour-là, *trois
+instruments, trois fautes indépendantes, la même conclusion à chaque fois ; la
+concordance n'a rien prouvé*. Ici, deux instruments ==justes== qui concordent, et
+la concordance ne prouve pas davantage. ==Ce n'est donc pas la justesse des
+instruments qui est en cause, c'est qu'ils ne pouvaient pas se contredire.==
+
+**Le corollaire tient pour les sauvegardes comme pour les mesures — et il a
+fallu deux tours pour le formuler juste.**
+
+Premier jet : le filet gardé par la session qui avait alerté vivait dans `/tmp`,
+que le dépôt condamne déjà — *« un redémarrage a purgé `/tmp` et emporté tous
+les fichiers de travail »* —, donc ==deux copies qui meurent ensemble==.
+
+==C'était faux, et la session concernée l'a mesuré plutôt que de l'accepter== :
+le `.git` qui portait le commit n'est **pas** dans `/tmp`. Les deux copies
+mouraient de causes **différentes** :
+
+    redémarrage                    tuait le patch seul
+    ref de branche perdue, puis gc tuerait le commit seul
+    perte du disque                ==tue les deux==
+
+La couverture était donc ==partielle, pas nulle==, et c'est la troisième ligne
+qui vérifie la règle, non la première. La formulation juste est plus large :
+
+> ==Deux copies sur le même disque ne font pas deux copies.== Le seul geste qui
+> en fabrique une seconde est celui qui met les octets ==sur une autre
+> machine==.
+
+==Et c'est la septième forme appliquée à sa propre correction== : le premier
+jet nommait un risque réel et manquait le principal, parce qu'il mesurait ce
+qui venait d'être nommé — `/tmp` — plutôt que ce que la situation engageait.
+
+**Et le versant positif, relevé le surlendemain sur le même terrain.** Cinq
+worktrees à démonter ; ==cinq relevés indépendants== demandés aux sessions.
+Trois se contredisaient — l'un donnait un commit déjà poussé, l'autre trois
+orphelins au lieu d'un, le troisième le compte exact.
+
+==C'est la divergence entre eux qui a sorti la trouvaille==, non le soin de
+celui qui menait l'opération : un commit détaché sur une branche que son propre
+auteur avait supprimée le matin même, sans voir qu'un worktree y pendait.
+
+> ==Un relevé à la fois aurait été vérifié une seule fois, par la même
+> personne.== C'est la raison de fond pour laquelle un lot se décide mieux
+> qu'une unité — non l'économie de gestes, mais ==le désaccord qu'il rend
+> possible==.
+
+**Et le contrôle qui tranche est le contenu, jamais l'ascendance.** Un
+==écrasement== laisse pour toujours des commits « non poussés » sur une branche
+dont le contenu est ==intégralement dans `main`==. Deux sessions ont failli
+donner une fausse alerte sur ce point exact ; la question juste est *ce que
+cette branche porte que la cible n'a pas*, et elle se pose fichier par fichier.
+
+### Le motif de fond
+
+La dixième **chuqqah** soutient qu'une **chuqqah** ==ne se sait pas, elle
+s'habite==. Personne n'a jamais *appris* le §2.5 : on s'y cogne. Ce n'est pas de
+la **binah** — on ne cartographie pas ces règles depuis le dehors, on travaille
+dedans, et c'est ==en en sortant== qu'on s'en aperçoit.
+
+Conséquence pratique, et c'est elle qui change une habitude de session : ==le
+`CLAUDE.md` n'est pas une documentation qu'on consulte en cas de doute==. Il
+n'est pas la carte du vault, il est ==le dedans où l'on travaille==. Une session
+qui ne l'ouvre que bloquée s'en sert mal — et c'est le même défaut que la base
+de connaissances a révélé le 16 : *l'outil ne dort pas parce qu'il serait
+mauvais, il dort parce que le réflexe n'est pas installé*.
+
+**Ce qu'ils partagent avec les chuqqot du corpus est la forme, non le rang.**
+Les énoncés du corpus sont ceux d'une ontologie ancienne ; ceux du document de
+référence ne sont que les conventions d'un projet. L'observation vaut par sa
+structure — ce qui est gravé régit, et le reste en découle —, et elle ne tire
+aucune gloire de la comparaison.
+
+*Porté dans `brouillons/chuqqot/chuqqot-0-intro.md` par le vault (PR #109),
+section « Le dépôt qui les porte en a aussi ».*
+
+---
+
+
+## 21 septembre 2026, l'après-midi — porter un design system en l'exécutant
+
+L'auteur a demandé que la webapp soit **identique en tout point** à l'app iOS —
+design system compris. Les couleurs sont la première pièce, et la façon de les
+prendre est la seule chose de cette entrée qui vaille pour les trois dépôts.
+
+### On ne lit pas un design system, on l'interroge
+
+`ONTColors` n'est pas une table de constantes : c'est un **enum de fonctions du
+thème**, et onze de ses vingt rôles calculent — mélanges, opacités, dérivations.
+
+Un extracteur textuel aurait rendu les neuf constantes justes et les onze autres
+**fausses avec l'air d'être bonnes**. C'est le pire des deux : une valeur
+absente se voit, une valeur plausible se croit.
+
+Le site a donc posé un exécutable Swift de quarante lignes qui **importe**
+`ONTDesignSystem` et appelle chaque fonction. Quatre-vingts valeurs en une
+commande, et aucune ne traverse un message.
+
+> ==Une valeur qui voyage dans un message se périme en silence ; un chemin se
+> relit ; un code s'exécute. La semaine du 11 au 18 a coûté trois fois la
+> première façon — une terre brûlée écartée deux jours plus tôt, un `contrat`
+> annoncé à 4 pour un pipeline à 3, un contre-exemple qui n'existait qu'en
+> fixture.==
+
+### Le seul contrôle qui prouve quelque chose est celui dont on sait la réponse
+
+Le thème `mystique` est né dans le site et a été transposé dans l'app en août.
+Il doit donc **revenir identique** — et il revient 9/9.
+
+C'est le seul cas de toute la chaîne dont les deux dépôts connaissent la réponse
+d'avance. Un contrôle qui ne peut pas rougir ne prouve rien ; celui-là a une
+réponse écrite ailleurs, avant d'être posé.
+
+Et il a fallu le **geler** plutôt que le relire : la feuille du site prend
+maintenant ses couleurs de la sortie du script, donc la relire aurait fait
+vérifier au script sa propre sortie. Une transcription est une valeur qu'on
+recopie et qui doit suivre sa source ; un témoin est un **point fixe** qui ne
+doit jamais bouger. Les deux se ressemblent et ne se traitent pas pareil.
+
+### Une garde qui s'arrête vaut mieux qu'une garde qui suit
+
+Les deux gardes de contraste du site relevaient treize littéraux hexadécimaux.
+Ils sont devenus des variables. Elles ont **refusé** — leur relevé exigeait un
+littéral, il a trouvé `var(--ont-background)`.
+
+C'était la bonne réaction, et elle n'allait pas de soi : une garde qui aurait
+« suivi » la variable aurait mesuré la palette du défaut **en croyant mesurer
+les quatre**. Elle serait restée verte, sur trois palettes qu'elle n'aurait
+jamais regardées.
+
+### Ce qu'elles ont trouvé, et qui appartient à l'app
+
+Le site tient **6,4:1** sur son fond de page — pas AA, qui s'arrête à 4,5. Le
+plancher a un nom : le kératocône de l'auteur, qui diffuse la lumière et
+confond les contours proches.
+
+Les trois palettes portées ne le tiennent pas, et l'une des mesures dépasse le
+cas du site :
+
+| sur le fond de page | parchemin | clair | sombre | mystique |
+|---|---|---|---|---|
+| `accent` | **3,12** | **3,39** | 9,83 | 10,42 |
+| `inkSoft` | **4,62** | **4,61** | 6,51 | 6,50 |
+| `accentuation` | 8,11 | 8,81 | **6,16** | 6,54 |
+| `shem` | 9,57 | 10,40 | **6,14** | 6,51 |
+
+**`ONTColors.accent` sur les thèmes clairs donne 3,12:1** — sous AA. Partout où
+il porte du texte plutôt qu'un filet ou une icône, c'est un défaut
+d'accessibilité, et il ne concerne pas que le site.
+
+Le site **ne l'a pas corrigé**, et c'est la règle à retenir : corriger la valeur
+d'un seul côté ferait exactement la divergence que le portage existe pour
+empêcher. Elle est relevée, transmise à l'app, et tenue par un cliquet à double
+sens — elle ne peut ni empirer, ni s'améliorer sans que la table le dise.
+
+**Et la retenue a payé dans l'heure.** La session macOS a refait le calcul de son
+côté, depuis un autre dépôt et une autre implémentation de la luminance :
+**3,11 / 3,32 / 3,39** contre **3,12 / 3,31 / 3,39** ici, à l'arrondi près.
+
+Puis elle a trouvé ce qu'aucun relevé fait depuis le site ne pouvait voir : **le
+jeton porte du texte dans `ONTFeatures`**, donc sur les trois plateformes à la
+fois — `ReferencePicker.swift:284` (un `Label`) et `LexiconTab.swift:91` (une
+lettre de tranche en *footnote semibold*, ~13 pt, donc pas du « grand texte » au
+sens WCAG, donc 4,5:1 exigé).
+
+> ==« Un jeton est faible » se discute ; « deux endroits nommés rendent du texte
+> à 3,1:1 » se corrige.== Une mesure sans chemin reste une opinion sur une
+> valeur. Le défaut est arrivé complet parce qu'aucun des deux dépôts ne l'a
+> réparé à moitié avant que l'autre l'ait vu.
+
+### Et une leçon de cascade, qui resservira partout
+
+`:root` et `[data-theme='…']` ont la **même spécificité**. À égalité, c'est
+l'ordre de la feuille qui tranche — le piège de `Bloc` et `max-w-mesure` rejoué
+un étage plus bas.
+
+Le bloc du défaut porte les deux sélecteurs, pour que la page se peigne sans
+JavaScript. Écrit en dernier, il gagnait contre les trois autres sur l'élément
+racine.
+
+Le défaut s'est vu exactement comme le §8 sexies du site l'annonce : **quatre
+aperçus sortis identiques à l'octet près**. Sans cette comparaison, on serait
+allé chercher la panne dans le signal, l'hydratation ou l'attribut — trois
+endroits où il n'y avait rien.
+
+### Et une leçon de vérification, qui vaut pour les trois dépôts
+
+Le thème a été borné à la liseuse, et la première version le bornait **par
+l'URL**. Elle a été prise en défaut avant d'être livrée, par un banc qui charge
+le site dans un cadre de même origine et clique un lien à sa place :
+
+```
+14 s  url=/fr  peau=—      titre=Le cosmos hébreu   ← clic vers la liseuse
+16 s  url=/fr  peau=clair  titre=Le cosmos hébreu
+```
+
+La page d'accueil portait la peau de la liseuse — le rendu qui venait d'être
+écarté. La peau se pose maintenant par **montage** d'un composant que seule la
+page de lecture monte : elle suit la vue par construction.
+
+> ==Une condition qui dépend d'un état *en cours de changement* — une URL
+> pendant une navigation, une pile pendant une transition — est fausse pendant
+> l'intervalle. Faire dépendre l'affichage du **montage** plutôt que de l'état
+> supprime l'intervalle au lieu de le raccourcir.==
+
+Et la seconde moitié compte autant : **on n'a pas fait dire au banc plus qu'il
+ne dit.** La cause exacte n'est pas établie — sur la version corrigée, le banc
+n'obtient plus aucune navigation, ni vers la liseuse ni ailleurs. Un clic
+synthétique dans un cadre ne pilote pas ce routeur ; il observe.
+
+Ce qui est établi suffisait : le défaut a été **vu**, il ne peut plus survenir.
+La seconde propriété ne dépend d'aucune hypothèse sur l'outil qui a trouvé la
+première — c'est ce qui la rend préférable à une explication plausible.
+
+
+## 21 septembre 2026, le soir — la webapp, et ce qu'un portage rapporte
+
+L'auteur a demandé que la webapp soit identique en tout point à l'app. Le
+portage est fait : couleurs, thèmes, typographie, fontes, navigation, icône,
+métriques. Ce qui suit ne retient que ce qui vaut pour les trois dépôts.
+
+### Un portage ne tient pas seulement d'accord, il rapporte
+
+Le site portait les cinq pastels **de jour** de l'app, posés sur sa nuit
+d'aubergine. Sa garde inscrivait la dette depuis des semaines, avec son propre
+diagnostic : « ce sont les six couleurs à la fois — soit l'opacité, soit un
+marquage qui s'ajusterait au fond réel. Un chantier, pas un correctif. »
+
+Le chantier était fait chez le voisin. Les trois marquages les plus faibles
+passent de 2,29:1 à 4,43:1 — d'illisible à au-dessus d'AA — sans qu'une seule
+décision ait été prise ici.
+
+> ==Personne d'un côté n'a cherché ce gain, personne de l'autre ne savait qu'il
+> manquait. Un an de divergence, et chacun aurait réparé son côté — deux fois
+> le même travail, avec deux résultats différents.==
+
+### Le site a un réglage là où l'app en a deux, et c'est arrivé deux fois
+
+D'abord sur les largeurs — `readingWidth 700` borne la prose, `pageWidth 850`
+borne une page, et macOS l'a dit : *la leçon n'est ni l'une ni l'autre valeur,
+c'est qu'il en faut deux.*
+
+Puis sur les échelles. L'app règle l'interface et le corps du texte
+**séparément**, et son code dit pourquoi : *un lecteur atteint de kératocône
+monte le corps du texte très haut pour lire, et n'a aucune raison de faire
+enfler du même geste une barre latérale qui lui mangerait la place où ce texte
+s'affiche.*
+
+> ==Quand un voisin a deux réglages là où l'on en a un, la question n'est pas
+> « lequel reprendre » mais « qu'est-ce qu'il distingue que je confonds ».==
+
+### Une valeur n'est portable que si l'on sait ce qu'elle compense
+
+La session iOS a séparé, dans une même liste de six nombres, celui qui ne
+devait pas voyager : `hebrewScale = 1,08` n'est pas un rapport de hiérarchie,
+c'est une compensation de fonte — EzraSIL a un œil plus petit que Literata à
+taille égale. Sans EzraSIL servie, le 1,08 serait faux.
+
+Il se trouve que le site la sert, donc la compensation voyage. Mais la réserve
+était juste, et elle aurait coûté si elle n'avait pas été posée.
+
+### Mesurer contre la spécification n'est pas mesurer à l'exécution
+
+Deux sessions ont vérifié les multiplicateurs du Dynamic Type, et aucune ne les
+a mesurés sur un appareil : elles ont confirmé qu'ils **reproduisent la table
+publiée**. Ce sont deux affirmations différentes, et le dire coûte une ligne.
+
+> ==« J'ai vérifié » ne dit pas *contre quoi*. Une vérification qui ne nomme
+> pas sa référence se lit comme une mesure.==
+
+### Une propriété personnalisée ne se lit que vers le bas
+
+Deux fois dans la journée, sur deux dépôts de problème différents :
+
+- `[data-fonte='x'] .liseuse` est une **descendance** — vrai sur la racine,
+  faux sur une ligne de menu qui porte les deux sur le même élément. Six lignes
+  composaient juste, la septième non ;
+- une hauteur déclarée **sur** la barre d'onglets était invisible au bouton
+  flottant, qui en est le **frère**.
+
+> ==Une variable CSS descend, elle ne traverse pas. Et le jeton honnête est
+> celui auquel l'élément se conforme, pas celui qui décrit l'élément d'à
+> côté.== Un nombre qui décrit la géométrie d'un autre élément est toujours
+> faux quelque part — c'est la leçon de `--hauteur-entete`, reprise du bon côté.
+
+
+## 29 septembre 2026 — le site prend une dépendance de plus, et une absence se mesure
+
+L'écran de lecture de la webapp a été aligné sur celui de l'app, et deux choses
+en sortent qui ne se voient pas depuis un seul dépôt.
+
+### `dist/prononciation.json` est devenu une dépendance de compilation du site
+
+Le site l'embarque par `include_str!`, comme `corpus.json`, `glossary.json`,
+`shemot.json` et `occurrences.json`. **S'il disparaît ou change de forme, le
+site ne compile plus** — pas une page qui manque, une compilation qui échoue.
+
+C'est le comportement voulu, et c'est le même arbitrage que pour les quatre
+autres : mieux vaut une compilation qui rougit qu'un dossier de données absent
+à l'exécution. Mais il faut le savoir avant de le retirer du pipeline.
+
+La forme, elle, est tenue par `pipeline::PrononciationFile`, que les deux
+dépôts partagent — donc un renommage de champ se voit à la compilation des
+deux côtés, et non à l'affichage d'un seul.
+
+### `dist/chuqqot.json` est émis, et ses `entries` sont vides
+
+Relevé, pas déduit : le fichier existe, son tableau est de longueur zéro. Le
+pipeline fait donc son travail, et c'est le **vault** qui n'a encore écrit
+aucune chuqqah.
+
+Conséquence pour les trois : l'onglet Chuqqot existe dans l'app et pas sur le
+site, et ce n'est pas un retard de portage. Le jour où le vault en écrit une,
+c'est le site qui doit suivre — pas l'inverse.
+
+### Une contrainte transmise entre sessions doit être datée ou revérifiée
+
+Le `CLAUDE.md` du site écartait **Qahal et Chuqqot ensemble**, « des
+fonctionnalités à écrire, et non de la chrome à porter ». C'était juste pour
+l'une et faux pour l'autre : Qahal n'attend rien — l'app le dit elle-même,
+« structure posée, sans serveur », et le site porte déjà le verset du jour par
+la même fonction de la date.
+
+Deux minutes dans `dist/` tranchaient, et personne ne les avait passées parce
+que la phrase était écrite. C'est le défaut du portail GitHub de l'OAuth,
+rejoué chez nous : une contrainte de plateforme qu'on se transmet entre
+sessions se relit sans qu'on la remette en cause.
+
+> ==Une phrase qui **écarte** quelque chose doit dire ce qui la rendrait
+> fausse.== « Ce sont des fonctionnalités, pas de la chrome » ne se vérifie
+> nulle part ; « `dist/chuqqot.json` a zéro entrée » se vérifie en une
+> commande.
+
+Le même défaut, la même journée, sur le même fichier : « le site ne suit pas
+encore la position de lecture » était vrai à l'écriture du §8 nonies et faux
+depuis que le compte existe. `retenir_la_position` est appelée à chaque
+ouverture d'unité, et la page du compte affichait déjà le résultat.
+
+### Et une leçon de portage, qui vaut pour les trois
+
+Deux commentaires de l'app disaient **ne pas copier** une pièce, et les deux
+portaient sur le dessin, pas sur le contenu :
+
+- la session macOS : *« ne pas copier sa barre latérale »*, parce que le Mac la
+  dessine à la main pour contourner trois défauts d'AppKit. Mais son propre
+  code dit que l'iPad montre **le même corpus** — *« Sur l'iPad il est toujours
+  visible »*. Ce qu'il ne fallait pas copier était le contournement ;
+- `ONTPlatformes.swift` : *« que des accidents de SwiftUI »*. Un seul méritait
+  le voyage, et il avait été nommé.
+
+> ==Un « ne copie pas ça » nomme une **cause**, pas une pièce. Relire la cause
+> avant d'obéir : quand elle n'existe pas chez soi, la pièce, elle, peut
+> valoir.==
+
+
 ## La règle
 
 Après **chaque** travail dans l'un des dépôts, avant de dire que c'est fini :
@@ -476,6 +1569,7 @@ qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
 | `ONTBibleApp-android` | **Android** | poste actif |
 | `ONTBibleApp-mac` | **macOS** | poste actif |
 | `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
+| `ONTBibleApp-journal` | **iOS** | concorder le journal sans écraser — PR #338 |
 | `ONTBibleApp-cd` | **iOS** | inscrire le `cd` qui échoue — PR #328 |
 | `ONTBibleApp-worktrees` | la manageuse | PR #326 |
 | `ONTBibleApp-index` | ==non réclamé== | commits du 11 septembre |
