@@ -46,8 +46,79 @@ public object Observabilite {
      * l'app. Le garder « secret » donnerait l'illusion d'une protection que le
      * paquet livré dément.
      */
+    /**
+     * Faut-il remonter quoi que ce soit, depuis ce build-ci ?
+     *
+     * ## Le défaut que ça ferme
+     *
+     * Un `./gradlew installDebug` alertait **comme la production**, au même
+     * projet Sentry. Pire : `tracesSampleRate` valait `1.0` en debug contre
+     * `0.2` en release — donc un build de développement envoyait *cinq fois
+     * plus* de traces qu'une app entre les mains d'un lecteur.
+     *
+     * Relevé par la session iOS le 29 septembre 2026, après que l'auteur a reçu
+     * un courriel Sentry pour un blocage de douze secondes qui ne venait
+     * d'aucun lecteur — c'était son propre appareil, sous un build posé par les
+     * scripts de lancement.
+     *
+     * ## Pourquoi une fonction pure, et pourquoi elle prend son monde
+     *
+     * `BuildConfig.DEBUG` ne se pose pas depuis un test JVM. Une garde qui le
+     * lirait elle-même ne serait **pas éprouvable** — et une garde non
+     * éprouvable est exactement ce qui a laissé passer le défaut. Elle reçoit
+     * donc ce qu'elle décide, et l'appelant lui donne le vrai monde.
+     *
+     * ## La porte, et pourquoi elle existe alors que rien ne l'emploie
+     *
+     * Couper sans exception rendrait inerte, **en silence**, toute épreuve qui
+     * voudrait vérifier que la chaîne de remontée marche de bout en bout : rien
+     * n'échouerait, le tableau de bord resterait simplement vide.
+     *
+     * Android n'a aujourd'hui aucune épreuve de ce genre — mesuré : aucun
+     * argument de lancement, aucun extra d'intent, aucun mode qui force une
+     * panne. La porte est donc posée **avant** d'en avoir besoin, pour que
+     * celle qui en écrira une la trouve plutôt que de rouvrir le défaut.
+     *
+     * Elle passe par une propriété Gradle, et non par un extra d'intent :
+     * `demarrer` est appelée depuis `Application.onCreate`, qui n'a pas
+     * d'intent. C'est le pendant de l'argument de lancement d'iOS.
+     *
+     *     ./gradlew installDebug -PsentryEnDebug=1
+     */
+    internal fun doitRemonter(
+        debug: Boolean,
+        sousTest: Boolean,
+        porteOuverte: Boolean,
+    ): Boolean = when {
+        // Un test qui remonterait polluerait le tableau de bord à chaque
+        // exécution de la CI, et avec des piles qui ne décrivent rien.
+        sousTest -> false
+        !debug -> true
+        else -> porteOuverte
+    }
+
+    /**
+     * Tourne-t-on sous un lanceur de tests ?
+     *
+     * On cherche la classe plutôt qu'un drapeau : un test **instrumenté**
+     * instancie l'`Application` pour de vrai, donc `BuildConfig.DEBUG` ne le
+     * distingue pas d'un lancement ordinaire.
+     */
+    private fun sousTest(): Boolean = runCatching {
+        Class.forName("androidx.test.platform.app.InstrumentationRegistry")
+        true
+    }.getOrDefault(false)
+
     public fun demarrer(contexte: Context, dsn: String) {
         if (dsn.isBlank() || dsn.contains("à-remplir")) return
+        if (!doitRemonter(
+                debug = BuildConfig.DEBUG,
+                sousTest = sousTest(),
+                porteOuverte = BuildConfig.SENTRY_EN_DEBUG,
+            )
+        ) {
+            return
+        }
 
         SentryAndroid.init(contexte) { options ->
             options.dsn = dsn

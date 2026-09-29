@@ -133,6 +133,25 @@ android {
         versionCode = numeroDeVersion()
         versionName = "0.1.1"
 
+        // ## La porte qui laisse remonter depuis un build de développement
+        //
+        // `Observabilite.doitRemonter` coupe Sentry en debug. Cette propriété
+        // est la seule façon de rouvrir, et elle se demande explicitement :
+        //
+        //     ./gradlew installDebug -PsentryEnDebug=1
+        //
+        // Elle existe pour qu'une épreuve de bout en bout reste possible. Sans
+        // elle, couper rendrait une telle épreuve **inerte en silence** — rien
+        // n'échouerait, le tableau de bord resterait vide, et l'on chercherait
+        // le défaut dans la chaîne de remontée plutôt que dans la coupure.
+        //
+        // `false` par défaut : la porte se pousse, elle ne s'entrouvre pas.
+        buildConfigField(
+            "boolean",
+            "SENTRY_EN_DEBUG",
+            (project.findProperty("sentryEnDebug") == "1").toString(),
+        )
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
