@@ -56,6 +56,41 @@ information, et il se voit.
 
 ---
 
+## #332 · Aligner le tronc commun : trois sections manquaient
+
+    ouverte le   21 septembre 2026, par la manageuse
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Les quatre `SYNCHRONISATION.md` portent un ==tronc commun== plus
+des entrées marquées *(local)*. Trois sections écrites dans le vault n'étaient
+jamais passées ici : le tronc avait divergé sans que rien ne le dise, parce
+que ==chaque exemplaire était cohérent avec lui-même==.
+
+**Ce que ça engage.** Rien de technique. Mais c'est le fichier que toutes les
+sessions lisent avant de clore un travail : une section absente ici est une
+règle que le site ne connaît pas.
+
+==La divergence est plus large que cette PR ne la répare==, et il faut le dire
+plutôt que de laisser croire qu'elle la solde. Mesuré le 29 septembre, en
+comptant les ==entrées (`###`)== et non les sections (`##`) — la première
+mesure comptait les mauvaises :
+
+    ONTBibleApp            257
+    racine                 197
+    ONTBibleWebapp         197
+    ONTBibleTranslation    167
+
+==90 entrées d'écart== entre l'app et le vault, et ==aucun `cp` possible dans
+aucun sens==. Le vault a soulevé le point que personne n'avait mesuré : une
+part de ces 90 pourrait être des entrées ==locales mal classées dans le
+tronc== — `SYNCHRONISATION-locale.md` existe déjà dans quatre arbres —, qu'une
+union naïve propagerait aux trois dépôts. ==Ce serait l'inverse exact de la
+règle.==
+
+Cette PR porte les trois sections qui manquaient ; ==elle ne prétend pas
+reconvergir les quatre exemplaires==, et le chantier reste ouvert.
+
 ## #328 · Inscrire le `cd` qui échoue en silence, et la garde qui le rattrape
 
     ouverte le   21 septembre 2026, par iOS
