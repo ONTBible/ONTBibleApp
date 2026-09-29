@@ -153,7 +153,40 @@ final class Composition {
         // qu'on éprouve précisément sans corpus.
         let sources = DiskSourcesRepository(socle: BundleSourcesRepository(bundle: source))
         self.sourcesSurDisque = sources
-        let store = FileReaderStore()
+        // **En mode capture, le lecteur est neuf — et c'est le seul moyen.**
+        //
+        // Une vitrine ne doit dépendre d'aucun état de la machine : ni de
+        // l'onglet quitté, ni de la barre repliée, ni du thème de la dernière
+        // séance. Sur simulateur, la session iOS ferme la famille entière d'un
+        // geste — elle désinstalle avant d'installer, et le conteneur repart
+        // vide.
+        //
+        // **Ce remède ne traverse pas.** Le conteneur du Mac est le *vrai*
+        // lecteur de l'auteur : `lecteur.json` y tient ses surlignages, ses
+        // notes, sa position et ses réglages. L'effacer pour une campagne de
+        // captures détruirait son travail. Et le domaine des arguments de
+        // lancement — qui porte déjà `-tailleDeCapture` et `-tab` — ne
+        // l'atteint pas : ces réglages-ci viennent d'un JSON, pas de
+        // `UserDefaults`.
+        //
+        // D'où ce geste, qui est l'autre moitié du même énoncé : **pointer
+        // ailleurs plutôt qu'effacer.** Le store part dans un dossier jetable,
+        // l'auteur garde tout, et la vitrine montre ce qu'un lecteur neuf voit
+        // — c'est-à-dire les valeurs par défaut, qui sont la seule référence
+        // qu'une vitrine puisse avoir.
+        //
+        // Le défaut que ça ferme, mesuré le 19 septembre : mes affiches
+        // disaient « Parashiot » quand celles de l'iPhone disaient
+        // « Chapitres ». Ni l'une ni l'autre n'était fausse — la mienne portait
+        // le réglage « français reçu » de la machine de l'auteur, l'autre le
+        // défaut d'un conteneur neuf. La fiche montrait donc l'app dans deux
+        // langues, et aucun contrôle ne pouvait le dire.
+        let store: FileReaderStore =
+            if let jetable = UserDefaults.standard.string(forKey: "lecteurJetable") {
+                FileReaderStore(directory: URL(fileURLWithPath: jetable))
+            } else {
+                FileReaderStore()
+            }
         // Un fichier à part : le profil se supprime avec le compte, les
         // réglages de lecture survivent à une déconnexion.
         let profils = FileProfilStore()
