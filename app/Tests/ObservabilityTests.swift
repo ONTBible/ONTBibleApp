@@ -239,3 +239,74 @@ struct EnveloppeExpurgeeTests {
         #expect(sorti.extra?["actif"] as? Bool == true)
     }
 }
+
+/// Qui a le droit de parler à Sentry.
+///
+/// ## Ce que ces épreuves mesurent, et pourquoi elles ne pouvaient pas exister
+/// ## avant
+///
+/// `start()` lit son monde — `#if DEBUG`, l'environnement du processus — et
+/// rien de tout ça ne se pose depuis un test. La décision a donc été sortie
+/// dans `doitRemonter(debug:sousXCTest:arguments:)`, qui prend son monde en
+/// paramètre.
+///
+/// **Elles rougissent contre le code d'avant.** Celui-ci ne consultait que
+/// `isRunningUnderXCTest` : un build Debug remontait sans condition, et les
+/// deux premières épreuves ci-dessous échouaient.
+struct RemonteeAutoriseeTests {
+    /// Les chaînes sont écrites à la main, et pas lues depuis `portesDeDebug`.
+    /// Une épreuve qui lirait la constante mesurerait la constante contre
+    /// elle-même — elle resterait verte si on vidait la liste.
+    @Test("un build Debug ordinaire ne remonte rien")
+    func debugSeTait() {
+        #expect(
+            Observability.doitRemonter(debug: true, sousXCTest: false, arguments: ["ONT"])
+                == false)
+    }
+
+    @Test("`-sentry-en-debug` rallume la remontée pour ce lancement")
+    func laPorteExplicite() {
+        #expect(
+            Observability.doitRemonter(
+                debug: true, sousXCTest: false, arguments: ["ONT", "-sentry-en-debug"]))
+    }
+
+    /// L'épreuve de bout en bout de la chaîne de remontée passe par là : sans
+    /// cette porte, `-corpus-absent` lèverait bien son erreur et le tableau de
+    /// bord resterait vide, sans que rien échoue.
+    @Test("`-corpus-absent` rallume la remontée — sinon il n'éprouve plus rien")
+    func laPorteDeLEpreuve() {
+        #expect(
+            Observability.doitRemonter(
+                debug: true, sousXCTest: false, arguments: ["ONT", "-corpus-absent"]))
+    }
+
+    @Test("un build Release remonte, sans avoir besoin d'argument")
+    func releaseRemonte() {
+        #expect(Observability.doitRemonter(debug: false, sousXCTest: false, arguments: ["ONT"]))
+    }
+
+    /// XCTest l'emporte sur tout : la cible de test est hébergée par l'app,
+    /// donc `Bundle.main` porte le vrai DSN.
+    @Test("sous XCTest, aucune porte ne rouvre la remontée")
+    func xctestFermeToutesLesPortes() {
+        for argument in ["-corpus-absent", "-sentry-en-debug"] {
+            #expect(
+                Observability.doitRemonter(
+                    debug: true, sousXCTest: true, arguments: ["ONT", argument]) == false)
+            #expect(
+                Observability.doitRemonter(
+                    debug: false, sousXCTest: true, arguments: ["ONT", argument]) == false)
+        }
+    }
+
+    /// Un argument voisin ne doit pas ouvrir : la comparaison est exacte, pas
+    /// un préfixe.
+    @Test("un argument qui ressemble à une porte n'en est pas une")
+    func pasDeCorrespondanceApproximative() {
+        #expect(
+            Observability.doitRemonter(
+                debug: true, sousXCTest: false, arguments: ["ONT", "-sentry-en-debug-verbeux"])
+                == false)
+    }
+}
