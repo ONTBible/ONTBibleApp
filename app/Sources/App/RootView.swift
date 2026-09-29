@@ -107,6 +107,17 @@ struct RootView: View {
             router.open(url) ? .handled : .systemAction
         })
         .onOpenURL { router.open($0) }
+        // **Les raccourcis de l'icône passent par ici**, faute de pouvoir
+        // passer par `onOpenURL` : iOS n'ouvre pas une app par son propre
+        // schéma. Voir `RaccourciEnAttente` pour le détail de l'échec muet.
+        //
+        // Relevé à l'apparition **et** au changement : le premier couvre le
+        // démarrage à froid, où le delegate dépose avant que cette vue
+        // existe ; le second, l'app déjà ouverte.
+        .onAppear { if let u = RaccourciEnAttente.partage.relever() { _ = router.open(u) } }
+        .onChange(of: RaccourciEnAttente.partage.url) { _, _ in
+            if let u = RaccourciEnAttente.partage.relever() { _ = router.open(u) }
+        }
         // ## Le thème est reposé **dans** la feuille, et il le faut
         //
         // Une feuille hérite de l'environnement de l'endroit où elle est
