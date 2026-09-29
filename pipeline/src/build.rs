@@ -815,6 +815,22 @@ pub fn build() -> Result<BuildResult, String> {
     ors_morts.sort();
     ors_morts.dedup();
 
+    // **Les refus de la garde des formes**, relevés à la source.
+    //
+    // Triés par fiche pour qu'un rapport se relise à l'identique d'une
+    // construction à l'autre : un ordre de `HashMap` ferait diverger deux
+    // sorties du même vault, et la confrontation au manifeste rougirait sans
+    // qu'aucun contenu ait changé.
+    let mut proses_dans_les_formes: Vec<(String, String)> = fiches
+        .values()
+        .flat_map(|f| {
+            f.refus_de_formes
+                .iter()
+                .map(|ligne| (f.titre.clone(), ligne.clone()))
+        })
+        .collect();
+    proses_dans_les_formes.sort();
+
     // **Déclaré n'est pas défini.** `tagged` dit que le terme est balisé (§2.5),
     // `definition` qu'il a un champ sémantique (§3). Un terme peut avoir l'un
     // sans l'autre : il paraît alors en or, il est touchable, et sa fiche
@@ -1670,6 +1686,7 @@ pub fn build() -> Result<BuildResult, String> {
             superseded: &lu.superseded,
             fiches_orphelines: &fiches_orphelines,
             ors_morts: &ors_morts,
+            proses_dans_les_formes: &proses_dans_les_formes,
             shemot_sans_fiche: &shemot_sans_fiche,
             niveau_trois: &restes_du_niveau_trois,
             chuqqot_en_attente: &chuqqot.en_attente,
@@ -1844,6 +1861,10 @@ struct Anomalies<'a> {
     superseded: &'a [String],
     fiches_orphelines: &'a [String],
     ors_morts: &'a [String],
+    /// Les lignes de `## Formes` écartées parce qu'elles sont de la prose.
+    ///
+    /// `(fiche, ligne)` — pour qu'on sache où corriger sans chercher.
+    proses_dans_les_formes: &'a [(String, String)],
     /// Les Shemot que le corpus nomme et pour lesquels aucune fiche n'existe.
     ///
     /// **Ils étaient comptés, triés, dédoublonnés — puis seul `.len()`
@@ -1912,6 +1933,7 @@ fn format_report(
         superseded,
         fiches_orphelines,
         ors_morts,
+        proses_dans_les_formes,
         shemot_sans_fiche,
         niveau_trois: restes_du_niveau_trois,
         chuqqot_en_attente,
@@ -2141,6 +2163,35 @@ fn format_report(
         ]);
         for o in ors_morts {
             l.push(format!("- {o}"));
+        }
+    }
+
+    // **Une section `Formes` qui contient une phrase est une erreur d'écriture
+    // certaine** — il n'existe aucun cas légitime. Le parseur les ingérait
+    // sans se plaindre, et la faute ne pouvait se voir ni à l'écriture, ni à
+    // la construction, ni en CI : quatre fiches la portaient depuis des
+    // semaines, neuf fausses clés de jointure en sortaient.
+    //
+    // Relevé par la session du vault le 28 septembre 2026, en reconstruisant.
+    // La garde vit dans `reference::ne_peut_pas_etre_une_forme` ; cette
+    // section est ce qui la rend visible — écarter en silence serait la même
+    // faute d'un cran plus bas.
+    if !proses_dans_les_formes.is_empty() {
+        l.extend([
+            String::new(),
+            "## De la prose dans une section `Formes`".into(),
+            String::new(),
+            "Ces lignes ont été **écartées** : une forme ne porte ni ponctuation".into(),
+            "de phrase, ni chiffre, et ne dépasse pas six mots. Prises".into(),
+            "pour des formes, elles deviendraient des clés de jointure qui ne".into(),
+            "correspondraient jamais à rien.".into(),
+            String::new(),
+            "Le remède : un titre `##` avant la note, pour qu'elle sorte de la".into(),
+            "section.".into(),
+            String::new(),
+        ]);
+        for (fiche, ligne) in proses_dans_les_formes {
+            l.push(format!("- `{fiche}` — {ligne}"));
         }
     }
 
@@ -2577,6 +2628,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                proses_dans_les_formes: &[],
                 chuqqot_en_attente: &[],
                 niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &sans,
@@ -2611,6 +2663,7 @@ mod tests {
                 superseded: &[],
                 fiches_orphelines: &[],
                 ors_morts: &[],
+                proses_dans_les_formes: &[],
                 chuqqot_en_attente: &[],
                 niveau_trois: &niveau_trois::Restes::default(),
                 shemot_sans_fiche: &[],
