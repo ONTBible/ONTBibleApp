@@ -56,6 +56,40 @@ information, et il se voit.
 
 ---
 
+## #344 · Taire Sentry en développement, et poser la porte qui rouvre
+
+    ouverte le   29 septembre 2026, par Android
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Un `./gradlew installDebug` alertait comme la production, au même
+projet Sentry — et cinq fois plus fort, `tracesSampleRate` valant `1.0` en debug
+contre `0.2` en release. La seule garde portait sur le DSN vide. Le défaut a été
+relevé par la session iOS, qui corrigeait le même chez elle le même jour, après
+un courriel Sentry pour un blocage de douze secondes qui ne venait d'aucun
+lecteur : c'était l'appareil de l'auteur.
+
+La décision est extraite dans une fonction qui **prend son monde en paramètre**,
+parce que `BuildConfig.DEBUG` ne se pose pas depuis un test JVM — une garde qui
+le lirait elle-même serait invérifiable, et c'est ce qui a laissé passer le
+défaut.
+
+**Ce que ça engage.** ==Rien chez les voisins== : `Observabilite.kt` et
+`build.gradle.kts` sont propres à Android, et la correction iOS existe déjà de
+son côté. La **forme**, elle, traverse — `doitRemonter(debug, sousTest,
+porteOuverte)` est le transposé du `doitRemonter(debug:sousXCTest:arguments:)`
+d'iOS, et les deux plateformes tiennent désormais la même règle par le même
+découpage. Une divergence future sur l'une se verra en comparant les deux
+signatures.
+
+Le site n'est pas concerné : il n'envoie rien à Sentry.
+
+**Une porte est posée alors que rien ne l'emploie**, et c'est délibéré : couper
+sans exception rendrait inerte *en silence* une épreuve de bout en bout. Android
+n'en a aucune aujourd'hui — mesuré, zéro argument de lancement et zéro extra
+d'intent. La porte existe pour que celle qui en écrira une la trouve, plutôt que
+de rouvrir le défaut pour se donner de l'air.
+
 ## #328 · Inscrire le `cd` qui échoue en silence, et la garde qui le rattrape
 
     ouverte le   21 septembre 2026, par iOS
