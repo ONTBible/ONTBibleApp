@@ -6496,6 +6496,57 @@ hébraïque, ni numéro de Strong — ==un identifiant local opaque==, réattrib
 hasard, et la clé rend le Strong après coup. On perd tout contrôle visuel
 pendant la lecture, on le récupère entier à l'ouverture.
 
+### Deux remèdes, deux maladies — et les confondre coûte cher
+
+Treize défauts ont été corrigés dans la journée sur ce seul dossier. ==Aucun
+n'est venu d'une relecture.== Tous sont venus d'un ==geste refait== : un
+contexte ouvert autour d'un `grep`, une taille de fichier regardée avant de
+croire un compte de zéro, une recherche relancée qu'on avait démontrée inutile,
+une morphologie regardée, une mesure rejouée depuis `main`.
+
+> ==Une relecture ne contredit rien ; seule une seconde mesure le peut.==
+>
+> Le second lecteur n'est pas précieux parce qu'il est second. Il l'est parce
+> qu'==il refait le geste== au lieu de relire le compte rendu.
+
+**Et la même personne le démontre sur elle-même.** J'ai ==lu== l'entrée #135 en
+l'écrivant : rien. J'ai ==rejoué la mesure depuis `main`== : le défaut des ex
+æquo est tombé dans la minute. Même personne, même objet, même journée —
+==un acte différent==. Si la variable était l'identité du lecteur, le second
+passage n'aurait rien pu trouver que le premier n'ait vu.
+
+**Ce qui résiste à la seconde mesure, et là le second lecteur est
+irremplaçable.** La cécité ratée en est le cas pur : ==aucune réexécution ne
+l'aurait montrée à qui avait bâti le test==, parce qu'elle connaissait la clé.
+Il fallait quelqu'un qui lise ==en cherchant vraiment la réponse==, et qui
+reconnaisse la paire avant la première glose.
+
+    refaire le geste       attrape ce qu'un instrument fait mal
+    un second lecteur      attrape ce qu'on ne peut pas se cacher à soi-même
+
+==Les confondre fait payer le prix du second pour des défauts que le premier
+attrape.== La règle *« toute mesure demande un second lecteur »* est juste et
+==impraticable à huit sessions== — c'est la file d'attente permanente que
+`strict_required_status_checks_policy` avait déjà produite, une exigence juste
+qui rend le travail infusionnable.
+
+La règle praticable est ==à la portée de celui qui écrit== : **avant de
+rapporter un compte, refaire le geste une fois, autrement.** Changer la
+référence, ouvrir le contexte, relancer depuis l'état publié. Elle a attrapé
+six des treize ==sans déranger personne==. Le second lecteur se demande pour le
+reste.
+
+*(Ce paragraphe corrige un compte que j'avais avancé à la session des langues
+sources — « trois fois un second lecteur, zéro fois une relecture ». ==Il était
+faux== : six des treize ont été trouvés seuls, deux des miens par elle, deux des
+siens par moi. Le compte honnête est six, deux et deux, et ==la règle que 3–0
+suggérait aurait été chère et fausse==. Il n'avait pas atteint le journal.)*
+
+Le dépôt avait déjà refusé la mauvaise version de cette règle, en juillet : *la
+règle qu'on en tire n'est pas « faire relire son code par le voisin » —
+==nommer un défaut, et pas seulement le corriger==*. La distinction ci-dessus
+en est le prolongement : ==ce qui voyage n'est pas le lecteur, c'est le geste==.
+
 ### Et l'énoncé qui donne son titre à l'entrée
 
 Mon premier décompte annonçait *« environ la moitié des paires montrent un
