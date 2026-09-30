@@ -6397,15 +6397,24 @@ honnête de l'établir.
 La mesure scellée donnait la part des lemmes d'un groupe partageant ==un même
 mot de contenu== dans la glose de Strong :
 
-    פ-ר   « break »          80 %   ← le candidat
-    ע-ר   « hence »          38 %
-    ק-ר   « causatively »    30 %
-    שׁ-ל   « applications »   27 %
-    שׁ-ק   « causatively »    20 %
+    פ-ר   « break »        80 %   ← le candidat
+    ע-ר   « hence »        38 %
+    ע-ל   « literal »      38 %
+    שׁ-ל   « make »         36 %
+    ק-ר   « bring »        30 %
+    שׁ-מ   « hear »         29 %
+    ר-ע   « associate »    22 %
+    שׁ-ק   « usually »      20 %
 
-==Un seul groupe sur huit a un noyau lexical, et c'est celui qu'on éprouvait.==
-Les suivants partagent *hence*, *literal*, *causatively* — ==des mots de
-l'appareil de Strong, pas des mots de sens==.
+==Le candidat est à plus du double du suivant.== Et le chiffre est celui d'un
+instrument ==sévère== : la première version de la mesure comptait *hence*,
+*causatively*, *applications* — ==des mots de l'appareil de Strong==, ce qui
+flattait l'écart. La liste des mots d'appareil a été durcie : les témoins
+partagent désormais de ==vrais mots de sens== — *make*, *bring*, *hear*,
+*associate* —, et ==l'écart tient quand même==.
+
+==Un résultat qui survit à un instrument plus dur est plus solide qu'un
+résultat obtenu avec un instrument complaisant.==
 
 > ==Un noyau qui se lit dans les mots du glossateur est suspect ; un noyau
 > qu'il faut aller chercher sous ses mots est un fait de langue.==
@@ -6416,13 +6425,24 @@ l'appareil de Strong, pas des mots de sens==.
 **Le contre-exemple qui le valide** : שׁ-ל porte le noyau sémantique le plus
 fort des huit — *envoyer au loin, jeter, arracher, dépouiller*, 86 % des
 emplois — sous des verbes anglais ==tous différents== : *send, throw, pull,
-drop, strip*. 27 % de partage lexical. La dissociation est exactement celle que
-le critère prédit.
+drop, strip*. ==36 % de partage lexical, contre 80 % au candidat== : la
+dissociation est celle que le critère prédit, et ==elle est plus étroite
+qu'au premier relevé==, qui annonçait 27 % avec l'instrument complaisant.
 
 **Et la clause sans laquelle le critère conclut trop :** 80 % ne dit pas que le
 noyau de פ-ר est faux. Strong a peut-être écrit *break* huit fois ==parce que
 ces verbes veulent dire briser==. ==Le critère écarte un témoin, il ne tranche
 pas la question.==
+
+**L'instrument est au dépôt**, et c'est ce qui distingue ce relevé d'un
+chiffre qu'on recopie :
+
+    python3 scripts/eprouver-un-noyau-consonantique.py --aveugle
+    python3 scripts/eprouver-un-noyau-consonantique.py --cle --harmonisation
+
+La graine vaut `20260930` par défaut et ==rejoue le tirage à l'identique==.
+==La clause s'imprime avec le chiffre==, à chaque exécution — un critère séparé
+de sa clause finit par circuler sans elle.
 
 ### Les quatre biais penchaient tous du même côté
 
