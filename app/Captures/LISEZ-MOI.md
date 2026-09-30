@@ -38,15 +38,22 @@ c'est ce que produit une chaîne où rien ne peut rougir.** La garde de
 `soumettre.py` refuse une version **sans** captures ; personne ne refusait une
 version aux captures **fausses**.
 
-## `brut/` a un second lecteur, et il n'est pas dans ce dépôt
+## `brut/` a deux lecteurs de plus, et aucun n'est dans ce dépôt
 
-`ontbible.com` affiche une capture de l'écran de lecture sur `/fr/l-app`, dans
-un châssis d'iPhone qu'il dessine lui-même. Elle vient d'ici :
+`ONTBibleWebapp` lit `brut/` par **deux** chemins, et ils n'ont ni le même
+usage ni la même conséquence si le dossier disparaît :
 
-    app/Captures/brut/iphone-6.9/02.png      ← ont://read/bereshit/bereshit-3
+| qui, là-bas | ce qu'il prend | si `brut/` n'est plus là |
+|---|---|---|
+| `/fr/l-app` — la page « installer l'app » | `brut/iphone-6.9/02.png`, posé dans un châssis d'iPhone qu'il dessine | **rien** : le livrable est versionné chez lui (`public/images/app-lecture.webp`) |
+| `scripts/comparer-a-l-app.py:52-58` | `brut/iphone-6.9` **et** `brut/ipad-13`, mis face aux captures du site | il **refuse**, bruyamment : `Refus("la capture … n'existe pas")` |
 
 **Le site prend le brut et non l'affiche, à raison** : `iphone-6.9/` porte déjà
-l'habillage App Store, et il lui faut l'écran nu pour poser le sien.
+l'habillage App Store, et il lui faut l'écran nu — pour poser le sien d'un côté,
+pour comparer à pixels comparables de l'autre.
+
+Le second est l'outil qui met une capture de l'app et une capture du site côte à
+côte : celui qui sert précisément à voir si le portage tient.
 
 ### Ce que ça engage — et ce que ça n'engage pas
 
@@ -55,10 +62,17 @@ classe *« non, régénérable »*. Le fichier n'est donc dans aucun commit, sur
 aucun distant, et n'existe que dans l'arbre de travail de la machine qui l'a
 produit.
 
-**Le supprimer ne casse rien, et il faut le dire précisément** — une première
-rédaction de cette section annonçait que `/fr/l-app` tomberait « en silence ».
-C'était faux, et la session Webapp l'a corrigé : son livrable est chez elle et
-versionné, `public/images/app-lecture.webp`. La page continue de s'afficher.
+**Le supprimer casse peu, et pas en silence** — il a fallu deux corrections
+pour l'écrire juste, et les deux viennent de la session Webapp :
+
+1. la première rédaction annonçait que `/fr/l-app` tomberait « en silence ».
+   Faux : son livrable est versionné chez elle, la page continue de s'afficher ;
+2. la correction disait alors « ne casse rien ». Faux aussi, d'un cran :
+   `comparer-a-l-app.py` casse — mais il le dit, en nommant le chemin absent.
+
+==Ce qui casse n'est pas la page, et ce qui casse ne le fait pas en silence.==
+Deux passes pour cesser d'affirmer plus que le mesuré, sur une section dont tout
+le propos est de ne pas le faire.
 
 **Ce qui se perd est la provenance, pas l'image.** Une doc qui pointe vers un
 chemin introuvable envoie chercher ce qui n'existe plus — et le remède n'est pas
@@ -129,8 +143,14 @@ Et l'enseignement porte plus loin que le cas :
 Le corollaire est ce qui aurait tranché en trente secondes : ==une mesure qui
 contredit un système qui marche est d'abord une mesure à vérifier.== Dix commits
 sur l'écran de lecture, tous sur l'état désigné ou l'animation, et un rendu au
-repos que personne n'avait touché — 74,8 % était invraisemblable avant d'être
-faux.
+repos que personne n'avait touché — 74,8 % était **invraisemblable avant d'être
+faux**.
+
+Et l'instrument de ce jugement était déjà là, gratuit :
+
+> ==L'historique borne l'amplitude plausible d'un changement.== Une mesure qui
+> dépasse cette borne se vérifie avant d'être crue — le test de vraisemblance
+> précède le test de justesse, et il coûte trente secondes contre une heure.
 
 
 ## Une vitrine ne dépend d'aucun état de la machine
