@@ -7333,3 +7333,71 @@ est la question réelle avant un commit.
 C'est la forme de la semaine, encore une fois — une commande qui rend une
 réponse bien formée à une autre question que la sienne. Sauf qu'ici la réponse
 bien formée est le **silence** : rien n'indique qu'on n'est pas où l'on croit.
+
+## 29 septembre 2026 — les builds de développement alertaient comme la production
+
+Un `./gradlew installDebug` remontait à Sentry au même projet que l'app des
+lecteurs. Et cinq fois plus fort : `tracesSampleRate` valait `1.0` en debug
+contre `0.2` en release.
+
+La seule garde de `Observabilite.demarrer` portait sur le DSN vide. Tout build
+posé par un script de lancement alertait donc, mêlé aux erreurs réelles.
+
+### Ce qui l'a révélé, et ce qui ne l'aurait jamais fait
+
+Un courriel Sentry reçu par l'auteur — un blocage de douze secondes qui ne venait
+d'aucun lecteur. C'était son propre appareil.
+
+**Aucun contrôle n'aurait pu le dire.** Le défaut ne produit ni erreur ni
+avertissement : il produit des alertes **qui ressemblent à des alertes**, et le
+tableau de bord ne distingue pas celles qui viennent d'un développeur. Il ne se
+voit que du dehors, quand quelqu'un se demande d'où sort une erreur sur un
+appareil qu'il tient en main.
+
+C'est la session iOS qui l'a relevé chez elle, puis mesuré chez moi. Deux
+plateformes, le même défaut, trouvé une seule fois.
+
+### Une garde qui prend son monde en paramètre
+
+    doitRemonter(debug, sousTest, porteOuverte)
+
+`BuildConfig.DEBUG` ne se pose pas depuis un test JVM, pas plus que `#if DEBUG`
+depuis XCTest. Une garde qui le lirait elle-même serait **invérifiable** — et
+==une garde invérifiable est exactement ce qui a laissé passer le défaut==.
+
+La forme vient d'iOS et les deux plateformes la partagent maintenant. Une
+divergence future se verra en comparant les deux signatures.
+
+### Une porte posée avant d'en avoir besoin
+
+    ./gradlew installDebug -PsentryEnDebug=1
+
+Couper sans exception rendrait inerte **en silence** toute épreuve vérifiant que
+la chaîne de remontée marche de bout en bout : rien n'échouerait, le tableau de
+bord resterait vide, et l'on chercherait le défaut dans la chaîne plutôt que dans
+la coupure.
+
+Android n'a aujourd'hui aucune épreuve de ce genre — mesuré : zéro argument de
+lancement, zéro extra d'intent. La porte existe pour que celle qui en écrira une
+la trouve, plutôt que de rouvrir le défaut pour se donner de l'air.
+
+Une propriété Gradle et non un extra d'intent : `demarrer` est appelée depuis
+`Application.onCreate`, qui n'a pas d'intent.
+
+### Le cas des tests prime, et l'ordre ne se relit pas
+
+Un test **instrumenté** instancie l'`Application` pour de vrai : `BuildConfig.DEBUG`
+ne le distingue pas d'un lancement ordinaire. `sousTest` est donc la première
+branche du `when`, et un test l'exige — c'est l'ordre qui le décide, et un ordre
+ne se voit pas à la relecture.
+
+### Ce que ça change pour chaque dépôt
+
+**ONTBibleApp** — `Observabilite.doitRemonter` et la porte `SENTRY_EN_DEBUG`
+(#344). La correction iOS vit de son côté ; les deux tiennent la même règle par
+le même découpage.
+
+**ONTBibleTranslation** — rien.
+
+**ONTBibleWebapp** — rien : le site n'envoie rien à Sentry. Vérifié avant de
+l'écrire.
