@@ -6397,35 +6397,51 @@ honnête de l'établir.
 La mesure scellée donnait la part des lemmes d'un groupe partageant ==un même
 mot de contenu== dans la glose de Strong :
 
-    פ-ר    8/10    80 %   ← le candidat
-    ע-ר    3/8     38 %
-    ע-ל    3/8     38 %
-    שׁ-ל    4/11    36 %
-    ק-ר    3/10    30 %
-    שׁ-מ    2/7     29 %
-    ר-ע    2/9     22 %
-    שׁ-ק    2/10    20 %
+    פ-ר    8/10    80 %   ← le candidat    « break »
+    ע-ר    3/8     38 %                    « hence »
+    ע-ל    3/8     38 %                    « literal »
+    שׁ-ל    4/11    36 %                    « make »
+    ק-ר    3/10    30 %                    « bring »
+    שׁ-מ    2/7     29 %                    « hear »
+    ר-ע    2/9     22 %                    ══ 19 ex æquo ══
+    שׁ-ק    2/10    20 %                    2 ex æquo
 
-==Le candidat est à plus du double du suivant.==
+==Le bon énoncé n'est pas « 80 % contre 38 % ».== C'est celui-ci :
 
-**Aucun mot n'est nommé ici, et c'est une décision.** Le rang, le compte et le
-pourcentage sont ==reproductibles== ; ==le mot ne l'est pas== dès qu'il y a
-égalité. Mesuré sur cinq graines de hachage : ר-ע rend *rule*, *pasture* ou
-*tend* selon le processus, ==toujours à 2/9 et 22 %==. Trois verbes y sont ex
-æquo, et `Counter.most_common` départage par ordre de première rencontre, qui
-dépend de l'itération d'un ensemble.
+> `פ-ר` est ==le seul groupe où une majorité de lemmes partage un mot== — huit
+> sur dix. Partout ailleurs le maximum est ==minoritaire==, et deux fois il
+> touche ==le plancher du bruit==.
 
-==Le §2.5 ter du `CLAUDE.md` portait déjà l'avertissement, mot pour mot==
-— *« un pourcentage qui bouge quand on trie un `glob` ne mesure pas ce qu'on
-croit »*. Il a été reproduit dans un script dont le docstring entier parle de
-biais d'instrument. ==Une règle n'empêche que ce qu'on pense à lui soumettre.==
+==Un écart de rang se discute ; un franchissement de la majorité, non.==
+
+**Et voici ce que l'élection d'un vainqueur cachait.** Sur ר-ע, ==dix-neuf mots
+atteignent le plafond de 2/9==. Ce n'est pas un signal faible, ==c'est du
+bruit== — et nommer « le mot le plus partagé » lui donnait l'apparence d'un
+signal. Le 22 % ne voulait rien dire du tout.
+
+> ==Élire un vainqueur donne au bruit l'apparence d'un signal.==
+
+**Le mot n'était pas reproductible, et il l'est devenu.** Avant correction, ר-ע
+rendait *rule*, *pasture* ou *tend* selon la graine de hachage du processus —
+==toujours à 2/9 et 22 %==. `Counter.most_common` départage les ex æquo par
+ordre de première rencontre, qui dépend de l'itération d'un ensemble.
+
+==Le §2.5 ter du `CLAUDE.md` portait l'avertissement mot pour mot, sur cette
+fonction précise== — *« un pourcentage qui bouge quand on trie un `glob` ne
+mesure pas ce qu'on croit »*. Il a été reproduit dans un script dont le
+docstring entier traite des biais d'instrument, par quelqu'un qui l'avait cité
+le jour même. ==Une règle n'empêche que ce qu'on pense à lui soumettre, et
+connaître la règle ne suffit pas à y penser.==
+
+L'outil ne choisit donc plus : à égalité, ==il dit combien de mots le sont et
+les nomme==. Vérifié déterministe sur quatre graines — sortie identique au
+caractère près.
 
 **Ce qui survit, et c'est le fait qui compte.** La première version de la mesure
 ne comptait que *hence*, *causatively*, *applications* — ==des mots de
 l'appareil de Strong==, ce qui flattait l'écart. La liste durcie fait que les
-témoins partagent désormais de ==vrais mots de sens==, et ==l'écart tient quand
-même==. La classe des mots est stable ; ==seul le représentant élu ne l'est
-pas== — pour ר-ע, les trois ex æquo sont des mots de sens tous les trois.
+témoins partagent de ==vrais mots de sens==, et ==le franchissement de la
+majorité tient quand même==.
 
 ==Un résultat qui survit à un instrument plus dur est plus solide qu'un
 résultat obtenu avec un instrument complaisant.==
