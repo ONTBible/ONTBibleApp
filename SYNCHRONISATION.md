@@ -6354,3 +6354,133 @@ est la question réelle avant un commit.
 C'est la forme de la semaine, encore une fois — une commande qui rend une
 réponse bien formée à une autre question que la sienne. Sauf qu'ici la réponse
 bien formée est le **silence** : rien n'indique qu'on n'est pas où l'on croit.
+
+---
+
+## 30 septembre 2026 — la garde contre un biais est elle-même un biais quand on ne la mesure pas
+
+L'auteur travaille une thèse sur la motivation du langage hébreu, et un exemple
+y revient partout : la famille פ-ר — *parad* séparer, *paras* rompre, *paraq*
+arracher, *parar* briser. Un noyau « rupture » ==semble== apparaître. C'est ce
+« semble » qu'on a voulu tuer ou confirmer avant qu'il entre dans une chuqqah.
+
+### Le dispositif, et pourquoi il fallait qu'il soit aveugle
+
+Les langues sources ont relevé les verbes du témoin par paires de deux
+premières radicales, mêlé פ-ר à ==sept paires tirées au sort==, et rendu les
+huit groupes ==anonymisés==, clé scellée. Je les ai lus sans savoir lequel était
+le candidat.
+
+**Le contrôle est tout le dispositif** : si un noyau plausible sortait de huit
+groupes sur huit, la méthode en fabriquerait partout et n'en prouverait aucun.
+
+### Deux chiffres, deux questions, et il faut les deux
+
+Sur les ==sept témoins== :
+
+    un noyau franc                   1 / 7      14 %
+    un noyau qu'on CROIT voir        3 / 7      43 %
+    aucun noyau                      4 / 7      57 %
+
+- *« combien de paires ont réellement un noyau ? »* → **1 sur 7**. פ-ר est donc
+  ==inhabituel, pas unique== ;
+- *« combien un lecteur croirait-il en voir ? »* → **3 sur 7**. ==C'est celui-là
+  qui répond à la question posée== : la méthode produit 43 % de faux positifs à
+  la première lecture.
+
+==La paréidolie n'est pas dans la langue, elle est dans l'œil== — et le
+protocole l'a mesurée sur son propre lecteur, ce qui est la seule façon
+honnête de l'établir.
+
+### Le critère qui en sort, et sa clause limitative
+
+La mesure scellée donnait la part des lemmes d'un groupe partageant ==un même
+mot de contenu== dans la glose de Strong :
+
+    פ-ר   « break »          80 %   ← le candidat
+    ע-ר   « hence »          38 %
+    ק-ר   « causatively »    30 %
+    שׁ-ל   « applications »   27 %
+    שׁ-ק   « causatively »    20 %
+
+==Un seul groupe sur huit a un noyau lexical, et c'est celui qu'on éprouvait.==
+Les suivants partagent *hence*, *literal*, *causatively* — ==des mots de
+l'appareil de Strong, pas des mots de sens==.
+
+> ==Un noyau qui se lit dans les mots du glossateur est suspect ; un noyau
+> qu'il faut aller chercher sous ses mots est un fait de langue.==
+>
+> Quand le sens **et** le mot montent ensemble, c'est le lexicographe. Quand le
+> sens monte seul, c'est la langue.
+
+**Le contre-exemple qui le valide** : שׁ-ל porte le noyau sémantique le plus
+fort des huit — *envoyer au loin, jeter, arracher, dépouiller*, 86 % des
+emplois — sous des verbes anglais ==tous différents== : *send, throw, pull,
+drop, strip*. 27 % de partage lexical. La dissociation est exactement celle que
+le critère prédit.
+
+**Et la clause sans laquelle le critère conclut trop :** 80 % ne dit pas que le
+noyau de פ-ר est faux. Strong a peut-être écrit *break* huit fois ==parce que
+ces verbes veulent dire briser==. ==Le critère écarte un témoin, il ne tranche
+pas la question.==
+
+### Les quatre biais penchaient tous du même côté
+
+    préfixe mem pris pour une radicale     vu en regardant une FORME
+    shin et sin fondus en un graphème      vu en regardant une FORME
+    formes hébraïques laissées en clair    vue par le lecteur, en lisant
+    plages de Strong ordonnées par lettre  vue en cherchant si la première
+                                           réparation suffisait
+
+Les deux premiers frappaient les témoins et ==épargnaient le candidat== : פ
+n'est pas une lettre préfixe. Les deux derniers laissaient identifier le
+candidat sans lire une glose — les numéros de Strong suivent l'ordre
+alphabétique, et chaque groupe tient dans une plage de moins de 80.
+
+==Les quatre penchaient dans le même sens, et personne ne cherchait à
+pencher.== Aucun n'a été trouvé par plus de rigueur dans la mesure : ==tous
+l'ont été en regardant une forme, ou en faisant lire quelqu'un d'autre==.
+
+**La réparation complète de la cécité**, pour la prochaine fois : ni forme
+hébraïque, ni numéro de Strong — ==un identifiant local opaque==, réattribué au
+hasard, et la clé rend le Strong après coup. On perd tout contrôle visuel
+pendant la lecture, on le récupère entier à l'ouverture.
+
+### Et l'énoncé qui donne son titre à l'entrée
+
+Mon premier décompte annonçait *« environ la moitié des paires montrent un
+noyau »*. ==Il comptait comme noyaux deux groupes que j'avais disqualifiés deux
+lignes plus haut.== J'avais tant surveillé le biais qui arrangeait la thèse que
+j'ai sur-corrigé dans l'autre sens — et l'erreur allait ==dans la direction qui
+me faisait honneur==, ce qui est précisément ce qui la rendait invisible.
+
+> ==La garde contre un biais est elle-même un biais quand on ne la mesure pas.==
+
+Le dépôt portait déjà *une garde qui rassure est pire qu'une garde absente*.
+Celle-ci ne rassurait pas : ==elle penchait==, et du côté de la rigueur
+apparente. C'est la même famille que *l'instrument qui répond à une autre
+question que la sienne*, prise par le bout de celui qui mesure.
+
+### Ce qui traverse
+
+**Le site.** La page « Le pourquoi » fait dire à l'ONT *« une racine ne décide
+pas d'un sens, seul l'usage le fait »* (PR #161, en attente de l'auteur). Une
+chuqqah qui poserait *« rien n'est arbitraire »* aurait l'air de la contredire.
+Les deux tiennent ensemble ==à une condition== : dire que **motivé** n'est pas
+**déterminant**. Un nom délibérément choisi ne dit pas pour autant ce que la
+chose fait aujourd'hui. ==Si la chuqqah ne l'écrit pas, quelqu'un la citera un
+jour pour passer outre la page.==
+
+**Deux chiffres rectifiés** avant qu'ils voyagent : Blasi et al. 2016 a analysé
+==4 298 langues== — le 6 000 qui circule est le total mondial que l'article
+cite, non son échantillon. Et Bohas se dit ==« une théorie publiée et
+poursuivie, dont la réception n'a pas été mesurée »== ; « contestée » était une
+supposition, et qualifier une réception sans la chercher est exactement ce que
+le projet reproche ailleurs.
+
+**Ce qui ne traverse pas.** La pensée de l'auteur reste dans
+`restranscriptions/`, ==ignorée par git et par `decisions.py`== depuis la PR
+#127. Le dépôt est public, et *git n'oublie pas*. ==Ce qui voyage d'une
+retranscription n'est jamais le fichier — c'est ce qu'on en tire :== une
+chuqqah, une fiche, une entrée de glossaire. La présente entrée en est
+l'application.
