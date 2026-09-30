@@ -6397,21 +6397,35 @@ honnête de l'établir.
 La mesure scellée donnait la part des lemmes d'un groupe partageant ==un même
 mot de contenu== dans la glose de Strong :
 
-    פ-ר   « break »        80 %   ← le candidat
-    ע-ר   « hence »        38 %
-    ע-ל   « literal »      38 %
-    שׁ-ל   « make »         36 %
-    ק-ר   « bring »        30 %
-    שׁ-מ   « hear »         29 %
-    ר-ע   « associate »    22 %
-    שׁ-ק   « usually »      20 %
+    פ-ר    8/10    80 %   ← le candidat
+    ע-ר    3/8     38 %
+    ע-ל    3/8     38 %
+    שׁ-ל    4/11    36 %
+    ק-ר    3/10    30 %
+    שׁ-מ    2/7     29 %
+    ר-ע    2/9     22 %
+    שׁ-ק    2/10    20 %
 
-==Le candidat est à plus du double du suivant.== Et le chiffre est celui d'un
-instrument ==sévère== : la première version de la mesure comptait *hence*,
-*causatively*, *applications* — ==des mots de l'appareil de Strong==, ce qui
-flattait l'écart. La liste des mots d'appareil a été durcie : les témoins
-partagent désormais de ==vrais mots de sens== — *make*, *bring*, *hear*,
-*associate* —, et ==l'écart tient quand même==.
+==Le candidat est à plus du double du suivant.==
+
+**Aucun mot n'est nommé ici, et c'est une décision.** Le rang, le compte et le
+pourcentage sont ==reproductibles== ; ==le mot ne l'est pas== dès qu'il y a
+égalité. Mesuré sur cinq graines de hachage : ר-ע rend *rule*, *pasture* ou
+*tend* selon le processus, ==toujours à 2/9 et 22 %==. Trois verbes y sont ex
+æquo, et `Counter.most_common` départage par ordre de première rencontre, qui
+dépend de l'itération d'un ensemble.
+
+==Le §2.5 ter du `CLAUDE.md` portait déjà l'avertissement, mot pour mot==
+— *« un pourcentage qui bouge quand on trie un `glob` ne mesure pas ce qu'on
+croit »*. Il a été reproduit dans un script dont le docstring entier parle de
+biais d'instrument. ==Une règle n'empêche que ce qu'on pense à lui soumettre.==
+
+**Ce qui survit, et c'est le fait qui compte.** La première version de la mesure
+ne comptait que *hence*, *causatively*, *applications* — ==des mots de
+l'appareil de Strong==, ce qui flattait l'écart. La liste durcie fait que les
+témoins partagent désormais de ==vrais mots de sens==, et ==l'écart tient quand
+même==. La classe des mots est stable ; ==seul le représentant élu ne l'est
+pas== — pour ר-ע, les trois ex æquo sont des mots de sens tous les trois.
 
 ==Un résultat qui survit à un instrument plus dur est plus solide qu'un
 résultat obtenu avec un instrument complaisant.==
