@@ -56,6 +56,39 @@ information, et il se voit.
 
 ---
 
+## #346 · Dire que `brut/` a un second lecteur, et qu'il n'est pas dans ce dépôt
+
+    ouverte le   30 septembre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** La session Webapp a signalé que `ontbible.com` affiche
+`app/Captures/brut/iphone-6.9/02.png` sur `/fr/l-app`. Ce dossier est ignoré
+par git et le `LISEZ-MOI` le classe « non, régénérable » — vrai tant que la
+vitrine d'Apple était seule à le lire, faux depuis qu'un second dépôt en dépend
+sans pouvoir le régénérer. Le supprimer casse `/fr/l-app` ==en silence, de
+l'autre côté d'un dépôt==.
+
+**Ce que ça engage.** Rien de technique : aucune image ne change, le site a
+déjà repris la sienne. Ce qui manquait était la **trace, à l'endroit où le
+geste dangereux se produit** — `recuperer-de-l-espace.py` a le droit de vider
+`brut/`, et rien ne l'avertissait.
+
+**Pour la relire.** La Webapp écartait une garde automatique à raison —
+==comparer deux images ne dit pas laquelle est juste==. Mais ce n'est pas la
+question utile : « quelque chose a-t-il bougé depuis ce jeu-là » se mesure aux
+octets, barre d'état exclue. Résultat contre le jeu du 18 septembre : **0 sur
+11 979 220**, malgré dix commits sur l'écran de lecture — tous sur l'état
+désigné, la performance ou l'animation.
+
+Et la première mesure disait **74,8 % de différence**, aucun pixel du fait de
+l'app : `simctl openurl` ouvre une alerte système qui fait capturer le mauvais
+écran, puis qui persiste — elle est à SpringBoard — et assombrit tout. Les deux
+pièges sont documentés en tête de `scripts/captures.sh`, et ont été
+redécouverts par quelqu'un qui ne l'avait pas lu avant de mesurer.
+
+---
+
 ## #345 · Dater les trois entrées du registre dont la PR est fusionnée
 
     ouverte le   29 septembre 2026, par iOS
