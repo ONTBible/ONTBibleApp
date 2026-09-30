@@ -34,17 +34,25 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 ///   le met en cache via son propre CDN. Le modifier ne se voit pas tout de
 ///   suite.
 ///
-/// **Deux chemins, et l'ancien ne part jamais.**
+/// **Trois âges, et aucun ne part jamais.**
 ///
-/// La liseuse du site a déménagé de `/fr/lire` à `/fr/webapp` le 29 septembre
-/// 2026, sur décision de l'auteur. Le serveur redirige l'ancien vers le
-/// nouveau, chaîne de requête comprise — mais ==une redirection ne sauve que
-/// le navigateur==. Pour qu'un lien ouvre l'**app**, il faut que son chemin
-/// soit déclaré ici : iOS ne suit pas les redirections pour décider.
+/// ```text
+/// /fr/liseuse/*   la forme d'aujourd'hui   1er octobre 2026
+/// /fr/webapp/*    la forme intermédiaire   29 septembre 2026
+/// /fr/lire/*      l'originale
+/// ```
 ///
-/// `/fr/lire/*` reste donc, définitivement. Tous les liens partagés avant ce
-/// jour le portent, et les retirer les renverrait au navigateur sans qu'aucune
-/// erreur ne le dise.
+/// Le serveur du site redirige les anciennes vers la neuve, chaîne de requête
+/// comprise — mais ==une redirection ne sauve que le navigateur==. Pour qu'un
+/// lien ouvre l'**app**, il faut que son chemin soit déclaré ici :
+/// ==l'app intercepte sur le chemin déclaré, pas sur sa cible==, et iOS ne suit
+/// aucune redirection pour décider.
+///
+/// **Et la liste ne se raccourcira jamais**, pour une raison qui est chez
+/// Apple : ==iOS ne relit ce fichier qu'à l'installation, et Apple le met en
+/// cache sur son propre CDN.== Un appareil installé avant un retrait porterait
+/// l'ancienne liste pendant des semaines. Retirer un chemin ferait ouvrir ses
+/// liens dans le navigateur au lieu de l'app — en silence des deux côtés.
 ///
 /// ## ⚠︎ Cette route n'est plus celle qui sert `ontbible.com`
 ///
@@ -67,11 +75,20 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 /// le dise. C'est le genre de panne qu'on met des jours à trouver parce que
 /// « le fichier existe et il est juste ».
 ///
-/// **Ce qui ordonne les deux moitiés du déménagement se joue donc côté site :**
-/// le constructeur de liens de partage (`Router::webBase`, côté app) ne doit
-/// basculer sur `/fr/webapp` qu'une fois le fichier **du site** en ligne. Dans
-/// l'autre ordre, chaque partage produirait un lien que l'app ne sait pas
-/// rattraper, et le défaut serait muet des deux côtés.
+/// ## Le constructeur de liens de l'app ne bascule pas, et c'est réglé
+///
+/// Ce commentaire portait une consigne d'ordonnancement : faire basculer
+/// `Router` sur `/fr/webapp` une fois le fichier du site en ligne. ==Elle est
+/// caduque, et c'est la liste ci-dessus qui la périme.==
+///
+/// `Router.swift:482` construit `fr/lire/<livre>/<unité>`, et il peut y rester
+/// indéfiniment : le chemin est déclaré pour toujours, le site le redirige vers
+/// la forme du jour, et l'app l'intercepte avant. Basculer ne gagnerait rien et
+/// périmerait les liens déjà partagés en circulation.
+///
+/// ==Une consigne d'ordonnancement n'a de sens que tant que l'un des deux états
+/// est transitoire.== Ici les trois le sont devenus permanents, et la question
+/// de l'ordre a disparu avec.
 ///
 /// J'avais écrit ici que la dette attendait une revue Apple —
 /// `deployer-backend.yml` se déclenchant sur `app-store`. C'était juste sur le
@@ -82,7 +99,7 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 /// dans un navigateur, d'où l'absence de `{"/": "*"}`.
 pub async fn apple_app_site_association() -> Response {
     let corps = format!(
-        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/webapp/*"}},{{"/":"/fr/lire/*"}}]}}]}}}}"#
+        r#"{{"applinks":{{"details":[{{"appIDs":["{APP_ID}"],"components":[{{"/":"/fr/liseuse/*"}},{{"/":"/fr/webapp/*"}},{{"/":"/fr/lire/*"}}]}}]}}}}"#
     );
     (
         StatusCode::OK,
@@ -205,19 +222,21 @@ mod tests {
             .unwrap();
         let texte = String::from_utf8(corps.to_vec()).unwrap();
         assert!(texte.contains(APP_ID));
-        // **Les deux chemins, et l'ancien nommément.**
+        // **Les trois âges, chacun nommément.**
         //
-        // Vérifier seulement le nouveau laisserait passer le retrait de
-        // l'ancien — c'est-à-dire la seule régression qui casse des liens
-        // déjà partagés, et elle est silencieuse.
-        assert!(
-            texte.contains("/fr/webapp/*"),
-            "le chemin neuf manque : {texte}"
-        );
-        assert!(
-            texte.contains("/fr/lire/*"),
-            "l'ancien chemin a disparu : {texte}"
-        );
+        // Vérifier seulement le plus neuf laisserait passer le retrait d'un
+        // ancien — c'est-à-dire la seule régression qui casse des liens déjà
+        // partagés, et elle est silencieuse des deux côtés : le lien s'ouvre,
+        // simplement dans le navigateur.
+        //
+        // Nommer les trois plutôt que compter : un test qui compterait « trois
+        // composants » resterait vert si l'on en remplaçait un par un autre.
+        for chemin in ["/fr/liseuse/*", "/fr/webapp/*", "/fr/lire/*"] {
+            assert!(
+                texte.contains(chemin),
+                "le chemin {chemin} a disparu de l'association : {texte}"
+            );
+        }
         // Et rien d'autre : ouvrir tout le domaine empêcherait de consulter
         // une page dans un navigateur.
         assert!(!texte.contains(r#""/":"*""#));
