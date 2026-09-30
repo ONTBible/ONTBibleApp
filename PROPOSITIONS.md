@@ -56,6 +56,36 @@ information, et il se voit.
 
 ---
 
+## #347 · Accorder la copie de l'association aux trois âges, et périmer une consigne
+
+    ouverte le   1er octobre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Le site sert deux liseuses depuis le 30 septembre au soir, et son
+fichier d'association déclare trois chemins — `/fr/liseuse/*`, `/fr/webapp/*`,
+`/fr/lire/*`. La copie du backend n'en portait que deux.
+
+**Ce que ça engage.** Rien d'immédiat : ==cette route est morte depuis la
+bascule des domaines du 13 août==, `ontbible.com` étant servi par la
+distribution du site (mesuré par un `/health` à 404 sur le domaine). Le vrai
+fichier est chez le site, et il est à jour. Android a le sien, dont le site est
+aussi la source.
+
+**Pour la relire.** Le commentaire de cette route annonçait déjà le risque —
+*« le jour où quelqu'un remet l'API sur la racine, une copie périmée casserait
+tous les liens universels sans qu'aucune erreur ne le dise »*. ==Le cas est
+arrivé deux jours après.== Une copie morte ne dérive pas moins vite qu'une
+vivante ; elle dérive sans témoin.
+
+Et une consigne d'ordonnancement y est périmée, avec sa raison : faire basculer
+`Router` sur `/fr/webapp` n'a plus de sens, puisque `/fr/lire/*` est déclaré
+définitivement — iOS ne relit ce fichier qu'à l'installation et Apple le met en
+cache. ==Une consigne d'ordonnancement n'a de sens que tant que l'un des deux
+états est transitoire== ; les trois sont devenus permanents.
+
+---
+
 ## #346 · Dire que `brut/` a un second lecteur, et qu'il n'est pas dans ce dépôt
 
     ouverte le   30 septembre 2026, par iOS
