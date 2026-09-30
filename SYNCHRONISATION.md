@@ -1566,7 +1566,7 @@ qui vivait en fichier non suivi, dont les deux « exemplaires de réserve »
 | `ONTBibleTranslation-carte` | la manageuse | la carte et le registre, PR #122 |
 | `ONTBibleTranslation-android` | la manageuse | PR #125 |
 | `ONTBibleApp` | **iOS** | arbre principal — leadeuse du dépôt |
-| `ONTBibleApp-android` | **Android** | poste actif |
+| `ONTBibleApp-android` | **Android** | le portage — `ontkit`, `ontdata`, `ontdesignsystem`, `ontfeatures`, `app`. Le démonter coupe la seule session qui compile du Kotlin |
 | `ONTBibleApp-mac` | **macOS** | poste actif |
 | `ONTBibleApp-chuqqot` | la manageuse | PR #313 |
 | `ONTBibleApp-journal` | **iOS** | concorder le journal sans écraser — PR #338 |
