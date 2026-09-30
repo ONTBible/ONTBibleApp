@@ -38,6 +38,121 @@ c'est ce que produit une chaîne où rien ne peut rougir.** La garde de
 `soumettre.py` refuse une version **sans** captures ; personne ne refusait une
 version aux captures **fausses**.
 
+## `brut/` a deux lecteurs de plus, et aucun n'est dans ce dépôt
+
+`ONTBibleWebapp` lit `brut/` par **deux** chemins, et ils n'ont ni le même
+usage ni la même conséquence si le dossier disparaît :
+
+| qui, là-bas | ce qu'il prend | si `brut/` n'est plus là |
+|---|---|---|
+| `/fr/l-app` — la page « installer l'app » | `brut/iphone-6.9/02.png`, posé dans un châssis d'iPhone qu'il dessine | **rien** : le livrable est versionné chez lui (`public/images/app-lecture.webp`) |
+| `scripts/comparer-a-l-app.py:52-58` | `brut/iphone-6.9` **et** `brut/ipad-13`, mis face aux captures du site | il **refuse**, bruyamment : `Refus("la capture … n'existe pas")` |
+
+**Le site prend le brut et non l'affiche, à raison** : `iphone-6.9/` porte déjà
+l'habillage App Store, et il lui faut l'écran nu — pour poser le sien d'un côté,
+pour comparer à pixels comparables de l'autre.
+
+Le second est l'outil qui met une capture de l'app et une capture du site côte à
+côte : celui qui sert précisément à voir si le portage tient.
+
+### Ce que ça engage — et ce que ça n'engage pas
+
+Ce dossier est **ignoré par git** (`.gitignore:31`) et le tableau ci-dessus le
+classe *« non, régénérable »*. Le fichier n'est donc dans aucun commit, sur
+aucun distant, et n'existe que dans l'arbre de travail de la machine qui l'a
+produit.
+
+**Le supprimer casse peu, et pas en silence** — il a fallu deux corrections
+pour l'écrire juste, et les deux viennent de la session Webapp :
+
+1. la première rédaction annonçait que `/fr/l-app` tomberait « en silence ».
+   Faux : son livrable est versionné chez elle, la page continue de s'afficher ;
+2. la correction disait alors « ne casse rien ». Faux aussi, d'un cran :
+   `comparer-a-l-app.py` casse — mais il le dit, en nommant le chemin absent.
+
+==Ce qui casse n'est pas la page, et ce qui casse ne le fait pas en silence.==
+Deux passes pour cesser d'affirmer plus que le mesuré, sur une section dont tout
+le propos est de ne pas le faire.
+
+**Ce qui se perd est la provenance, pas l'image.** Une doc qui pointe vers un
+chemin introuvable envoie chercher ce qui n'existe plus — et le remède n'est pas
+de versionner le brut (ce serait doubler le poids du dépôt pour un
+intermédiaire), c'est de dire qu'on le **reproduit** : `scripts/captures.sh`,
+trois minutes.
+
+> ==Un fichier jetable cesse de l'être quand quelqu'un d'autre s'en sert, et
+> celui qui le jette ne le sait pas.== *(formulation de la session Webapp.)*
+
+Personne n'a tort dans ce partage : ici c'est un intermédiaire refait en trois
+minutes, là-bas la source d'une image de la page d'acquisition. Le fait qui
+compte est que ==c'est le second consommateur qui change la nature du fichier,
+et qu'il est né dans l'autre dépôt.==
+
+**Donc : prévenir la session Webapp quand l'écran de lecture change
+visuellement.** C'est la seule chose qui traverse ici, et elle ne traverse que
+par nous. Supprimer `brut/` reste permis.
+
+### Ce qui tranche, et qui vaut mieux qu'une promesse
+
+Le site n'a aucune garde qui puisse rougir sur une capture périmée : une vieille
+image s'affiche exactement aussi bien qu'une fraîche. Et une garde automatique
+n'est pas possible — ==comparer deux images ne dit pas laquelle est juste==.
+
+Mais la question utile n'est pas « laquelle est juste », c'est **« quelque
+chose a-t-il bougé depuis ce jeu-là »**, et celle-là se mesure :
+
+```sh
+xcrun simctl erase "$SIM"                    # obligatoire, voir plus bas
+xcrun simctl install "$SIM" "$APP"
+xcrun simctl launch "$SIM" com.labibleont.ONT -ouvrir "ont://read/bereshit/bereshit-3"
+xcrun simctl io "$SIM" screenshot /tmp/aujourdhui.png
+```
+
+Puis comparer les octets du **corps**, barre d'état exclue — elle porte l'heure,
+que `captures.sh` fige à 09:41 et qu'un simulateur neuf n'a pas encore.
+
+Mesuré le 30 septembre 2026 contre le jeu du 18 : **0 octet de différence sur
+11 979 220**. Rien n'avait bougé, alors que l'écran de lecture avait reçu dix
+commits entre-temps — tous sur l'état *désigné*, la performance ou l'animation
+d'arrivée, aucun sur le rendu au repos.
+
+### Deux pièges qui ont failli faire dire l'inverse
+
+La première mesure rendait **74,8 % de pixels différents**, et pas un seul du
+fait de l'app :
+
+| | |
+|---|---|
+| `simctl openurl` | déclenche l'alerte « Ouvrir dans "La Bible ONT" ? » — on capture alors la table des livres, pas l'écran demandé |
+| l'alerte **persiste** | elle appartient à SpringBoard, survit aux relancements, et **assombrit tout l'écran** : la « différence de teinte » était son voile |
+
+Les deux sont documentés en tête de `scripts/captures.sh`, qui prescrit
+`-ouvrir` et prévient qu'il faut effacer le simulateur. ==Ils ont été
+redécouverts par quelqu'un qui ne l'avait pas lu avant de mesurer.==
+
+C'est la forme que ce dépôt nomme partout : une mesure exacte qui répond à une
+autre question que la sienne. Ici elle aurait fait refaire une capture juste, et
+annoncer au site un changement qui n'existait pas.
+
+Et l'enseignement porte plus loin que le cas :
+
+> ==Une différence massive n'est pas une preuve de changement ; c'est d'abord
+> un soupçon sur l'instrument.== *(formulation de la session Webapp, qui a fait
+> la même faute le même soir, dans son dépôt, sur la même vérification.)*
+
+Le corollaire est ce qui aurait tranché en trente secondes : ==une mesure qui
+contredit un système qui marche est d'abord une mesure à vérifier.== Dix commits
+sur l'écran de lecture, tous sur l'état désigné ou l'animation, et un rendu au
+repos que personne n'avait touché — 74,8 % était **invraisemblable avant d'être
+faux**.
+
+Et l'instrument de ce jugement était déjà là, gratuit :
+
+> ==L'historique borne l'amplitude plausible d'un changement.== Une mesure qui
+> dépasse cette borne se vérifie avant d'être crue — le test de vraisemblance
+> précède le test de justesse, et il coûte trente secondes contre une heure.
+
+
 ## Une vitrine ne dépend d'aucun état de la machine
 
 > Ni l'onglet retenu, ni le thème de la dernière séance, ni la barre repliée,
