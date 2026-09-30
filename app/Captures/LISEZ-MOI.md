@@ -48,23 +48,35 @@ un châssis d'iPhone qu'il dessine lui-même. Elle vient d'ici :
 **Le site prend le brut et non l'affiche, à raison** : `iphone-6.9/` porte déjà
 l'habillage App Store, et il lui faut l'écran nu pour poser le sien.
 
-### Ce que ça engage, et qui ne se voit pas d'ici
+### Ce que ça engage — et ce que ça n'engage pas
 
 Ce dossier est **ignoré par git** (`.gitignore:31`) et le tableau ci-dessus le
-classe *« non, régénérable »*. C'est vrai pour la vitrine d'Apple, qui le
-reconstruit à la demande. Ce ne l'est plus depuis qu'un second dépôt le lit :
+classe *« non, régénérable »*. Le fichier n'est donc dans aucun commit, sur
+aucun distant, et n'existe que dans l'arbre de travail de la machine qui l'a
+produit.
 
-- le fichier n'est dans **aucun commit** et sur **aucun distant** ;
-- il n'existe que dans l'arbre de travail de la machine qui l'a produit ;
-- le supprimer — geste légitime, que `recuperer-de-l-espace.py` a le droit de
-  faire — casse `/fr/l-app` **en silence**, et de l'autre côté d'un dépôt.
+**Le supprimer ne casse rien, et il faut le dire précisément** — une première
+rédaction de cette section annonçait que `/fr/l-app` tomberait « en silence ».
+C'était faux, et la session Webapp l'a corrigé : son livrable est chez elle et
+versionné, `public/images/app-lecture.webp`. La page continue de s'afficher.
 
-> ==Un fichier régénérable cesse de l'être le jour où quelqu'un d'autre en
-> dépend sans pouvoir le régénérer.==
+**Ce qui se perd est la provenance, pas l'image.** Une doc qui pointe vers un
+chemin introuvable envoie chercher ce qui n'existe plus — et le remède n'est pas
+de versionner le brut (ce serait doubler le poids du dépôt pour un
+intermédiaire), c'est de dire qu'on le **reproduit** : `scripts/captures.sh`,
+trois minutes.
 
-**Donc : ne pas supprimer `brut/iphone-6.9/02.png` sans prévenir la session
-Webapp**, et lui dire quand l'écran de lecture change visuellement — c'est la
-seule chose qui traverse ici, et elle ne traverse que par nous.
+> ==Un fichier jetable cesse de l'être quand quelqu'un d'autre s'en sert, et
+> celui qui le jette ne le sait pas.== *(formulation de la session Webapp.)*
+
+Personne n'a tort dans ce partage : ici c'est un intermédiaire refait en trois
+minutes, là-bas la source d'une image de la page d'acquisition. Le fait qui
+compte est que ==c'est le second consommateur qui change la nature du fichier,
+et qu'il est né dans l'autre dépôt.==
+
+**Donc : prévenir la session Webapp quand l'écran de lecture change
+visuellement.** C'est la seule chose qui traverse ici, et elle ne traverse que
+par nous. Supprimer `brut/` reste permis.
 
 ### Ce qui tranche, et qui vaut mieux qu'une promesse
 
@@ -107,6 +119,18 @@ redécouverts par quelqu'un qui ne l'avait pas lu avant de mesurer.==
 C'est la forme que ce dépôt nomme partout : une mesure exacte qui répond à une
 autre question que la sienne. Ici elle aurait fait refaire une capture juste, et
 annoncer au site un changement qui n'existait pas.
+
+Et l'enseignement porte plus loin que le cas :
+
+> ==Une différence massive n'est pas une preuve de changement ; c'est d'abord
+> un soupçon sur l'instrument.== *(formulation de la session Webapp, qui a fait
+> la même faute le même soir, dans son dépôt, sur la même vérification.)*
+
+Le corollaire est ce qui aurait tranché en trente secondes : ==une mesure qui
+contredit un système qui marche est d'abord une mesure à vérifier.== Dix commits
+sur l'écran de lecture, tous sur l'état désigné ou l'animation, et un rendu au
+repos que personne n'avait touché — 74,8 % était invraisemblable avant d'être
+faux.
 
 
 ## Une vitrine ne dépend d'aucun état de la machine
