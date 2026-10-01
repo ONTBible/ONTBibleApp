@@ -95,6 +95,32 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 /// chemin du déploiement et faux sur la prémisse : ==ce fichier ne passe pas
 /// par ce déploiement.== La session du site l'a mesuré et corrigé.
 ///
+/// ## ⚠︎ Ce fichier est lu par la CI du site — toucher ici la fait rougir là-bas
+///
+/// Depuis le 1er octobre 2026, `ONTBibleWebapp` lit **ce fichier source** dans
+/// deux de ses épreuves, par chemin relatif (`../ONTBibleApp/…`) :
+///
+/// ```text
+/// association.rs  l_identifiant_s_accorde_avec_le_backend
+///                 exige APP_ID et les trois chemins, nommément
+/// association.rs  le_paquet_s_accorde_avec_le_depot_android
+///                 lit android/app/build.gradle.kts — même dépôt, pas ce fichier
+/// ```
+///
+/// **Donc : retirer ou renommer un chemin ici fait échouer la CI du site**, et
+/// l'erreur accusera le site pour un travail fait ici. Les deux épreuves se
+/// taisent si le dépôt voisin est absent — un accord ne peut pas exiger la
+/// présence de ce avec quoi il accorde — mais sur cette machine il est là.
+///
+/// L'égalité n'est tenable que parce que ==la liste ne se raccourcit jamais== :
+/// le jour où un quatrième âge apparaît, c'est ici qu'il s'ajoute d'abord, et
+/// l'épreuve du site suit. Jamais l'inverse.
+///
+/// C'est la seconde dépendance de ce genre trouvée en deux jours, et les deux
+/// sont nées **dans l'autre dépôt** — l'autre vise `app/Captures/brut/`, voir
+/// `app/Captures/LISEZ-MOI.md`. Rien ici ne peut les énumérer : elles ne se
+/// découvrent qu'en se parlant, et elles s'écrivent à l'endroit du geste.
+///
 /// Le reste du domaine — page d'accueil, mentions — doit rester consultable
 /// dans un navigateur, d'où l'absence de `{"/": "*"}`.
 pub async fn apple_app_site_association() -> Response {
