@@ -95,31 +95,71 @@ const APP_ID: &str = "N49VNC2G57.com.labibleont.ONT";
 /// chemin du déploiement et faux sur la prémisse : ==ce fichier ne passe pas
 /// par ce déploiement.== La session du site l'a mesuré et corrigé.
 ///
-/// ## ⚠︎ Ce fichier est lu par la CI du site — toucher ici la fait rougir là-bas
+/// ## ⚠︎ Ce fichier est lu par la CI du site, mais pour un seul chemin
 ///
-/// Depuis le 1er octobre 2026, `ONTBibleWebapp` lit **ce fichier source** dans
-/// deux de ses épreuves, par chemin relatif (`../ONTBibleApp/…`) :
+/// `ONTBibleWebapp` lit **ce fichier source** par chemin relatif
+/// (`../ONTBibleApp/…`) dans `association.rs` :
 ///
 /// ```text
-/// association.rs  l_identifiant_s_accorde_avec_le_backend
-///                 exige APP_ID et les trois chemins, nommément
-/// association.rs  le_paquet_s_accorde_avec_le_depot_android
-///                 lit android/app/build.gradle.kts — même dépôt, pas ce fichier
+/// l_identifiant_s_accorde_avec_le_backend   APP_ID + `/fr/lire/*`, et rien d'autre
+/// le_paquet_s_accorde_avec_le_depot_android lit android/app/build.gradle.kts
 /// ```
 ///
-/// **Donc : retirer ou renommer un chemin ici fait échouer la CI du site**, et
-/// l'erreur accusera le site pour un travail fait ici. Les deux épreuves se
-/// taisent si le dépôt voisin est absent — un accord ne peut pas exiger la
-/// présence de ce avec quoi il accorde — mais sur cette machine il est là.
+/// **Donc : retirer `/fr/lire/*` d'ici fait échouer la CI du site**, et l'erreur
+/// accusera le site pour un travail fait ici. Les deux épreuves se taisent si le
+/// dépôt voisin est absent — un accord ne peut pas exiger la présence de ce avec
+/// quoi il accorde.
 ///
-/// L'égalité n'est tenable que parce que ==la liste ne se raccourcit jamais== :
-/// le jour où un quatrième âge apparaît, c'est ici qu'il s'ajoute d'abord, et
-/// l'épreuve du site suit. Jamais l'inverse.
+/// ### Le site a exigé les trois âges pendant une heure, puis l'a défait
+///
+/// Le 1er octobre 2026, voyant cette copie alignée, la session du site a
+/// resserré son épreuve sur les trois chemins. Sa CI a rougi aussitôt, et pour
+/// une raison qui vaut d'être retenue :
+///
+/// ```text
+/// son arbre local   voit la branche en cours de cette session
+/// sa CI             clone `dev`, où la promotion n'est pas passée
+/// ```
+///
+/// > ==Le dépôt voisin qu'on lit n'est pas celui que la CI clone.== Un arbre de
+/// > travail porte les branches de qui y travaille ; une CI ne voit que ce qui
+/// > est fusionné. Les deux répondent à la même commande et ne disent pas la
+/// > même chose.
+///
+/// Ici la fenêtre n'est pas de quelques heures : `device → dev` est une
+/// promotion qui attend l'auteur, et dix-sept commits l'attendaient ce jour-là.
+/// **Le rouge tombait donc chez qui n'avait rien à corriger**, sans date de fin.
+///
+/// ### Ce qui distingue une garde tenable d'une file d'attente
+///
+/// L'épreuve Android, elle, tient — et la différence est nette :
+///
+/// | garde | ce qu'elle compare | pourquoi |
+/// |---|---|---|
+/// | `applicationId` | deux valeurs **stables** | un identifiant se renomme, il ne s'allonge pas : aucun côté n'a jamais raison d'être en retard |
+/// | les chemins d'association | deux **listes** dont l'une grandit | le côté qui ajoute précède forcément l'autre |
+///
+/// > ==Une garde d'égalité entre dépôts tient quand les deux côtés changent
+/// > ensemble, et devient une file d'attente dès que l'un peut avoir raison
+/// > d'être en retard.== *(formulation de la session du site.)*
+///
+/// D'où le partage retenu : le site garde `/fr/lire/*`, l'invariant présent des
+/// deux côtés depuis le premier jour ; l'alignement des âges plus récents est
+/// gardé **ici**, à l'endroit du geste. Chacun garde ce qu'il contrôle.
+///
+/// ### Et ce paragraphe a été faux pendant une heure
+///
+/// Il affirmait que le site exigeait les trois. C'était vrai à l'écriture et
+/// faux une heure après. ==Une trace qui décrit la garde d'un voisin se périme
+/// au rythme de ce voisin, pas au sien== — et personne ne vient la relire. Le
+/// remède n'est pas d'y renoncer : c'est de ne décrire que ce dont on dépend
+/// vraiment, ici un seul chemin.
 ///
 /// C'est la seconde dépendance de ce genre trouvée en deux jours, et les deux
 /// sont nées **dans l'autre dépôt** — l'autre vise `app/Captures/brut/`, voir
-/// `app/Captures/LISEZ-MOI.md`. Rien ici ne peut les énumérer : elles ne se
-/// découvrent qu'en se parlant, et elles s'écrivent à l'endroit du geste.
+/// `app/Captures/LISEZ-MOI.md`. Aucune n'a été trouvée par une recherche :
+/// ==elles ne se découvrent qu'en se parlant==, et elles s'écrivent à l'endroit
+/// du geste.
 ///
 /// Le reste du domaine — page d'accueil, mentions — doit rester consultable
 /// dans un navigateur, d'où l'absence de `{"/": "*"}`.
