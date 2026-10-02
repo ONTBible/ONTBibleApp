@@ -56,6 +56,42 @@ information, et il se voit.
 
 ---
 
+## #348 · Rendre au couplage sa portée réelle : un chemin gardé, pas trois
+
+    ouverte le   2 octobre 2026, par iOS
+    vers         device
+    état         ouverte
+
+**Pourquoi.** Le paragraphe de #347 affirmait que la CI du site exigeait les
+trois chemins d'association. ==Vrai à l'écriture, faux une heure après== : le
+site a défait son resserrement. Mesuré dans son fichier, pas déduit de son
+message — son épreuve n'exige plus que `/fr/lire/*`.
+
+**Ce que ça engage.** Rien de fonctionnel : c'est de la documentation, et la
+seule garde réelle porte sur un chemin présent des deux côtés depuis le premier
+jour. Le partage retenu est que ==chacun garde ce qu'il contrôle== : le site
+garde l'invariant, l'alignement des âges récents est gardé ici.
+
+**Pour la relire.** La cause du rouge chez le site est la plus instructive :
+==le dépôt voisin qu'on lit n'est pas celui que la CI clone==. Son arbre local
+voyait ma branche en cours ; sa CI clone `dev`, où dix-sept commits attendaient
+une promotion qui est la décision de l'auteur. **Le rouge tombait chez qui
+n'avait rien à corriger, sans date de fin.**
+
+Et la règle qui distingue les deux gardes entre dépôts : `applicationId` compare
+deux **valeurs stables** — un identifiant se renomme, il ne s'allonge pas, donc
+aucun côté n'a jamais raison d'être en retard. Les chemins comparent deux
+**listes dont l'une grandit**, et le côté qui ajoute précède forcément l'autre.
+==Une garde d'égalité entre dépôts devient une file d'attente dès que l'un peut
+avoir raison d'être en retard.==
+
+Enfin, le défaut de ce paragraphe vaut pour toute trace du genre : ==une trace
+qui décrit la garde d'un voisin se périme au rythme de ce voisin, pas au sien==,
+et personne ne vient la relire. Le remède est de ne décrire que ce dont on
+dépend vraiment.
+
+---
+
 ## #347 · Accorder la copie de l'association aux trois âges, et périmer une consigne
 
     ouverte le   1er octobre 2026, par iOS
