@@ -161,3 +161,97 @@ struct DailySourceOfTruthTests {
         }
     }
 }
+
+/// Le vivier du widget, qui est une **copie** et non un partage.
+///
+/// ## Pourquoi cette épreuve regarde le disque et non le bundle
+///
+/// `DailyVerseTests` ci-dessus compare le choix de l'app à `daily.pool()` —
+/// le même vivier des deux côtés. Elle mesure donc l'accord de l'app **avec
+/// elle-même**, et elle est restée verte pendant les sept semaines où le
+/// widget montrait un autre verset.
+///
+/// ==Un contrôle qui interroge une seule des deux copies ne peut pas voir
+/// qu'elles divergent.== Il faut aller lire les deux fichiers là où ils
+/// vivent, et c'est pourquoi celle-ci passe par `#filePath`.
+///
+/// ## Ce qui s'était passé, et pourquoi ça ne se voyait pas
+///
+/// Une extension ne lit pas le bundle de l'app qui la contient : `project.yml`
+/// recopie `daily.json` dans `Widget/Resources/`. **Mais rien ne faisait la
+/// recopie.** Mesuré le 2 octobre 2026 — le fichier du widget datait du
+/// 12 août à 01:47, jour de sa création, et portait 251 versets contre 254.
+///
+/// Et le défaut n'est pas « le widget a trois versets de retard ». C'est qu'il
+/// montre **un autre verset** : `DailySelection` avance d'un pas premier avec
+/// la **taille** du vivier, donc trois entrées de plus déplacent l'indice. Les
+/// deux calculaient juste, sur deux viviers différents.
+///
+/// L'auteur l'a vu comme une inversion — « 4:6 dans l'app, 6:4 dans le
+/// widget ». ==Deux versets tirés au hasard du même livre se ressemblent assez
+/// pour qu'on lise une permutation de chiffres là où il y a deux textes
+/// différents.==
+struct VivierDuWidgetTests {
+    private static func fichier(_ relatif: String) throws -> Data {
+        let racine = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Tests/
+            .deletingLastPathComponent()  // app/
+        return try Data(contentsOf: racine.appending(path: relatif))
+    }
+
+    /// Comparer les **octets**, et non le nombre d'entrées.
+    ///
+    /// Compter les versets laisserait passer un texte corrigé ou un renvoi
+    /// réécrit — or le widget affiche `r` tel quel, et l'app compose le sien
+    /// depuis le corpus. Deux viviers de même taille aux contenus différents
+    /// donneraient le même indice et deux textes distincts.
+    @Test("le vivier du widget est l'exact miroir de celui de l'app")
+    func lesDeuxViviersConcordent() throws {
+        let app = try Self.fichier("Resources/data/daily.json")
+        let widget = try Self.fichier("Widget/Resources/daily.json")
+        #expect(
+            app == widget,
+            """
+            `Widget/Resources/daily.json` a divergé de celui de l'app \
+            (\(app.count) octets contre \(widget.count)). \
+            Le widget montrera un autre verset que la carte du Qahal : \
+            la sélection dépend de la taille du vivier. \
+            `scripts/corpus.sh` fait la copie — la relancer.
+            """
+        )
+    }
+
+    /// Et la conséquence, dite dans les termes du lecteur.
+    ///
+    /// L'épreuve ci-dessus suffit à barrer la régression ; celle-ci dit
+    /// **pourquoi elle compte**, en mesurant ce que le lecteur verrait. Elle
+    /// rougirait sur le jeu du 12 août avec sept jours d'écarts consécutifs.
+    @Test("app et widget tombent sur le même verset, sept jours d'affilée")
+    func lesDeuxTombentSurLeMemeVerset() throws {
+        // Décodé par le **schéma engendré**, comme le fait
+        // `BundleDailyVerseRepository` : écrire ici une structure de test
+        // parallèle en ferait une seconde définition du format, qui divergerait
+        // le jour où le pipeline change le fichier.
+        let lire = { (chemin: String) throws -> [DailyVerse] in
+            try JSONDecoder()
+                .decode(ONTSchema.DailyFile.self, from: Self.fichier(chemin))
+                // L'adaptateur `DailyVerse.init(_ dto:)` d'ONTData est interne
+                // à son module : on repasse par l'initialiseur public.
+                .verses.map { DailyVerse(b: $0.b, c: $0.c, n: $0.n, r: $0.r, t: $0.t) }
+        }
+        let app = try lire("Resources/data/daily.json")
+        let widget = try lire("Widget/Resources/daily.json")
+
+        var calendrier = Calendar(identifier: .gregorian)
+        calendrier.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let depart = calendrier.date(from: DateComponents(year: 2026, month: 10, day: 2))!
+
+        for offset in 0..<7 {
+            let jour = calendrier.date(byAdding: .day, value: offset, to: depart)!
+            let a = try #require(DailySelection.verse(for: jour, in: app, calendar: calendrier))
+            let w = try #require(DailySelection.verse(for: jour, in: widget, calendar: calendrier))
+            let ecart: Comment = "jour \(offset) : l'app dit \(a.reference), le widget \(w.reference)"
+            #expect(a.reference == w.reference, ecart)
+        }
+    }
+}

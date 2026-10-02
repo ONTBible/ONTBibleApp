@@ -146,6 +146,27 @@ mkdir -p app/Resources/data
 # que ces deux lignes décident de faire traverser.
 cp dist/*.json app/Resources/data/
 cp -R dist/books app/Resources/data/
+
+# **Le vivier du widget, qui est une copie et non un partage.**
+#
+# Une extension ne lit pas le bundle de l'app qui la contient : `project.yml`
+# recopie donc `daily.json` dans `Widget/Resources/` plutôt que de configurer
+# un groupe d'app. Le choix tient — 125 Ko contre une capacité de plus sur
+# l'App ID — mais **la recopie n'était faite nulle part**.
+#
+# Résultat, mesuré le 2 octobre 2026 : le fichier du widget datait du 12 août
+# à 01:47, jour de sa création, et portait **251** versets quand le vivier en
+# comptait **254**.
+#
+# Ce n'est pas un retard de contenu, c'est un autre verset. `DailySelection`
+# avance d'un pas premier avec la **taille** du vivier : trois entrées de plus
+# déplacent l'indice, et l'app comme le widget calculent juste — sur deux
+# viviers différents. Le lecteur voit deux versets du jour qui ne se
+# ressemblent que par hasard.
+#
+# `cp` du seul fichier, jamais `rm -rf` du dossier : il porte aussi les deux
+# coupes de Literata, qui ne viennent pas de `dist/`.
+cp dist/daily.json app/Widget/Resources/daily.json
 # L'hébreu seul — voir plus haut. `-R` sur le dossier nommé, jamais sur
 # `dist/sources/` entier : le jour où un témoin grec arrive, il ne doit pas
 # entrer dans le paquet parce que personne n'a relu cette ligne.
